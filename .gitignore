@@ -25,3 +25,10 @@ obj/
 **/diagrams/**/*.dot
 **/diagrams/**/*.plain
 **/diagrams/**/*.puml
+
+# Machine-local database settings
+database/appsettings.local.json
+database/*.local.json
+
+# Local certificates
+*.crt
