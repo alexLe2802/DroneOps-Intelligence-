@@ -1,0 +1,43 @@
+# Local OS / Office temporary files
+.DS_Store
+~$*
+*.tmp
+__pycache__/
+*.py[cod]
+
+# Local document backups and development environments
+docs/archive/
+.venv/
+venv/
+node_modules/
+.next/
+bin/
+obj/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Diagram deliverables: draw.io and PNG only
+**/diagrams/**/*.svg
+**/diagrams/**/*.pdf
+**/diagrams/**/*.dot
+**/diagrams/**/*.plain
+**/diagrams/**/*.puml
+
+# Machine-local tooling, generated output and dependencies (not project source)
+**/.agents/
+**/.codex/
+**/.hallmark/
+**/.vscode/
+**/skills-lock.json
+**/graphify-out/
+/.graphifyrc
+/.graphifyignore
+/scripts/graphify.sh
+**/tmp/
+**/temp/
+**/logs/
+**/.cloudflare/
+**/.vinext/
