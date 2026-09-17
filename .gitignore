@@ -33,6 +33,19 @@ database/*.local.json
 # Local certificates
 *.crt
 
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Visual Studio generated
+**/bin/
+**/obj/
+
+# VS Document Layout
+DocumentLayout.json
+DocumentLayout.backup.json
+
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/
 **/.codex/
