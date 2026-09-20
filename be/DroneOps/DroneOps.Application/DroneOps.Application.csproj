@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
