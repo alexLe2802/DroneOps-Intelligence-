@@ -7,7 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.31" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.31" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DroneOps.Application\DroneOps.Application.csproj" />
+    <ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
+    <ProjectReference Include="..\DroneOps.Persistence\DroneOps.Persistence.csproj" />
   </ItemGroup>
 
 </Project>
