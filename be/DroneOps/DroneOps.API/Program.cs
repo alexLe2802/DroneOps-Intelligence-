@@ -1,5 +1,6 @@
-using DroneOps.Persistence.Data;
-using Microsoft.EntityFrameworkCore;
+using DroneOps.Application;
+using DroneOps.Application.Settings;
+using DroneOps.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,12 +11,11 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-{
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection"));
-});
+builder.Services.AddApplicationServices();
 
+builder.Services.AddPersistenceServices(builder.Configuration);
+
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 #endregion
 
 var app = builder.Build();
