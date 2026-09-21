@@ -1,12 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using DroneOps.Application.DTOs.Auth;
 
-namespace DroneOps.Application.Interfaces
+namespace DroneOps.Application.Interfaces;
+
+public interface IAuthService
 {
-    internal class IAuthService
-    {
-    }
+    Task<LoginResponse?> LoginAsync(
+        LoginRequest request,
+        CancellationToken cancellationToken = default);
 }

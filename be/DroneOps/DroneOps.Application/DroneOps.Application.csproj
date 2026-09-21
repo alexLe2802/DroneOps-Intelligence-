@@ -7,7 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
+    <ProjectReference Include="..\DroneOps.Persistence\DroneOps.Persistence.csproj" />
   </ItemGroup>
 
 </Project>
