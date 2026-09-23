@@ -5,6 +5,7 @@ using DroneOps.Application.DTOs.Auth;
 using DroneOps.Application.Interfaces;
 using DroneOps.Application.Settings;
 using DroneOps.Domain.Entities;
+using DroneOps.Persistence.Interfaces;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using BC = BCrypt.Net.BCrypt;
