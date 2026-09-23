@@ -16,12 +16,17 @@ public static class DependencyInjection
     {
         var connectionString = configuration
             .GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException(
-                "DefaultConnection is missing.");
+            ?? throw new InvalidOperationException("DefaultConnection is missing.");
 
         services.AddDbContext<AppDbContext>(options =>
         {
-            options.UseNpgsql(connectionString);
+            options.UseNpgsql(connectionString, npgsqlOptions =>
+            {
+                npgsqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 3,
+                    maxRetryDelay: TimeSpan.FromSeconds(5),
+                    errorCodesToAdd: null);
+            });
         });
 
         services.AddScoped(
