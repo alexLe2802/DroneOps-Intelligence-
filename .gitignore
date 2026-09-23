@@ -45,3 +45,6 @@ database/*.local.json
 # VS Document Layout
 DocumentLayout.json
 DocumentLayout.backup.json
+# Local backend SDK and credentials
+.tools/
+**/appsettings.Local.json
