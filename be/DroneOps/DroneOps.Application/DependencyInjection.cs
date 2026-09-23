@@ -1,6 +1,6 @@
-﻿using DroneOps.Application.Interfaces;
+﻿using DroneOps.Application.Interfaces.Auth;
 using DroneOps.Application.Interfaces.Users;
-using DroneOps.Application.Services;
+using DroneOps.Application.Services.Auth;
 using DroneOps.Application.Services.Users;
 using Microsoft.Extensions.DependencyInjection;
 

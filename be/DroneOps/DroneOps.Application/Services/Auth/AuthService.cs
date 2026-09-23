@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using DroneOps.Application.DTOs.Auth;
-using DroneOps.Application.Interfaces;
 using DroneOps.Application.Settings;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
@@ -15,8 +14,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using BC = BCrypt.Net.BCrypt;
+using DroneOps.Application.Interfaces.Auth;
 
-namespace DroneOps.Application.Services;
+namespace DroneOps.Application.Services.Auth;
 
 public class AuthService : IAuthService
 {
