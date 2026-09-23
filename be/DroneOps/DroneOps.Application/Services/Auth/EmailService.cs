@@ -1,9 +1,9 @@
 ﻿using System.Net;
 using System.Net.Mail;
-using DroneOps.Application.Interfaces;
+using DroneOps.Application.Interfaces.Auth;
 using Microsoft.Extensions.Configuration;
 
-namespace DroneOps.Application.Services;
+namespace DroneOps.Application.Services.Auth;
 
 public class EmailService : IEmailService
 {
