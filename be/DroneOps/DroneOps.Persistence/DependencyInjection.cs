@@ -1,5 +1,6 @@
 ﻿using DroneOps.Application.Interfaces;
 using DroneOps.Persistence.Data;
+using DroneOps.Persistence.Interfaces;
 using DroneOps.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

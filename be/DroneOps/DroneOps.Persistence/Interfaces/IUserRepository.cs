@@ -1,6 +1,7 @@
-﻿using DroneOps.Domain.Entities;
+﻿using DroneOps.Application.Interfaces;
+using DroneOps.Domain.Entities;
 
-namespace DroneOps.Application.Interfaces;
+namespace DroneOps.Persistence.Interfaces;
 
 public interface IUserRepository : IGenericRepository<User>
 {
@@ -8,7 +9,7 @@ public interface IUserRepository : IGenericRepository<User>
         string email,
         CancellationToken cancellationToken = default);
 
-    Task<bool> EmailExistsAsync(
-        string email,
+    Task<User?> GetByIdWithRoleAsync(
+        Guid userId,
         CancellationToken cancellationToken = default);
 }

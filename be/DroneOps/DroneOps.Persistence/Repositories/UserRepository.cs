@@ -1,11 +1,11 @@
-﻿using DroneOps.Application.Interfaces;
-using DroneOps.Domain.Entities;
+﻿using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
+using DroneOps.Persistence.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace DroneOps.Persistence.Repositories;
 
-public class UserRepository
+public sealed class UserRepository
     : GenericRepository<User>, IUserRepository
 {
     public UserRepository(AppDbContext dbContext)
@@ -17,26 +17,26 @@ public class UserRepository
         string email,
         CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = email.Trim().ToLowerInvariant();
+        string normalizedEmail =
+            email.Trim().ToLowerInvariant();
 
         return await DbSet
             .AsNoTracking()
-            .Include(x => x.Role)
+            .Include(user => user.Role)
             .FirstOrDefaultAsync(
-                x => x.Email.ToLower() == normalizedEmail,
+                user => user.Email.ToLower() == normalizedEmail,
                 cancellationToken);
     }
 
-    public async Task<bool> EmailExistsAsync(
-        string email,
+    public async Task<User?> GetByIdWithRoleAsync(
+        Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = email.Trim().ToLowerInvariant();
-
         return await DbSet
             .AsNoTracking()
-            .AnyAsync(
-                x => x.Email.ToLower() == normalizedEmail,
+            .Include(user => user.Role)
+            .FirstOrDefaultAsync(
+                user => user.Id == userId,
                 cancellationToken);
     }
 }
