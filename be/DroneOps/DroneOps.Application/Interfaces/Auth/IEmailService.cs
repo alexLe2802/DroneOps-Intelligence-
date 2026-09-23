@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DroneOps.Application.Interfaces;
+namespace DroneOps.Application.Interfaces.Auth;
 
 public interface IEmailService
 {
