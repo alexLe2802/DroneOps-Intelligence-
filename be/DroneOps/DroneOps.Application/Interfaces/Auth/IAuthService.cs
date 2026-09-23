@@ -1,6 +1,6 @@
 ﻿using DroneOps.Application.DTOs.Auth;
 
-namespace DroneOps.Application.Interfaces;
+namespace DroneOps.Application.Interfaces.Auth;
 
 public interface IAuthService
 {
