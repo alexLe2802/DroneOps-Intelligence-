@@ -54,6 +54,7 @@ DocumentLayout.backup.json
 **/*firebase-adminsdk*.json
 **/secrets/
 **/.keys/
+**/be/DroneOps/DroneOps.API/secrets/
 
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/
