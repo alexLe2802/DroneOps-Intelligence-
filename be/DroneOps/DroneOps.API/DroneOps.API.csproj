@@ -7,7 +7,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FirebaseAdmin" Version="3.6.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DroneOps.Persistence\DroneOps.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="secrets/**" />
+    <None Remove="secrets/**" />
+    <Content Update="appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="../../../database/migrations/001_auth.sql" Link="Migrations/001_auth.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
