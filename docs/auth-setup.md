@@ -65,7 +65,7 @@ The form also offers password visibility and a password-reset request. Reset con
    npm run dev
    ```
 
-   Open `http://localhost:3000/login`. Backend defaults to `http://localhost:5159`. Both frontend public origin and backend `Auth:PublicOrigin` must agree exactly. Use `fe/.env.example` for overrides. No Analytics is initialized by the login flow.
+   Open `http://localhost:3000/login`. Backend defaults to `http://localhost:5159`. Both frontend public origin and backend `Auth:PublicOrigin` must agree exactly. Copy `fe/.env.example` to ignored `fe/.env.local` and fill the Firebase web configuration. Required fields: API key, auth domain, project ID and app ID. The current local workspace is already configured; other checkouts need their own `.env.local`. No Analytics is initialized by the login flow.
 6. Sign in as `impro2003@gmail.com`. Use **Operators & accounts** to add each Operator's Google email before their first application sign-in. There is no role picker on the login page.
 
 ## Production configuration
@@ -110,3 +110,9 @@ dotnet run --project be/DroneOps/DroneOps.AuthChecks
 References: [Firebase session cookies](https://firebase.google.com/docs/auth/admin/manage-cookies), [Google sign-in](https://firebase.google.com/docs/auth/web/google-signin), [Firebase persistence](https://firebase.google.com/docs/auth/web/auth-state-persistence), [Google branding](https://developers.google.com/identity/branding-guidelines). `fe/public/google-signin.png` is the unmodified Light / Square / Android+Web @4x asset from Google's official sign-in asset bundle, rendered at 270×60 with its original aspect ratio.
 
 Email/password references: [Firebase password authentication](https://firebase.google.com/docs/auth/web/password-auth), [Verification and password reset](https://firebase.google.com/docs/auth/web/manage-users).
+
+## Git hygiene
+
+Root `.gitignore` excludes private credentials, local settings, `.env` files, key/certificate files, backend/frontend build output, test reports and tool caches. `fe/.env.example` contains placeholders only. `fe/src/lib/auth/firebase.ts` is application code and remains tracked; it reads public web settings from environment variables. Moving Firebase web settings out of source does not hide them from browser users. Service-account keys stay server-side and are also excluded from publish output by the API project file.
+
+`.gitignore` does not remove already-tracked files or erase history. Before committing, inspect `git ls-files -ci --exclude-standard` and review staged files. If a real private credential was ever committed, rotate it; merely adding an ignore rule does not revoke it.
