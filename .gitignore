@@ -54,3 +54,4 @@ DocumentLayout.backup.json
 **/*firebase-adminsdk*.json
 **/secrets/
 **/.keys/
+**/be/DroneOps/DroneOps.API/secrets/
