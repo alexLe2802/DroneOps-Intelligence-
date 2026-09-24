@@ -45,3 +45,12 @@ database/*.local.json
 # VS Document Layout
 DocumentLayout.json
 DocumentLayout.backup.json
+# Local backend SDK and credentials
+.tools/
+**/appsettings.Local.json
+
+# Firebase service account secrets and server data-protection keys
+**/serviceAccountKey*.json
+**/*firebase-adminsdk*.json
+**/secrets/
+**/.keys/
