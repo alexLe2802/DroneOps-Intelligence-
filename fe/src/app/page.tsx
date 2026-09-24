@@ -20,8 +20,8 @@ export default function HomePage() {
           <nav className="desktop-nav" aria-label="Main navigation">
             <a href="#overview">Platform<br />overview</a><a href="#telemetry">MAVLink<br />telemetry</a><a href="#geofence">Geofence<br />engine</a><a href="#ai-risk">AI risk<br />assist</a>
           </nav>
-          <a className="button primary header-cta" href="#demo">Explore demo <span aria-hidden="true">↗</span></a>
-          <details className="mobile-nav"><summary>Menu <span aria-hidden="true">☰</span></summary><nav aria-label="Mobile navigation"><a href="#overview">Platform overview</a><a href="#demo">Interactive demo</a><a href="#geofence">Geofence engine</a><a href="#telemetry">MAVLink telemetry</a><a href="#ai-risk">AI risk assist</a></nav></details>
+          <a className="button primary header-cta" href="/login">Sign in <span aria-hidden="true">↗</span></a>
+          <details className="mobile-nav"><summary>Menu <span aria-hidden="true">☰</span></summary><nav aria-label="Mobile navigation"><a href="/login">Sign in / Operator portal</a><a href="#overview">Platform overview</a><a href="#demo">Interactive demo</a><a href="#geofence">Geofence engine</a><a href="#telemetry">MAVLink telemetry</a><a href="#ai-risk">AI risk assist</a></nav></details>
         </div>
       </header>
       <main>
@@ -32,7 +32,7 @@ export default function HomePage() {
               <h1>Next-Gen Autonomous<br /><span>UAV Mission Operations</span><br />&amp; Live Telemetry</h1>
               <p className="hero-description">Mission planning, geofence validation, real-time MAVLink telemetry, and AI-assisted risk advisory. Your entire mission lifecycle, connected.</p>
               <div className="metrics"><div><strong>PLAN</strong><small>Validate flight paths</small></div><div><strong>MONITOR</strong><small>Track mission status</small></div><div><strong>ANALYZE</strong><small>Learn from every flight</small></div></div>
-              <div className="hero-actions"><a className="button primary" href="#demo"><span aria-hidden="true">→</span> Explore live demo</a><a className="button secondary" href="#architecture"><span aria-hidden="true">▥</span> Explore architecture</a></div>
+              <div className="hero-actions"><a className="button primary" href="/login"><span aria-hidden="true">→</span> Launch mission portal</a><a className="button secondary" href="#architecture"><span aria-hidden="true">▥</span> Explore architecture</a></div>
               <p className="hero-note"><span /> Built for UAV operators, mission managers, and operational teams.</p>
             </div>
             <TelemetryDemo />
