@@ -50,7 +50,9 @@ DocumentLayout.backup.json
 **/appsettings.Local.json
 
 # Firebase service account secrets and server data-protection keys
-**/serviceAccountKey*.json
-**/*firebase-adminsdk*.json
+**/firebase-service-account.json
+**/firebase.ts
 **/secrets/
 **/.keys/
+be/DroneOps/DroneOps.API/secrets/firebase-service-account.json
+fe/src/lib/auth/firebase.ts
