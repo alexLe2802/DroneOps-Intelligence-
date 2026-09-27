@@ -4,26 +4,28 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using DroneOps.Application.DTOs.Auth;
+using DroneOps.Application.Interfaces.Auth;
 using DroneOps.Application.Settings;
 using DroneOps.Domain.Entities;
-using DroneOps.Persistence.Interfaces;
 using DroneOps.Persistence.Data;
+using DroneOps.Persistence.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using BC = BCrypt.Net.BCrypt;
-using DroneOps.Application.Interfaces.Auth;
 
 namespace DroneOps.Application.Services.Auth;
 
 public class AuthService : IAuthService
 {
+    // Biểu thức Regex kiểm tra định dạng email chuẩn và chặn đuôi lặp rác (ví dụ: .com.com)
     private static readonly Regex EmailFormatRegex = new(
         @"^[a-zA-Z0-9._%+-]+@(?!.*(\.[a-zA-Z]{2,})\1$)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // Biểu thức Regex kiểm tra mật khẩu mạnh chuẩn OWASP/NIST (>=8 ký tự, đủ chữ hoa, thường, số, ký tự đặc biệt)
     private static readonly Regex StrongPasswordRegex = new(
         @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,128}$",
         RegexOptions.Compiled);
@@ -48,33 +50,27 @@ public class AuthService : IAuthService
         _jwtSettings = jwtSettings.Value;
     }
 
+    // 1. Đăng nhập và sinh Token JWT
     public async Task<LoginResponse?> LoginAsync(
         LoginRequest request,
         CancellationToken cancellationToken = default)
     {
         var cleanEmail = request.Email?.Trim().ToLowerInvariant() ?? string.Empty;
 
-        var user = await _userRepository.GetByEmailWithRoleAsync(
-            cleanEmail,
-            cancellationToken);
-
+        var user = await _userRepository.GetByEmailWithRoleAsync(cleanEmail, cancellationToken);
         if (user is null)
         {
             return null;
         }
 
-        var validPassword = BC.Verify(
-            request.Password,
-            user.PasswordHash);
-
+        // So khớp mật khẩu gốc với chuỗi Hash bằng BCrypt
+        var validPassword = BC.Verify(request.Password, user.PasswordHash);
         if (!validPassword)
         {
             return null;
         }
 
-        var expiresAt = DateTime.UtcNow.AddMinutes(
-            _jwtSettings.ExpirationMinutes);
-
+        var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes);
         var token = GenerateToken(user, expiresAt);
 
         return new LoginResponse
@@ -91,6 +87,7 @@ public class AuthService : IAuthService
         };
     }
 
+    // Hàm tạo chuỗi JWT AccessToken kèm thông tin Claims
     private string GenerateToken(User user, DateTime expiresAt)
     {
         var claims = new List<Claim>
@@ -102,12 +99,8 @@ public class AuthService : IAuthService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_jwtSettings.Key));
-
-        var credentials = new SigningCredentials(
-            key,
-            SecurityAlgorithms.HmacSha256);
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,
@@ -120,6 +113,7 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    // Hàm sinh mã ngẫu nhiên 5 ký tự bảo mật cao (Cơ chế mật mã RandomNumberGenerator)
     private string Generate5CharacterCode()
     {
         const string chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -136,30 +130,50 @@ public class AuthService : IAuthService
         return new string(result);
     }
 
-    // 1. Luồng tiếp nhận đăng ký: Báo lỗi ngay lập tức nếu email đã tồn tại
+    // 2. Luồng đăng ký tài khoản ADMIN
     public async Task<string> RegisterAsync(
         RegisterRequest request,
         CancellationToken cancellationToken = default)
     {
+        return await ProcessRegistrationAsync(request, "Admin", cancellationToken);
+    }
+
+    // 3. Luồng đăng ký tài khoản PILOT (USER)
+    public async Task<string> RegisterPilotAsync(
+        RegisterRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await ProcessRegistrationAsync(request, "Pilot", cancellationToken);
+    }
+
+    // Hàm xử lý chung: Kiểm tra dữ liệu, rate limit, lưu Cache và gửi Mail
+    private async Task<string> ProcessRegistrationAsync(
+        RegisterRequest request,
+        string roleName,
+        CancellationToken cancellationToken)
+    {
         var cleanEmail = request.Email?.Trim().ToLowerInvariant() ?? string.Empty;
         var cleanFullName = request.FullName?.Trim() ?? string.Empty;
 
+        // Ràng buộc họ tên
         if (cleanFullName.Length < 2 || cleanFullName.Length > 100)
         {
             throw new Exception("Full name must be between 2 and 100 characters.");
         }
 
+        // Ràng buộc định dạng email
         if (string.IsNullOrWhiteSpace(cleanEmail) || !EmailFormatRegex.IsMatch(cleanEmail) || cleanEmail.Contains(".."))
         {
             throw new Exception("Invalid email address format.");
         }
 
+        // Ràng buộc độ phức tạp mật khẩu
         if (string.IsNullOrWhiteSpace(request.Password) || !StrongPasswordRegex.IsMatch(request.Password))
         {
             throw new Exception("Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.");
         }
 
-        // KIỂM TRA TRỰC TIẾP DATABASE: Nếu email đã có thì chặn ngay lập tức
+        // Chặn tức thì nếu email đã có người đăng ký trong Database
         var emailExists = await _context.Users
             .AsNoTracking()
             .AnyAsync(u => u.Email.ToLower() == cleanEmail, cancellationToken);
@@ -169,7 +183,7 @@ public class AuthService : IAuthService
             throw new Exception("This email is already registered.");
         }
 
-        // Chống spam gửi mail liên tục (60 giây)
+        // Chống spam: Mỗi email phải đợi tối thiểu 60 giây giữa các lần yêu cầu
         var rateLimitKey = $"RATE_LIMIT_{cleanEmail}";
         if (_cache.TryGetValue(rateLimitKey, out _))
         {
@@ -179,7 +193,7 @@ public class AuthService : IAuthService
         var verificationCode = Generate5CharacterCode();
 
         Console.WriteLine($"\n==========================================");
-        Console.WriteLine($"[OTP CODE]: {verificationCode} for {cleanEmail}");
+        Console.WriteLine($"[OTP CODE ({roleName})]: {verificationCode} for {cleanEmail}");
         Console.WriteLine($"==========================================\n");
 
         var cacheKey = $"REG_OTP_{cleanEmail}";
@@ -188,16 +202,19 @@ public class AuthService : IAuthService
             Email = cleanEmail,
             Password = request.Password,
             FullName = cleanFullName,
+            RoleName = roleName, // Lưu lại Role tương ứng vào Cache để verify gán đúng
             Code = verificationCode,
             FailedAttempts = 0
         };
 
+        // Lưu thông tin tạm thời trong 10 phút
         _cache.Set(cacheKey, cacheEntry, TimeSpan.FromMinutes(10));
         _cache.Set(rateLimitKey, true, TimeSpan.FromSeconds(60));
 
+        var roleDisplayName = roleName == "Pilot" ? "Pilot / User" : "Admin";
         var emailBody = $@"
             <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;'>
-                <h2 style='color: #1a73e8;'>DroneOps Verification Code</h2>
+                <h2 style='color: #1a73e8;'>DroneOps {roleDisplayName} Verification Code</h2>
                 <p>Hello <b>{cacheEntry.FullName}</b>,</p>
                 <p>Your 5-character verification code is:</p>
                 <div style='background-color: #f1f3f4; padding: 12px 20px; border-radius: 8px; width: fit-content; margin: 16px 0;'>
@@ -208,13 +225,13 @@ public class AuthService : IAuthService
 
         await _emailService.SendEmailAsync(
             cleanEmail,
-            "DroneOps - Verification Code",
+            $"DroneOps - {roleDisplayName} Verification Code",
             emailBody);
 
-        return "Verification code has been sent to your email.";
+        return $"Verification code has been sent to your email for {roleDisplayName} registration.";
     }
 
-    // 2. Luồng xác thực mã OTP và lưu tài khoản vào Database
+    // 4. Luồng xác thực OTP và lưu tài khoản vào Database với đúng Role
     public async Task<bool> VerifyRegisterAsync(
         VerifyRegisterRequest request,
         CancellationToken cancellationToken = default)
@@ -229,6 +246,7 @@ public class AuthService : IAuthService
             throw new Exception("Verification code has expired or does not exist. Please register again.");
         }
 
+        // Cơ chế chống dò mã (Brute-force): Sai quá 5 lần sẽ hủy mã ngay lập tức
         if (!string.Equals(pending.Code, cleanCode, StringComparison.OrdinalIgnoreCase))
         {
             pending.FailedAttempts++;
@@ -242,23 +260,22 @@ public class AuthService : IAuthService
             throw new Exception($"Invalid verification code. You have {5 - pending.FailedAttempts} attempt(s) remaining.");
         }
 
-        // Lấy Role có sẵn trong DB (không tự ý INSERT vào bảng Role tránh xung đột)
-        var defaultRole = await _context.Roles
-            .AsNoTracking()
-            .FirstOrDefaultAsync(cancellationToken);
+        // Lấy đúng Role từ Database theo RoleName được lưu trong Cache ("Admin" hoặc "Pilot")
+        var targetRole = await _context.Roles
+            .FirstOrDefaultAsync(r => r.Name.ToLower() == pending.RoleName.ToLower(), cancellationToken);
 
         Guid roleId;
-        if (defaultRole != null)
+        if (targetRole != null)
         {
-            roleId = defaultRole.Id;
+            roleId = targetRole.Id;
         }
         else
         {
-            // Nếu bảng Role rỗng, tạo Role mới với ID cố định an toàn
+            // Tự động khởi tạo Role dự phòng nếu DB chưa seed dữ liệu ban đầu
             var newRole = new Role
             {
                 Id = Guid.NewGuid(),
-                Name = "Pilot",
+                Name = pending.RoleName,
                 CreatedAt = DateTimeOffset.UtcNow
             };
             await _context.Roles.AddAsync(newRole, cancellationToken);
@@ -266,6 +283,7 @@ public class AuthService : IAuthService
             roleId = newRole.Id;
         }
 
+        // Băm mật khẩu bằng thuật toán BCrypt trước khi insert DB
         var newUser = new User
         {
             Id = Guid.NewGuid(),
@@ -291,15 +309,18 @@ public class AuthService : IAuthService
             throw new Exception($"Database error: {ex.InnerException?.Message ?? ex.Message}");
         }
 
+        // Kích hoạt thành công thì dọn sạch Cache
         _cache.Remove(cacheKey);
         return true;
     }
 
+    // Lớp đối tượng lưu trữ tạm trong MemoryCache
     private class PendingRegistration
     {
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
+        public string RoleName { get; set; } = "Pilot"; // Lưu trữ role: Admin hoặc Pilot
         public string Code { get; set; } = string.Empty;
         public int FailedAttempts { get; set; }
     }

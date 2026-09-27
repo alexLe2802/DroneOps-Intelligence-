@@ -44,6 +44,9 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Đăng ký tài khoản ADMIN (gán role Admin)
+    /// </summary>
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register(
@@ -68,6 +71,36 @@ public class AuthController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Đăng ký tài khoản PILOT / USER (gán role Pilot)
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("register-pilot")]
+    public async Task<IActionResult> RegisterPilot(
+        [FromBody] RegisterRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var message = await _authService.RegisterPilotAsync(request, cancellationToken);
+            return Ok(new
+            {
+                Message = message
+            });
+        }
+        catch (Exception ex)
+        {
+            var detail = ex.InnerException != null ? $"{ex.Message} ({ex.InnerException.Message})" : ex.Message;
+            return BadRequest(new
+            {
+                Message = detail
+            });
+        }
+    }
+
+    /// <summary>
+    /// Xác thực mã OTP để kích hoạt tài khoản
+    /// </summary>
     [AllowAnonymous]
     [HttpPost("verify-register")]
     public async Task<IActionResult> VerifyRegister(
