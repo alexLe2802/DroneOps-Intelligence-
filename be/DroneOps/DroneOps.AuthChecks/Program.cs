@@ -18,6 +18,8 @@ builder.Services.AddControllers().AddApplicationPart(typeof(AuthController).Asse
 var store = new FakeStore();
 builder.Services.Replace(ServiceDescriptor.Singleton<IAuthStore>(store));
 builder.Services.Replace(ServiceDescriptor.Singleton<IFirebaseIdentityProvider, FakeIdentity>());
+var directory = new FakeDirectory();
+builder.Services.Replace(ServiceDescriptor.Singleton<IFirebaseAccountDirectory>(directory));
 var app = builder.Build();
 app.UseAuthErrorHandling(); app.UseRouting(); app.UseRateLimiter(); app.UseAuthentication(); app.UseAuthCsrfProtection(); app.UseAuthorization(); app.MapControllers();
 await app.StartAsync();
@@ -83,7 +85,32 @@ try
     var managerSid = managerSessions[0].GetProperty("id").GetGuid();
     await Mutate(op, $"/api/auth/sessions/{managerSid}", method: "DELETE");
     Check((await manager.GetAsync("/api/auth/me")).StatusCode == HttpStatusCode.OK, "A user cannot revoke another user's session");
-    Check((await Mutate(manager, "/api/accounts", new { email = "new@example.com", displayName = "New Operator", role = "operations_manager" })).StatusCode == HttpStatusCode.Created && store.LastProvisionedRole == AccountRoles.Operator, "Manager provisioning cannot create arbitrary privileged roles");
+    Check((await Mutate(manager, "/api/accounts", new { email = "new@example.com", displayName = "New Operator", accountType = "new", password = "Test-only-password!", role = "operations_manager" })).StatusCode == HttpStatusCode.Created && store.LastProvisionedRole == AccountRoles.Operator, "Manager provisioning cannot create arbitrary privileged roles");
+    Check(store.Provisioned.Single().Role == AccountRoles.Operator && store.LastUid == directory.Users["new@example.com"].Uid, "New Pilot is bound to Firebase UID and server-assigned role");
+    Check((await Mutate(manager, "/api/accounts", new { email = "NEW@example.com", displayName = "Duplicate", accountType = "new", password = "Test-only-password!" })).StatusCode == HttpStatusCode.Conflict && directory.Created == 1, "Duplicate normalized email rejected before Firebase creation");
+    Check((await Mutate(manager, "/api/accounts", new { email = "other@example.com", displayName = " ", accountType = "existing" })).StatusCode == HttpStatusCode.BadRequest, "Blank Pilot name rejected");
+    Check((await Mutate(manager, "/api/accounts", new { email = "invalid", displayName = "Pilot", accountType = "existing" })).StatusCode == HttpStatusCode.BadRequest, "Invalid Pilot email rejected");
+    Check((await Mutate(manager, "/api/accounts", new { email = "other@example.com", displayName = "Pilot", accountType = "new", password = "short" })).StatusCode == HttpStatusCode.BadRequest, "Short initial password rejected on server");
+    Check((await Mutate(manager, "/api/accounts", new { email = "other@example.com", displayName = "Pilot", accountType = "new" })).StatusCode == HttpStatusCode.BadRequest, "New identity requires a password");
+    Check((await Mutate(manager, "/api/accounts", new { email = "other@example.com", displayName = "Pilot", accountType = "anything" })).StatusCode == HttpStatusCode.BadRequest, "Unknown account setup mode rejected");
+    Check((await Mutate(manager, "/api/accounts", new { email = "other@example.com", displayName = "Pilot" })).StatusCode == HttpStatusCode.BadRequest, "Missing setup mode cannot silently grant access");
+    Check((await Mutate(manager, "/api/accounts", new { email = "existing@example.com", displayName = "Pilot", accountType = "existing", password = "Test-only-password!" })).StatusCode == HttpStatusCode.BadRequest, "Existing account password cannot be overwritten");
+    Check((await Mutate(manager, "/api/accounts", new { email = "existing@example.com", displayName = "Pilot", accountType = "new", password = "Test-only-password!" })).StatusCode == HttpStatusCode.Conflict, "Existing Firebase identity requires explicit existing mode");
+    Check((await Mutate(manager, "/api/accounts", new { email = "missing@example.com", displayName = "Pilot", accountType = "existing" })).StatusCode == HttpStatusCode.Conflict, "Unknown Firebase user cannot be provisioned as existing");
+    Check((await Mutate(manager, "/api/accounts", new { email = "disabled@example.com", displayName = "Pilot", accountType = "existing" })).StatusCode == HttpStatusCode.Conflict, "Disabled Firebase user cannot be granted access");
+    var linked = await Mutate(manager, "/api/accounts", new { email = "EXISTING@example.com", displayName = "  Existing Pilot  ", accountType = "existing", isActive = false });
+    Check(linked.StatusCode == HttpStatusCode.Created && store.Provisioned.Last() is { DisplayName: "Existing Pilot", IsActive: false } && directory.Created == 1, "Existing identity linked with selected status and normalized profile without mutation");
+    var created = await Mutate(manager, "/api/accounts", new { email = "inactive@example.com", displayName = "Inactive Pilot", accountType = "new", password = "Test-only-password!", isActive = false });
+    Check(created.StatusCode == HttpStatusCode.Created && !store.Provisioned.Last().IsActive && !(await created.Content.ReadAsStringAsync()).Contains("Test-only-password!"), "Creation respects disabled access and never returns the password");
+    store.FailProvision = true;
+    var failure = await Mutate(manager, "/api/accounts", new { email = "retry@example.com", displayName = "Retry Pilot", accountType = "new", password = "Test-only-password!" });
+    Check(failure.StatusCode == HttpStatusCode.ServiceUnavailable && directory.Users.ContainsKey("retry@example.com") && !store.Provisioned.Any(a => a.Email == "retry@example.com"), "DB failure reports recovery instructions and leaves Firebase identity without app access");
+    store.FailProvision = false;
+    Check((await Mutate(manager, "/api/accounts", new { email = "retry@example.com", displayName = "Retry Pilot", accountType = "existing" })).StatusCode == HttpStatusCode.Created, "Manager can recover interrupted creation via existing mode");
+    store.ConflictProvision = true;
+    Check((await Mutate(manager, "/api/accounts", new { email = "race@example.com", displayName = "Pilot", accountType = "new", password = "Test-only-password!" })).StatusCode == HttpStatusCode.Conflict, "Unique-constraint race does not report false success");
+    store.ConflictProvision = false;
+    Check((await Mutate(manager, "/api/accounts", new { email = "csrf@example.com", displayName = "Pilot", accountType = "existing" }, csrf: false)).StatusCode == HttpStatusCode.BadRequest, "Manager account creation requires CSRF protection");
     Check((await Mutate(manager, $"/api/accounts/{FakeStore.ManagerId}/access", new { isActive = false }, "PATCH")).StatusCode == HttpStatusCode.NotFound, "Manager role cannot be disabled through operator endpoint");
     await Mutate(op, "/api/auth/logout");
     Check((await op.GetAsync("/api/auth/me")).StatusCode == HttpStatusCode.Unauthorized, "Logout clears current authentication");
@@ -127,6 +154,10 @@ sealed class FakeStore : IAuthStore
     private static readonly Guid OperatorId = Guid.NewGuid();
     public bool Disabled { get; set; }
     public string? LastProvisionedRole { get; set; }
+    public string? LastUid { get; set; }
+    public bool FailProvision { get; set; }
+    public bool ConflictProvision { get; set; }
+    public List<Account> Provisioned { get; } = [];
     private readonly Dictionary<string, SessionIdentity> sessions = new();
     private readonly HashSet<string> proofs = [];
     public Task<SessionIdentity?> CreateSessionAsync(string uid, string email, string hash, string proof, DateTimeOffset expiry, string agent, CancellationToken ct)
@@ -140,7 +171,35 @@ sealed class FakeStore : IAuthStore
     public Task<IReadOnlyList<SessionInfo>> ListSessionsAsync(Guid id, CancellationToken ct) => Task.FromResult<IReadOnlyList<SessionInfo>>(sessions.Values.Where(s => s.Account.Id == id).Select(s => new SessionInfo(s.SessionId, DateTimeOffset.UtcNow, s.ExpiresAt, "Test browser")).ToArray());
     public Task RevokeSessionAsync(Guid account, Guid id, CancellationToken ct) { foreach (var key in sessions.Where(x => x.Value.Account.Id == account && x.Value.SessionId == id).Select(x => x.Key).ToArray()) sessions.Remove(key); return Task.CompletedTask; }
     public Task RevokeAllAsync(Guid account, CancellationToken ct) { foreach (var key in sessions.Where(x => x.Value.Account.Id == account).Select(x => x.Key).ToArray()) sessions.Remove(key); return Task.CompletedTask; }
-    public Task<IReadOnlyList<Account>> ListAccountsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<Account>>([]);
-    public Task<bool> ProvisionOperatorAsync(string email, string name, Guid manager, CancellationToken ct) { LastProvisionedRole = AccountRoles.Operator; return Task.FromResult(true); }
+    public Task<IReadOnlyList<Account>> ListAccountsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<Account>>(Provisioned);
+    public Task<bool> AccountExistsAsync(string email, CancellationToken ct) => Task.FromResult(Provisioned.Any(a => a.Email == email));
+    public Task<bool> ProvisionOperatorAsync(string email, string name, string uid, bool active, Guid manager, CancellationToken ct)
+    {
+        if (FailProvision) throw new TimeoutException();
+        if (ConflictProvision) return Task.FromResult(false);
+        LastProvisionedRole = AccountRoles.Operator; LastUid = uid;
+        Provisioned.Add(new(Guid.NewGuid(), email, name, AccountRoles.Operator, active));
+        return Task.FromResult(true);
+    }
     public Task<bool> SetOperatorAccessAsync(Guid account, bool active, Guid manager, CancellationToken ct) => Task.FromResult(account != ManagerId);
+}
+
+sealed class FakeDirectory : IFirebaseAccountDirectory
+{
+    public int Created { get; private set; }
+    public Dictionary<string, FirebaseAccount> Users { get; } = new()
+    {
+        ["existing@example.com"] = new("existing-uid", false),
+        ["disabled@example.com"] = new("disabled-uid", true),
+    };
+    public Task<FirebaseAccount> CreateAsync(string email, string name, string password, CancellationToken ct)
+    {
+        if (Users.ContainsKey(email)) throw new AccountProvisioningException("firebase_account_exists", "Already exists.");
+        var account = new FirebaseAccount(Guid.NewGuid().ToString(), false);
+        Users.Add(email, account); Created++;
+        return Task.FromResult(account);
+    }
+    public Task<FirebaseAccount> FindByEmailAsync(string email, CancellationToken ct) =>
+        Users.TryGetValue(email, out var account) ? Task.FromResult(account)
+            : throw new AccountProvisioningException("firebase_account_missing", "Account missing.");
 }

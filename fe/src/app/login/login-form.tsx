@@ -50,7 +50,9 @@ export default function LoginForm() {
           setNotice("Verification email sent. Open the link in your inbox or spam folder, then return here and sign in again.");
           return;
         }
-        await api("/auth/session", { method: "POST", body: JSON.stringify({ idToken: await credential.user.getIdToken() }) });
+        // Force a fresh token after the interactive sign-in. This keeps the server's
+        // five-minute recent-authentication check from receiving a cached token.
+        await api("/auth/session", { method: "POST", body: JSON.stringify({ idToken: await credential.user.getIdToken(true) }) });
         completed = true;
       } finally {
         // The browser keeps only the server HttpOnly session after exchange.
