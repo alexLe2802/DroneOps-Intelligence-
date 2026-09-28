@@ -14,9 +14,9 @@ public static class FirebaseLoginPolicy
             !firebase.TryGetProperty("sign_in_provider", out var provider) || provider.ValueKind != JsonValueKind.String ||
             provider.GetString() is not ("google.com" or "password") ||
             !claims.TryGetProperty("auth_time", out var authTime) || authTime.ValueKind != JsonValueKind.Number || !authTime.TryGetInt64(out var seconds))
-            throw new IdentityRejectedException();
+            throw new IdentityRejectedException("required_claim_missing_or_invalid");
         var age = now.ToUnixTimeSeconds() - seconds;
-        if (age < -30 || age > 300) throw new IdentityRejectedException();
+        if (age < -30 || age > 300) throw new IdentityRejectedException("authentication_not_recent");
         return new(uid, email.GetString()!.Trim().ToLowerInvariant());
     }
 }

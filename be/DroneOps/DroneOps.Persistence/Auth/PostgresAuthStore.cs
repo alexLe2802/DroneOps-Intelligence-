@@ -96,18 +96,27 @@ public sealed class PostgresAuthStore(NpgsqlDataSource dataSource) : IAuthStore
         return result;
     }
 
-    public async Task<bool> ProvisionOperatorAsync(string email, string displayName, Guid managerId, CancellationToken ct)
+    public async Task<bool> AccountExistsAsync(string email, CancellationToken ct)
+    {
+        await using var cmd = dataSource.CreateCommand("SELECT EXISTS (SELECT 1 FROM droneops.accounts WHERE email = @email)");
+        cmd.Parameters.AddWithValue("email", email.Trim().ToLowerInvariant());
+        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
+    }
+
+    public async Task<bool> ProvisionOperatorAsync(string email, string displayName, string firebaseUid, bool active, Guid managerId, CancellationToken ct)
     {
         await using var cmd = dataSource.CreateCommand("""
             WITH added AS (
-                INSERT INTO droneops.accounts(id, email, display_name, role_code, created_by)
-                VALUES (@id, @email, @name, 'uav_operator', @manager) ON CONFLICT (email) DO NOTHING RETURNING id
+                INSERT INTO droneops.accounts(id, email, display_name, firebase_uid, is_active, role_code, created_by)
+                VALUES (@id, @email, @name, @uid, @active, 'uav_operator', @manager) ON CONFLICT DO NOTHING RETURNING id
             ) INSERT INTO droneops.auth_audit(actor_id, target_id, action)
             SELECT @manager, id, 'operator.provisioned' FROM added
             """);
         cmd.Parameters.AddWithValue("id", Guid.NewGuid());
         cmd.Parameters.AddWithValue("email", email.Trim().ToLowerInvariant());
         cmd.Parameters.AddWithValue("name", displayName.Trim());
+        cmd.Parameters.AddWithValue("uid", firebaseUid);
+        cmd.Parameters.AddWithValue("active", active);
         cmd.Parameters.AddWithValue("manager", managerId);
         return await cmd.ExecuteNonQueryAsync(ct) == 1;
     }

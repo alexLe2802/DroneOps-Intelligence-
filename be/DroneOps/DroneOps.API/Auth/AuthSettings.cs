@@ -24,7 +24,10 @@ public sealed class SessionCookies(IWebHostEnvironment environment)
     public static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
 }
 
-public sealed class IdentityRejectedException : Exception;
+public sealed class IdentityRejectedException(string reason = "rejected") : Exception
+{
+    public string Reason { get; } = reason;
+}
 public sealed class IdentityUnavailableException : Exception;
 public sealed record FirebaseIdentity(string Uid, string Email);
 

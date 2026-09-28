@@ -31,8 +31,6 @@ The database deliberately retains revoked hashes to prevent replay, with audit e
 
 Enable Firebase Authentication's Email/Password provider and create the user in Firebase Console. The password is sent directly to Firebase by its client SDK, never to the DroneOps backend or PostgreSQL. No public sign-up form is exposed. Provision the matching account/role in DroneOps separately.
 
-The project owner explicitly granted `manager@droneopsintelligence.com` the `operations_manager` role. It is linked to its existing Firebase UID; `impro2003@gmail.com` retains its previous role.
-
 Both login methods require verified email on the backend. After successful password authentication with an unverified email, the login form sends a Firebase verification email, clears the temporary Firebase session, and asks the user to verify then sign in again. It does not create an application session or mark the email verified administratively. The mailbox must be real and accessible. Firebase hosts the verification action page.
 
 The form also offers password visibility and a password-reset request. Reset confirmation deliberately does not disclose whether an email exists. Password inputs are cleared after each attempt, and both login methods share a single busy lock. Keep Firebase email enumeration protection enabled. The original `/api/auth/google` route remains as a compatibility alias for the session exchange; new clients use `/api/auth/session`.
@@ -65,8 +63,8 @@ The form also offers password visibility and a password-reset request. Reset con
    npm run dev
    ```
 
-   Open `http://localhost:3000/login`. Backend defaults to `http://localhost:5159`. Both frontend public origin and backend `Auth:PublicOrigin` must agree exactly. Use `fe/.env.example` for overrides. No Analytics is initialized by the login flow.
-6. Sign in as `impro2003@gmail.com`. Use **Operators & accounts** to add each Operator's Google email before their first application sign-in. There is no role picker on the login page.
+   Open `http://localhost:3000/login`. Backend defaults to `http://localhost:5159`. Both frontend public origin and backend `Auth:PublicOrigin` must agree exactly. Copy `fe/.env.example` to ignored `fe/.env.local` and fill the Firebase web configuration. Required fields: API key, auth domain, project ID and app ID. The current local workspace is already configured; other checkouts need their own `.env.local`. No Analytics is initialized by the login flow.
+6. Sign in as `impro2003@gmail.com`. Use **Operators & accounts → Create Pilot account** to create a Firebase email/password user or grant access to an existing Firebase user before their first application sign-in. There is no role picker on the login page.
 
 ## Production configuration
 
@@ -110,3 +108,32 @@ dotnet run --project be/DroneOps/DroneOps.AuthChecks
 References: [Firebase session cookies](https://firebase.google.com/docs/auth/admin/manage-cookies), [Google sign-in](https://firebase.google.com/docs/auth/web/google-signin), [Firebase persistence](https://firebase.google.com/docs/auth/web/auth-state-persistence), [Google branding](https://developers.google.com/identity/branding-guidelines). `fe/public/google-signin.png` is the unmodified Light / Square / Android+Web @4x asset from Google's official sign-in asset bundle, rendered at 270×60 with its original aspect ratio.
 
 Email/password references: [Firebase password authentication](https://firebase.google.com/docs/auth/web/password-auth), [Verification and password reset](https://firebase.google.com/docs/auth/web/manage-users).
+
+## Git hygiene
+
+Root `.gitignore` excludes private credentials, local settings, `.env` files, key/certificate files, backend/frontend build output, test reports and tool caches. `fe/.env.example` contains placeholders only. `fe/src/lib/auth/firebase.ts` is application code and remains tracked; it reads public web settings from environment variables. Moving Firebase web settings out of source does not hide them from browser users. Service-account keys stay server-side and are also excluded from publish output by the API project file.
+
+`.gitignore` does not remove already-tracked files or erase history. Before committing, inspect `git ls-files -ci --exclude-standard` and review staged files. If a real private credential was ever committed, rotate it; merely adding an ignore rule does not revoke it.
+
+## Manager creates a Pilot (UC-03 / SCR-04)
+
+Report 3 §3.2.3 specifies operator name, account identifier, status and mission/UAV assignment. D-02 leaves mandatory fields open. This implementation maps those requirements to:
+
+| Form field | Implementation |
+| --- | --- |
+| Full name | Required, trimmed, 1–120 characters. |
+| Email | Required, valid email, max 254 characters, normalized to lowercase; unique in DroneOps and linked to a specific Firebase UID. |
+| Account setup | New email/password account, or an existing Firebase account. Explicit selection avoids overwriting an existing user's credentials. |
+| Initial password + confirmation | New accounts only. 12–128 characters, confirmation checked in the browser and length checked again by the API. This is an implementation policy, not an SRS-specified password rule. |
+| Role | Read-only UAV Operator / Pilot; `uav_operator` is enforced by the backend regardless of request properties. |
+| DroneOps access | Enabled by default, or Disabled. This controls application access; it does not change Firebase's global disabled flag. |
+
+Phone number, date of birth, address, license number and license expiry are not defined as required registration fields by this UC and are not collected. Mission/UAV assignment is a separate operation after creation, requiring eligible active records; the current auth module does not implement mission or UAV assignment APIs. It never invents assignments during registration.
+
+The Manager-only POST `/api/accounts` accepts `email`, `displayName`, `accountType` (`new` / `existing`), `isActive` and, only for `new`, `password`. Firebase Admin creates new users on the server with `EmailVerified = false`; the existing login verification flow sends the verification email when the Pilot first signs in. Creating the account does not send an invitation email automatically or sign the Manager into the Pilot's account. Share the initial password securely; it is not an expiring temporary password. Existing-mode requests only look up the Firebase identity and do not modify its name, password or providers. Users disabled in Firebase are rejected.
+
+PostgreSQL stores the Firebase UID, name, email, role, status, creator and an audit event, never the password. The current account schema already supports these fields, so no migration is required. Creation plus the audit event is one SQL statement; unique email/UID constraints enforce duplicate rejection, including concurrent requests.
+
+Firebase and PostgreSQL cannot share a transaction. If Firebase creation succeeds but the database write fails or its result is uncertain, the API reports an error with recovery instructions. It does not delete or reset the Firebase user, since a concurrent or committed database record might reference that UID. Refresh the account list; if absent, use **Existing Firebase account** with the same email to finish provisioning. An unprovisioned Firebase user still cannot start a DroneOps session.
+
+The HTTP checks cover create/link, fixed role, UID binding, initial status, duplicate email, invalid inputs, missing/disabled Firebase identities, CSRF, unauthorized access and interrupted-creation recovery using fake external boundaries. They do not create real Firebase test users or send emails. Firebase API reference: [Admin user management](https://firebase.google.com/docs/auth/admin/manage-users).

@@ -20,6 +20,7 @@ public interface IAuthStore
     Task RevokeSessionAsync(Guid accountId, Guid sessionId, CancellationToken ct);
     Task RevokeAllAsync(Guid accountId, CancellationToken ct);
     Task<IReadOnlyList<Account>> ListAccountsAsync(CancellationToken ct);
-    Task<bool> ProvisionOperatorAsync(string email, string displayName, Guid managerId, CancellationToken ct);
+    Task<bool> AccountExistsAsync(string email, CancellationToken ct);
+    Task<bool> ProvisionOperatorAsync(string email, string displayName, string firebaseUid, bool active, Guid managerId, CancellationToken ct);
     Task<bool> SetOperatorAccessAsync(Guid accountId, bool active, Guid managerId, CancellationToken ct);
 }
