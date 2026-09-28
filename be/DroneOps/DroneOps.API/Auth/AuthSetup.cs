@@ -21,7 +21,9 @@ public static class AuthSetup
                 s.PublicOrigin == uri.GetLeftPart(UriPartial.Authority), "PublicOrigin must be an exact HTTPS origin (HTTP localhost allowed in development).")
             .ValidateOnStart();
         services.AddSingleton<SessionCookies>();
-        services.AddSingleton<IFirebaseIdentityProvider, FirebaseIdentityProvider>();
+        services.AddSingleton<FirebaseIdentityProvider>();
+        services.AddSingleton<IFirebaseIdentityProvider>(s => s.GetRequiredService<FirebaseIdentityProvider>());
+        services.AddSingleton<IFirebaseAccountDirectory>(s => s.GetRequiredService<FirebaseIdentityProvider>());
         services.AddSingleton<IAuthStore, PostgresAuthStore>();
         var protection = services.AddDataProtection().SetApplicationName("DroneOps");
         if (config["Auth:DataProtectionKeyPath"] is { Length: > 0 } path)
