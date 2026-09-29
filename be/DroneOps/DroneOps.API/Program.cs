@@ -1,4 +1,6 @@
 using System.Text;
+using DroneOps.API.Auth;
+using DroneOps.API.HealthChecks;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
 using DroneOps.Persistence;
@@ -6,10 +8,33 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-var builder = WebApplication.CreateBuilder(args);
+var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager").ToArray();
+var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
 
+// Local development secrets are ignored by Git. Deployment settings override them.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+}
+builder.Configuration.AddEnvironmentVariables();
+builder.Configuration.AddCommandLine(configurationArgs);
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        "Configure ConnectionStrings__DefaultConnection or development appsettings.Local.json.");
+}
+
+// One application-managed data source, disposed with the DI container.
+builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("postgres", timeout: TimeSpan.FromSeconds(10));
+
+
+builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -88,19 +113,24 @@ var app = builder.Build();
 
 #region Middleware
 
+if (await AuthDatabaseCommands.RunAsync(args, app.Services, app.Configuration)) return;
+app.UseAuthErrorHandling();
+
+// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
-// QUAN TRỌNG: UseAuthentication PHẢI đứng trước UseAuthorization
+app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
+app.UseAuthCsrfProtection();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health/database").AllowAnonymous();
 
 #endregion
 
