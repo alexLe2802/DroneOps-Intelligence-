@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace DroneOps.Application.DTOs.Auth;
+namespace DroneOps.Application.DTOs.Request.Auth;
 
 public class RegisterRequest
 {
