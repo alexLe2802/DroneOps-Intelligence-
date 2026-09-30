@@ -1,4 +1,4 @@
-﻿namespace DroneOps.Application.DTOs.Users;
+﻿namespace DroneOps.Application.DTOs.Response.Users;
 
 public sealed class UserProfileResponse
 {

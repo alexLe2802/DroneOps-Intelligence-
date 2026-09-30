@@ -1,4 +1,4 @@
-﻿namespace DroneOps.Application.DTOs.Auth;
+﻿namespace DroneOps.Application.DTOs.Response.Auth;
 
 public class LoginResponse
 {

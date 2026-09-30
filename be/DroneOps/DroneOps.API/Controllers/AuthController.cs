@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Auth;
+﻿using DroneOps.Application.DTOs.Request.Auth;
 using DroneOps.Application.Interfaces.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

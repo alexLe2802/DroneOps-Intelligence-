@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace DroneOps.Application.DTOs.Users;
+namespace DroneOps.Application.DTOs.Request.Users;
 
 public sealed class UpdateProfileRequest
 {
