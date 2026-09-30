@@ -1,4 +1,5 @@
-﻿using DroneOps.Application.DTOs.Users;
+﻿using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.DTOs.Response.Users;
 using DroneOps.Application.Interfaces.Users;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;

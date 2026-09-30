@@ -30,6 +30,7 @@ public class AppDbContext : DbContext
     public DbSet<MissionApproval> MissionApprovals { get; set; }
 
     public DbSet<TelemetryRecord> TelemetryRecords { get; set; }
+    public DbSet<PilotRegistration> PilotRegistrations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

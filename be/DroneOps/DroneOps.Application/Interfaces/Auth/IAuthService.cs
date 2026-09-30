@@ -1,4 +1,5 @@
-﻿using DroneOps.Application.DTOs.Auth;
+﻿using DroneOps.Application.DTOs.Request.Auth;
+using DroneOps.Application.DTOs.Response.Auth;
 
 namespace DroneOps.Application.Interfaces.Auth;
 

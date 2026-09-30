@@ -1,10 +1,11 @@
 ﻿using System.Security.Claims;
-using DroneOps.Application.DTOs.Users;
+using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.DTOs.Response.Users;
 using DroneOps.Application.Interfaces.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace DroneOps.API.Controllers;
+namespace DroneOps.API.Controllers.Users;
 
 [ApiController]
 [Authorize]

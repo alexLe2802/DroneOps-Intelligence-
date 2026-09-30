@@ -34,6 +34,7 @@ public static class DependencyInjection
             typeof(GenericRepository<>));
 
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IPilotRegistrationRepository, PilotRegistrationRepository>();
 
         return services;
     }
