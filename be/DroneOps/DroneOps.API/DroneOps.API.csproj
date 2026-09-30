@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+<PackageReference Include="FirebaseAdmin" Version="3.6.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.31" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.31" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
@@ -16,7 +17,20 @@
   <ItemGroup>
     <ProjectReference Include="..\DroneOps.Application\DroneOps.Application.csproj" />
     <ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DroneOps.Persistence\DroneOps.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="secrets/**" />
+    <None Remove="secrets/**" />
+    <Content Update="appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="../../../database/migrations/001_auth.sql" Link="Migrations/001_auth.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
