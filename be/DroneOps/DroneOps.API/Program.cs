@@ -33,7 +33,6 @@ builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionSt
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("postgres", timeout: TimeSpan.FromSeconds(10));
 
-
 builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -46,6 +45,13 @@ builder.Services.AddSwaggerGen(options =>
         Title = "DroneOps.API",
         Version = "v1"
     });
+
+    // =========================================================================
+    // [ĐOẠN ĐƯỢC THÊM MỚI]:
+    // Dùng Full Name (kèm Namespace) làm SchemaId để tránh lỗi trùng tên
+    // giữa DroneOps.API.Auth.LoginRequest và DroneOps.Application...LoginRequest
+    // =========================================================================
+    options.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
 
     // Định nghĩa chuẩn xác thực JWT Bearer cho Swagger
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme

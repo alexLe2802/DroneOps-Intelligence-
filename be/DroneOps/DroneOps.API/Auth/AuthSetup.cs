@@ -78,18 +78,31 @@ public static class AuthSetup
                 !HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method) && !HttpMethods.IsOptions(context.Request.Method))
             {
                 var origin = context.RequestServices.GetRequiredService<IOptions<AuthSettings>>().Value.PublicOrigin;
-                if (context.Request.Headers.Origin.ToString() != origin)
+                var requestOrigin = context.Request.Headers.Origin.ToString();
+
+                // Cho phép: Web Frontend (3000), chính Swagger/Backend (7093), hoặc không có Origin (Postman/Mobile)
+                var isAllowedOrigin = string.IsNullOrEmpty(requestOrigin)
+                    || requestOrigin == origin
+                    || requestOrigin == $"{context.Request.Scheme}://{context.Request.Host}"
+                    || context.Request.Headers.Referer.ToString().Contains("/swagger");
+
+                if (!isAllowedOrigin)
                 {
                     context.Response.StatusCode = 403;
                     await context.Response.WriteAsJsonAsync(new { code = "invalid_origin", message = "Request origin is not allowed." });
                     return;
                 }
-                try { await context.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(context); }
-                catch (AntiforgeryValidationException)
+
+                // Chỉ bắt buộc kiểm tra Antiforgery Cookie đối với Web Frontend
+                if (requestOrigin == origin)
                 {
-                    context.Response.StatusCode = 400;
-                    await context.Response.WriteAsJsonAsync(new { code = "invalid_csrf", message = "Refresh the page and try again." });
-                    return;
+                    try { await context.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(context); }
+                    catch (AntiforgeryValidationException)
+                    {
+                        context.Response.StatusCode = 400;
+                        await context.Response.WriteAsJsonAsync(new { code = "invalid_csrf", message = "Refresh the page and try again." });
+                        return;
+                    }
                 }
             }
             await next(context);
