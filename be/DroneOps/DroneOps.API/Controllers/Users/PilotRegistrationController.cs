@@ -19,7 +19,10 @@ public class PilotRegistrationController
         _service = service;
     }
 
+
+    [AllowAnonymous]
     [HttpPost]
+
     public async Task<IActionResult> Register(
      CreatePilotRegistrationRequest request)
     {
