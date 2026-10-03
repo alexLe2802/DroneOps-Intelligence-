@@ -1,6 +1,4 @@
 using System.Text;
-using DroneOps.API.Auth;
-using DroneOps.API.HealthChecks;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
 using DroneOps.Persistence;
@@ -30,10 +28,6 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 // One application-managed data source, disposed with the DI container.
 builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
-builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseHealthCheck>("postgres", timeout: TimeSpan.FromSeconds(10));
-
-builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -117,10 +111,6 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-#region Middleware
-
-if (await AuthDatabaseCommands.RunAsync(args, app.Services, app.Configuration)) return;
-app.UseAuthErrorHandling();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -130,14 +120,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
-app.UseRateLimiter();
+
 app.UseAuthentication();
-app.UseAuthCsrfProtection();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health/database").AllowAnonymous();
 
-#endregion
 
 app.Run();

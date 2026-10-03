@@ -13,4 +13,8 @@ public interface IUserService
         Guid userId,
         UpdateProfileRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<PilotProfileResponse?> GetPilotProfileAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }
