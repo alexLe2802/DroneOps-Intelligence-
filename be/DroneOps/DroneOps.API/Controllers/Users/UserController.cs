@@ -105,4 +105,33 @@ public sealed class UserController : ControllerBase
             userIdClaim,
             out userId);
     }
+
+    [Authorize(Roles = "Pilot")]
+    [HttpGet("pilot-profile")]
+    public async Task<IActionResult> GetPilotProfile(
+      CancellationToken cancellationToken)
+    {
+        var userIdClaim =
+            User.FindFirst(ClaimTypes.NameIdentifier);
+
+        if (userIdClaim is null)
+        {
+            return Unauthorized();
+        }
+
+        var profile =
+            await _userService.GetPilotProfileAsync(
+                Guid.Parse(userIdClaim.Value),
+                cancellationToken);
+
+        if (profile is null)
+        {
+            return NotFound(new
+            {
+                Message = "Pilot profile not found."
+            });
+        }
+
+        return Ok(profile);
+    }
 }

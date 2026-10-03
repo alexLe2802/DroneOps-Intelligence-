@@ -50,6 +50,7 @@ public static class DependencyInjection
 
         // Đăng ký User Repository.
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IPilotRepository, PilotRepository>();
 
         // Đăng ký Pilot Registration Repository.
         services.AddScoped<
