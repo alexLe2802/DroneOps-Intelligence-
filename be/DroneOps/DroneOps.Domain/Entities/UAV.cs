@@ -1,10 +1,13 @@
-﻿using System.Reflection;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DroneOps.Domain.Entities;
 
+[Table("UAV")]
 public class UAV
 {
     public Guid Id { get; set; }
+
+    public Guid PilotId { get; set; }
 
     public string Code { get; set; } = string.Empty;
 
@@ -12,13 +15,9 @@ public class UAV
 
     public string? Model { get; set; }
 
-    public string Status { get; set; } = "Available";
+    public string Status { get; set; } = "Pending";
 
     public DateTimeOffset CreatedAt { get; set; }
 
-    public ICollection<Mission> Missions { get; set; }
-        = new List<Mission>();
-
-    public ICollection<TelemetryRecord> TelemetryRecords { get; set; }
-        = new List<TelemetryRecord>();
+    public Pilot Pilot { get; set; } = null!;
 }
