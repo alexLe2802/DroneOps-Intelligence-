@@ -1,10 +1,8 @@
-﻿namespace DroneOps.Domain.Entities;
+﻿namespace DroneOps.Application.DTOs.Response.Missions;
 
-public sealed class Waypoint
+public sealed class WaypointResponse
 {
     public Guid Id { get; set; }
-
-    public Guid MissionVersionId { get; set; }
 
     public int SequenceOrder { get; set; }
 
@@ -15,8 +13,4 @@ public sealed class Waypoint
     public decimal? Altitude { get; set; }
 
     public string? ActionType { get; set; }
-
-    public DateTime CreatedAt { get; set; }
-
-    public MissionVersion? MissionVersion { get; set; }
 }
