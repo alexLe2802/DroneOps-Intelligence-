@@ -1,6 +1,6 @@
 ﻿namespace DroneOps.Domain.Entities;
 
-public class Waypoint
+public sealed class Waypoint
 {
     public Guid Id { get; set; }
 
@@ -16,7 +16,7 @@ public class Waypoint
 
     public string? ActionType { get; set; }
 
-    public DateTimeOffset CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 
-    public MissionVersion MissionVersion { get; set; } = null!;
+    public MissionVersion? MissionVersion { get; set; }
 }

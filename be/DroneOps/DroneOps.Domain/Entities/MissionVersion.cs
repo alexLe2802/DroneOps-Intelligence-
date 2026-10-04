@@ -1,6 +1,6 @@
 ﻿namespace DroneOps.Domain.Entities;
 
-public class MissionVersion
+public sealed class MissionVersion
 {
     public Guid Id { get; set; }
 
@@ -10,9 +10,9 @@ public class MissionVersion
 
     public string Status { get; set; } = "Draft";
 
-    public DateTimeOffset CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 
-    public Mission Mission { get; set; } = null!;
+    public Mission? Mission { get; set; }
 
     public ICollection<Waypoint> Waypoints { get; set; }
         = new List<Waypoint>();
