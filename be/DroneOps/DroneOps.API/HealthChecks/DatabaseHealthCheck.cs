@@ -3,7 +3,7 @@ using Npgsql;
 
 namespace DroneOps.API.HealthChecks;
 
-public sealed class DatabaseHealthCheck(NpgsqlDataSource dataSource) : IHealthCheck
+public sealed class DatabaseHealthCheck(NpgsqlDataSource dataSource, ILogger<DatabaseHealthCheck> logger) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
@@ -21,6 +21,8 @@ public sealed class DatabaseHealthCheck(NpgsqlDataSource dataSource) : IHealthCh
         catch (Exception exception) when (exception is NpgsqlException or TimeoutException or OperationCanceledException)
         {
             // Do not expose credentials, host details or provider errors through health responses/logs.
+            logger.LogWarning("Database health probe failed with {ExceptionType}; inner exception: {InnerExceptionType}.",
+                exception.GetType().Name, exception.InnerException?.GetType().Name ?? "none");
             return HealthCheckResult.Unhealthy("Database unavailable.");
         }
     }
