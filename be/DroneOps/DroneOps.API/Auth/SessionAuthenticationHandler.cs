@@ -15,13 +15,19 @@ public sealed class SessionAuthenticationHandler(
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Cookies.TryGetValue(cookies.Name, out var jwt)) return AuthenticateResult.NoResult();
-        if (jwt.Length > 8192) { cookies.Clear(Response); return AuthenticateResult.Fail("Invalid session."); }
+        if (jwt.Length > 8192)
+        {
+            Logger.LogWarning("Session cookie exceeded the accepted size: {CookieLength} bytes.", jwt.Length);
+            cookies.Clear(Response);
+            return AuthenticateResult.Fail("Invalid session.");
+        }
         try
         {
             var uid = await identity.VerifySessionAsync(jwt, Context.RequestAborted);
             var session = await store.FindSessionAsync(uid, SessionCookies.Hash(jwt), Context.RequestAborted);
             if (session is null || !AccountRoles.IsValid(session.Account.Role))
             {
+                Logger.LogWarning("A valid Firebase session cookie had no active matching application session.");
                 cookies.Clear(Response);
                 return AuthenticateResult.Fail("Session expired or revoked.");
             }
@@ -35,8 +41,9 @@ public sealed class SessionAuthenticationHandler(
             };
             return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
         }
-        catch (IdentityRejectedException)
+        catch (IdentityRejectedException exception)
         {
+            Logger.LogWarning("Firebase rejected a session cookie: {Reason}.", exception.Reason);
             cookies.Clear(Response);
             return AuthenticateResult.Fail("Invalid or revoked session.");
         }
