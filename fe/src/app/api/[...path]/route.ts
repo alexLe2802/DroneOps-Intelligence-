@@ -35,7 +35,18 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     });
     const responseHeaders = new Headers({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
     if (upstream.headers.has("content-type")) responseHeaders.set("Content-Type", upstream.headers.get("content-type")!);
-    for (const cookie of upstream.headers.getSetCookie()) responseHeaders.append("Set-Cookie", cookie);
+    const cookies = upstream.headers.getSetCookie();
+    if (path === "auth/session")
+      console.info("[auth-debug] session exchange", { status: upstream.status, cookieCount: cookies.length, hasRawCookie: upstream.headers.has("set-cookie") });
+    if (cookies.length > 0) {
+      for (const cookie of cookies) responseHeaders.append("Set-Cookie", cookie);
+    } else {
+      // Some Node/Next runtimes expose a single Set-Cookie value through get()
+      // but return an empty array from getSetCookie(). Login must still forward it
+      // to the browser or the subsequent /portal request appears anonymous.
+      const cookie = upstream.headers.get("set-cookie");
+      if (cookie) responseHeaders.append("Set-Cookie", cookie);
+    }
     return new NextResponse(upstream.body, { status: upstream.status, headers: responseHeaders });
   } catch {
     return NextResponse.json({ message: "Sign-in services are temporarily unavailable. Please try again later." }, { status: 503, headers: { "Cache-Control": "no-store" } });
