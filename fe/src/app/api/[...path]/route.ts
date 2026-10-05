@@ -36,6 +36,8 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     const responseHeaders = new Headers({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
     if (upstream.headers.has("content-type")) responseHeaders.set("Content-Type", upstream.headers.get("content-type")!);
     const cookies = upstream.headers.getSetCookie();
+    if (path === "auth/session")
+      console.info("[auth-debug] session exchange", { status: upstream.status, cookieCount: cookies.length, hasRawCookie: upstream.headers.has("set-cookie") });
     if (cookies.length > 0) {
       for (const cookie of cookies) responseHeaders.append("Set-Cookie", cookie);
     } else {
