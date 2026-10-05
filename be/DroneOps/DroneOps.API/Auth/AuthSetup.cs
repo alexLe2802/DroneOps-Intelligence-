@@ -64,6 +64,9 @@ public static class AuthSetup
             {
                 if (context.Response.HasStarted) throw;
                 // Do not serialize/log tokens, credentials, SQL parameters, or upstream error bodies.
+                context.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("DroneOps.AuthDependencies")
+                    .LogWarning("An authentication dependency failed with {ExceptionType}.", e.GetType().Name);
                 context.Response.StatusCode = 503;
                 await context.Response.WriteAsJsonAsync(new { code = "auth_unavailable", message = "Sign-in services are temporarily unavailable. Please try again later." });
             }

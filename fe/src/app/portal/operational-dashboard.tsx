@@ -21,13 +21,17 @@ const flights = [
 function Icon({ children }: { children: ReactNode }) { return <span className="dash-icon" aria-hidden="true">{children}</span>; }
 
 export default function OperationalDashboard({ account }: { account: Account }) {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [feed, setFeed] = useState<"live" | "gcs" | "simulation">("live");
   const [query, setQuery] = useState("");
   const [alertVisible, setAlertVisible] = useState(true);
   const [toast, setToast] = useState("");
-  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => {
+    setNow(new Date());
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   function notify(message: string) { setToast(message); window.setTimeout(() => setToast(""), 2600); }
   async function signOut() { await api("/auth/logout", { method: "POST" }); window.location.replace("/login"); }
   const filtered = flights.filter(f => `${f.id} ${f.asset} ${f.pilot} ${f.phase}`.toLowerCase().includes(query.toLowerCase()));
@@ -40,7 +44,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
       <div className="sidebar-status"><div><span>TELEMETRY LINK</span><b>ENCRYPTED (AES-256)</b></div><i /><div><span>BANDWIDTH</span><b>48.2 Mbps</b></div></div>
     </aside>
     <div className="ops-main">
-      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now.toLocaleTimeString("en-GB")} UTC</time><div className="account-role">{account.role === "operations_manager" ? "OPERATIONS MANAGER" : "UAV OPERATOR"} <span>(HQ-NORTH)</span></div><button className="avatar" title={`${account.displayName} — Sign out`} onClick={signOut}>{account.displayName.slice(0,1).toUpperCase()}</button></header>
+      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now ? now.toLocaleTimeString("en-GB") : "--:--:--"} UTC</time><div className="account-role">{account.role === "operations_manager" ? "OPERATIONS MANAGER" : "UAV OPERATOR"} <span>(HQ-NORTH)</span></div><button className="avatar" title={`${account.displayName} — Sign out`} onClick={signOut}>{account.displayName.slice(0,1).toUpperCase()}</button></header>
       <main className="ops-content">
         {alertVisible && <section className="critical-banner"><Icon>△</Icon><div><b>CRITICAL AIRSPACE ADVISORY</b></div><p>COMM LOSS (DEGRADED) — UAV-Alpha-04 | Sector C-4 (Ping: 4.2s / Latency Spill)</p><button onClick={() => setAlertVisible(false)}>ACKNOWLEDGE</button><button className="danger-button" onClick={() => notify("Incident SCR-12 opened")}>INVESTIGATE SCR-12 →</button></section>}
         <section className="dashboard-heading"><div><p>◎ SECTOR SGN-04 TECH PARK OPERATIONAL THEATER</p><h1>Mission &amp; Fleet Operations<br />Hub</h1></div><div className="feed-tabs">{(["live","gcs","simulation"] as const).map(item => <button key={item} className={feed === item ? "active" : ""} onClick={() => setFeed(item)}>{item === "live" ? "LIVE FEED" : item === "gcs" ? "GCS SYNC" : "SIMULATION"}</button>)}</div><button className="preset-button" onClick={() => notify("Sector preset menu opened")}>⌁ SECTOR PRESETS</button><button className="new-mission" onClick={() => notify("New mission workflow started")}>⊕ NEW MISSION DISPATCH</button></section>
