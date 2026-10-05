@@ -78,7 +78,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddApplicationServices();
 builder.Services.AddPersistenceServices(builder.Configuration);
 
-// 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token
+// 2. Kích hoạt JWT cho API clients, đồng thời giữ FirebaseSession cho web.
 var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
 builder.Services.Configure<JwtSettings>(jwtSection);
 var jwtSettings = jwtSection.Get<JwtSettings>()
@@ -86,8 +86,15 @@ var jwtSettings = jwtSection.Get<JwtSettings>()
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = "DroneOpsAuth";
+    options.DefaultChallengeScheme = "DroneOpsAuth";
+})
+.AddPolicyScheme("DroneOpsAuth", "Bearer or Firebase session", options =>
+{
+    options.ForwardDefaultSelector = context =>
+        context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? JwtBearerDefaults.AuthenticationScheme
+            : SessionAuthenticationHandler.SchemeName;
 })
 .AddJwtBearer(options =>
 {
@@ -104,8 +111,6 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
     };
 });
-
-builder.Services.AddAuthorization();
 
 #endregion
 
