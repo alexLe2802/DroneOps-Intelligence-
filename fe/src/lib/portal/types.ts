@@ -16,6 +16,7 @@ export type PilotMission = {
 };
 
 export type UavStatus = "Available" | "Assigned" | "InFlight" | "Maintenance" | "Offline";
+export type UavApprovalStatus = "Approved" | "PendingCreate" | "PendingUpdate";
 
 export type AssignedUav = {
   id: string;
@@ -26,7 +27,13 @@ export type AssignedUav = {
   batteryPercent: number | null;
   lastTelemetryAt: string | null;
   assignedMissionId: string | null;
+  createdAt: string;
+  approvalStatus: UavApprovalStatus;
 };
+
+// Mirrors the writable fields on DroneOps.Domain.Entities.UAV.
+export type CreateUavRequest = { code: string; name: string; model: string | null };
+export type UpdateUavRequest = CreateUavRequest;
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {
