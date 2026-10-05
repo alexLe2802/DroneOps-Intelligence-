@@ -3,7 +3,7 @@ import { backendUrl } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const allowed = /^(auth\/(csrf|google|session|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access)$/;
+const allowed = /^(auth\/(csrf|google|session|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|users\/profile)$/;
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
@@ -36,8 +36,6 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     const responseHeaders = new Headers({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
     if (upstream.headers.has("content-type")) responseHeaders.set("Content-Type", upstream.headers.get("content-type")!);
     const cookies = upstream.headers.getSetCookie();
-    if (path === "auth/session")
-      console.info("[auth-debug] session exchange", { status: upstream.status, cookieCount: cookies.length, hasRawCookie: upstream.headers.has("set-cookie") });
     if (cookies.length > 0) {
       for (const cookie of cookies) responseHeaders.append("Set-Cookie", cookie);
     } else {
@@ -52,4 +50,4 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     return NextResponse.json({ message: "Sign-in services are temporarily unavailable. Please try again later." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
-export { forward as GET, forward as POST, forward as PATCH, forward as DELETE };
+export { forward as GET, forward as POST, forward as PUT, forward as PATCH, forward as DELETE };
