@@ -44,6 +44,8 @@ export default function OperationalDashboard({ account }: { account: Account }) 
   }, []);
   function notify(message: string) { setToast(message); window.setTimeout(() => setToast(""), 2600); }
   async function signOut() { await api("/auth/logout", { method: "POST" }); window.location.replace("/login"); }
+  const manager = account.role === "operations_manager";
+  const navItems = manager ? managerNavItems : operatorNavItems;
   const scopedFlights = manager ? flights : flights.slice(0, 1);
   const filtered = scopedFlights.filter(f => `${f.id} ${f.asset} ${f.pilot} ${f.phase}`.toLowerCase().includes(query.toLowerCase()));
 
