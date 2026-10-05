@@ -28,15 +28,20 @@ const flights = [
 function Icon({ children }: { children: ReactNode }) { return <span className="dash-icon" aria-hidden="true">{children}</span>; }
 
 export default function OperationalDashboard({ account }: { account: Account }) {
-  const manager = account.role === "operations_manager";
-  const navItems = manager ? managerNavItems : operatorNavItems;
-  const [now, setNow] = useState(new Date());
-  const [activeNav, setActiveNav] = useState(manager ? "Dashboard" : "My Dashboard");
+  const [now, setNow] = useState<Date | null>(null);
+  const [activeNav, setActiveNav] = useState("Dashboard");
   const [feed, setFeed] = useState<"live" | "gcs" | "simulation">("live");
   const [query, setQuery] = useState("");
   const [alertVisible, setAlertVisible] = useState(true);
   const [toast, setToast] = useState("");
-  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setNow(new Date()));
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearInterval(timer);
+    };
+  }, []);
   function notify(message: string) { setToast(message); window.setTimeout(() => setToast(""), 2600); }
   async function signOut() { await api("/auth/logout", { method: "POST" }); window.location.replace("/login"); }
   const scopedFlights = manager ? flights : flights.slice(0, 1);
@@ -50,7 +55,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
       <div className="sidebar-status"><div><span>TELEMETRY LINK</span><b>ENCRYPTED (AES-256)</b></div><i /><div><span>BANDWIDTH</span><b>48.2 Mbps</b></div></div>
     </aside>
     <div className="ops-main">
-      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now.toLocaleTimeString("en-GB")} UTC</time><div className="account-role">{account.role === "operations_manager" ? "OPERATIONS MANAGER" : "UAV OPERATOR"} <span>(HQ-NORTH)</span></div><button className="avatar" title={`${account.displayName} — Sign out`} onClick={signOut}>{account.displayName.slice(0,1).toUpperCase()}</button></header>
+      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now ? now.toLocaleTimeString("en-GB") : "--:--:--"} UTC</time><div className="account-role">{account.role === "operations_manager" ? "OPERATIONS MANAGER" : "UAV OPERATOR"} <span>(HQ-NORTH)</span></div><button className="avatar" title={`${account.displayName} — Sign out`} onClick={signOut}>{account.displayName.slice(0,1).toUpperCase()}</button></header>
       <main className="ops-content">
         {alertVisible && <section className="critical-banner"><Icon>△</Icon><div><b>CRITICAL AIRSPACE ADVISORY</b></div><p>{manager ? "COMM LOSS (DEGRADED) — UAV-Alpha-04 | Sector C-4 (Ping: 4.2s / Latency Spill)" : "ROUTE WEATHER ADVISORY — MS-8849 | Review conditions before waypoint 6"}</p><button onClick={() => setAlertVisible(false)}>ACKNOWLEDGE</button><button className="danger-button" onClick={() => notify("Incident SCR-12 opened")}>{manager ? "INVESTIGATE SCR-12 →" : "VIEW DETAILS →"}</button></section>}
         <section className="dashboard-heading"><div><p>◎ {manager ? "MANAGED SCOPE · SGN-04 TECH PARK" : "OWN / ASSIGNED SCOPE · MS-8849"}</p><h1>{manager ? <>Operations Manager<br />Command Center</> : <>My Mission Operations<br />Workspace</>}</h1><span className="scope-note">{manager ? "Fleet-wide approvals, alerts, readiness and team coordination" : "Only missions and UAV records assigned to you are shown"}</span></div><div className="feed-tabs">{(["live","gcs","simulation"] as const).map(item => <button key={item} className={feed === item ? "active" : ""} onClick={() => setFeed(item)}>{item === "live" ? "LIVE FEED" : item === "gcs" ? "GCS SYNC" : "SIMULATION"}</button>)}</div><button className="preset-button" onClick={() => notify(manager ? "Managed sector filters opened" : "Assigned mission filters opened")}>⌁ {manager ? "MANAGED SCOPE" : "MY SCOPE"}</button><button className="new-mission" onClick={() => notify(manager ? "Pending approval queue opened" : "New mission workflow started")}>{manager ? "◈ REVIEW 3 APPROVALS" : "⊕ NEW MISSION"}</button></section>

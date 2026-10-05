@@ -2,7 +2,6 @@ using FirebaseAdmin;
 using FirebaseAdmin.Auth;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 
 namespace DroneOps.API.Auth;
 
@@ -46,8 +45,11 @@ public sealed class FirebaseIdentityProvider(IOptions<AuthSettings> settings, IW
         try
         {
             var auth = await GetAuthAsync(ct);
-            var token = await auth.VerifyIdTokenAsync(idToken, true, ct);
-            return FirebaseLoginPolicy.Validate(token.Uid, JsonSerializer.SerializeToElement(token.Claims), DateTimeOffset.UtcNow);
+            // This is a freshly issued interactive-login token. The application
+            // session created below is independently revocable in Postgres, so a
+            // second Firebase revocation round trip here only delays sign-in.
+            var token = await auth.VerifyIdTokenAsync(idToken, false, ct);
+            return FirebaseLoginPolicy.Validate(token.Uid, token.Claims, DateTimeOffset.UtcNow);
         }
         catch (IdentityRejectedException e)
         {
@@ -83,7 +85,10 @@ public sealed class FirebaseIdentityProvider(IOptions<AuthSettings> settings, IW
 
     public async Task<string> VerifySessionAsync(string cookie, CancellationToken ct)
     {
-        try { return (await (await GetAuthAsync(ct)).VerifySessionCookieAsync(cookie, true, ct)).Uid; }
+        // Postgres is the live source of truth for session revocation and account
+        // status on every request. Verify Firebase's signature/expiry locally and
+        // avoid a remote revocation lookup on every page and API request.
+        try { return (await (await GetAuthAsync(ct)).VerifySessionCookieAsync(cookie, false, ct)).Uid; }
         catch (FirebaseAuthException) { throw new IdentityRejectedException("session_cookie_rejected"); }
         catch (ArgumentException) { throw new IdentityRejectedException("malformed_session_cookie"); }
         catch (HttpRequestException) { throw new IdentityUnavailableException(); }
