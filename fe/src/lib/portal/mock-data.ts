@@ -7,5 +7,6 @@ export const mockPilotMissions: PilotMission[] = [
 ];
 
 export const mockAssignedUavs: AssignedUav[] = [
-  { id: "uav-01", code: "UAV-01", name: "North Survey One", model: "DJI Matrice 350 RTK", status: "Assigned", batteryPercent: 82, lastTelemetryAt: "2026-10-05T14:40:12Z", assignedMissionId: "ms-8849" },
+  { id: "uav-01", code: "UAV-01", name: "North Survey One", model: "DJI Matrice 350 RTK", status: "Assigned", batteryPercent: 82, lastTelemetryAt: "2026-10-05T14:40:12Z", assignedMissionId: "ms-8849", createdAt: "2026-09-12T03:20:00Z", approvalStatus: "Approved" },
+  { id: "uav-07", code: "UAV-07", name: "Thermal Scout", model: "DJI Matrice 30T", status: "Available", batteryPercent: 96, lastTelemetryAt: "2026-10-06T01:12:00Z", assignedMissionId: null, createdAt: "2026-09-28T08:45:00Z", approvalStatus: "Approved" },
 ];
