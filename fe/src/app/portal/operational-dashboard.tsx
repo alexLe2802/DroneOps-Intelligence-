@@ -28,9 +28,12 @@ export default function OperationalDashboard({ account }: { account: Account }) 
   const [alertVisible, setAlertVisible] = useState(true);
   const [toast, setToast] = useState("");
   useEffect(() => {
-    setNow(new Date());
+    const frame = window.requestAnimationFrame(() => setNow(new Date()));
     const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearInterval(timer);
+    };
   }, []);
   function notify(message: string) { setToast(message); window.setTimeout(() => setToast(""), 2600); }
   async function signOut() { await api("/auth/logout", { method: "POST" }); window.location.replace("/login"); }
