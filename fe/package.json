@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "map:worker": "node scripts/build-map-worker.mjs",
+    "predev": "npm run map:worker",
     "dev": "next dev --webpack",
+    "prebuild": "npm run map:worker",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
@@ -11,15 +14,19 @@
   },
   "dependencies": {
     "firebase": "^12.19.0",
+    "leaflet": "^1.9.4",
+    "maplibre-gl": "^6.12.0",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
