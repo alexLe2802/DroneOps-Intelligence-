@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "airspace:sync": "node scripts/sync-airspace-zones.mjs",
     "map:worker": "node scripts/build-map-worker.mjs",
     "predev": "npm run map:worker",
     "dev": "next dev --webpack",
@@ -13,10 +14,13 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@mapbox/vector-tile": "^3.0.0",
     "firebase": "^12.19.0",
     "leaflet": "^1.9.4",
     "maplibre-gl": "^6.12.0",
     "next": "16.3.5",
+    "pbf": "^5.1.2",
+    "polygon-clipping": "^0.15.7",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
