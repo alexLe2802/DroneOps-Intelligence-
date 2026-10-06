@@ -15,6 +15,24 @@ export type PilotMission = {
   latestVersion: number;
 };
 
+export type WaypointAction = "FlyThrough" | "Hover" | "Photo" | "Land";
+export type MissionWaypoint = {
+  sequenceOrder: number;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  actionType: WaypointAction;
+};
+export type CreateMissionRequest = {
+  uavId: string;
+  name: string;
+  description: string | null;
+  startTime: string;
+  endTime: string;
+  waypoints: MissionWaypoint[];
+};
+export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[] };
+
 export type UavStatus = "Available" | "Assigned" | "InFlight" | "Maintenance" | "Offline";
 export type UavApprovalStatus = "Approved" | "PendingCreate" | "PendingUpdate";
 
