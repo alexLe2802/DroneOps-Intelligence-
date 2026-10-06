@@ -1,14 +1,39 @@
 import { api, ApiError } from "@/lib/auth/client";
 import { mockAssignedUavs, mockPilotMissions } from "./mock-data";
-import type { AssignedUav, CreateUavRequest, PilotMission, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
+import type { AssignedUav, CreateMissionRequest, CreateUavRequest, MissionDetail, PilotMission, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
 const mockDelay = 350;
 const wait = () => new Promise(resolve => window.setTimeout(resolve, mockDelay));
 
-// Replace these two functions with /missions and /uavs calls when those backend contracts are available.
+const missionStoreKey = "droneops.mock.pilot-missions.v1";
+function readMissions(): PilotMission[] {
+  const stored = window.localStorage.getItem(missionStoreKey);
+  if (!stored) return structuredClone(mockPilotMissions);
+  try { return JSON.parse(stored) as PilotMission[]; }
+  catch { return structuredClone(mockPilotMissions); }
+}
+function writeMissions(items: PilotMission[]) { window.localStorage.setItem(missionStoreKey, JSON.stringify(items)); }
+
+// Replace these functions with /missions calls when the backend contract is available.
 export async function getPilotMissions(): Promise<PilotMission[]> {
   await wait();
-  return mockPilotMissions;
+  return readMissions();
+}
+
+export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
+  await wait();
+  const aircraft = readUavs().find(item => item.id === request.uavId);
+  if (!aircraft) throw new ApiError("The selected UAV was not found.", 404);
+  if (aircraft.approvalStatus !== "Approved") throw new ApiError("The selected UAV is waiting for admin approval.", 409);
+  const created: MissionDetail = {
+    id: crypto.randomUUID(), name: request.name, description: request.description,
+    status: "Draft", uavId: request.uavId, uavCode: aircraft.code,
+    startTime: request.startTime, endTime: request.endTime,
+    createdAt: new Date().toISOString(), latestVersion: 1,
+    waypoints: request.waypoints,
+  };
+  writeMissions([created, ...readMissions()]);
+  return created;
 }
 
 const uavStoreKey = "droneops.mock.pilot-uavs.v1";
