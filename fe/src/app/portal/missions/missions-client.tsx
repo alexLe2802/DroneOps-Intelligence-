@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getPilotMissions } from "@/lib/portal/client";
 import type { PilotMission } from "@/lib/portal/types";
@@ -24,7 +25,7 @@ export default function MissionsClient() {
   if (error) return <ModuleError error={error} retry={load} />;
   if (!missions) return <ModuleLoading label="Loading your missions" />;
   return <>
-    <header className="module-heading"><div><p className="module-kicker">PILOT / ASSIGNED SCOPE</p><h1>My Missions</h1><p>Plan and follow missions assigned to your account.</p></div><button className="module-primary" onClick={() => alert("Mission creation will connect to the backend mission API when available.")}>+ NEW MISSION</button></header>
+    <header className="module-heading"><div><p className="module-kicker">PILOT / ASSIGNED SCOPE</p><h1>My Missions</h1><p>Plan and follow missions assigned to your account.</p></div><Link className="module-primary module-link" href="/portal/missions/new">+ NEW MISSION</Link></header>
     <section className="module-toolbar"><label>SEARCH MISSIONS<input value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, UAV or status" /></label><span>{filtered.length} / {missions.length} RECORDS</span></section>
     {filtered.length === 0 ? <ModuleEmpty title="No missions found" message={missions.length ? "Try a different search term." : "No mission has been assigned to your account yet."} /> : <section className="module-grid">{filtered.map(mission => <article className="module-card" key={mission.id}><header><span className={`status status-${mission.status.toLowerCase()}`}>{mission.status.replace(/([A-Z])/g, " $1").trim()}</span><small>V{mission.latestVersion.toString().padStart(2, "0")}</small></header><h2>{mission.name}</h2><p>{mission.description ?? "No description provided."}</p><dl><div><dt>Aircraft</dt><dd>{mission.uavCode ?? "Not assigned"}</dd></div><div><dt>Start</dt><dd>{mission.startTime ? new Date(mission.startTime).toLocaleString() : "Not scheduled"}</dd></div></dl><button className="module-secondary">OPEN MISSION →</button></article>)}</section>}
     <p className="mock-notice">MOCK DATA · This view is ready to switch to the Missions API contract.</p>
