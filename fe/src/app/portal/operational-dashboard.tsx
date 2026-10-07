@@ -8,6 +8,7 @@ import type { Account } from "@/lib/auth/types";
 import DashboardMap from "./dashboard-map";
 
 const managerNavItems = [
+  ["+", "Operators", "REGISTER"],
   ["▦", "Dashboard", "02"], ["⌁", "Mission Planning", "ROUTE"],
   ["◈", "Validation & Approvals", "3 PENDING"], ["⌁", "Live Monitoring", "●"],
   ["△", "Incident Management", "2 ALERT"], ["⌁", "Flight History & Reports", "POST"],
@@ -48,7 +49,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
   async function signOut() { await api("/auth/logout", { method: "POST" }); window.location.replace("/login"); }
   const manager = account.role === "operations_manager";
   const navItems = manager ? managerNavItems : operatorNavItems;
-  const navHref = (label: string) => label === "My Missions" ? "/portal/missions" : label === "Assigned UAV" ? "/portal/uav" : "/portal";
+  const navHref = (label: string) => label === "Operators" ? "/portal/operators" : label === "My Missions" ? "/portal/missions" : label === "Assigned UAV" ? "/portal/uav" : "/portal";
   const scopedFlights = manager ? flights : flights.slice(0, 1);
   const filtered = scopedFlights.filter(f => `${f.id} ${f.asset} ${f.pilot} ${f.phase}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -56,7 +57,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     <aside className="ops-sidebar">
       <div className="ops-brand"><Image src="/droneops-logo.svg" width={34} height={34} alt="" priority /><div><b>DRONEOPS</b><span>INTELLIGENCE</span></div></div>
       <div className="airspace-label"><span>ACTIVE AIRSPACE</span><b>UTM SECTOR 04</b></div>
-      <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{navItems.map(([icon,label,badge], index) => { const implemented = !manager && (label === "My Missions" || label === "Assigned UAV"); return implemented ? <Link key={label} href={navHref(label)}><Icon>{icon}</Icon><span>{label}</span><small>{badge}</small></Link> : <button key={label} className={activeNav === label ? "active" : ""} onClick={() => { setActiveNav(label); if (index !== 0) notify(`${label} module is ready for integration`); }}><Icon>{icon}</Icon><span>{label}</span><small className={badge.includes("ALERT") ? "red-badge" : badge.includes("PENDING") ? "green-badge" : badge === "EVAL" ? "purple-badge" : ""}>{badge}</small></button>; })}</nav>
+      <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{navItems.map(([icon,label,badge], index) => { const implemented = manager ? label === "Operators" : label === "My Missions" || label === "Assigned UAV"; return implemented ? <Link key={label} href={navHref(label)}><Icon>{icon}</Icon><span>{label}</span><small>{badge}</small></Link> : <button key={label} className={activeNav === label ? "active" : ""} onClick={() => { setActiveNav(label); if (index !== 0) notify(`${label} module is ready for integration`); }}><Icon>{icon}</Icon><span>{label}</span><small className={badge.includes("ALERT") ? "red-badge" : badge.includes("PENDING") ? "green-badge" : badge === "EVAL" ? "purple-badge" : ""}>{badge}</small></button>; })}</nav>
       <div className="sidebar-status"><div><span>TELEMETRY LINK</span><b>ENCRYPTED (AES-256)</b></div><i /><div><span>BANDWIDTH</span><b>48.2 Mbps</b></div></div>
     </aside>
     <div className="ops-main">
