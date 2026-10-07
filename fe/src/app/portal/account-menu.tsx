@@ -1,5 +1,6 @@
 "use client";
 
+import "./account-menu.css";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "@/lib/auth/client";

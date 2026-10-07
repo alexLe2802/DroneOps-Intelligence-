@@ -33,14 +33,6 @@
 .dashboard-live-map.leaflet-container{background:#182431}.dashboard-live-map .leaflet-tile-pane{filter:saturate(.72) brightness(.86) contrast(1.08)}.dashboard-map-status em{color:#ff0000}
 @media(max-width:760px){.dashboard-map-shell{height:360px}.live-uav-marker>span{display:none}.dashboard-map-status span:first-child{display:none}.restricted-label{right:48px;top:55px}}
 
-.account-menu{position:relative;flex-shrink:0;letter-spacing:normal}
-.account-menu .avatar{cursor:pointer}
-.account-menu-panel{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;max-width:min(280px,calc(100vw - 28px));padding:6px;background:#101925;border:1px solid #293b50;border-radius:8px;box-shadow:0 8px 28px #0008;z-index:20}
-.account-menu-panel a,.account-menu-panel button{display:block;width:100%;padding:12px;border:0;border-radius:4px;background:transparent;color:#e9f2fc;text-align:left;text-decoration:none;font:13px Arial,sans-serif;cursor:pointer}
-.account-menu-panel a:hover,.account-menu-panel button:hover{background:#233449}
-.account-menu .avatar:focus-visible,.account-menu-panel a:focus-visible,.account-menu-panel button:focus-visible{outline:2px solid #8ed4f5;outline-offset:2px}
-.account-menu-panel button:disabled{opacity:.6;cursor:wait}
-.account-menu-panel p{padding:0 12px;color:#ffb0b2;font:12px/1.5 Arial,sans-serif;overflow-wrap:anywhere}
 .profile-sessions{max-width:934px;margin-top:20px;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:7px}
 .profile-sessions header{display:flex;align-items:center;justify-content:space-between;gap:18px}
 .profile-sessions h2{margin:10px 0;font-size:22px}.profile-sessions p{color:var(--sub);line-height:1.6}

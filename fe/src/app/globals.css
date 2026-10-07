@@ -1022,3 +1022,8 @@ h1 br:first-of-type {
 
 }
 
+
+.landing-account{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.landing-portal{color:var(--cyan);font-size:12px;white-space:nowrap;text-decoration:none}
+.landing-account .account-menu .avatar{width:40px;height:40px;font-size:16px}
+@media(max-width:600px){.landing-portal{display:none}.landing-account{margin-left:auto}.landing-account .account-menu .avatar{width:34px;height:34px}}
