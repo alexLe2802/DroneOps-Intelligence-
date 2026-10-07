@@ -44,3 +44,14 @@
 .sessions-error{margin:16px 0;padding:12px;border:1px solid #703541;background:#3e2028}.sessions-error p{color:#ffafb3}
 .ops-sidebar button:disabled{opacity:.55;cursor:default}
 @media(max-width:600px){.profile-sessions{padding:18px}.profile-sessions header,.profile-sessions li{align-items:flex-start;flex-direction:column}.profile-sessions .module-secondary{width:100%}}
+
+/* Keep sidebar icons, labels and badges in separate tracks for both links and buttons. */
+.ops-sidebar nav :is(a,button){grid-template-columns:24px minmax(0,1fr) auto;gap:8px}
+.ops-sidebar nav .dash-icon{width:24px;min-width:24px;font-size:17px;line-height:1}
+.ops-sidebar nav :is(a,button)>span:nth-child(2){min-width:0;line-height:1.35;overflow-wrap:anywhere}
+.ops-sidebar nav :is(a,button)>small{white-space:nowrap;font-size:8px;letter-spacing:.5px}
+@media(max-width:760px){
+  .ops-sidebar nav :is(a,button){display:flex;align-items:center;justify-content:center;flex-shrink:0;min-width:52px;width:auto}
+  .ops-sidebar nav :is(a,button)>.dash-icon{display:inline-grid}
+  .ops-sidebar nav :is(a,button)>span:nth-child(2),.ops-sidebar nav :is(a,button)>small{display:none}
+}
