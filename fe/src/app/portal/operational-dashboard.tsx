@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
-import { api } from "@/lib/auth/client";
+import { useState, type ReactNode } from "react";
+import PortalShell from "./portal-shell";
 import type { Account } from "@/lib/auth/types";
 import DashboardMap from "./dashboard-map";
 
@@ -31,38 +30,20 @@ const flights = [
 function Icon({ children }: { children: ReactNode }) { return <span className="dash-icon" aria-hidden="true">{children}</span>; }
 
 export default function OperationalDashboard({ account }: { account: Account }) {
-  const [now, setNow] = useState<Date | null>(null);
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [feed, setFeed] = useState<"live" | "gcs" | "simulation">("live");
   const [query, setQuery] = useState("");
   const [alertVisible, setAlertVisible] = useState(true);
   const [toast, setToast] = useState("");
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setNow(new Date()));
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearInterval(timer);
-    };
-  }, []);
   function notify(message: string) { setToast(message); window.setTimeout(() => setToast(""), 2600); }
-  async function signOut() { await api("/auth/logout", { method: "POST" }); window.location.replace("/login"); }
   const manager = account.role === "operations_manager";
-  const navItems = manager ? managerNavItems : operatorNavItems;
-  const navHref = (label: string) => label === "Operators" ? "/portal/operators" : label === "My Missions" ? "/portal/missions" : label === "Assigned UAV" ? "/portal/uav" : "/portal";
   const scopedFlights = manager ? flights : flights.slice(0, 1);
   const filtered = scopedFlights.filter(f => `${f.id} ${f.asset} ${f.pilot} ${f.phase}`.toLowerCase().includes(query.toLowerCase()));
 
-  return <div className="ops-shell">
-    <aside className="ops-sidebar">
-      <div className="ops-brand"><Image src="/droneops-logo.svg" width={34} height={34} alt="" priority /><div><b>DRONEOPS</b><span>INTELLIGENCE</span></div></div>
-      <div className="airspace-label"><span>ACTIVE AIRSPACE</span><b>UTM SECTOR 04</b></div>
-      <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{navItems.map(([icon,label,badge], index) => { const implemented = manager ? label === "Operators" : label === "My Missions" || label === "Assigned UAV"; return implemented ? <Link key={label} href={navHref(label)}><Icon>{icon}</Icon><span>{label}</span><small>{badge}</small></Link> : <button key={label} className={activeNav === label ? "active" : ""} onClick={() => { setActiveNav(label); if (index !== 0) notify(`${label} module is ready for integration`); }}><Icon>{icon}</Icon><span>{label}</span><small className={badge.includes("ALERT") ? "red-badge" : badge.includes("PENDING") ? "green-badge" : badge === "EVAL" ? "purple-badge" : ""}>{badge}</small></button>; })}</nav>
-      <div className="sidebar-status"><div><span>TELEMETRY LINK</span><b>ENCRYPTED (AES-256)</b></div><i /><div><span>BANDWIDTH</span><b>48.2 Mbps</b></div></div>
-    </aside>
-    <div className="ops-main">
-      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now ? now.toLocaleTimeString("en-GB") : "--:--:--"} UTC</time><Link href="/portal/profile" className="account-role">{account.role === "operations_manager" ? "OPERATIONS MANAGER" : "UAV OPERATOR"} <span>(PROFILE)</span></Link><button className="avatar" title={`${account.displayName} — Sign out`} onClick={signOut}>{account.displayName.slice(0,1).toUpperCase()}</button></header>
-      <main className="ops-content">
+  return <PortalShell account={account} dashboard activeNav={activeNav} onNavigate={label => {
+    setActiveNav(label);
+    if (label !== "Dashboard" && label !== "My Dashboard") notify(`${label} module is ready for integration`);
+  }}>
         {alertVisible && <section className="critical-banner"><Icon>△</Icon><div><b>CRITICAL AIRSPACE ADVISORY</b></div><p>{manager ? "COMM LOSS (DEGRADED) — UAV-Alpha-04 | Sector C-4 (Ping: 4.2s / Latency Spill)" : "ROUTE WEATHER ADVISORY — MS-8849 | Review conditions before waypoint 6"}</p><button onClick={() => setAlertVisible(false)}>ACKNOWLEDGE</button><button className="danger-button" onClick={() => notify("Incident SCR-12 opened")}>{manager ? "INVESTIGATE SCR-12 →" : "VIEW DETAILS →"}</button></section>}
         <section className="dashboard-heading"><div><p>◎ {manager ? "MANAGED SCOPE · SGN-04 TECH PARK" : "OWN / ASSIGNED SCOPE · MS-8849"}</p><h1>{manager ? <>Operations Manager<br />Command Center</> : <>My Mission Operations<br />Workspace</>}</h1><span className="scope-note">{manager ? "Fleet-wide approvals, alerts, readiness and team coordination" : "Only missions and UAV records assigned to you are shown"}</span></div><div className="feed-tabs">{(["live","gcs","simulation"] as const).map(item => <button key={item} className={feed === item ? "active" : ""} onClick={() => setFeed(item)}>{item === "live" ? "LIVE FEED" : item === "gcs" ? "GCS SYNC" : "SIMULATION"}</button>)}</div><button className="preset-button" onClick={() => notify(manager ? "Managed sector filters opened" : "Assigned mission filters opened")}>⌁ {manager ? "MANAGED SCOPE" : "MY SCOPE"}</button><button className="new-mission" onClick={() => notify(manager ? "Pending approval queue opened" : "New mission workflow started")}>{manager ? "◈ REVIEW 3 APPROVALS" : "⊕ NEW MISSION"}</button></section>
         <section className="metric-grid" aria-label="Operational summary">
@@ -74,12 +55,11 @@ export default function OperationalDashboard({ account }: { account: Account }) 
         </section>
         <div className="operations-grid">
           <section className="map-panel"><header><b>◎ TAC-CANVAS // SGN-09 HIGH TECH INDUSTRIAL PARK</b><span>10.8490° N, 106.7725° E</span><em>{manager ? "UTM FEED ACTIVE" : "ASSIGNED ROUTE"}</em></header><DashboardMap manager={manager} /><footer><span>GCS UPTIME: 19h 42m 11s &nbsp; ENCRYPTION: <b>AES-CTR-256</b></span><div><button onClick={() => notify("KML export will connect to the mission API")}>DOWNLOAD KML LOG</button><button className="cyan-button" onClick={() => void document.getElementById("dashboard-live-map")?.requestFullscreen()}>EXPAND HUD FULLSCREEN</button></div></footer></section>
-          <aside className="insight-column"><section className="ai-panel"><header><Icon>◉</Icon><div><h2>AI Decision Engine (FE-09)</h2><span>NEURAL RISK MITIGATION // ACTIVE</span></div><b>EVAL 99.4%</b></header><article><h3>MS-8849 [Transmission Line Audit] <small>CONFIDENCE: 92%</small></h3><p>Moderate micro-burst &amp; wind shear predicted at <b>Waypoint 6 (2,400m NE)</b> within 18 minutes. Recommend reducing cruise speed by <b>15%</b>.</p><div><span>≋ Vector: 284° @ 16.4 kts</span><button onClick={() => notify("AI speed recommendation applied")}>APPLY SPEED OFFSET</button></div></article><article><h3>⚐ SMART RTH WINDOW CALCULATION</h3><p>UAV-01 has 34 mins remaining. Optimal RTH initiation at 15:05 UTC to retain 20% buffer.</p></article></section>
+          <aside className="insight-column"><section className="ai-panel"><header><Icon>◉</Icon><div><h2>AI Decision Engine</h2><span>NEURAL RISK MITIGATION // ACTIVE</span></div><b>EVAL 99.4%</b></header><article><h3>MS-8849 [Transmission Line Audit] <small>CONFIDENCE: 92%</small></h3><p>Moderate micro-burst &amp; wind shear predicted at <b>Waypoint 6 (2,400m NE)</b> within 18 minutes. Recommend reducing cruise speed by <b>15%</b>.</p><div><span>≋ Vector: 284° @ 16.4 kts</span><button onClick={() => notify("AI speed recommendation applied")}>APPLY SPEED OFFSET</button></div></article><article><h3>⚐ SMART RTH WINDOW CALCULATION</h3><p>UAV-01 has 34 mins remaining. Optimal RTH initiation at 15:05 UTC to retain 20% buffer.</p></article></section>
           {manager ? <section className="incident-panel"><header><h2>♧ Critical Incidents &amp;<br/>Approvals</h2><button>VIEW ALL (4)</button></header><article><span className="red-badge">COMM LOST LINK</span><time>00:01:24 AGO</time><h3>UAV-Alpha-04 · Signal Timeout &gt; 4.2s</h3><p>Exceeded standard 3.0s heartbeat packet window. Vehicle currently hovering at 64m AGL.</p><div><button>SILENCE (60S)</button><button className="danger-button">DISPATCH SCR-12</button></div></article><article><span className="blue-badge">SUBMITTED FOR APPROVAL</span><time>14:22 UTC</time><h3>Mission #MS-8842 // Pilot: DucDDA</h3><p>BVLOS Solar Array thermography flight path validated against NFZ.</p><b className="ok">Pre-check Passed (100%)</b></article></section> : <section className="incident-panel"><header><h2>♧ My Mission Alerts &amp;<br/>Validation</h2><button>VIEW MY ACTIVITY</button></header><article><span className="blue-badge">VALIDATION AVAILABLE</span><time>14:22 UTC</time><h3>Mission #MS-8849 // Version 03</h3><p>Your submitted route passed configured spatial checks and is awaiting manager review.</p><b className="ok">Pre-check Passed (100%)</b></article><article><span className="purple-badge">AI ADVISORY</span><time>14:31 UTC</time><h3>Weather risk near Waypoint 6</h3><p>Review the advisory and mission context. AI advice does not approve or command the UAV.</p></article></section>}</aside>
         </div>
         <section className="missions-panel"><header><div><Icon>⌁</Icon><h2>Active Airborne Missions<span>Real-time synchronized telemetry stream from active transponders</span></h2></div><label>⌕ <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Filter by callsign, pilot, phase..."/></label></header><div className="table-wrap"><table><thead><tr><th>MISSION ID</th><th>UAV ASSET</th><th>ASSIGNED PILOT</th><th>FLIGHT PHASE</th><th>TELEMETRY SYNC</th><th>LINK QUALITY</th><th>BATTERY</th><th>ACTION</th></tr></thead><tbody>{filtered.map(f => <tr key={f.id} className={f.danger?"danger-row":""}><td><b className="blue">{f.id}</b></td><td><b>{f.asset}</b><span>● {f.model}</span></td><td>{f.pilot}</td><td><b className="phase">{f.phase}</b><span>Alt: {f.alt}</span></td><td><b className={f.danger?"warn":"ok"}>● {f.sync}</b></td><td>{f.quality}% <i className="quality"><em style={{width:`${f.quality}%`}}/></i></td><td>▮ {f.battery}%</td><td><button onClick={()=>notify(`${f.id} monitor opened`)}>{f.danger?"RESOLVE":"MONITOR"}</button></td></tr>)}</tbody></table></div></section>
         <section className="bottom-grid"><article><header>PAYLOAD CAM 01 // UAV-01 <b>EO/IR 4K</b></header><div className="camera-feed"><span>IR: 42.1°C SP</span><i/><b>GIMBAL: -45° PITCH</b></div><footer>Target: Substation B-9 <button>EXPAND STREAM</button></footer></article><article><header>SGN-04 LOCAL WEATHER RADAR <b>METAR VFR</b></header><div className="weather"><p>SURFACE WIND<strong>11 kts / Gust 18</strong><span>Direction: 080° ENE</span></p><p>VISIBILITY<strong>&gt; 10 km</strong><span>Cloud Base: 3,500ft</span></p><p>QNH ALTIMETER<strong>1012 hPa</strong><span>Stable Trend</span></p><p>KP GEOMAGNETIC<strong>Kp 1.8 (Quiet)</strong><span>GPS Lock Optimal</span></p></div><footer>Updated 3m ago via Tan Son Nhat AWOS</footer></article>{manager ? <article><header>GCS CREW ASSIGNMENTS <b>3 ON-DUTY</b></header><ul><li><i/>Nguyen Long (PIC)<b>UAV-01</b></li><li><i/>Pham Tuan (PIC)<b>UAV-02</b></li><li><i className="alert-dot"/>Tran Hoang (PIC)<b className="warn">UAV-04 [EMERGENCY]</b></li></ul><footer>Shift Handover in 03h 22m <button>DUTY ROSTER</button></footer></article> : <article><header>MY ASSIGNMENT <b>MS-8849</b></header><ul><li><i/>Pilot in command<b>{account.displayName}</b></li><li><i/>Assigned aircraft<b>UAV-01</b></li><li><i/>Approval state<b className="warn">PENDING REVIEW</b></li></ul><footer>Version 03 validated <button>OPEN MISSION</button></footer></article>}</section>
-      </main>
-    </div>{toast&&<div className="ops-toast" role="status">{toast}</div>}
-  </div>;
+    {toast&&<div className="ops-toast" role="status">{toast}</div>}
+  </PortalShell>;
 }

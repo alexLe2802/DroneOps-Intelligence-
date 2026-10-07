@@ -1,6 +1,7 @@
 using System.Text;
 using DroneOps.API.Auth;
 using DroneOps.API.HealthChecks;
+using DroneOps.API.AI;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
 using DroneOps.Persistence;
@@ -32,6 +33,13 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("postgres", timeout: TimeSpan.FromSeconds(10));
+
+builder.Services.Configure<AiSettings>(builder.Configuration.GetSection(AiSettings.SectionName));
+builder.Services.AddHttpClient<IAiAssessmentClient, GeminiAssessmentClient>(client =>
+{
+    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
+    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Ai:TimeoutSeconds", 30));
+});
 
 
 builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);

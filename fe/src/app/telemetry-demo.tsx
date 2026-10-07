@@ -29,6 +29,5 @@ export default function TelemetryDemo() {
     </div>
     <div className="demo-controls"><label htmlFor="altitude">SIM ALTITUDE <b>{altitude} m</b></label><input id="altitude" type="range" min="80" max="220" value={altitude} onChange={event => setAltitude(Number(event.target.value))} /><button type="button" onClick={() => { setAltitude(173); setThrust(true); }}>Reset ↺</button></div>
     <div className="mission-summary"><div><strong><span className="cyan">●</span> AER-X4 Valkyrie (ID: UAV-09)</strong><p>Mission: Port Perimeter Patrol · Sector 4</p></div><span className="demo-badge">SIMULATED<br />DEMO DATA</span></div>
-    <p className="demo-hint">Hover over a rotor to spin it. Drag the drone or adjust altitude to explore the HUD.</p>
   </section>;
 }

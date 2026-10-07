@@ -10,10 +10,13 @@ public static class AuthDatabaseCommands
         var db = services.GetRequiredService<NpgsqlDataSource>();
         if (args.Contains("--migrate-auth"))
         {
-            var sql = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Migrations", "001_auth.sql"));
-            await using var migration = db.CreateCommand(sql);
-            await migration.ExecuteNonQueryAsync();
-            Console.WriteLine("Auth schema migration completed.");
+            foreach (var path in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Migrations"), "*.sql").Order())
+            {
+                var sql = await File.ReadAllTextAsync(path);
+                await using var migration = db.CreateCommand(sql);
+                await migration.ExecuteNonQueryAsync();
+                Console.WriteLine($"Migration {Path.GetFileName(path)} completed.");
+            }
         }
         if (args.Contains("--bootstrap-manager"))
         {

@@ -1,6 +1,6 @@
 import { api, ApiError } from "@/lib/auth/client";
 import { mockAssignedUavs, mockPilotMissions } from "./mock-data";
-import type { AssignedUav, CreateMissionRequest, CreateUavRequest, MissionDetail, PilotMission, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, MissionDetail, PilotMission, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
 const mockDelay = 350;
 const wait = () => new Promise(resolve => window.setTimeout(resolve, mockDelay));
@@ -88,4 +88,12 @@ export function getProfile(): Promise<UserProfile> {
 
 export function updateProfile(request: UpdateProfileRequest): Promise<UserProfile> {
   return api<UserProfile>("/users/profile", { method: "PUT", body: JSON.stringify(request) });
+}
+
+export function createAiAssessment(request: AiAssessmentRequest): Promise<AiAssessment> {
+  return api<AiAssessment>("/ai/assessments", { method: "POST", body: JSON.stringify(request) });
+}
+
+export function getAiAssessments(missionRef: string): Promise<AiAssessment[]> {
+  return api<AiAssessment[]>(`/ai/assessments/mission/${encodeURIComponent(missionRef)}`);
 }
