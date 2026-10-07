@@ -65,4 +65,25 @@ export type UserProfile = {
 // Matches DroneOps.Application.DTOs.Users.UpdateProfileRequest.
 export type UpdateProfileRequest = { fullName: string };
 
+export type AiAssessmentRequest = {
+  missionRef: string;
+  missionName: string;
+  missionVersion: number;
+  missionStatus: string;
+  uavCode: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  waypoints: Array<{ latitude: number; longitude: number; altitude: number; action: string }>;
+  validationSummary: string;
+  incidents: string[];
+  telemetrySummary: string | null;
+};
+export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
+export type AiAssessment = {
+  id: string; missionRef: string; missionVersion: number; provider: string; model: string;
+  status: "Pending" | "Available" | "Failed";
+  result: { summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string } | null;
+  errorCode: string | null; createdAt: string; completedAt: string | null;
+};
+
 export type PortalRole = AccountRole;
