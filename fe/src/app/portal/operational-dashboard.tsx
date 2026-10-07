@@ -6,6 +6,21 @@ import PortalShell from "./portal-shell";
 import type { Account } from "@/lib/auth/types";
 import DashboardMap from "./dashboard-map";
 
+const managerNavItems = [
+  ["+", "Operators", "REGISTER"],
+  ["▦", "Dashboard", "02"], ["⌁", "Mission Planning", "ROUTE"],
+  ["◈", "Validation & Approvals", "3 PENDING"], ["⌁", "Live Monitoring", "●"],
+  ["△", "Incident Management", "2 ALERT"], ["⌁", "Flight History & Reports", "POST"],
+  ["◎", "AI Risk Assessment", "EVAL"], ["⌘", "Fleet & Restrictions", "14 UAV"],
+];
+
+const operatorNavItems = [
+  ["MY", "My Dashboard", "02"], ["ROUTE", "My Missions", "ROUTE"],
+  ["CHECK", "Validation Results", "1 UPDATE"], ["LIVE", "Live Monitoring", "LIVE"],
+  ["ALERT", "My Incidents", "1 ALERT"], ["LOG", "Flight History", "POST"],
+  ["AI", "AI Risk Assessment", "EVAL"], ["UAV", "Assigned UAV", "UAV-01"],
+];
+
 const flights = [
   { id: "#MS-8849", asset: "UAV-01", model: "DJI Matrice 350 RTK", pilot: "Nguyen Long", phase: "WAYPOINT 4/12", alt: "120m", sync: "Fresh (0.4s)", quality: 98, battery: 82, danger: false },
   { id: "#MS-8850", asset: "UAV-02", model: "DJI Inspire 3", pilot: "Pham Tuan", phase: "TAKEOFF CLIMB", alt: "85m", sync: "Fresh (0.7s)", quality: 94, battery: 74, danger: false },

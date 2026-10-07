@@ -25,10 +25,16 @@ export default function PortalShell({ account, children, dashboard = false, acti
       <Link className="ops-brand" href="/portal"><Image src="/droneops-logo.svg" width={34} height={34} alt="" priority /><div><b>DRONEOPS</b><span>INTELLIGENCE</span></div></Link>
       <div className="airspace-label"><span>ACTIVE AIRSPACE</span><b>UTM SECTOR 04</b></div>
       <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{nav.map(([icon, label, badge], index) => {
-        const href = index === 0 ? "/portal" : label === "AI Risk Assessment" ? "/portal/ai-assessment" : !manager && label === "My Missions" ? "/portal/missions" : !manager && label === "Assigned UAV" ? "/portal/uav" : null;
+        const href =
+          label === "Operators" ? "/portal/operators" :
+          label === "Dashboard" || label === "My Dashboard" ? "/portal" :
+          label === "AI Risk Assessment" ? "/portal/ai-assessment" :
+          !manager && label === "My Missions" ? "/portal/missions" :
+          !manager && label === "Assigned UAV" ? "/portal/uav" :
+          null;
         const content = <><span className="dash-icon" aria-hidden="true">{icon}</span><span>{label}</span><small className={badge.includes("ALERT") ? "red-badge" : badge.includes("PENDING") ? "green-badge" : badge === "EVAL" ? "purple-badge" : ""}>{badge}</small></>;
         const active = href === "/portal" ? pathname === href && (!activeNav || activeNav === label || activeNav === "Dashboard") : href && pathname.startsWith(href);
-        return href ? <Link key={label} aria-label={label} href={href} className={active ? "active" : ""} onClick={() => { if (index === 0) onNavigate?.(label); }}>{content}</Link> : <button key={label} aria-label={label} type="button" className={activeNav === label ? "active" : ""} disabled={!onNavigate} onClick={() => onNavigate?.(label)}>{content}</button>;
+        return href ? <Link key={label} aria-label={label} href={href} className={active ? "active" : ""} onClick={() => { if (label === "Dashboard" || label === "My Dashboard") onNavigate?.(label); }}>{content}</Link> : <button key={label} aria-label={label} type="button" className={activeNav === label ? "active" : ""} disabled={!onNavigate} onClick={() => onNavigate?.(label)}>{content}</button>;
       })}</nav>
       <div className="sidebar-status"><div><span>TELEMETRY LINK</span><b>ENCRYPTED (AES-256)</b></div><i /><div><span>BANDWIDTH</span><b>48.2 Mbps</b></div></div>
     </aside>
