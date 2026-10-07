@@ -15,6 +15,7 @@ const pilotNav = [
 ] as const;
 
 const managerNav = [
+  ["+", "Operators", "/portal/operators"],
   ["▦", "Dashboard", "/portal"],
   ["ID", "Profile", "/portal/profile"],
 ] as const;
