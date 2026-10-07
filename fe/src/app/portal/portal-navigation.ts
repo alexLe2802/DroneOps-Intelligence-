@@ -6,9 +6,8 @@ export const managerNavItems = [
 ];
 
 export const operatorNavItems = [
-  ["MY", "My Dashboard", "02"], ["ROUTE", "My Missions", "ROUTE"],
-  ["CHECK", "Validation Results", "1 UPDATE"], ["LIVE", "Live Monitoring", "LIVE"],
-  ["ALERT", "My Incidents", "1 ALERT"], ["LOG", "Flight History", "POST"],
-  ["AI", "AI Risk Assessment", "EVAL"], ["UAV", "Assigned UAV", "UAV-01"],
+  ["▦", "My Dashboard", "02"], ["⌁", "My Missions", "ROUTE"],
+  ["◈", "Validation Results", "1 UPDATE"], ["⌁", "Live Monitoring", "LIVE"],
+  ["△", "My Incidents", "1 ALERT"], ["⌁", "Flight History", "POST"],
+  ["◎", "AI Risk Assessment", "EVAL"], ["⌘", "Assigned UAV", "UAV-01"],
 ];
-
