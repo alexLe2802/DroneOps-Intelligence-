@@ -41,3 +41,14 @@
 .account-menu .avatar:focus-visible,.account-menu-panel a:focus-visible,.account-menu-panel button:focus-visible{outline:2px solid #8ed4f5;outline-offset:2px}
 .account-menu-panel button:disabled{opacity:.6;cursor:wait}
 .account-menu-panel p{padding:0 12px;color:#ffb0b2;font:12px/1.5 Arial,sans-serif;overflow-wrap:anywhere}
+.profile-sessions{max-width:934px;margin-top:20px;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:7px}
+.profile-sessions header{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.profile-sessions h2{margin:10px 0;font-size:22px}.profile-sessions p{color:var(--sub);line-height:1.6}
+.profile-sessions .module-secondary{width:auto;flex-shrink:0}
+.profile-sessions ul{list-style:none;padding:0;margin:20px 0 0}
+.profile-sessions li{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px 0;border-top:1px solid var(--line)}
+.profile-sessions li>div{min-width:0}.profile-sessions h3{margin:0 0 10px;font-size:14px}
+.profile-sessions .session-user-agent{overflow-wrap:anywhere;font-size:12px}
+.sessions-error{margin:16px 0;padding:12px;border:1px solid #703541;background:#3e2028}.sessions-error p{color:#ffafb3}
+.ops-sidebar button:disabled{opacity:.55;cursor:default}
+@media(max-width:600px){.profile-sessions{padding:18px}.profile-sessions header,.profile-sessions li{align-items:flex-start;flex-direction:column}.profile-sessions .module-secondary{width:100%}}
