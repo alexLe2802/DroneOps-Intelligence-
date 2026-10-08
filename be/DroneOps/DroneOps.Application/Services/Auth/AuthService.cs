@@ -136,7 +136,7 @@ public class AuthService : IAuthService
         RegisterRequest request,
         CancellationToken cancellationToken = default)
     {
-        return await ProcessRegistrationAsync(request, "Admin", cancellationToken);
+        return await ProcessRegistrationAsync(request, "Pilot", cancellationToken);
     }
 
     // 3. Luồng đăng ký tài khoản PILOT (USER) (CODE GỐC - GIỮ NGUYÊN 100%)
