@@ -9,7 +9,10 @@ public interface IUavRepository
         CancellationToken cancellationToken = default);
 
     Task<List<UAV>> GetPendingAsync(
-        CancellationToken cancellationToken = default);
+     string? keyword = null,
+     int page = 1,
+     int pageSize = 10,
+     CancellationToken cancellationToken = default);
 
     Task<List<UAV>> GetByPilotIdAsync(
         Guid pilotId,

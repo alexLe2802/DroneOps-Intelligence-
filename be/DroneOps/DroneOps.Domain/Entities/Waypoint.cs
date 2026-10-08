@@ -4,7 +4,7 @@ public sealed class Waypoint
 {
     public Guid Id { get; set; }
 
-    public Guid MissionVersionId { get; set; }
+    public Guid MissionId { get; set; }
 
     public int SequenceOrder { get; set; }
 
@@ -18,5 +18,5 @@ public sealed class Waypoint
 
     public DateTime CreatedAt { get; set; }
 
-    public MissionVersion? MissionVersion { get; set; }
+    public Mission? Mission { get; set; }
 }
