@@ -1,4 +1,5 @@
-﻿using DroneOps.Application.DTOs.Request.UAVs;
+﻿using DroneOps.Application.DTOs.Request.Uavs;
+using DroneOps.Application.DTOs.Request.UAVs;
 using DroneOps.Application.DTOs.Response.UAVs;
 
 namespace DroneOps.Application.Interfaces.UAVs;
@@ -15,13 +16,12 @@ public interface IUavService
         CancellationToken cancellationToken = default);
 
     Task<List<UavResponse>> GetPendingAsync(
-        CancellationToken cancellationToken = default);
+    string? keyword = null,
+    int page = 1,
+    int pageSize = 10,
+    CancellationToken cancellationToken = default);
 
     Task<UavResponse?> GetDetailAsync(
-        Guid uavId,
-        CancellationToken cancellationToken = default);
-
-    Task<UavResponse?> ApproveAsync(
         Guid uavId,
         CancellationToken cancellationToken = default);
 

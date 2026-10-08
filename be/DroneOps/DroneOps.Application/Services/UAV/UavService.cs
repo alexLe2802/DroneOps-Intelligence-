@@ -104,10 +104,16 @@ public sealed class UavService
     }
 
     public async Task<List<UavResponse>> GetPendingAsync(
-        CancellationToken cancellationToken = default)
+     string? keyword = null,
+     int page = 1,
+     int pageSize = 10,
+     CancellationToken cancellationToken = default)
     {
         var uavs =
             await _uavRepository.GetPendingAsync(
+                keyword,
+                page,
+                pageSize,
                 cancellationToken);
 
         return uavs
@@ -137,29 +143,6 @@ public sealed class UavService
             uav.Pilot.User.FullName);
     }
 
-    public async Task<UavResponse?> ApproveAsync(
-        Guid uavId,
-        CancellationToken cancellationToken = default)
-    {
-        var uav =
-            await _uavRepository.GetDetailAsync(
-                uavId,
-                cancellationToken);
-
-        if (uav is null)
-        {
-            return null;
-        }
-
-        uav.Status = "Active";
-
-        await _uavRepository.SaveChangesAsync(
-            cancellationToken);
-
-        return MapToResponse(
-            uav,
-            uav.Pilot.User.FullName);
-    }
     public async Task<UavResponse?> RejectAsync(
     Guid uavId,
     CancellationToken cancellationToken = default)

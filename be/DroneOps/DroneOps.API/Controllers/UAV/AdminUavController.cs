@@ -1,4 +1,5 @@
-﻿using DroneOps.Application.Interfaces.UAVs;
+﻿using DroneOps.Application.DTOs.Request.Uavs;
+using DroneOps.Application.Interfaces.UAVs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,10 +20,16 @@ public class AdminUavController : ControllerBase
 
     [HttpGet("pending")]
     public async Task<IActionResult> GetPending(
-        CancellationToken cancellationToken)
+     [FromQuery] string? keyword,
+     [FromQuery] int page = 1,
+     [FromQuery] int pageSize = 10,
+     CancellationToken cancellationToken = default)
     {
         var result =
             await _uavService.GetPendingAsync(
+                keyword,
+                page,
+                pageSize,
                 cancellationToken);
 
         return Ok(result);
@@ -35,24 +42,6 @@ public class AdminUavController : ControllerBase
     {
         var result =
             await _uavService.GetDetailAsync(
-                id,
-                cancellationToken);
-
-        if (result is null)
-        {
-            return NotFound();
-        }
-
-        return Ok(result);
-    }
-
-    [HttpPut("{id:guid}/approve")]
-    public async Task<IActionResult> Approve(
-        Guid id,
-        CancellationToken cancellationToken)
-    {
-        var result =
-            await _uavService.ApproveAsync(
                 id,
                 cancellationToken);
 

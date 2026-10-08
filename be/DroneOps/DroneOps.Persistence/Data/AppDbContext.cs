@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<User> Users { get; set; }
+    public DbSet<Pilot> Pilots { get; set; }
 
     public DbSet<Role> Roles { get; set; }
 
@@ -31,6 +32,7 @@ public class AppDbContext : DbContext
 
     public DbSet<TelemetryRecord> TelemetryRecords { get; set; }
     public DbSet<PilotRegistration> PilotRegistrations { get; set; }
+    public DbSet<MissionSuggestion> MissionSuggestions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
