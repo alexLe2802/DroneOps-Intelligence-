@@ -100,4 +100,54 @@ public class AuthController : ControllerBase
             });
         }
     }
+
+    /// <summary>
+    /// Quên mật khẩu: Gửi mã OTP xác nhận về email (Áp dụng chung cho cả Admin và Pilot)
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _authService.ForgotPasswordAsync(request, cancellationToken);
+            return Ok(new
+            {
+                Success = result,
+                Message = "Verification code has been sent to your email."
+            });
+        }
+        catch (Exception ex)
+        {
+            var detail = ex.InnerException != null ? $"{ex.Message} ({ex.InnerException.Message})" : ex.Message;
+            return BadRequest(new { Message = detail });
+        }
+    }
+
+    /// <summary>
+    /// Đặt lại mật khẩu mới bằng mã OTP
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _authService.ResetPasswordAsync(request, cancellationToken);
+            return Ok(new
+            {
+                Success = result,
+                Message = "Password has been reset successfully. You can now login with your new password."
+            });
+        }
+        catch (Exception ex)
+        {
+            var detail = ex.InnerException != null ? $"{ex.Message} ({ex.InnerException.Message})" : ex.Message;
+            return BadRequest(new { Message = detail });
+        }
+    }
 }
