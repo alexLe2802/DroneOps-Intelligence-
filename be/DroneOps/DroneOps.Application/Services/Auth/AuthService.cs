@@ -51,7 +51,7 @@ public class AuthService : IAuthService
         _jwtSettings = jwtSettings.Value;
     }
 
-    // 1. Đăng nhập và sinh Token JWT
+    // 1. Đăng nhập và sinh Token JWT (CODE GỐC - GIỮ NGUYÊN 100%)
     public async Task<LoginResponse?> LoginAsync(
         LoginRequest request,
         CancellationToken cancellationToken = default)
@@ -88,7 +88,7 @@ public class AuthService : IAuthService
         };
     }
 
-    // Hàm tạo chuỗi JWT AccessToken kèm thông tin Claims
+    // Hàm tạo chuỗi JWT AccessToken kèm thông tin Claims (CODE GỐC - GIỮ NGUYÊN 100%)
     private string GenerateToken(User user, DateTime expiresAt)
     {
         var claims = new List<Claim>
@@ -114,7 +114,7 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    // Hàm sinh mã ngẫu nhiên 5 ký tự bảo mật cao (Cơ chế mật mã RandomNumberGenerator)
+    // Hàm sinh mã ngẫu nhiên 5 ký tự bảo mật cao (CODE GỐC - GIỮ NGUYÊN 100%)
     private string Generate5CharacterCode()
     {
         const string chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -131,7 +131,7 @@ public class AuthService : IAuthService
         return new string(result);
     }
 
-    // 2. Luồng đăng ký tài khoản ADMIN
+    // 2. Luồng đăng ký tài khoản ADMIN (CODE GỐC - GIỮ NGUYÊN 100%)
     public async Task<string> RegisterAsync(
         RegisterRequest request,
         CancellationToken cancellationToken = default)
@@ -139,7 +139,7 @@ public class AuthService : IAuthService
         return await ProcessRegistrationAsync(request, "Admin", cancellationToken);
     }
 
-    // 3. Luồng đăng ký tài khoản PILOT (USER)
+    // 3. Luồng đăng ký tài khoản PILOT (USER) (CODE GỐC - GIỮ NGUYÊN 100%)
     public async Task<string> RegisterPilotAsync(
         RegisterRequest request,
         CancellationToken cancellationToken = default)
@@ -147,7 +147,7 @@ public class AuthService : IAuthService
         return await ProcessRegistrationAsync(request, "Pilot", cancellationToken);
     }
 
-    // Hàm xử lý chung: Kiểm tra dữ liệu, rate limit, lưu Cache và gửi Mail
+    // Hàm xử lý chung: Kiểm tra dữ liệu, rate limit, lưu Cache và gửi Mail (CODE GỐC - GIỮ NGUYÊN 100%)
     private async Task<string> ProcessRegistrationAsync(
         RegisterRequest request,
         string roleName,
@@ -232,7 +232,7 @@ public class AuthService : IAuthService
         return $"Verification code has been sent to your email for {roleDisplayName} registration.";
     }
 
-    // 4. Luồng xác thực OTP và lưu tài khoản vào Database với đúng Role
+    // 4. Luồng xác thực OTP và lưu tài khoản vào Database với đúng Role (CODE GỐC - GIỮ NGUYÊN 100%)
     public async Task<bool> VerifyRegisterAsync(
         VerifyRegisterRequest request,
         CancellationToken cancellationToken = default)
@@ -315,13 +315,163 @@ public class AuthService : IAuthService
         return true;
     }
 
-    // Lớp đối tượng lưu trữ tạm trong MemoryCache
+    // =========================================================================
+    // 5. CHỨC NĂNG MỚI: QUÊN MẬT KHẨU (GỬI MÃ OTP VỀ EMAIL DÙNG CHUNG CHO TẤT CẢ USER/PILOT/ADMIN)
+    // =========================================================================
+    public async Task<bool> ForgotPasswordAsync(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var cleanEmail = request.Email?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        // Ràng buộc định dạng email
+        if (string.IsNullOrWhiteSpace(cleanEmail) || !EmailFormatRegex.IsMatch(cleanEmail) || cleanEmail.Contains(".."))
+        {
+            throw new Exception("Invalid email address format.");
+        }
+
+        // Kiểm tra xem tài khoản có tồn tại trong hệ thống hay không
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail, cancellationToken);
+
+        if (user == null)
+        {
+            throw new Exception("This email address is not registered in our system.");
+        }
+
+        // Chống spam: Mỗi email phải đợi tối thiểu 60 giây giữa các lần yêu cầu
+        var rateLimitKey = $"FORGOT_RATE_LIMIT_{cleanEmail}";
+        if (_cache.TryGetValue(rateLimitKey, out _))
+        {
+            throw new Exception("Please wait 60 seconds before requesting a new password reset code.");
+        }
+
+        // Tận dụng hàm sinh mã 5 ký tự bảo mật có sẵn trong hệ thống
+        var verificationCode = Generate5CharacterCode();
+
+        Console.WriteLine($"\n==========================================");
+        Console.WriteLine($"[FORGOT PASSWORD OTP]: {verificationCode} for {cleanEmail}");
+        Console.WriteLine($"==========================================\n");
+
+        var cacheKey = $"FORGOT_OTP_{cleanEmail}";
+        var cacheEntry = new PendingForgotPassword
+        {
+            Email = cleanEmail,
+            Code = verificationCode,
+            FailedAttempts = 0
+        };
+
+        // Lưu mã xác thực trong 10 phút, khóa gửi lại trong 60 giây
+        _cache.Set(cacheKey, cacheEntry, TimeSpan.FromMinutes(10));
+        _cache.Set(rateLimitKey, true, TimeSpan.FromSeconds(60));
+
+        // Soạn email gửi mã xác thực đặt lại mật khẩu
+        var emailBody = $@"
+            <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; color: #333;'>
+                <h2 style='color: #1a73e8;'>DroneOps Password Reset Code</h2>
+                <p>Hello <b>{user.FullName}</b>,</p>
+                <p>We received a request to reset your account password. Your verification code is:</p>
+                <div style='background-color: #f1f3f4; padding: 12px 20px; border-radius: 8px; width: fit-content; margin: 16px 0;'>
+                    <span style='font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #d93025;'>{verificationCode}</span>
+                </div>
+                <p style='color: #5f6368; font-size: 13px;'>This code will expire in 10 minutes. If you did not make this request, please ignore this email.</p>
+                <br/>
+                <p style='margin: 0; color: #70757a; font-size: 13px;'>Best regards,<br/><strong>DroneOps Intelligence Team</strong></p>
+            </div>";
+
+        await _emailService.SendEmailAsync(
+            cleanEmail,
+            "DroneOps - Password Reset Code",
+            emailBody);
+
+        return true;
+    }
+
+    // =========================================================================
+    // 6. CHỨC NĂNG MỚI: XÁC THỰC MÃ OTP VÀ THIẾT LẬP MẬT KHẨU MỚI
+    // =========================================================================
+    public async Task<bool> ResetPasswordAsync(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var cleanEmail = request.Email?.Trim().ToLowerInvariant() ?? string.Empty;
+        var cleanCode = request.Otp?.Trim() ?? string.Empty;
+
+        // Ràng buộc định dạng email
+        if (string.IsNullOrWhiteSpace(cleanEmail) || !EmailFormatRegex.IsMatch(cleanEmail))
+        {
+            throw new Exception("Invalid email address format.");
+        }
+
+        if (string.IsNullOrWhiteSpace(cleanCode))
+        {
+            throw new Exception("Verification code is required.");
+        }
+
+        // Ràng buộc mật khẩu mới theo chuẩn OWASP/NIST
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || !StrongPasswordRegex.IsMatch(request.NewPassword))
+        {
+            throw new Exception("New password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.");
+        }
+
+        if (!string.Equals(request.NewPassword, request.ConfirmPassword))
+        {
+            throw new Exception("Password confirmation does not match the new password.");
+        }
+
+        var cacheKey = $"FORGOT_OTP_{cleanEmail}";
+        if (!_cache.TryGetValue(cacheKey, out PendingForgotPassword? pending) || pending == null)
+        {
+            throw new Exception("Verification code has expired or does not exist. Please request a new code.");
+        }
+
+        // Chống dò mã (Brute-force): Sai quá 5 lần sẽ vô hiệu hóa mã ngay lập tức
+        if (!string.Equals(pending.Code, cleanCode, StringComparison.OrdinalIgnoreCase))
+        {
+            pending.FailedAttempts++;
+            if (pending.FailedAttempts >= 5)
+            {
+                _cache.Remove(cacheKey);
+                throw new Exception("Too many incorrect attempts. Your code has been invalidated. Please request a new code.");
+            }
+
+            _cache.Set(cacheKey, pending, TimeSpan.FromMinutes(10));
+            throw new Exception($"Invalid verification code. You have {5 - pending.FailedAttempts} attempt(s) remaining.");
+        }
+
+        // Lấy User từ DB và tiến hành cập nhật mật khẩu mới
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail, cancellationToken);
+        if (user == null)
+        {
+            throw new Exception("User not found.");
+        }
+
+        // Băm mật khẩu mới bằng BCrypt và cập nhật Database
+        user.PasswordHash = BC.HashPassword(request.NewPassword);
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Đổi mật khẩu thành công -> xóa mã trong Cache
+        _cache.Remove(cacheKey);
+        return true;
+    }
+
+    // Lớp đối tượng lưu trữ tạm trong MemoryCache (CODE GỐC - GIỮ NGUYÊN 100%)
     private class PendingRegistration
     {
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string RoleName { get; set; } = "Pilot"; // Lưu trữ role: Admin hoặc Pilot
+        public string Code { get; set; } = string.Empty;
+        public int FailedAttempts { get; set; }
+    }
+
+    // Lớp đối tượng lưu trữ tạm OTP Quên mật khẩu trong MemoryCache (MỚI)
+    private class PendingForgotPassword
+    {
+        public string Email { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
         public int FailedAttempts { get; set; }
     }
