@@ -1,5 +1,7 @@
-﻿namespace DroneOps.Domain.Entities;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
+namespace DroneOps.Domain.Entities;
+[Table("Mission")]
 public sealed class Mission
 {
     public Guid Id { get; set; }
@@ -24,6 +26,6 @@ public sealed class Mission
 
     public UAV? UAV { get; set; }
 
-    public ICollection<MissionVersion> MissionVersions { get; set; }
-        = new List<MissionVersion>();
+    public ICollection<Waypoint> Waypoints { get; set; }
+     = new List<Waypoint>();
 }

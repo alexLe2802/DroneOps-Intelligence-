@@ -43,35 +43,31 @@ public sealed class MissionService : IMissionService
             CreatedAt = now
         };
 
-        var missionVersion = new MissionVersion
-        {
-            Id = Guid.NewGuid(),
-            MissionId = mission.Id,
-            VersionNumber = 1,
-            Status = "Draft",
-            CreatedAt = now
-        };
-
         foreach (var waypointRequest in request.Waypoints
                      .OrderBy(x => x.SequenceOrder))
         {
-            missionVersion.Waypoints.Add(new Waypoint
+            mission.Waypoints.Add(new Waypoint
             {
                 Id = Guid.NewGuid(),
-                MissionVersionId = missionVersion.Id,
+
+                MissionId = mission.Id,
+
                 SequenceOrder = waypointRequest.SequenceOrder,
+
                 Latitude = waypointRequest.Latitude,
+
                 Longitude = waypointRequest.Longitude,
+
                 Altitude = waypointRequest.Altitude,
+
                 ActionType = string.IsNullOrWhiteSpace(
                     waypointRequest.ActionType)
                     ? null
                     : waypointRequest.ActionType.Trim(),
+
                 CreatedAt = now
             });
         }
-
-        mission.MissionVersions.Add(missionVersion);
 
         await _missionRepository.AddAsync(
             mission,
@@ -80,12 +76,11 @@ public sealed class MissionService : IMissionService
         await _missionRepository.SaveChangesAsync(
             cancellationToken);
 
-        return MapToResponse(mission, missionVersion);
+        return MapToResponse(mission);
     }
 
     private static MissionResponse MapToResponse(
-        Mission mission,
-        MissionVersion version)
+        Mission mission)
     {
         return new MissionResponse
         {
@@ -98,8 +93,8 @@ public sealed class MissionService : IMissionService
             StartTime = mission.StartTime,
             EndTime = mission.EndTime,
             CreatedAt = mission.CreatedAt,
-            VersionNumber = version.VersionNumber,
-            Waypoints = version.Waypoints
+
+            Waypoints = mission.Waypoints
                 .OrderBy(x => x.SequenceOrder)
                 .Select(x => new WaypointResponse
                 {

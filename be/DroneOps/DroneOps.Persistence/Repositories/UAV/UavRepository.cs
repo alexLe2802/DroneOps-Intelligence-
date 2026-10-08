@@ -24,16 +24,36 @@ public sealed class UavRepository
             cancellationToken);
     }
 
-    public async Task<List<UAV>> GetPendingAsync(
-        CancellationToken cancellationToken = default)
+   public async Task<List<UAV>> GetPendingAsync(
+    string? keyword = null,
+    int page = 1,
+    int pageSize = 10,
+    CancellationToken cancellationToken = default)
+{
+    var query = DbSet
+        .AsNoTracking()
+        .Include(x => x.Pilot)
+        .ThenInclude(x => x.User)
+        .Where(x => x.Status == "Pending");
+
+    if (!string.IsNullOrWhiteSpace(keyword))
     {
-        return await DbSet
-            .AsNoTracking()
-            .Include(x => x.Pilot)
-            .ThenInclude(x => x.User)
-            .Where(x => x.Status == "Pending")
-            .ToListAsync(cancellationToken);
+        keyword = keyword.ToLower();
+
+        query = query.Where(x =>
+            x.Code.ToLower().Contains(keyword) ||
+            x.Name.ToLower().Contains(keyword) ||
+            (x.Model != null &&
+             x.Model.ToLower().Contains(keyword)) ||
+            x.Pilot.User.FullName.ToLower().Contains(keyword));
     }
+
+    return await query
+        .OrderByDescending(x => x.CreatedAt)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .ToListAsync(cancellationToken);
+}
 
     public async Task<List<UAV>> GetByPilotIdAsync(
         Guid pilotId,
