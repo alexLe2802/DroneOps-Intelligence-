@@ -34,6 +34,7 @@ public class AppDbContext : DbContext
     public DbSet<PilotRegistration> PilotRegistrations { get; set; }
     public DbSet<MissionSuggestion> MissionSuggestions { get; set; }
 
+    public DbSet<PostFlightReport> PostFlightReports { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -49,5 +50,6 @@ public class AppDbContext : DbContext
                 x.VersionNumber
             })
             .IsUnique();
+        modelBuilder.Entity<Waypoint>().ToTable("Waypoint");
     }
 }
