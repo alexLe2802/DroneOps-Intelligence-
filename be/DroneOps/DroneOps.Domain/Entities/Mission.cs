@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DroneOps.Domain.Entities;
+
 [Table("Mission")]
 public sealed class Mission
 {
@@ -22,10 +23,11 @@ public sealed class Mission
 
     public DateTime CreatedAt { get; set; }
 
+    // Chỉ định rõ ràng Creator liên kết với khóa ngoại CreatedBy (tránh EF Core tự đoán CreatorId)
+    [ForeignKey("CreatedBy")]
     public User? Creator { get; set; }
 
     public UAV? UAV { get; set; }
 
-    public ICollection<Waypoint> Waypoints { get; set; }
-     = new List<Waypoint>();
+    public ICollection<Waypoint> Waypoints { get; set; } = new List<Waypoint>();
 }
