@@ -1,5 +1,8 @@
-﻿namespace DroneOps.Domain.Entities;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
+namespace DroneOps.Domain.Entities;
+
+[Table("Waypoint")]
 public sealed class Waypoint
 {
     public Guid Id { get; set; }
