@@ -9,15 +9,26 @@ import {
 import { FirebaseError } from "firebase/app";
 import { getFirebaseAuth } from "@/lib/auth/firebase";
 import { api, ApiError } from "@/lib/auth/client";
+import type { AccountRole, AuthSession } from "@/lib/auth/types";
+import { createPilotRegistration } from "@/lib/pilot-registration";
 
-type Action = "google" | "password" | "reset";
+type Action = "google" | "password" | "reset" | "register";
+type AccessMode = "pilot" | "manager";
+
 const resetMessage = "If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.";
+const roleByMode: Record<AccessMode, AccountRole> = { pilot: "uav_operator", manager: "operations_manager" };
+const roleMismatch: Record<AccessMode, string> = {
+  pilot: "This account belongs to Manager Access. Use the Manager panel to sign in.",
+  manager: "This account belongs to Pilot Access. Use the Pilot panel to sign in.",
+};
 
 export default function LoginForm() {
+  const [mode, setMode] = useState<AccessMode>("pilot");
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
   const inProgress = useRef(false);
   const emailInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
@@ -45,17 +56,18 @@ export default function LoginForm() {
           credential = await signInWithEmailAndPassword(auth, emailInput.current!.value.trim(), passwordInput.current!.value);
         }
         if (!credential.user.emailVerified) {
-          // No application session is created until the user proves ownership of the email.
           await sendEmailVerification(credential.user);
           setNotice("Verification email sent. Open the link in your inbox or spam folder, then return here and sign in again.");
           return;
         }
-        // Force a fresh token after the interactive sign-in. This keeps the server's
-        // five-minute recent-authentication check from receiving a cached token.
-        await api("/auth/session", { method: "POST", body: JSON.stringify({ idToken: await credential.user.getIdToken(true) }) });
+        const session = await api<AuthSession>("/auth/session", { method: "POST", body: JSON.stringify({ idToken: await credential.user.getIdToken(true) }) });
+        if (session.account.role !== roleByMode[mode]) {
+          await api("/auth/logout", { method: "POST" }).catch(() => undefined);
+          setError(roleMismatch[mode]);
+          return;
+        }
         completed = true;
       } finally {
-        // The browser keeps only the server HttpOnly session after exchange.
         await signOut(auth);
       }
     } catch (e) {
@@ -89,24 +101,102 @@ export default function LoginForm() {
       if (completed) window.location.replace("/portal");
     }
   }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); void login("password");
   }
+
+  async function submitRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (inProgress.current) return;
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    const read = (name: string) => String(values.get(name) ?? "").trim();
+    const password = String(values.get("password") ?? "");
+    if (password !== values.get("confirmPassword")) {
+      setError("Passwords do not match.");
+      return;
+    }
+    const licenseIssuedDate = read("licenseIssuedDate");
+    const licenseExpiredDate = read("licenseExpiredDate");
+    if (new Date(licenseExpiredDate) <= new Date(licenseIssuedDate)) {
+      setError("License expiration date must be after the issued date.");
+      return;
+    }
+    inProgress.current = true;
+    setBusy("register"); setError(""); setNotice("");
+    try {
+      const result = await createPilotRegistration({
+        fullName: read("fullName"), email: read("email"), password,
+        phoneNumber: read("phoneNumber"), dateOfBirth: read("dateOfBirth"),
+        pilotLicenseNo: read("pilotLicenseNo"), licenseIssuedDate, licenseExpiredDate,
+        experienceYears: Number(read("experienceYears") || 0),
+        droneType: read("droneType"), usagePurpose: read("usagePurpose"),
+        description: read("description") || null,
+      });
+      form.reset();
+      setRegisterOpen(false);
+      setNotice(result.message || "Registration submitted. An Operations Manager will review your request.");
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Unable to submit your registration request.");
+    } finally {
+      for (const name of ["password", "confirmPassword"]) {
+        const input = form.elements.namedItem(name);
+        if (input instanceof HTMLInputElement) input.value = "";
+      }
+      inProgress.current = false;
+      setBusy(null);
+    }
+  }
+
   return <div className="login-action">
+    <div className="access-tabs" role="tablist" aria-label="Access type">
+      <button type="button" role="tab" aria-selected={mode === "pilot"} className={mode === "pilot" ? "active" : ""} onClick={() => { setMode("pilot"); setError(""); setNotice(""); }}>UAV Operator / Pilot</button>
+      <button type="button" role="tab" aria-selected={mode === "manager"} className={mode === "manager" ? "active" : ""} onClick={() => { setMode("manager"); setError(""); setNotice(""); }}>Operations Manager</button>
+    </div>
+
     <form className="email-login-form" onSubmit={submit} aria-busy={busy !== null}>
-      <label htmlFor="login-email">Email address</label>
-      <input ref={emailInput} id="login-email" name="email" type="email" required maxLength={254} autoComplete="username" placeholder="you@your-team.com" disabled={busy !== null} />
-      <div className="password-label"><label htmlFor="login-password">Password</label><button type="button" className="text-button" disabled={busy !== null} onClick={() => void login("reset")}>Forgot password?</button></div>
+      <label htmlFor="login-email">OPERATOR IDENTIFIER / EMAIL</label>
+      <input ref={emailInput} id="login-email" name="email" type="email" required maxLength={254} autoComplete="username" placeholder={mode === "pilot" ? "pilot@droneops.com" : "manager@droneops.com"} disabled={busy !== null} />
+      <div className="password-label"><label htmlFor="login-password">SECURITY TOKEN / PASSWORD</label><button type="button" className="text-button" disabled={busy !== null} onClick={() => void login("reset")}>Forgot credentials?</button></div>
       <div className="password-field"><input ref={passwordInput} id="login-password" name="password" type={showPassword ? "text" : "password"} required maxLength={4096} autoComplete="current-password" disabled={busy !== null} /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} disabled={busy !== null} onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Hide" : "Show"}</button></div>
-      <button type="submit" className="button primary email-login-submit" disabled={busy !== null}>{busy === "password" ? "Signing in…" : "Sign in"}<span aria-hidden="true">→</span></button>
+      <button type="submit" className="button primary email-login-submit" disabled={busy !== null}>{busy === "password" ? "Authenticating..." : "Authenticate & Enter Portal"}<span aria-hidden="true">→</span></button>
     </form>
+
+    {mode === "pilot" && <button type="button" className="pilot-register-link" disabled={busy !== null} onClick={() => { setRegisterOpen(true); setNotice(""); setError(""); }}>Request Pilot Registration</button>}
+
     <div className="login-divider"><span>OR CONTINUE WITH</span></div>
     <button type="button" className="google-login" onClick={() => void login("google")} disabled={busy !== null} aria-busy={busy === "google"}>
       <Image src="/google-signin.png" width={270} height={60} alt="Sign in with Google" priority />
     </button>
-    {busy === "google" && <p className="auth-feedback" role="status">Waiting for Google sign-in…</p>}
-    {busy === "reset" && <p className="auth-feedback" role="status">Requesting a password reset…</p>}
+    {busy === "google" && <p className="auth-feedback" role="status">Waiting for Google sign-in...</p>}
+    {busy === "reset" && <p className="auth-feedback" role="status">Requesting a password reset...</p>}
     {notice && <p className="auth-feedback" role="status">{notice}</p>}
-    {error && <p className="auth-error" role="alert">{error}</p>}
+    {error && !registerOpen && <p className="auth-error" role="alert">{error}</p>}
+
+    <div className="login-directive"><b>NOTICE BR-01:</b> Strict role-based access control applies. Pilot registrations require Operations Manager approval before portal access is enabled.</div>
+
+    {registerOpen && <div className="pilot-register-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) { setRegisterOpen(false); setError(""); } }}>
+      <form className="pilot-register-modal" aria-label="Pilot registration request" onSubmit={submitRegistration}>
+        <header><div><span className="auth-kicker">PILOT ACCESS REQUEST</span><h3>Request Pilot Registration</h3><p>Your request will be reviewed by an Operations Manager.</p></div><button type="button" aria-label="Close registration form" onClick={() => { setRegisterOpen(false); setError(""); }}>×</button></header>
+        <div className="pilot-register-grid">
+          <label>Full name<input required name="fullName" maxLength={120} placeholder="Nguyen Long" /></label>
+          <label>Email<input required name="email" type="email" maxLength={254} placeholder="pilot@example.com" /></label>
+          <label>Phone number<input required name="phoneNumber" type="tel" minLength={8} maxLength={20} placeholder="+84..." /></label>
+          <label>Date of birth<input required name="dateOfBirth" type="date" /></label>
+          <label>Initial password<input required name="password" type="password" minLength={12} maxLength={100} autoComplete="new-password" /></label>
+          <label>Confirm password<input required name="confirmPassword" type="password" minLength={12} maxLength={100} autoComplete="new-password" /></label>
+          <label>Pilot license number<input required name="pilotLicenseNo" maxLength={80} placeholder="CAAV-UAV-88412" /></label>
+          <label>Experience years<input required name="experienceYears" type="number" min={0} max={80} defaultValue={0} /></label>
+          <label>License issued date<input required name="licenseIssuedDate" type="date" /></label>
+          <label>License expired date<input required name="licenseExpiredDate" type="date" /></label>
+          <label>Drone type<select required name="droneType" defaultValue=""><option value="" disabled>Select drone type</option><option>Multirotor</option><option>Fixed-wing</option><option>VTOL</option><option>Survey UAV</option></select></label>
+          <label>Usage purpose<select required name="usagePurpose" defaultValue=""><option value="" disabled>Select purpose</option><option>Inspection</option><option>Mapping</option><option>Monitoring</option><option>Emergency response</option></select></label>
+          <label className="pilot-register-wide">Description<textarea name="description" rows={4} maxLength={500} placeholder="Briefly describe your operating scope or manager contact." /></label>
+        </div>
+        {error && <p className="pilot-register-error" role="alert">{error}</p>}
+        <footer><p>Your application will remain pending until an Operations Manager reviews it.</p><button type="submit" className="button primary" disabled={busy !== null}>{busy === "register" ? "Sending..." : "Submit Registration Request"}</button></footer>
+      </form>
+    </div>}
   </div>;
 }
