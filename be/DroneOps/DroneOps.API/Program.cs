@@ -3,6 +3,7 @@ using DroneOps.Application;
 using DroneOps.Application.Settings;
 using DroneOps.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -10,6 +11,7 @@ var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--boo
 var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
+
 // Các thiết lập bảo mật local được nạp khi chạy môi trường Development
 if (builder.Environment.IsDevelopment())
 {
@@ -29,6 +31,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Đăng ký dịch vụ Rate Limiting để hỗ trợ app.UseRateLimiter() hoạt động ổn định
+builder.Services.AddRateLimiter(_ => { });
 
 // 1. Cấu hình "Cái Khóa" (Authorize button) trên giao diện Swagger UI
 builder.Services.AddSwaggerGen(options =>
@@ -120,6 +125,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+
 #endregion
 
 var app = builder.Build();
@@ -132,8 +138,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

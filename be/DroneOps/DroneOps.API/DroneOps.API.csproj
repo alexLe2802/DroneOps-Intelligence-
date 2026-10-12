@@ -18,20 +18,19 @@
 	<ItemGroup>
 		<ProjectReference Include="..\DroneOps.Application\DroneOps.Application.csproj" />
 		<ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<ProjectReference Include="..\DroneOps.Persistence\DroneOps.Persistence.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<Content Remove="secrets/**" />
 		<None Remove="secrets/**" />
+		<Compile Remove="AI\AiAssessmentsController.cs" />
 		<Content Update="appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<Content Include="../../../database/migrations/001_auth.sql" Link="Migrations/001_auth.sql" CopyToOutputDirectory="PreserveNewest" />
+		<Content Include="../../../database/migrations/002_ai_assessments.sql" Link="Migrations/002_ai_assessments.sql" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 </Project>
