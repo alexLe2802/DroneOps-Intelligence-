@@ -17,10 +17,10 @@ Initial manager: `impro2003@gmail.com`, explicitly selected by the project owner
 
 1. `/login` uses Firebase Google popup or email/password authentication with `inMemoryPersistence`. It never writes credentials to localStorage/sessionStorage/IndexedDB.
 2. A fresh Firebase ID token is POSTed over the same-origin `/api/auth/session` proxy, with an ASP.NET antiforgery header and exact Origin validation.
-3. Firebase Admin verifies signature, issuer, audience, expiry and revocation. The application additionally requires verified email, `google.com` or `password` sign-in provider, and authentication within five minutes.
+3. Firebase Admin verifies signature, issuer, audience and expiry. PostgreSQL enforces application session revocation. The application additionally requires verified email, `google.com` or `password` sign-in provider, and authentication within five minutes.
 4. Firebase Admin issues an **8-hour JWT session cookie**. PostgreSQL binds the verified Firebase UID to an already-provisioned account, serializes the operation against account deactivation, and stores SHA-256 hashes of the cookie and consumed login proof. Reusing a consumed ID token is rejected. No raw token is saved in the database.
 5. Backend sets a host-only `HttpOnly`, `SameSite=Strict` cookie, plus `Secure` and the `__Host-` prefix in production. After exchange, the frontend calls Firebase `signOut` and performs a full navigation to `/portal`.
-6. Every protected API request validates the Firebase session JWT (including revocation) and the active, unexpired database session. Role and account status come from the database, not client input or stale JWT role claims.
+6. Every protected web API request validates the Firebase session JWT signature and expiry and the active, unexpired database session, including application revocation. Role and account status come from the database, not client input or stale JWT role claims.
 7. Logout revokes the database session and expires its cookie. Logout everywhere revokes all application sessions for the account. Disabling an Operator revokes its sessions transactionally. These actions do not sign the user out of their Google account or other Firebase applications.
 
 The database deliberately retains revoked hashes to prevent replay, with audit events. Schedule retention cleanup according to the final SRS retention decision; do not remove recent consumed login proofs within the five-minute exchange window.
@@ -137,3 +137,44 @@ PostgreSQL stores the Firebase UID, name, email, role, status, creator and an au
 Firebase and PostgreSQL cannot share a transaction. If Firebase creation succeeds but the database write fails or its result is uncertain, the API reports an error with recovery instructions. It does not delete or reset the Firebase user, since a concurrent or committed database record might reference that UID. Refresh the account list; if absent, use **Existing Firebase account** with the same email to finish provisioning. An unprovisioned Firebase user still cannot start a DroneOps session.
 
 The HTTP checks cover create/link, fixed role, UID binding, initial status, duplicate email, invalid inputs, missing/disabled Firebase identities, CSRF, unauthorized access and interrupted-creation recovery using fake external boundaries. They do not create real Firebase test users or send emails. Firebase API reference: [Admin user management](https://firebase.google.com/docs/auth/admin/manage-users).
+
+## Troubleshooting login from another computer
+
+Creating an account does not tie it to one computer. Each browser signs in separately
+and receives its own application session. Firebase identity and the matching active
+`droneops.accounts` record must both exist, with matching Firebase UID and role.
+The legacy `public."User"` email/password API is a separate identity store; creating
+an account there alone does not create a Firebase login for the website.
+
+The web frontend requires `/api/auth/csrf`, `/api/auth/session`, and `/api/auth/me`.
+If Swagger only shows `/api/auth/login` and registration/OTP routes, the Firebase
+backend module is missing or the API process is still running an older build.
+Rebuild and restart the backend. Both login systems can coexist: API clients use
+Bearer JWTs, while the website uses Firebase session cookies.
+
+For a separate local checkout on another computer, configure its own ignored
+`fe/.env.local` for the same Firebase project and its backend credentials for the
+same PostgreSQL database. Configure `Auth:ServiceAccountPath` and the PostgreSQL
+`Root Certificate` path for that computer; an absolute path under another user's
+home directory will not work. Do not commit private configuration or credentials.
+`API_BASE_URL=http://localhost:5159` refers to the machine running the Next.js
+server. It works when that machine also runs the backend.
+
+If opening a website hosted on a teammate's computer, use that server's reachable
+website URL. The backend's `Auth:PublicOrigin` must match this exact origin;
+`http://localhost:3000` is a different origin from a LAN IP or deployed hostname.
+The current policy allows HTTP loopback for local development and requires HTTPS
+for other origins. Production session cookies require HTTPS as well.
+
+On macOS, native TLS validation may reject the Supabase pooler's wildcard hostname
+although its certificate chain and hostname are valid. With `Ssl Mode=VerifyFull`
+and a configured root certificate, the datasource validates the chain against that
+CA and checks the hostname using .NET's `MatchesHostname`. Expired certificates,
+untrusted chains, and wrong hostnames remain rejected. Other platforms retain
+Npgsql's native verification.
+
+The local Supabase configuration uses the session pooler on port `5432`. On this
+workspace, the transaction pooler on `6543` timed out when Npgsql reused a pooled
+connection: the initial login write succeeded, but the following session read
+failed. Repeated reads on the session pooler passed. Keep `Max Auto Prepare=0`
+and certificate/hostname verification enabled.

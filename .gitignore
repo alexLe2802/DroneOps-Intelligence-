@@ -47,6 +47,7 @@ DocumentLayout.json
 DocumentLayout.backup.json
 # Local backend SDK and credentials
 .tools/
+**/appsettings.json
 **/appsettings.Local.json
 
 # Firebase service account secrets and server data-protection keys
