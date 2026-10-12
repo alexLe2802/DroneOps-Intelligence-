@@ -54,7 +54,7 @@ export default function MissionForm() {
   }
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!aircraft) return <ModuleLoading label="Loading mission resources" />;
-  const approvedAircraft = aircraft.filter(item => item.approvalStatus === "Approved" && item.status !== "Maintenance" && item.status !== "InFlight");
+  const approvedAircraft = aircraft.filter(item => item.status.toLowerCase() === "active");
   return <>
     <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
     <form className="mission-builder" onSubmit={submit}>
@@ -77,6 +77,5 @@ export default function MissionForm() {
       {error && <p className="form-error" role="alert">{error}</p>}
       <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mission will be saved as a draft.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || approvedAircraft.length === 0}>{saving ? "CREATING…" : "CREATE MISSION"}</button></div></footer>
     </form>
-    <p className="mock-notice">MOCK API · Map tiles are provided by OpenFreeMap for development.</p>
   </>;
 }
