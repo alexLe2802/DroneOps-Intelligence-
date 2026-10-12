@@ -1,5 +1,6 @@
 export const managerNavItems = [
   ["▦", "Dashboard", "02"], ["⌁", "Mission Planning", "ROUTE"],
+  ["+", "Operators", "REGISTER"],
   ["◈", "Validation & Approvals", "3 PENDING"], ["⌁", "Live Monitoring", "●"],
   ["△", "Incident Management", "2 ALERT"], ["⌁", "Flight History & Reports", "POST"],
   ["◎", "AI Risk Assessment", "EVAL"], ["⌘", "Fleet & Restrictions", "14 UAV"],
