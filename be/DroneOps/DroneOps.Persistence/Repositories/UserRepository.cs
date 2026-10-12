@@ -39,4 +39,5 @@ public sealed class UserRepository
                 user => user.Id == userId,
                 cancellationToken);
     }
+ 
 }
