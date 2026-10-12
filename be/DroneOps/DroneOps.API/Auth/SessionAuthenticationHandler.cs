@@ -33,11 +33,20 @@ public sealed class SessionAuthenticationHandler(
                 return AuthenticateResult.Fail("Session expired or revoked.");
             }
             Context.Items[typeof(SessionIdentity)] = session;
+            var backendRole = session.Account.Role switch
+            {
+                AccountRoles.Operator => "Pilot",
+                AccountRoles.Manager => "Admin",
+                _ => throw new InvalidOperationException("Unsupported application role.")
+            };
             var claims = new[] {
                 new Claim(ClaimTypes.NameIdentifier, session.Account.Id.ToString()),
                 new Claim(ClaimTypes.Email, session.Account.Email),
                 new Claim(ClaimTypes.Name, session.Account.DisplayName),
+                // Keep the web role for Firebase-session endpoints and add the
+                // legacy backend role expected by domain controllers.
                 new Claim(ClaimTypes.Role, session.Account.Role),
+                new Claim(ClaimTypes.Role, backendRole),
                 new Claim("session_id", session.SessionId.ToString())
             };
             return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));

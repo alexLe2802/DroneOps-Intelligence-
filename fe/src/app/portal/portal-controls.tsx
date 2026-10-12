@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "@/lib/auth/client";
 import { roleLabels, type Account, type SessionInfo } from "@/lib/auth/types";
 
@@ -18,6 +18,8 @@ export default function PortalControls({ account, registerOnly = false }: Portal
   const [loaded, setLoaded] = useState(false);
   const [accountType, setAccountType] = useState("new");
   const [showProvisionForm, setShowProvisionForm] = useState(false);
+  const [accountQuery, setAccountQuery] = useState("");
+  const [accessFilter, setAccessFilter] = useState("all");
   const pending = useRef(false);
   const manager = account.role === "operations_manager";
   const handleError = useCallback((e: unknown) => {
@@ -98,12 +100,17 @@ export default function PortalControls({ account, registerOnly = false }: Portal
   }
   const pilotAccounts = accounts.filter(item => item.role === "uav_operator");
   const activeOperators = pilotAccounts.filter(item => item.isActive).length;
-  const selectedOperator = pilotAccounts[0] ?? accounts[0];
+  const filteredAccounts = useMemo(() => pilotAccounts.filter(item => {
+    const matchesQuery = `${item.displayName} ${item.email}`.toLowerCase().includes(accountQuery.trim().toLowerCase());
+    const matchesAccess = accessFilter === "all" || (accessFilter === "active" ? item.isActive : !item.isActive);
+    return matchesQuery && matchesAccess;
+  }), [pilotAccounts, accountQuery, accessFilter]);
+  const selectedOperator = filteredAccounts[0] ?? pilotAccounts[0];
   if (registerOnly) return <div className="portal-content operator-registration-content">
     {error && <p className="auth-error" role="alert">{error} <button className="text-button" disabled={busy} onClick={() => act(load)}>Retry</button></p>}
     {message && <p className="auth-feedback" role="status">{message}</p>}
     <div className="operator-roster-hero"><div><span>FE-01 // UC-03</span><small>ACCOUNT REGISTRY</small><h2>Certified UAV Operator & Commander Roster</h2><p>Manage authenticated pilot accounts and DroneOps access from backend records.</p></div><div className="operator-hero-actions"><button type="button" className="button primary" disabled={busy} aria-haspopup="dialog" onClick={() => setShowProvisionForm(true)}>+ Provision New Operator</button></div></div>
-    <section className="operator-stat-grid" aria-label="Operator roster summary"><article><span>Total operators</span><strong>{pilotAccounts.length}<small> personnel</small></strong><p>Registered backend accounts</p></article><article><span>Access enabled</span><strong className="green">{activeOperators.toString().padStart(2, "0")}<small> accounts</small></strong><p>{pilotAccounts.length ? Math.round(activeOperators / pilotAccounts.length * 100) : 0}% enabled</p></article><article><span>Access disabled</span><strong className="warning">{String(pilotAccounts.length - activeOperators).padStart(2, "0")}<small> accounts</small></strong><p>Sign-in blocked</p></article></section>
+    <section className="operator-stat-grid" aria-label="Operator roster summary"><article><span>Total operators</span><strong>{pilotAccounts.length}<small> personnel</small></strong><p>Backend role: Pilot</p></article><article><span>Access enabled</span><strong className="green">{activeOperators.toString().padStart(2, "0")}<small> operators</small></strong><p>{pilotAccounts.length ? Math.round(activeOperators / pilotAccounts.length * 100) : 0}% enabled</p></article><article><span>Access disabled</span><strong className="warning">{String(pilotAccounts.length - activeOperators).padStart(2, "0")}<small> operators</small></strong><p>Sign-in blocked</p></article></section>
     <div className="operator-roster-layout">
     {manager && <section className="portal-card operator-roster-card"><div className="portal-card-heading"><div><span className="auth-kicker">ACTIVE ROSTER</span><h2>Certified Operators</h2><p>Search, review, and provision operators for DroneOps access.</p></div></div>
       {showProvisionForm && <div className="provision-modal-backdrop" role="presentation" onClick={() => setShowProvisionForm(false)}>
@@ -147,7 +154,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
         </fieldset>
           </form>
         </div>
-      </div>}<div className="operator-filter-strip"><label><span className="sr-only">Search</span><input placeholder="Search by Pilot name, email, or callsign" /></label><select defaultValue="all"><option value="all">All Roles</option><option value="pilot">UAV Pilot</option><option value="manager">Ops Manager</option></select><select defaultValue="all"><option value="all">All Clearance</option><option value="active">Active</option><option value="disabled">Disabled</option></select></div><div className="account-table-wrap"><table className="account-table"><thead><tr><th>Operator identity</th><th>Role & authority</th><th>Access</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{accounts.map(a => <tr key={a.id}><td><strong>{a.displayName}</strong><br /><span>{a.email}</span></td><td>{roleLabels[a.role]}<br /><span>TAC-clearance L{a.role === "operations_manager" ? "4" : "3"}</span></td><td><span className={a.isActive ? "green" : "warning"}>{a.isActive ? "Online / enabled" : "Access disabled"}</span></td><td>{a.role === "uav_operator" && <button className="text-button" disabled={busy} onClick={() => act(async () => { await api(`/accounts/${a.id}/access`, { method: "PATCH", body: JSON.stringify({ isActive: !a.isActive }) }); await load(); })}>{a.isActive ? "Revoke flight auth" : "Restore access"}</button>}</td></tr>)}</tbody></table></div></section>}
+      </div>}<div className="operator-filter-strip"><label><span className="sr-only">Search</span><input value={accountQuery} onChange={event => setAccountQuery(event.target.value)} placeholder="Search operator by name or email" /></label><select value={accessFilter} onChange={event => setAccessFilter(event.target.value)}><option value="all">All Access States</option><option value="active">Enabled</option><option value="disabled">Disabled</option></select></div><div className="account-table-wrap"><table className="account-table"><thead><tr><th>Operator identity</th><th>Application role</th><th>Access</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{filteredAccounts.map(a => <tr key={a.id}><td><strong>{a.displayName}</strong><br /><span>{a.email}</span></td><td>{roleLabels[a.role]}<br /><span>Assigned flight scope</span></td><td><span className={a.isActive ? "green" : "warning"}>{a.isActive ? "Online / enabled" : "Access disabled"}</span></td><td><button className="text-button" disabled={busy} onClick={() => act(async () => { await api(`/accounts/${a.id}/access`, { method: "PATCH", body: JSON.stringify({ isActive: !a.isActive }) }); await load(); })}>{a.isActive ? "Revoke flight auth" : "Restore access"}</button></td></tr>)}</tbody></table>{filteredAccounts.length === 0 && <p className="account-filter-empty">No operator matches the current filters.</p>}</div></section>}
     {selectedOperator && <aside className="operator-detail-panel"><span className="auth-kicker">ACCOUNT RECORD</span><h2>Operator Access</h2><div className="operator-detail-grid"><label>Full legal name<input value={selectedOperator.displayName} readOnly /></label><label>Email<input value={selectedOperator.email} readOnly /></label><label>Role<input value={roleLabels[selectedOperator.role]} readOnly /></label><label>Access status<input value={selectedOperator.isActive ? "Enabled" : "Disabled"} readOnly /></label></div><div className="operator-directive"><b>Operational directive BR-01</b><p>Role-scoped access is enforced by the backend. Assignment and clearance APIs are not available yet.</p></div><div className="operator-detail-actions"><button className="button danger-button" disabled={busy || selectedOperator.role !== "uav_operator"} onClick={() => selectedOperator.role === "uav_operator" && act(async () => { await api(`/accounts/${selectedOperator.id}/access`, { method: "PATCH", body: JSON.stringify({ isActive: !selectedOperator.isActive }) }); await load(); })}>{selectedOperator.isActive ? "Revoke Flight Auth" : "Restore Flight Auth"}</button></div></aside>}
     </div>
   </div>;

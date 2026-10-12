@@ -68,6 +68,10 @@ export type OperationalAnalytics = {
   totalFlightHours: number; totalDistanceKilometers: number; totalIncidentsRecorded: number;
   successRatePercentage: number;
 };
+export type FlightTelemetryPoint = {
+  latitude: number | null; longitude: number | null; altitude: number | null;
+  speed: number | null; batteryLevel: number | null; recordedAt: string;
+};
 export type GeofenceCoordinate = { latitude: number; longitude: number };
 export type Geofence = { id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
 
