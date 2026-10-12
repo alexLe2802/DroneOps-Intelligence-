@@ -23,7 +23,7 @@ export type PagedResponse<T> = {
   totalPages: number;
 };
 
-export type WaypointAction = "FlyThrough" | "Hover" | "Photo" | "Land";
+export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
 export type MissionWaypoint = {
   sequenceOrder: number;
   latitude: number;

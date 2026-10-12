@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { createMission, getAssignedUavs } from "@/lib/portal/client";
-import type { AssignedUav, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
+import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
+import type { AssignedUav, Geofence, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 
-const actions: WaypointAction[] = ["FlyThrough", "Hover", "Photo", "Land"];
+const actions: WaypointAction[] = ["TakeOff", "FlyThrough", "Hover", "CapturePhoto", "Land"];
 
 export default function MissionForm() {
   const router = useRouter();
   const [aircraft, setAircraft] = useState<AssignedUav[] | null>(null);
+  const [geofences, setGeofences] = useState<Geofence[]>([]);
+  const [geofenceWarning, setGeofenceWarning] = useState("");
   const [loadError, setLoadError] = useState<unknown>(null);
   const [uavId, setUavId] = useState("");
   const [name, setName] = useState("");
@@ -24,25 +26,37 @@ export default function MissionForm() {
   const [error, setError] = useState("");
   function load() {
     setAircraft(null); setLoadError(null);
-    void getAssignedUavs().then(setAircraft).catch(setLoadError);
+    void Promise.allSettled([getAssignedUavs(), getGeofences()]).then(([uavs, zones]) => {
+      if (uavs.status === "rejected") { setLoadError(uavs.reason); return; }
+      setAircraft(uavs.value);
+      if (zones.status === "fulfilled") { setGeofences(zones.value); setGeofenceWarning(""); }
+      else { setGeofences([]); setGeofenceWarning("Restricted zones could not be loaded. Verify the route against airspace data before submission."); }
+    });
   }
   useEffect(() => {
     let active = true;
-    void getAssignedUavs().then(value => { if (active) setAircraft(value); }).catch(reason => { if (active) setLoadError(reason); });
+    void Promise.allSettled([getAssignedUavs(), getGeofences()]).then(([uavs, zones]) => {
+      if (!active) return;
+      if (uavs.status === "rejected") { setLoadError(uavs.reason); return; }
+      setAircraft(uavs.value);
+      if (zones.status === "fulfilled") setGeofences(zones.value);
+      else setGeofenceWarning("Restricted zones could not be loaded. Verify the route against airspace data before submission.");
+    });
     return () => { active = false; };
   }, []);
   function addWaypoint(longitude: number, latitude: number) {
-    setWaypoints(current => [...current, { sequenceOrder: current.length, latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: 50, actionType: "FlyThrough" }]);
+    setWaypoints(current => [...current, { sequenceOrder: current.length + 1, latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: 50, actionType: current.length === 0 ? "TakeOff" : "FlyThrough" }]);
   }
   function updateWaypoint(index: number, patch: Partial<MissionWaypoint>) {
     setWaypoints(current => current.map((point, currentIndex) => currentIndex === index ? { ...point, ...patch } : point));
   }
   function removeWaypoint(index: number) {
-    setWaypoints(current => current.filter((_, currentIndex) => currentIndex !== index).map((point, sequenceOrder) => ({ ...point, sequenceOrder })));
+    setWaypoints(current => current.filter((_, currentIndex) => currentIndex !== index).map((point, sequenceOrder) => ({ ...point, sequenceOrder: sequenceOrder + 1 })));
   }
   async function submit(event: FormEvent) {
     event.preventDefault(); setError("");
     if (waypoints.length < 2) { setError("Add at least two waypoints to define a flight route."); return; }
+    if (waypoints.some(point => !Number.isFinite(point.latitude) || point.latitude < -90 || point.latitude > 90 || !Number.isFinite(point.longitude) || point.longitude < -180 || point.longitude > 180)) { setError("Waypoint coordinates are outside the valid latitude or longitude range."); return; }
     if (new Date(endTime) <= new Date(startTime)) { setError("End time must be later than start time."); return; }
     if (waypoints.some(point => point.altitude < 0 || point.altitude > 500)) { setError("Waypoint altitude must be between 0 and 500 metres."); return; }
     setSaving(true);
@@ -62,8 +76,8 @@ export default function MissionForm() {
         <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
         <div className="mission-field-grid">
           <label>ASSIGNED UAV<select value={uavId} onChange={event => setUavId(event.target.value)} required><option value="">Select an approved UAV</option>{approvedAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
-          <label>MISSION NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={100} required placeholder="Transmission Line Audit" /></label>
-          <label className="full-field">DESCRIPTION<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={500} placeholder="Describe the objective and operating notes…" /></label>
+          <label>MISSION NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
+          <label className="full-field">DESCRIPTION<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
           <label>START TIME<input type="datetime-local" value={startTime} onChange={event => setStartTime(event.target.value)} required /></label>
           <label>END TIME<input type="datetime-local" value={endTime} onChange={event => setEndTime(event.target.value)} required /></label>
         </div>
@@ -71,8 +85,9 @@ export default function MissionForm() {
       </section>
       <section className="route-builder">
         <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>Click the map in flight order, then configure altitude and action.</p></div><button type="button" className="text-action" disabled={!waypoints.length} onClick={() => setWaypoints([])}>CLEAR ROUTE</button></div>
-        <MissionMap waypoints={waypoints} onAdd={addWaypoint} />
-        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">No waypoints yet. Click anywhere on the map to start the route.</div> : waypoints.map((point, index) => <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" max="500" value={point.altitude} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></article>)}</div>
+        {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
+        <MissionMap waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} />
+        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" max="500" value={point.altitude} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></article>)}</div>
       </section>
       {error && <p className="form-error" role="alert">{error}</p>}
       <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mission will be saved as a draft.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || approvedAircraft.length === 0}>{saving ? "CREATING…" : "CREATE MISSION"}</button></div></footer>
