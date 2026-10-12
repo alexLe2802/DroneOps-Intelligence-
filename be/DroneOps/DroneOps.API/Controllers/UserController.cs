@@ -92,9 +92,15 @@ public sealed class UserController : ControllerBase
             if (string.IsNullOrWhiteSpace(fullName))
                 return BadRequest(new { message = "Full name cannot be empty." });
             await using var command = _dataSource.CreateCommand("""
-                UPDATE droneops.accounts SET display_name = @name, updated_at = now()
-                WHERE id = @id AND is_active = true
-                RETURNING id, display_name, email, role_code, created_at
+                WITH updated AS (
+                    UPDATE public."User" SET "FullName" = @name, "UpdatedAt" = now()
+                    WHERE "Id" = @id AND "IsActive" AND "WebAccessProvisioned"
+                    RETURNING "Id", "FullName", "Email", "RoleId", "CreatedAt"
+                )
+                SELECT u."Id", u."FullName", u."Email",
+                       CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operations_manager' END,
+                       u."CreatedAt"
+                FROM updated u JOIN public."Role" r ON r."Id" = u."RoleId"
                 """);
             command.Parameters.AddWithValue("id", session.Account.Id);
             command.Parameters.AddWithValue("name", fullName);
@@ -122,8 +128,11 @@ public sealed class UserController : ControllerBase
     private async Task<UserProfileResponse?> ReadSessionProfileAsync(Guid accountId, CancellationToken ct)
     {
         await using var command = _dataSource.CreateCommand("""
-            SELECT id, display_name, email, role_code, created_at
-            FROM droneops.accounts WHERE id = @id AND is_active = true
+            SELECT u."Id", u."FullName", u."Email",
+                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operations_manager' END,
+                   u."CreatedAt"
+            FROM public."User" u JOIN public."Role" r ON r."Id" = u."RoleId"
+            WHERE u."Id" = @id AND u."IsActive" AND u."WebAccessProvisioned"
             """);
         command.Parameters.AddWithValue("id", accountId);
         return await ReadProfileAsync(command, ct);
