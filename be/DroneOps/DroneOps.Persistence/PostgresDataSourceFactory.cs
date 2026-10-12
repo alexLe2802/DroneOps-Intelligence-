@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using Npgsql;
 
 namespace DroneOps.Persistence;
@@ -47,18 +48,37 @@ public static class PostgresDataSourceFactory
             settings.SslMode = SslMode.Require;
         }
 
-        // Npgsql sẽ tự động xử lý xác thực chứng chỉ SSL/TLS dựa theo cấu hình
-        // SslMode và các thiết lập Root Certificate trong chuỗi kết nối.
-        //
-        // Khi phát triển (Development):
-        //     Ssl Mode=Require
-        //
-        // Khi triển khai thực tế (Production):
-        //     Ssl Mode=VerifyFull
-        //     Root Certificate=<Đường dẫn file chứng chỉ CA của Supabase>
-        //
-        // Hoàn toàn không cần viết callback chứng chỉ thủ công.
         var builder = new NpgsqlDataSourceBuilder(settings.ConnectionString);
+
+        // macOS native hostname validation can reject Supabase's valid wildcard
+        // certificate. Validate the configured CA chain and hostname explicitly,
+        // using .NET's hostname matcher, without bypassing either TLS check.
+        if (OperatingSystem.IsMacOS() && settings.SslMode == SslMode.VerifyFull &&
+            !string.IsNullOrWhiteSpace(settings.RootCertificate))
+        {
+            var rootCertificatePath = settings.RootCertificate;
+            var hostname = settings.Host ?? throw new InvalidOperationException("PostgreSQL host is required.");
+            var checkRevocation = settings.CheckCertificateRevocation;
+            settings.RootCertificate = null;
+            // Require enables TLS; the callback enforces the full verification.
+            settings.SslMode = SslMode.Require;
+            builder = new NpgsqlDataSourceBuilder(settings.ConnectionString);
+            builder.UseUserCertificateValidationCallback((_, certificate, suppliedChain, _) =>
+            {
+                if (certificate is null) return false;
+                using var leaf = new X509Certificate2(certificate);
+                using var root = new X509Certificate2(rootCertificatePath);
+                using var chain = new X509Chain();
+                chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                chain.ChainPolicy.CustomTrustStore.Add(root);
+                chain.ChainPolicy.RevocationMode = checkRevocation
+                    ? X509RevocationMode.Online : X509RevocationMode.NoCheck;
+                if (suppliedChain is not null)
+                    foreach (var element in suppliedChain.ChainElements)
+                        chain.ChainPolicy.ExtraStore.Add(element.Certificate);
+                return leaf.MatchesHostname(hostname) && chain.Build(leaf);
+            });
+        }
 
         return builder.Build();
     }

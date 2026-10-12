@@ -29,9 +29,6 @@ public class PostFlightService : IPostFlightService
         Guid? pilotUserId = null,
         CancellationToken cancellationToken = default)
     {
-        // Bước 1: Gọi Repository lấy danh sách Mission thỏa mãn điều kiện lọc kèm tổng số bản ghi (TotalCount)
-        // Nếu là tài khoản Pilot (pilotUserId != null), Repository chỉ lọc các chuyến bay do Pilot đó thực hiện.
-        // Nếu là Operations Manager/Admin (pilotUserId == null), hệ thống trả về toàn bộ chuyến bay trong hệ thống.
         var (missions, totalCount) = await _repository.GetFlightHistoryAsync(
             request.PageNumber,
             request.PageSize,
@@ -45,13 +42,11 @@ public class PostFlightService : IPostFlightService
 
         var items = new List<FlightHistoryItemResponse>();
 
-        // Bước 2: Duyệt từng chuyến bay để bóc tách thông tin tóm tắt hiển thị lên bảng danh sách
         foreach (var m in missions)
         {
             var report = await _repository.GetReportByMissionIdAsync(m.Id, cancellationToken);
             var incidents = await _repository.GetIncidentsByMissionIdAsync(m.Id, cancellationToken);
 
-            // Tính thời lượng bay (phút): Ưu tiên tính từ StartTime và EndTime thực tế của Mission
             double duration = 0;
             if (m.StartTime.HasValue && m.EndTime.HasValue)
             {
@@ -74,12 +69,11 @@ public class PostFlightService : IPostFlightService
                 StartTime = m.StartTime,
                 EndTime = m.EndTime,
                 DurationMinutes = duration,
-                TotalIncidents = incidents.Count, // Tổng số sự cố ghi nhận trong chuyến bay
-                HasReport = report != null        // Cờ đánh dấu chuyến bay này đã lập báo cáo hay chưa
+                TotalIncidents = incidents.Count,
+                HasReport = report != null
             });
         }
 
-        // Bước 3: Đóng gói kết quả phân trang theo chuẩn PagedResponse
         return new PagedResponse<FlightHistoryItemResponse>
         {
             Items = items,
@@ -100,14 +94,13 @@ public class PostFlightService : IPostFlightService
         FinalizeFlightRequest? request = null,
         CancellationToken cancellationToken = default)
     {
-        // Bước 1: Kiểm tra sự tồn tại của Mission
         var mission = await _repository.GetMissionWithDetailsAsync(missionId, cancellationToken);
         if (mission == null)
         {
-            throw new Exception("Không tìm thấy thông tin chuyến bay / nhiệm vụ.");
+            // Đã đổi sang tiếng Anh
+            throw new Exception("Flight mission not found.");
         }
 
-        // Bước 2: Chốt trạng thái chuyến bay sang 'Completed' và gán mốc thời gian kết thúc (EndTime)
         if (mission.Status != "Completed")
         {
             mission.Status = "Completed";
@@ -115,11 +108,9 @@ public class PostFlightService : IPostFlightService
             await _repository.UpdateMissionAsync(mission, cancellationToken);
         }
 
-        // Bước 3: Thu thập toàn bộ dữ liệu viễn trắc (Telemetry) và sự cố (Incidents) đã lưu trong suốt chuyến bay
         var telemetry = await _repository.GetTelemetryByMissionIdAsync(missionId, cancellationToken);
         var incidents = await _repository.GetIncidentsByMissionIdAsync(missionId, cancellationToken);
 
-        // Bước 4: Khởi tạo hoặc cập nhật bản ghi PostFlightReport
         var report = await _repository.GetReportByMissionIdAsync(missionId, cancellationToken);
         bool isNew = false;
         if (report == null)
@@ -133,7 +124,6 @@ public class PostFlightService : IPostFlightService
             isNew = true;
         }
 
-        // Bước 5: Tính tổng thời gian bay thực tế (phút)
         double durationMinutes = 0;
         if (mission.StartTime.HasValue && mission.EndTime.HasValue)
         {
@@ -141,23 +131,18 @@ public class PostFlightService : IPostFlightService
         }
         else if (telemetry.Count > 1)
         {
-            // Dự phòng: Nếu StartTime/EndTime bị thiếu, tính theo khoảng thời gian giữa bản ghi viễn trắc đầu và cuối
             durationMinutes = (telemetry.Last().RecordedAt - telemetry.First().RecordedAt).TotalMinutes;
         }
         report.TotalFlightDurationMinutes = Math.Round(durationMinutes, 2);
 
-        // Bước 6: Phân tích các chỉ số viễn trắc chi tiết (Độ cao, Tốc độ, Mức pin, Quãng đường)
         if (telemetry.Any())
         {
-            // 6.1. Độ cao tối đa và Độ cao trung bình
             report.MaxAltitude = telemetry.Max(t => t.Altitude);
             report.AvgAltitude = Math.Round(telemetry.Where(t => t.Altitude.HasValue).Average(t => t.Altitude) ?? 0, 2);
 
-            // 6.2. Vận tốc tối đa và Vận tốc trung bình
             report.MaxSpeed = telemetry.Max(t => t.Speed);
             report.AvgSpeed = Math.Round(telemetry.Where(t => t.Speed.HasValue).Average(t => t.Speed) ?? 0, 2);
 
-            // 6.3. Tiêu hao năng lượng (% pin bắt đầu - % pin kết thúc)
             report.InitialBatteryLevel = telemetry.First().BatteryLevel;
             report.FinalBatteryLevel = telemetry.Last().BatteryLevel;
             if (report.InitialBatteryLevel.HasValue && report.FinalBatteryLevel.HasValue)
@@ -165,7 +150,6 @@ public class PostFlightService : IPostFlightService
                 report.BatteryConsumedPercentage = Math.Max(0, report.InitialBatteryLevel.Value - report.FinalBatteryLevel.Value);
             }
 
-            // 6.4. Tính toán quãng đường bay tích lũy thực tế bằng công thức Haversine qua các cặp tọa độ GPS liên tiếp
             double totalMeters = 0;
             for (int i = 0; i < telemetry.Count - 1; i++)
             {
@@ -183,29 +167,28 @@ public class PostFlightService : IPostFlightService
         report.TotalTelemetryRecords = telemetry.Count;
         report.TotalIncidents = incidents.Count;
 
-        // Bước 7: Đánh giá an toàn tự động (Rule-based Safety Assessment) dựa trên mức độ nghiêm trọng của sự cố và pin
+        // Đánh giá an toàn tự động (Rule-based Safety Assessment) - Đã chuẩn hóa tiếng Anh
         if (incidents.Any(i => i.Severity?.ToLower() == "critical" || i.Severity?.ToLower() == "high"))
         {
-            report.SafetyEvaluation = "Mức độ rủi ro CAO: Đã phát hiện sự cố nghiêm trọng (Critical/High) trong hành trình bay.";
+            report.SafetyEvaluation = "HIGH RISK: Critical or high-severity incidents detected during flight.";
         }
         else if (incidents.Any())
         {
-            report.SafetyEvaluation = "Mức độ rủi ro TRUNG BÌNH: Phát sinh cảnh báo sự cố mức độ nhẹ hoặc trung bình.";
+            report.SafetyEvaluation = "MEDIUM RISK: Minor or medium-severity incidents reported.";
         }
         else if (report.FinalBatteryLevel.HasValue && report.FinalBatteryLevel.Value < 20)
         {
-            report.SafetyEvaluation = "Cảnh báo pin yếu: Mức pin khi hạ cánh dưới 20% ngưỡng an toàn.";
+            report.SafetyEvaluation = "LOW BATTERY WARNING: Final battery level dropped below the safe 20% threshold.";
         }
         else
         {
-            report.SafetyEvaluation = "Chuyến bay AN TOÀN: Toàn bộ thông số vận hành ổn định, không ghi nhận sự cố.";
+            report.SafetyEvaluation = "SAFE: All operational telemetry parameters remained within normal limits with zero incidents.";
         }
 
-        report.Summary = request?.Summary ?? $"Chuyến bay '{mission.Name}' kết thúc với {report.TotalTelemetryRecords} bản ghi viễn trắc và {report.TotalIncidents} sự cố.";
+        report.Summary = request?.Summary ?? $"Mission '{mission.Name}' completed with {report.TotalTelemetryRecords} telemetry samples and {report.TotalIncidents} recorded incidents.";
         report.Notes = request?.Notes;
         report.Status = "Completed";
 
-        // Bước 8: Lưu dữ liệu báo cáo vào Database
         if (isNew)
         {
             await _repository.AddReportAsync(report, cancellationToken);
@@ -223,7 +206,6 @@ public class PostFlightService : IPostFlightService
         var report = await _repository.GetReportByMissionIdAsync(missionId, cancellationToken);
         if (report == null)
         {
-            // Cơ chế tự phục hồi (Fallback): Nếu chuyến bay đã hoàn thành nhưng chưa có báo cáo, tự động tính toán và tạo ngay
             return await FinalizeAndGenerateReportAsync(missionId, null, cancellationToken);
         }
 
@@ -233,7 +215,6 @@ public class PostFlightService : IPostFlightService
 
     // =========================================================================
     // 4. LẤY DỮ LIỆU ĐƯỜNG BAY VIỄN TRẮC (TELEMETRY PLAYBACK)
-    // Nghiệp vụ: Phục vụ Frontend vẽ lại toàn bộ vệt bay (Flight Trajectory Path) trên bản đồ
     // =========================================================================
     public async Task<List<FlightTelemetryPointResponse>> GetTelemetryPlaybackAsync(Guid missionId, CancellationToken cancellationToken = default)
     {
@@ -259,7 +240,6 @@ public class PostFlightService : IPostFlightService
 
     // =========================================================================
     // 6. TỔNG HỢP CHỈ SỐ THỐNG KÊ VẬN HÀNH CHO DASHBOARD (SCR-16 / UC-22)
-    // Nghiệp vụ: Tính tổng số chuyến bay, số giờ bay tích lũy, quãng đường km và tỷ lệ bay thành công
     // =========================================================================
     public async Task<OperationalAnalyticsResponse> GetOperationalAnalyticsAsync(Guid? pilotUserId = null, CancellationToken cancellationToken = default)
     {
@@ -269,15 +249,9 @@ public class PostFlightService : IPostFlightService
         int completed = reports.Count(r => r.Status == "Completed");
         int failed = total - completed;
 
-        // Tổng thời gian bay quy đổi sang giờ (Hours)
         double totalHours = Math.Round(reports.Sum(r => r.TotalFlightDurationMinutes) / 60.0, 2);
-
-        // Tổng quãng đường bay quy đổi sang kilômét (Km)
         decimal totalKm = Math.Round(reports.Sum(r => r.TotalDistanceMeters ?? 0) / 1000m, 2);
-
         int totalIncidents = reports.Sum(r => r.TotalIncidents);
-
-        // Tỷ lệ hoàn thành nhiệm vụ thành công (%)
         double successRate = total > 0 ? Math.Round((completed / (double)total) * 100, 1) : 100.0;
 
         return new OperationalAnalyticsResponse
@@ -293,13 +267,11 @@ public class PostFlightService : IPostFlightService
     }
 
     // =========================================================================
-    // 7. THUẬT TOÁN HAVERSINE TÍNH KHOẢNG CÁCH CUNG TRÒN GIỮA 2 TỌA ĐỘ GPS
-    // Công thức: d = 2R * arcsin(sqrt(sin^2(dLat/2) + cos(lat1)*cos(lat2)*sin^2(dLon/2)))
-    // Đơn vị tính: Mét
+    // 7. THUẬT TOÁN HAVERSINE TÍNH KHOẢNG CÁCH GPS (Đơn vị: Mét)
     // =========================================================================
     private static double CalculateHaversineDistance(decimal lat1, decimal lon1, decimal lat2, decimal lon2)
     {
-        const double R = 6371000; // Bán kính trung bình của Trái Đất (mét)
+        const double R = 6371000;
         var dLat = (double)(lat2 - lat1) * Math.PI / 180.0;
         var dLon = (double)(lon2 - lon1) * Math.PI / 180.0;
 

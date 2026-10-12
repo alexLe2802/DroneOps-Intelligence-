@@ -153,12 +153,12 @@ public class PilotRegistrationService : IPilotRegistrationService
         var registration = await _repository.GetByIdAsync(registrationId);
         if (registration == null)
         {
-            throw new Exception("Không tìm thấy đơn đăng ký phi công.");
+            throw new Exception("Pilot registration not found.");
         }
 
         if (!string.Equals(registration.Status, "Pending", StringComparison.OrdinalIgnoreCase))
         {
-            throw new Exception($"Đơn đăng ký đang ở trạng thái '{registration.Status}', không thể phê duyệt.");
+            throw new Exception($"Registration is currently in '{registration.Status}' status and cannot be approved.");
         }
 
         var cleanEmail = registration.Email.Trim().ToLowerInvariant();
@@ -249,20 +249,20 @@ public class PilotRegistrationService : IPilotRegistrationService
         _cache.Set(cacheKey, otpCode, TimeSpan.FromHours(24));
 
         // Gửi email chúc mừng và cung cấp mã OTP kích hoạt lần đầu
-        var emailSubject = "[DroneOps] Đơn đăng ký Pilot đã được phê duyệt - Mã OTP xác thực lần đầu";
+        var emailSubject = "[DroneOps] Pilot Registration Approved - First-Time Login OTP";
         var emailBody = $@"
             <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px;'>
-                <h2 style='color: #1a73e8; border-bottom: 2px solid #1a73e8; padding-bottom: 10px;'>Chúc mừng {registration.FullName}!</h2>
-                <p>Đơn đăng ký tham gia đội ngũ Pilot tại hệ thống <strong>DroneOps Intelligence</strong> của bạn đã được phê duyệt thành công.</p>
-                <p>Để đảm bảo an toàn, hệ thống yêu cầu xác thực hai lớp (2FA) trong lần đăng nhập đầu tiên:</p>
+                <h2 style='color: #1a73e8; border-bottom: 2px solid #1a73e8; padding-bottom: 10px;'>Congratulations, {registration.FullName}!</h2>
+                <p>Your application to join the <strong>DroneOps Intelligence</strong> pilot team has been approved.</p>
+                <p>For security purposes, first-time authentication requires two-factor verification (2FA):</p>
                 <div style='background-color: #f1f3f4; padding: 15px; border-left: 4px solid #1a73e8; border-radius: 4px; margin: 15px 0;'>
-                    <p style='margin: 0 0 8px 0;'><strong>Tài khoản (Email):</strong> {registration.Email}</p>
-                    <p style='margin: 0 0 8px 0;'><strong>Mật khẩu:</strong> <em>Mật khẩu bạn đã tự đặt khi nộp đơn đăng ký</em></p>
-                    <p style='margin: 0;'><strong>Mã OTP xác thực đăng nhập lần đầu:</strong> <span style='font-size: 24px; font-weight: bold; color: #d93025; letter-spacing: 4px;'>{otpCode}</span></p>
+                    <p style='margin: 0 0 8px 0;'><strong>Account (Email):</strong> {registration.Email}</p>
+                    <p style='margin: 0 0 8px 0;'><strong>Password:</strong> <em>The password you created during registration</em></p>
+                    <p style='margin: 0;'><strong>First-Time Login OTP:</strong> <span style='font-size: 24px; font-weight: bold; color: #d93025; letter-spacing: 4px;'>{otpCode}</span></p>
                 </div>
-                <p><em>Vui lòng truy cập màn hình Đăng nhập lần đầu (First-time Login), nhập Email, Mật khẩu đã đăng ký và mã OTP ở trên để kích hoạt tài khoản.</em></p>
+                <p><em>Please proceed to the First-Time Login screen, enter your registered Email, Password, and the OTP code above to activate your account.</em></p>
                 <br/>
-                <p style='margin: 0; color: #70757a; font-size: 13px;'>Trân trọng,<br/><strong>Ban Quản Trị DroneOps Intelligence</strong></p>
+                <p style='margin: 0; color: #70757a; font-size: 13px;'>Best regards,<br/><strong>DroneOps Intelligence Team</strong></p>
             </div>";
 
         await _emailService.SendEmailAsync(registration.Email, emailSubject, emailBody);
@@ -286,26 +286,26 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         if (user == null)
         {
-            throw new Exception("Tài khoản hoặc mật khẩu không chính xác.");
+            throw new Exception("Invalid email or password.");
         }
 
         // 2. Xác thực mật khẩu cá nhân mà Pilot đã tự đặt
         var isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
         if (!isPasswordValid)
         {
-            throw new Exception("Mật khẩu không chính xác.");
+            throw new Exception("Invalid password.");
         }
 
         // 3. Kiểm tra mã OTP gửi về email
         var cacheKey = $"PILOT_FIRST_LOGIN_OTP_{cleanEmail}";
         if (!_cache.TryGetValue(cacheKey, out string? cachedOtp) || string.IsNullOrEmpty(cachedOtp))
         {
-            throw new Exception("Mã OTP đã hết hạn hoặc tài khoản này đã hoàn tất kích hoạt lần đầu. Vui lòng đăng nhập bình thường.");
+            throw new Exception("OTP code has expired or this account has already completed first-time activation. Please log in normally.");
         }
 
         if (!string.Equals(cachedOtp, request.Otp.Trim(), StringComparison.OrdinalIgnoreCase))
         {
-            throw new Exception("Mã OTP không chính xác. Vui lòng kiểm tra lại email.");
+            throw new Exception("Invalid OTP code. Please check your email and try again.");
         }
 
         // 4. Xác thực thành công -> Xóa mã OTP khỏi Cache (các lần sau không cần OTP nữa)
@@ -336,18 +336,18 @@ public class PilotRegistrationService : IPilotRegistrationService
     {
         if (string.IsNullOrWhiteSpace(request.Reason))
         {
-            throw new Exception("Vui lòng cung cấp lý do từ chối đơn đăng ký.");
+            throw new Exception("Please provide a rejection reason.");
         }
 
         var registration = await _repository.GetByIdAsync(registrationId);
         if (registration == null)
         {
-            throw new Exception("Không tìm thấy đơn đăng ký phi công.");
+            throw new Exception("Pilot registration not found.");
         }
 
         if (!string.Equals(registration.Status, "Pending", StringComparison.OrdinalIgnoreCase))
         {
-            throw new Exception($"Đơn đăng ký đang ở trạng thái '{registration.Status}', không thể từ chối.");
+            throw new Exception($"Registration is currently in '{registration.Status}' status and cannot be rejected.");
         }
 
         registration.Status = "Rejected";
@@ -356,19 +356,20 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         await _repository.SaveChangesAsync();
 
-        var emailSubject = "[DroneOps] Thông báo về kết quả đơn đăng ký Pilot";
+        var emailSubject = "[DroneOps] Notice of Pilot Application Result";
         var emailBody = $@"
             <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px;'>
-                <h2 style='color: #d93025; border-bottom: 2px solid #d93025; padding-bottom: 10px;'>Kính gửi {registration.FullName},</h2>
-                <p>Cảm ơn bạn đã quan tâm và gửi đơn đăng ký tham gia đội ngũ Pilot tại hệ thống <strong>DroneOps Intelligence</strong>.</p>
-                <p>Sau khi xem xét hồ sơ bằng lái và các thông tin liên quan, chúng tôi rất tiếc phải thông báo rằng đơn đăng ký của bạn <strong>chưa được phê duyệt</strong> vào thời điểm này.</p>
+                <h2 style='color: #d93025; border-bottom: 2px solid #d93025; padding-bottom: 10px;'>Pilot Application Status Notice</h2>
+                <p>Dear {registration.FullName},</p>
+                <p>Thank you for your interest in joining the <strong>DroneOps Intelligence</strong> pilot team.</p>
+                <p>After reviewing your license and application details, we regret to inform you that your registration could not be approved at this time.</p>
                 <div style='background-color: #fce8e6; padding: 15px; border-left: 4px solid #d93025; border-radius: 4px; margin: 15px 0;'>
-                    <p style='margin: 0 0 5px 0;'><strong>Lý do từ chối:</strong></p>
+                    <p style='margin: 0 0 5px 0;'><strong>Reason for Rejection:</strong></p>
                     <p style='margin: 0; color: #c5221f; font-weight: 500;'>{request.Reason.Trim()}</p>
                 </div>
-                <p>Nếu bạn cần hỗ trợ thêm thông tin hoặc muốn bổ sung hồ sơ để xem xét lại, vui lòng phản hồi email này.</p>
+                <p>If you need further assistance or wish to appeal this decision, please reply to this email.</p>
                 <br/>
-                <p style='margin: 0; color: #70757a; font-size: 13px;'>Trân trọng,<br/><strong>Ban Quản Trị DroneOps Intelligence</strong></p>
+                <p style='margin: 0; color: #70757a; font-size: 13px;'>Best regards,<br/><strong>DroneOps Intelligence Team</strong></p>
             </div>";
 
         await _emailService.SendEmailAsync(registration.Email, emailSubject, emailBody);

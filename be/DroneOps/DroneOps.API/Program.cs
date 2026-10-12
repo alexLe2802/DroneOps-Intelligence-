@@ -1,11 +1,10 @@
-using System.Text;
-using DroneOps.API.AI;
 using DroneOps.API.Auth;
-using DroneOps.API.HealthChecks;
+using System.Text;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
 using DroneOps.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -31,17 +30,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
-builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseHealthCheck>("postgres", timeout: TimeSpan.FromSeconds(10));
-builder.Services.Configure<AiSettings>(builder.Configuration.GetSection(AiSettings.SectionName));
-builder.Services.AddHttpClient<IAiAssessmentClient, GeminiAssessmentClient>(client =>
-{
-    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
-    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Ai:TimeoutSeconds", 30));
-});
-builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Đăng ký dịch vụ Rate Limiting để hỗ trợ app.UseRateLimiter() hoạt động ổn định
+builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 
 // 1. Cấu hình "Cái Khóa" (Authorize button) trên giao diện Swagger UI
 builder.Services.AddSwaggerGen(options =>
@@ -63,7 +56,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Dán chuỗi accessToken nhận được sau khi Login vào đây (Swagger sẽ tự thêm tiền tố Bearer)."
+        Description = "Paste your JWT accessToken received after login here (Swagger will automatically prefix with Bearer)."
     });
 
     // Tự động đính kèm Token vào Header khi gọi API trên Swagger
@@ -86,7 +79,8 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddApplicationServices();
 builder.Services.AddPersistenceServices(builder.Configuration);
 
-// JWT authenticates API clients; FirebaseSession authenticates the web portal.
+// 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
+// Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container
 var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
 builder.Services.Configure<JwtSettings>(jwtSection);
 var jwtSettings = jwtSection.Get<JwtSettings>()
@@ -132,7 +126,7 @@ builder.Services.AddAuthentication(options =>
     {
         OnAuthenticationFailed = context =>
         {
-            Console.WriteLine($"\n>>> [LỖI XÁC THỰC JWT]: {context.Exception.Message}\n");
+            Console.WriteLine($"\n>>> [JWT AUTHENTICATION ERROR]: {context.Exception.Message}\n");
             return Task.CompletedTask;
         }
     };
@@ -156,12 +150,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseRouting();
 
+
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthCsrfProtection();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health/database").AllowAnonymous();
 
 app.Run();
