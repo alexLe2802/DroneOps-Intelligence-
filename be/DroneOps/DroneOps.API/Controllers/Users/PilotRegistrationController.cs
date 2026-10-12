@@ -76,7 +76,7 @@ public class PilotRegistrationController : ControllerBase
             return Ok(new
             {
                 Success = result,
-                Message = "Đơn đăng ký đã được duyệt. Mã OTP xác thực lần đầu đã được gửi về email của Pilot."
+                Message = "Registration approved. OTP has been sent to the pilot's email."
             });
         }
         catch (Exception ex)
@@ -98,7 +98,7 @@ public class PilotRegistrationController : ControllerBase
             return Ok(new
             {
                 Success = result,
-                Message = "Đơn đăng ký đã bị từ chối và email thông báo đã được gửi."
+                Message = "Registration rejected and notification email has been sent."
             });
         }
         catch (Exception ex)

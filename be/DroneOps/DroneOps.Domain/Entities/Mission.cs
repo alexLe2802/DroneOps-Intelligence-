@@ -24,7 +24,6 @@ public sealed class Mission
     public DateTime CreatedAt { get; set; }
 
     // Chỉ định rõ ràng Creator liên kết với khóa ngoại CreatedBy (tránh EF Core tự đoán CreatorId)
-    [ForeignKey("CreatedBy")]
     [ForeignKey(nameof(CreatedBy))]
     public User? Creator { get; set; }
 
