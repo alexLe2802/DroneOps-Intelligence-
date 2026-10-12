@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { deleteUav, getAssignedUavs } from "@/lib/portal/client";
+import { getAssignedUavs } from "@/lib/portal/client";
 import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
 
@@ -10,7 +10,7 @@ export default function UavClient() {
   const [aircraft, setAircraft] = useState<AssignedUav[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [query, setQuery] = useState("");
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState("");
   const load = useCallback(() => {
     setAircraft(null); setError(null);
     void getAssignedUavs().then(setAircraft).catch(setError);
@@ -21,19 +21,12 @@ export default function UavClient() {
     return () => { active = false; };
   }, []);
   const filtered = useMemo(() => aircraft?.filter(item => `${item.code} ${item.name} ${item.model ?? ""} ${item.status}`.toLowerCase().includes(query.toLowerCase())) ?? [], [aircraft, query]);
-  async function remove(item: AssignedUav) {
-    if (!window.confirm(`Delete ${item.code} from your UAV list?`)) return;
-    setDeleting(item.id); setError(null);
-    try { await deleteUav(item.id); setAircraft(current => current?.filter(value => value.id !== item.id) ?? []); }
-    catch (reason) { setError(reason); }
-    finally { setDeleting(null); }
-  }
   if (error) return <ModuleError error={error} retry={load} />;
   if (!aircraft) return <ModuleLoading label="Loading assigned aircraft" />;
   return <>
-    <header className="module-heading"><div><p className="module-kicker">PILOT / AIRCRAFT ACCESS</p><h1>Manage UAV</h1><p>View and manage UAVs registered to your pilot account.</p></div><Link className="module-primary module-link" href="/portal/uav/new">+ ADD UAV</Link></header>
+    <header className="module-heading"><div><p className="module-kicker">PILOT / ASSIGNED AIRCRAFT</p><h1>Assigned UAV</h1><p>View aircraft assigned to your pilot account. Record changes are restricted to Operations Managers.</p></div></header>
+    {pendingAction && <p className="api-pending-banner" role="status"><b>{pendingAction}</b> is defined by SRS UC-02 for Operations Managers. The backend endpoint and role policy are pending implementation.</p>}
     <section className="module-toolbar"><label>SEARCH UAV<input value={query} onChange={event => setQuery(event.target.value)} placeholder="Code, name, model or status" /></label><span>{filtered.length} / {aircraft.length} AIRCRAFT</span></section>
-    {filtered.length === 0 ? <ModuleEmpty title="No UAV found" message={aircraft.length ? "Try a different search term." : "Add your first UAV to submit it for admin approval."} /> : <section className="uav-grid">{filtered.map(uav => <article className="uav-card" key={uav.id}><div className="uav-visual"><span>⌁</span><b>{uav.code}</b></div><div><header><span className={`status status-${uav.status.toLowerCase()}`}>{uav.status}</span><small className={uav.approvalStatus === "Approved" ? "approval-approved" : "approval-pending"}>{uav.approvalStatus === "Approved" ? "ADMIN APPROVED" : "PENDING ADMIN APPROVAL"}</small></header><h2>{uav.name}</h2><p>{uav.model ?? "Model not specified"}</p><div className="uav-metrics"><div><span>BATTERY</span><strong>{uav.batteryPercent ?? "--"}{uav.batteryPercent === null ? "" : "%"}</strong></div><div><span>CREATED</span><strong>{uav.createdAt.slice(0, 10)}</strong></div><div><span>MISSION</span><strong>{uav.assignedMissionId?.toUpperCase() ?? "STANDBY"}</strong></div></div><div className="uav-actions"><Link className="module-secondary module-link" href={`/portal/uav/${uav.id}`}>VIEW DETAILS →</Link><Link className="module-secondary module-link" href={`/portal/uav/${uav.id}/edit`}>EDIT</Link><button className="module-danger" disabled={deleting === uav.id} onClick={() => void remove(uav)}>{deleting === uav.id ? "DELETING…" : "DELETE"}</button></div></div></article>)}</section>}
-    <p className="mock-notice">MOCK API · New and updated UAV information is marked pending until the backend approval API is available.</p>
+    {filtered.length === 0 ? <ModuleEmpty title="No UAV found" message={aircraft.length ? "Try a different search term." : "No UAV is assigned to your account."} /> : <section className="uav-grid">{filtered.map(uav => <article className="uav-card" key={uav.id}><div className="uav-visual"><span>⌁</span><b>{uav.code}</b></div><div><header><span className={`status status-${uav.status.toLowerCase()}`}>{uav.status}</span><small className={uav.status.toLowerCase() === "active" ? "approval-approved" : "approval-pending"}>{uav.status.toLowerCase() === "active" ? "ADMIN APPROVED" : "AWAITING ADMIN ACTION"}</small></header><h2>{uav.name}</h2><p>{uav.model ?? "Model not specified"}</p><div className="uav-metrics"><div><span>PILOT</span><strong>{uav.pilotName || "Current pilot"}</strong></div><div><span>CREATED</span><strong>{uav.createdAt.slice(0, 10)}</strong></div><div><span>STATE</span><strong>{uav.status.toUpperCase()}</strong></div></div><div className="uav-actions"><Link className="module-secondary module-link" href={`/portal/uav/${uav.id}`}>VIEW DETAILS →</Link><button className="module-secondary srs-manager-action" type="button" onClick={() => setPendingAction(`Edit ${uav.code}`)}>EDIT · MANAGER</button><button className="module-danger srs-manager-action" type="button" onClick={() => setPendingAction(`Deactivate ${uav.code}`)}>DEACTIVATE · MANAGER</button></div></div></article>)}</section>}
   </>;
 }

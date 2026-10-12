@@ -3,13 +3,13 @@ import { backendUrl } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const allowed = /^(auth\/(csrf|google|session|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|users\/profile|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
+const allowed = /^(auth\/(csrf|google|session|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|users\/(profile|pilot-profile)|uavs\/myUAV|uavs|missions|missions\/[0-9a-f-]{36}|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36})?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|report|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
   if (!allowed.test(path)) return NextResponse.json({ message: "Not found." }, { status: 404 });
   const aiRequest = path === "ai/assessments" || path.startsWith("ai/assessments/mission/");
-  const timeoutMs = path === "ai/assessments" && request.method === "POST" ? 60000 : 20000;
+  const timeoutMs = (path === "ai/assessments" || path === "mission-suggestions") && request.method === "POST" ? 60000 : 20000;
   const headers = new Headers();
   for (const name of ["content-type", "x-csrf-token", "origin", "user-agent"]) {
     const value = request.headers.get(name);
@@ -51,7 +51,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   } catch {
     return NextResponse.json({ message: aiRequest
       ? "AI assessment service is temporarily unavailable. Refresh assessment history before retrying."
-      : "Sign-in services are temporarily unavailable. Please try again later." }, { status: 503, headers: { "Cache-Control": "no-store" } });
+      : "Backend services are temporarily unavailable. Please try again later." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
 export { forward as GET, forward as POST, forward as PUT, forward as PATCH, forward as DELETE };

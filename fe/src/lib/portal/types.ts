@@ -15,6 +15,14 @@ export type PilotMission = {
   latestVersion: number;
 };
 
+export type PagedResponse<T> = {
+  items: T[];
+  pageNumber: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
 export type WaypointAction = "FlyThrough" | "Hover" | "Photo" | "Land";
 export type MissionWaypoint = {
   sequenceOrder: number;
@@ -33,8 +41,7 @@ export type CreateMissionRequest = {
 };
 export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[] };
 
-export type UavStatus = "Available" | "Assigned" | "InFlight" | "Maintenance" | "Offline";
-export type UavApprovalStatus = "Approved" | "PendingCreate" | "PendingUpdate";
+export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
 export type AssignedUav = {
   id: string;
@@ -42,16 +49,27 @@ export type AssignedUav = {
   name: string;
   model: string | null;
   status: UavStatus;
-  batteryPercent: number | null;
-  lastTelemetryAt: string | null;
-  assignedMissionId: string | null;
+  pilotId: string;
+  pilotName: string;
   createdAt: string;
-  approvalStatus: UavApprovalStatus;
 };
 
 // Mirrors the writable fields on DroneOps.Domain.Entities.UAV.
 export type CreateUavRequest = { code: string; name: string; model: string | null };
 export type UpdateUavRequest = CreateUavRequest;
+
+export type FlightHistoryItem = {
+  missionId: string; missionName: string; status: string; uavId: string | null;
+  uavName: string; uavCode: string; pilotName: string; startTime: string | null;
+  endTime: string | null; durationMinutes: number; totalIncidents: number; hasReport: boolean;
+};
+export type OperationalAnalytics = {
+  totalFlights: number; completedFlights: number; abortedOrFailedFlights: number;
+  totalFlightHours: number; totalDistanceKilometers: number; totalIncidentsRecorded: number;
+  successRatePercentage: number;
+};
+export type GeofenceCoordinate = { latitude: number; longitude: number };
+export type Geofence = { id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {
