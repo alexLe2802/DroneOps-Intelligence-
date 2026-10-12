@@ -1,36 +1,37 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
 
-  <ItemGroup>
-<PackageReference Include="FirebaseAdmin" Version="3.6.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.31" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.31" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.4" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="FirebaseAdmin" Version="3.6.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.31" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.31" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.31" />
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.4" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\DroneOps.Application\DroneOps.Application.csproj" />
-    <ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\DroneOps.Application\DroneOps.Application.csproj" />
+		<ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\DroneOps.Persistence\DroneOps.Persistence.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\DroneOps.Persistence\DroneOps.Persistence.csproj" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Content Remove="secrets/**" />
-    <None Remove="secrets/**" />
-    <Content Update="appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
-  </ItemGroup>
+	<ItemGroup>
+		<Content Remove="secrets/**" />
+		<None Remove="secrets/**" />
+		<Content Update="appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Content Include="../../../database/migrations/001_auth.sql" Link="Migrations/001_auth.sql" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+	<ItemGroup>
+		<Content Include="../../../database/migrations/001_auth.sql" Link="Migrations/001_auth.sql" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
 
 </Project>
