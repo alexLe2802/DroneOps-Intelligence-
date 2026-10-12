@@ -3,7 +3,7 @@ import { backendUrl } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const allowed = /^(auth\/(csrf|google|session|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access)$/;
+const allowed = /^(auth\/(csrf|google|session|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|users\/profile|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
@@ -35,10 +35,19 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     });
     const responseHeaders = new Headers({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
     if (upstream.headers.has("content-type")) responseHeaders.set("Content-Type", upstream.headers.get("content-type")!);
-    for (const cookie of upstream.headers.getSetCookie()) responseHeaders.append("Set-Cookie", cookie);
+    const cookies = upstream.headers.getSetCookie();
+    if (cookies.length > 0) {
+      for (const cookie of cookies) responseHeaders.append("Set-Cookie", cookie);
+    } else {
+      // Some Node/Next runtimes expose a single Set-Cookie value through get()
+      // but return an empty array from getSetCookie(). Login must still forward it
+      // to the browser or the subsequent /portal request appears anonymous.
+      const cookie = upstream.headers.get("set-cookie");
+      if (cookie) responseHeaders.append("Set-Cookie", cookie);
+    }
     return new NextResponse(upstream.body, { status: upstream.status, headers: responseHeaders });
   } catch {
     return NextResponse.json({ message: "Sign-in services are temporarily unavailable. Please try again later." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
-export { forward as GET, forward as POST, forward as PATCH, forward as DELETE };
+export { forward as GET, forward as POST, forward as PUT, forward as PATCH, forward as DELETE };
