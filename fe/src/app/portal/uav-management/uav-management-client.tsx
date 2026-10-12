@@ -45,7 +45,7 @@ export default function UavManagementClient() {
 
   if (!aircraft && !error) return <ModuleLoading label="Loading UAV approval queue" />;
   return <>
-    <header className="module-heading"><div><p className="module-kicker">OPERATIONS MANAGER / UC-02</p><h1>UAV Management</h1><p>Review new registrations and UAV change requests submitted by pilots, then approve or reject them.</p></div></header>
+    <header className="module-heading"><div><p className="module-kicker">OPERATIONS MANAGER / UAV REVIEW</p><h1>UAV Management</h1><p>Review new registrations and UAV change requests submitted by pilots, then approve or reject them.</p></div></header>
     {error && <ModuleError error={error} retry={() => load(keyword)} />}
     {message && <p className="approval-banner" role="status">{message}</p>}
     {!error && <>
