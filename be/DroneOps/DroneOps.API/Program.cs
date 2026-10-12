@@ -82,15 +82,9 @@ var jwtSettings = jwtSection.Get<JwtSettings>()
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = "DroneOpsAuth";
-    options.DefaultChallengeScheme = "DroneOpsAuth";
-})
-.AddPolicyScheme("DroneOpsAuth", "Bearer or Firebase session", options =>
-{
-    options.ForwardDefaultSelector = context =>
-        context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-            ? JwtBearerDefaults.AuthenticationScheme
-            : SessionAuthenticationHandler.SchemeName;
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+
 })
 .AddJwtBearer(options =>
 {
@@ -141,7 +135,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseRouting();
 
-app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
