@@ -18,7 +18,6 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.Extensions.DependencyInjection;
 using DroneOps.Persistence.Interfaces;
-using DroneOps.Persistence.Repositories;
 
 namespace DroneOps.Application;
 
