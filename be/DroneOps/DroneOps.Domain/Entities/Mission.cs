@@ -22,6 +22,7 @@ public sealed class Mission
 
     public DateTime CreatedAt { get; set; }
 
+    [ForeignKey(nameof(CreatedBy))]
     public User? Creator { get; set; }
 
     public UAV? UAV { get; set; }

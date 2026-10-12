@@ -20,7 +20,5 @@ public sealed class MissionResponse
 
     public DateTime CreatedAt { get; set; }
 
-    public int VersionNumber { get; set; }
-
     public List<WaypointResponse> Waypoints { get; set; } = [];
 }

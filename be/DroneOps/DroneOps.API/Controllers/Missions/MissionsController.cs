@@ -46,10 +46,9 @@ public sealed class MissionsController : ControllerBase
             request,
             cancellationToken);
 
-        return CreatedAtAction(
-            nameof(GetByIdAsync),
-            new { id = response.Id },
-            response);
+        return Created(
+     $"/api/missions/{response.Id}",
+     response);
     }
 
     [HttpGet("{id:guid}")]

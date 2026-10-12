@@ -20,8 +20,6 @@ public class AppDbContext : DbContext
 
     public DbSet<Mission> Missions { get; set; }
 
-    public DbSet<MissionVersion> MissionVersions { get; set; }
-
     public DbSet<Waypoint> Waypoints { get; set; }
 
     public DbSet<Geofence> Geofences { get; set; }
@@ -40,14 +38,6 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<User>()
             .HasIndex(x => x.Email)
-            .IsUnique();
-
-        modelBuilder.Entity<MissionVersion>()
-            .HasIndex(x => new
-            {
-                x.MissionId,
-                x.VersionNumber
-            })
             .IsUnique();
     }
 }
