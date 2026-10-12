@@ -7,7 +7,7 @@ using Npgsql;
 
 namespace DroneOps.API.Auth;
 
-[ApiController, Route("api/accounts"), Authorize(Roles = AccountRoles.Manager)]
+[ApiController, Route("api/accounts"), Authorize(AuthenticationSchemes = SessionAuthenticationHandler.SchemeName, Roles = AccountRoles.Manager)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AccountsController(IAuthStore store, IFirebaseAccountDirectory directory) : ControllerBase
 {
