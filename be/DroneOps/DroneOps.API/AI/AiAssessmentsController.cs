@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DroneOps.API.Auth;
 using DroneOps.Persistence.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,7 @@ using NpgsqlTypes;
 
 namespace DroneOps.API.AI;
 
-[ApiController, Authorize, Route("api/ai/assessments")]
+[ApiController, Authorize(AuthenticationSchemes = SessionAuthenticationHandler.SchemeName), Route("api/ai/assessments")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AiAssessmentsController(NpgsqlDataSource dataSource, IAiAssessmentClient client,
     IOptions<AiSettings> options) : ControllerBase

@@ -1,5 +1,9 @@
-﻿namespace DroneOps.Domain.Entities;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
+namespace DroneOps.Domain.Entities;
+
+// Chỉ định ánh xạ chính xác vào bảng "TelemetryRecord" (số ít) trong CSDL
+[Table("TelemetryRecord")]
 public class TelemetryRecord
 {
     public Guid Id { get; set; }
