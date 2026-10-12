@@ -25,6 +25,7 @@ public sealed class Mission
 
     // Chỉ định rõ ràng Creator liên kết với khóa ngoại CreatedBy (tránh EF Core tự đoán CreatorId)
     [ForeignKey("CreatedBy")]
+    [ForeignKey(nameof(CreatedBy))]
     public User? Creator { get; set; }
 
     public UAV? UAV { get; set; }
