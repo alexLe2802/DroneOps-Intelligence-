@@ -10,7 +10,7 @@ namespace DroneOps.API.Auth;
 
 [ApiController]
 [Route("api/auth")]
-[Authorize]
+[Authorize(AuthenticationSchemes = SessionAuthenticationHandler.SchemeName)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AuthController(IFirebaseIdentityProvider identity, IAuthStore store,
     SessionCookies cookies, IOptions<AuthSettings> settings, IAntiforgery antiforgery) : ControllerBase
