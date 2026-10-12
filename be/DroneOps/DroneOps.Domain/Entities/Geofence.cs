@@ -1,5 +1,8 @@
-﻿namespace DroneOps.Domain.Entities;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
+namespace DroneOps.Domain.Entities;
+
+[Table("Geofence")]
 public class Geofence
 {
     public Guid Id { get; set; }
@@ -8,7 +11,8 @@ public class Geofence
 
     public string? Description { get; set; }
 
-    public string Coordinates { get; set; } = "{}";
+    [Column(TypeName = "jsonb")]
+    public string Coordinates { get; set; } = "[]";
 
-    public DateTimeOffset CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

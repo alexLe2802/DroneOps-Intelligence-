@@ -1,4 +1,5 @@
-﻿using DroneOps.Application.DTOs.Auth;
+﻿using DroneOps.Application.DTOs.Request.Auth;
+using DroneOps.Application.DTOs.Response.Auth;
 
 namespace DroneOps.Application.Interfaces.Auth;
 
@@ -23,4 +24,11 @@ public interface IAuthService
     Task<bool> VerifyRegisterAsync(
         VerifyRegisterRequest request,
         CancellationToken cancellationToken = default);
+
+
+    // Gửi mã OTP quên mật khẩu về email của tài khoản (Admin / Pilot / User)
+    Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
+
+    // Xác thực mã OTP và cập nhật mật khẩu mới
+    Task<bool> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
 }

@@ -12,14 +12,13 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<User> Users { get; set; }
+    public DbSet<Pilot> Pilots { get; set; }
 
     public DbSet<Role> Roles { get; set; }
 
     public DbSet<UAV> UAVs { get; set; }
 
     public DbSet<Mission> Missions { get; set; }
-
-    public DbSet<MissionVersion> MissionVersions { get; set; }
 
     public DbSet<Waypoint> Waypoints { get; set; }
 
@@ -30,21 +29,16 @@ public class AppDbContext : DbContext
     public DbSet<MissionApproval> MissionApprovals { get; set; }
 
     public DbSet<TelemetryRecord> TelemetryRecords { get; set; }
+    public DbSet<PilotRegistration> PilotRegistrations { get; set; }
+    public DbSet<MissionSuggestion> MissionSuggestions { get; set; }
 
+    public DbSet<PostFlightReport> PostFlightReports { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<User>()
             .HasIndex(x => x.Email)
-            .IsUnique();
-
-        modelBuilder.Entity<MissionVersion>()
-            .HasIndex(x => new
-            {
-                x.MissionId,
-                x.VersionNumber
-            })
             .IsUnique();
     }
 }
