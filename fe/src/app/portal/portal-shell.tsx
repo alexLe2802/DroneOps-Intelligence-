@@ -27,8 +27,11 @@ export default function PortalShell({ account, children, dashboard = false, acti
       <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{nav.map(([icon, label, badge], index) => {
         const href =
           label === "Operators" ? "/portal/operators" :
+          label === "UAV Management" ? "/portal/uav-management" :
           label === "Dashboard" || label === "My Dashboard" ? "/portal" :
           label === "AI Risk Assessment" ? "/portal/ai-assessment" :
+          label === "Flight History & Reports" || label === "Flight History" ? "/portal/flight-history" :
+          label === "Fleet & Restrictions" || label === "Validation Results" ? "/portal/geofences" :
           !manager && label === "My Missions" ? "/portal/missions" :
           !manager && label === "Assigned UAV" ? "/portal/uav" :
           null;
