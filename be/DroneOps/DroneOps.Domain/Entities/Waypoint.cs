@@ -3,7 +3,6 @@
 namespace DroneOps.Domain.Entities;
 
 [Table("Waypoint")]
-
 public sealed class Waypoint
 {
     public Guid Id { get; set; }
