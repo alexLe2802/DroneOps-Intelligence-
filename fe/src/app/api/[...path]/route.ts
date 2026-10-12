@@ -8,6 +8,8 @@ const allowed = /^(auth\/(csrf|google|session|me|sessions|logout|logout-all)|aut
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
   if (!allowed.test(path)) return NextResponse.json({ message: "Not found." }, { status: 404 });
+  const aiRequest = path === "ai/assessments" || path.startsWith("ai/assessments/mission/");
+  const timeoutMs = path === "ai/assessments" && request.method === "POST" ? 60000 : 20000;
   const headers = new Headers();
   for (const name of ["content-type", "x-csrf-token", "origin", "user-agent"]) {
     const value = request.headers.get(name);
@@ -31,7 +33,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     }
     const upstream = await fetch(`${backendUrl()}/api/${path}`, {
       method: request.method, headers, body: size ? Buffer.concat(chunks) : undefined,
-      cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(20000),
+      cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(timeoutMs),
     });
     const responseHeaders = new Headers({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
     if (upstream.headers.has("content-type")) responseHeaders.set("Content-Type", upstream.headers.get("content-type")!);
@@ -47,7 +49,9 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     }
     return new NextResponse(upstream.body, { status: upstream.status, headers: responseHeaders });
   } catch {
-    return NextResponse.json({ message: "Sign-in services are temporarily unavailable. Please try again later." }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ message: aiRequest
+      ? "AI assessment service is temporarily unavailable. Refresh assessment history before retrying."
+      : "Sign-in services are temporarily unavailable. Please try again later." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
 export { forward as GET, forward as POST, forward as PUT, forward as PATCH, forward as DELETE };
