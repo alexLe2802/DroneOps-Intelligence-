@@ -1,3 +1,4 @@
+using DroneOps.API.Auth;
 using System.Text;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
@@ -33,7 +34,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
 // Đăng ký dịch vụ Rate Limiting để hỗ trợ app.UseRateLimiter() hoạt động ổn định
-builder.Services.AddRateLimiter(_ => { });
+builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 
 // 1. Cấu hình "Cái Khóa" (Authorize button) trên giao diện Swagger UI
 builder.Services.AddSwaggerGen(options =>
@@ -87,8 +88,15 @@ var jwtSettings = jwtSection.Get<JwtSettings>()
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = "DroneOpsAuth";
+    options.DefaultChallengeScheme = "DroneOpsAuth";
+})
+.AddPolicyScheme("DroneOpsAuth", "Bearer or Firebase session", options =>
+{
+    options.ForwardDefaultSelector = context =>
+        context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? JwtBearerDefaults.AuthenticationScheme
+            : SessionAuthenticationHandler.SchemeName;
 })
 .AddJwtBearer(options =>
 {
@@ -130,6 +138,9 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+if (await AuthDatabaseCommands.RunAsync(args, app.Services, app.Configuration)) return;
+app.UseAuthErrorHandling();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -140,7 +151,9 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 
 
+app.UseRateLimiter();
 app.UseAuthentication();
+app.UseAuthCsrfProtection();
 app.UseAuthorization();
 
 app.MapControllers();
