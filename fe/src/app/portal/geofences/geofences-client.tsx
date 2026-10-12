@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getGeofences } from "@/lib/portal/client";
 import type { Geofence } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
+import { ApiError } from "@/lib/auth/client";
 
 export default function GeofencesClient() {
   const [zones, setZones] = useState<Geofence[] | null>(null);
@@ -15,6 +16,7 @@ export default function GeofencesClient() {
   }, []);
   useEffect(() => { let active = true; void getGeofences().then(value => { if (active) setZones(value); }).catch(reason => { if (active) setError(reason); }); return () => { active = false; }; }, []);
   const filtered = useMemo(() => zones?.filter(zone => `${zone.name} ${zone.description ?? ""}`.toLowerCase().includes(query.toLowerCase())) ?? [], [zones, query]);
+  if (error instanceof ApiError && error.status === 403) return <section className="module-state error" role="alert"><span className="state-symbol">!</span><p className="module-kicker">ROLE POLICY MISMATCH</p><h2>Fleet & Restrictions is waiting for backend access</h2><p>Your web role is <b>operations_manager</b>, while the Geofences controller currently accepts only <b>Pilot, Admin, SystemAdmin</b>. The frontend cannot safely bypass backend authorization.</p><button className="module-primary" onClick={load}>TRY AGAIN</button></section>;
   if (error) return <ModuleError error={error} retry={load} />;
   if (!zones) return <ModuleLoading label="Loading controlled airspace" />;
   return <>

@@ -1,5 +1,5 @@
 import { api } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, Geofence, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, UpdateProfileRequest, UserProfile } from "./types";
 
 export async function getPilotMissions(): Promise<PilotMission[]> {
   const page = await getFlightHistory({ pageSize: 100 });
@@ -29,6 +29,20 @@ export async function createUav(request: CreateUavRequest): Promise<AssignedUav>
   return api<AssignedUav>("/uavs", { method: "POST", body: JSON.stringify(request) });
 }
 
+export async function getPendingUavs(keyword = ""): Promise<AssignedUav[]> {
+  const params = new URLSearchParams({ page: "1", pageSize: "100" });
+  if (keyword.trim()) params.set("keyword", keyword.trim());
+  return api<AssignedUav[]>(`/admin/uavs/pending?${params}`);
+}
+
+export function getManagedUav(id: string): Promise<AssignedUav> {
+  return api<AssignedUav>(`/admin/uavs/${encodeURIComponent(id)}`);
+}
+
+export function setManagedUavStatus(id: string, action: "activate" | "reject" | "deactivate"): Promise<AssignedUav> {
+  return api<AssignedUav>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" });
+}
+
 export function getFlightHistory(filters: { pageNumber?: number; pageSize?: number; search?: string; status?: string } = {}): Promise<PagedResponse<FlightHistoryItem>> {
   const params = new URLSearchParams();
   params.set("pageNumber", String(filters.pageNumber ?? 1));
@@ -40,6 +54,10 @@ export function getFlightHistory(filters: { pageNumber?: number; pageSize?: numb
 
 export function getOperationalAnalytics(): Promise<OperationalAnalytics> {
   return api<OperationalAnalytics>("/flight-history/analytics");
+}
+
+export function getFlightTelemetry(missionId: string): Promise<FlightTelemetryPoint[]> {
+  return api<FlightTelemetryPoint[]>(`/flight-history/${encodeURIComponent(missionId)}/telemetry`);
 }
 
 export function getGeofences(): Promise<Geofence[]> {
