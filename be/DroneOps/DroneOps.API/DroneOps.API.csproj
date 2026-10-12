@@ -24,7 +24,6 @@
 	<ItemGroup>
 		<Content Remove="secrets/**" />
 		<None Remove="secrets/**" />
-		<Compile Remove="AI\AiAssessmentsController.cs" />
 		<Content Update="appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
 	</ItemGroup>
 

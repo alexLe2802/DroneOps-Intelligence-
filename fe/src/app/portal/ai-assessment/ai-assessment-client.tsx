@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/auth/client";
 import { createAiAssessment, getAiAssessments } from "@/lib/portal/client";
 import type { AiAssessment, AiAssessmentRequest } from "@/lib/portal/types";
@@ -27,10 +27,11 @@ export default function AiAssessmentClient() {
   const [items, setItems] = useState<AiAssessment[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const load = useCallback(async () => {
-    setError("");
+  const generating = useRef(false);
+  const load = useCallback(async (clearError = true) => {
+    if (clearError) setError("");
     try { setItems(await getAiAssessments(missionContext.missionRef)); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to load AI assessments."); }
+    catch (reason) { if (clearError) setError(reason instanceof Error ? reason.message : "Unable to load AI assessments."); }
   }, []);
   useEffect(() => {
     let active = true;
@@ -40,19 +41,23 @@ export default function AiAssessmentClient() {
     return () => { active = false; };
   }, []);
   async function generate() {
+    if (generating.current) return;
+    generating.current = true;
     setBusy(true); setError("");
     try {
       const created = await createAiAssessment(missionContext);
       setItems(current => [created, ...(current ?? [])]);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "AI assessment is unavailable. Retry later or continue manual review.");
-      await load();
-    } finally { setBusy(false); }
+      // A timed-out request may still finish on the backend. Read its persisted
+      // status once, without clearing the original creation error or resubmitting.
+      await load(false);
+    } finally { generating.current = false; setBusy(false); }
   }
   const latest = items?.[0];
   return <>
     <header className="module-heading"><div><p className="module-kicker">MISSION / AI DECISION SUPPORT</p><h1>AI Risk Assessment</h1><p>Review advisory risks and precautions against the supplied mission context. Human approval remains required.</p></div><button className="module-primary" disabled={busy} onClick={() => void generate()}>{busy ? "ASSESSING…" : latest ? "GENERATE NEW ASSESSMENT" : "GENERATE ASSESSMENT"}</button></header>
-    {error && <section className="ai-unavailable" role="alert"><b>AI ASSESSMENT UNAVAILABLE</b><p>{error}</p><span>Manual mission review remains available.</span></section>}
+    {error && <section className="ai-unavailable" role="alert"><b>AI ASSESSMENT UNAVAILABLE</b><p>{error}</p><button type="button" className="module-primary" disabled={busy} onClick={() => void load()}>Refresh assessment history</button><span>Manual mission review remains available.</span></section>}
     <section className="ai-context"><header><div><p className="module-kicker">SUPPLIED CONTEXT</p><h2>{missionContext.missionRef} · {missionContext.missionName}</h2></div><b>VERSION {String(missionContext.missionVersion).padStart(2, "0")}</b></header><dl><div><dt>UAV</dt><dd>{missionContext.uavCode}</dd></div><div><dt>STATUS</dt><dd>{missionContext.missionStatus}</dd></div><div><dt>ROUTE</dt><dd>{missionContext.waypoints.length} waypoints</dd></div><div><dt>VALIDATION</dt><dd>PASS</dd></div></dl><p>{missionContext.validationSummary}</p><small>Demo mission snapshot. It will be replaced by the authorized Mission API record when that API is available.</small></section>
     {!items && !error && <p className="module-loading" role="status">Loading assessments…</p>}
     {items?.length === 0 && <section className="module-empty"><h2>No assessment yet</h2><p>Generate an assessment to review mission risks and missing data.</p></section>}

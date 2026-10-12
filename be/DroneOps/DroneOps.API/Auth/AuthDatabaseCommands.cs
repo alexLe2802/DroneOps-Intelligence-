@@ -26,12 +26,14 @@ public static class AuthDatabaseCommands
             await using var connection = await db.OpenConnectionAsync();
             await using var tx = await connection.BeginTransactionAsync();
             await using var cmd = new NpgsqlCommand("""
-                LOCK TABLE droneops.accounts IN EXCLUSIVE MODE;
+                LOCK TABLE public."User" IN EXCLUSIVE MODE;
                 WITH added AS (
-                    INSERT INTO droneops.accounts(id, email, display_name, role_code)
-                    SELECT @id, @email, 'Operations Manager', 'operations_manager'
-                    WHERE NOT EXISTS (SELECT 1 FROM droneops.accounts WHERE role_code = 'operations_manager')
-                    ON CONFLICT (email) DO NOTHING RETURNING id
+                    INSERT INTO public."User"("Id", "Email", "FullName", "RoleId", "PasswordHash", "CreatedAt", "WebAccessProvisioned")
+                    SELECT @id, @email, 'Operations Manager', r."Id", '', now(), true
+                    FROM public."Role" r WHERE r."Name" = 'OperationsManager'
+                    AND NOT EXISTS (SELECT 1 FROM public."User" u JOIN public."Role" mr ON mr."Id" = u."RoleId"
+                                    WHERE mr."Name" = 'OperationsManager' AND u."WebAccessProvisioned")
+                    ON CONFLICT DO NOTHING RETURNING "Id" AS id
                 ) INSERT INTO droneops.auth_audit(target_id, action) SELECT id, 'manager.bootstrapped' FROM added
                 """, connection, tx);
             cmd.Parameters.AddWithValue("id", Guid.NewGuid());

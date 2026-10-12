@@ -1,3 +1,4 @@
+using DroneOps.API.AI;
 using DroneOps.API.Auth;
 using System.Text;
 using DroneOps.Application;
@@ -30,6 +31,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
+builder.Services.Configure<AiSettings>(builder.Configuration.GetSection(AiSettings.SectionName));
+builder.Services.AddHttpClient<IAiAssessmentClient, GeminiAssessmentClient>(client =>
+{
+    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
+    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Ai:TimeoutSeconds", 30));
+});
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
