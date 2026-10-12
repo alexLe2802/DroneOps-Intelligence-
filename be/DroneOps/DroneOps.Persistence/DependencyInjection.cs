@@ -51,7 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IMissionRepository, MissionRepository>();
         services.AddScoped<IGeofenceRepository, GeofenceRepository>();
         services.AddScoped< IMissionSuggestionRepository, MissionSuggestionRepository>();
-
+        services.AddScoped<IPostFlightRepository, PostFlightRepository>();
         return services;
     }
 }
