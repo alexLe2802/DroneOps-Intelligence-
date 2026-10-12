@@ -10,7 +10,6 @@ var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--boo
 var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
-
 // Các thiết lập bảo mật local được nạp khi chạy môi trường Development
 if (builder.Environment.IsDevelopment())
 {
@@ -51,7 +50,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Dán chuỗi accessToken nhận được sau khi Login vào đây (Swagger sẽ tự thêm tiền tố Bearer)."
+        Description = "Paste your JWT accessToken received after login here (Swagger will automatically prefix with Bearer)."
     });
 
     // Tự động đính kèm Token vào Header khi gọi API trên Swagger
@@ -114,14 +113,13 @@ builder.Services.AddAuthentication(options =>
     {
         OnAuthenticationFailed = context =>
         {
-            Console.WriteLine($"\n>>> [LỖI XÁC THỰC JWT]: {context.Exception.Message}\n");
+            Console.WriteLine($"\n>>> [JWT AUTHENTICATION ERROR]: {context.Exception.Message}\n");
             return Task.CompletedTask;
         }
     };
 });
 
 builder.Services.AddAuthorization();
-
 #endregion
 
 var app = builder.Build();
@@ -134,10 +132,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
