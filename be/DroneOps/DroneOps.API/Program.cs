@@ -1,4 +1,7 @@
 using System.Text;
+using DroneOps.API.AI;
+using DroneOps.API.Auth;
+using DroneOps.API.HealthChecks;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
 using DroneOps.Persistence;
@@ -28,6 +31,15 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("postgres", timeout: TimeSpan.FromSeconds(10));
+builder.Services.Configure<AiSettings>(builder.Configuration.GetSection(AiSettings.SectionName));
+builder.Services.AddHttpClient<IAiAssessmentClient, GeminiAssessmentClient>(client =>
+{
+    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
+    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Ai:TimeoutSeconds", 30));
+});
+builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -74,8 +86,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddApplicationServices();
 builder.Services.AddPersistenceServices(builder.Configuration);
 
-// 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
-// Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container
+// JWT authenticates API clients; FirebaseSession authenticates the web portal.
 var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
 builder.Services.Configure<JwtSettings>(jwtSection);
 var jwtSettings = jwtSection.Get<JwtSettings>()
@@ -83,8 +94,15 @@ var jwtSettings = jwtSection.Get<JwtSettings>()
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = "DroneOpsAuth";
+    options.DefaultChallengeScheme = "DroneOpsAuth";
+})
+.AddPolicyScheme("DroneOpsAuth", "Bearer or Firebase session", options =>
+{
+    options.ForwardDefaultSelector = context =>
+        context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? JwtBearerDefaults.AuthenticationScheme
+            : SessionAuthenticationHandler.SchemeName;
 })
 .AddJwtBearer(options =>
 {
@@ -126,6 +144,9 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+if (await AuthDatabaseCommands.RunAsync(args, app.Services, app.Configuration)) return;
+app.UseAuthErrorHandling();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -135,9 +156,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseRouting();
 
+app.UseRateLimiter();
 app.UseAuthentication();
+app.UseAuthCsrfProtection();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health/database").AllowAnonymous();
 
 app.Run();
