@@ -14,9 +14,18 @@ export async function readSession(): Promise<AuthSession | null> {
   const name = process.env.NODE_ENV === "production" ? "__Host-droneops_session" : "droneops_session";
   const cookie = jar.get(name);
   if (!cookie) return null;
-  const response = await fetch(`${backendUrl()}/api/auth/me`, {
-    headers: { Cookie: `${name}=${cookie.value}` }, cache: "no-store", signal: AbortSignal.timeout(15000),
+  const request = () => fetch(`${backendUrl()}/api/auth/me`, {
+    headers: { Cookie: `${name}=${cookie.value}` }, cache: "no-store", signal: AbortSignal.timeout(20000),
   });
+  let response: Response;
+  try {
+    response = await request();
+  } catch (error) {
+    // Firebase revocation verification can be slow on its first request while the
+    // Admin SDK establishes its upstream connection. Retry this idempotent read once.
+    if (!(error instanceof DOMException && error.name === "TimeoutError")) throw error;
+    response = await request();
+  }
   if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) throw new Error("Authentication service is unavailable.");
   return response.json();

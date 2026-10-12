@@ -74,8 +74,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddApplicationServices();
 builder.Services.AddPersistenceServices(builder.Configuration);
 
-// 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
-// Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container
+// JWT authenticates API clients; FirebaseSession authenticates the web portal.
 var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
 builder.Services.Configure<JwtSettings>(jwtSection);
 var jwtSettings = jwtSection.Get<JwtSettings>()
@@ -83,8 +82,15 @@ var jwtSettings = jwtSection.Get<JwtSettings>()
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = "DroneOpsAuth";
+    options.DefaultChallengeScheme = "DroneOpsAuth";
+})
+.AddPolicyScheme("DroneOpsAuth", "Bearer or Firebase session", options =>
+{
+    options.ForwardDefaultSelector = context =>
+        context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? JwtBearerDefaults.AuthenticationScheme
+            : SessionAuthenticationHandler.SchemeName;
 })
 .AddJwtBearer(options =>
 {
@@ -135,6 +141,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseRouting();
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
