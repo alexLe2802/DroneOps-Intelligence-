@@ -19,13 +19,12 @@ export default function DashboardMap({ geofences }: { geofences: Geofence[] }) {
     let resizeFrame: number | undefined;
     void import("leaflet").then(({ default: L }) => {
       if (cancelled) return;
-      map = L.map(container, { center: [16.1, 106.3], zoom: 5, zoomControl: false, preferCanvas: true });
+      map = L.map(container, { center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: true });
       L.control.zoom({ position: "topright" }).addTo(map);
       L.control.scale({ position: "bottomleft", metric: true, imperial: false }).addTo(map);
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
       }).on("tileerror", () => setError("Basemap tile could not be loaded.")).addTo(map);
-      const bounds = L.latLngBounds([]);
       geofences.forEach(zone => {
         const coordinates = zone.coordinates.filter(point => valid(point.latitude, point.longitude));
         if (coordinates.length < 3) return;
@@ -40,9 +39,7 @@ export default function DashboardMap({ geofences }: { geofences: Geofence[] }) {
         const limits = document.createElement("span"); limits.textContent = info.limitLabel;
         popup.append(title, category, limits);
         polygon.bindPopup(popup).addTo(map!);
-        coordinates.forEach(point => bounds.extend([point.latitude, point.longitude]));
       });
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [32, 32], maxZoom: 10, animate: false });
       resizeFrame = requestAnimationFrame(() => {
         if (!cancelled && map) map.invalidateSize({ animate: false, pan: false });
       });

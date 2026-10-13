@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { api, ApiError } from "@/lib/auth/client";
 import { roleLabels, type Account, type SessionInfo } from "@/lib/auth/types";
 import PilotRegistrationRequests from "./operators/pilot-registration-requests";
+import { saveLicenseImage } from "@/lib/license-image-store";
 
 type PortalControlsProps = {
   account: Account;
@@ -72,6 +73,13 @@ export default function PortalControls({ account, registerOnly = false }: Portal
     }
     const licenseIssuedDate = read("licenseIssuedDate");
     const licenseExpiredDate = read("licenseExpiredDate");
+    const licenseImage = values.get("licenseImage");
+    if (!(licenseImage instanceof File) || !licenseImage.size || !licenseImage.type.startsWith("image/")) {
+      setError("Select an image of the flight license."); setMessage(""); return;
+    }
+    if (licenseImage.size > 5 * 1024 * 1024) {
+      setError("The flight license image must be 5 MB or smaller."); setMessage(""); return;
+    }
     if (licenseIssuedDate && licenseExpiredDate && new Date(licenseExpiredDate) <= new Date(licenseIssuedDate)) {
       setError("License expiration date must be after the issued date."); setMessage(""); return;
     }
@@ -79,9 +87,9 @@ export default function PortalControls({ account, registerOnly = false }: Portal
       try {
         const result = await api<{ message: string }>("/accounts", { method: "POST", body: JSON.stringify({
           email: read("email"), displayName, fullName: displayName, accountType, password,
-          droneType: read("droneType"),
+          droneType: "Not specified",
           pilotLicenseNo: read("pilotLicenseNo"),
-          usagePurpose: read("usagePurpose"),
+          usagePurpose: "Not specified",
           phoneNumber: read("phoneNumber"),
           dateOfBirth: read("dateOfBirth"),
           licenseIssuedDate,
@@ -90,6 +98,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           description: read("description"),
           isActive: values.get("isActive") === "true",
         }) });
+        await saveLicenseImage(read("email"), licenseImage).catch(() => undefined);
         form.reset(); setAccountType("new"); setShowProvisionForm(false); setMessage(result.message); await load();
       } finally {
         // Passwords are never persisted in component state or retained after a network attempt.
@@ -140,20 +149,15 @@ export default function PortalControls({ account, registerOnly = false }: Portal
             <p id="pilot-password-help" className="provision-note">Use 12-128 characters. Share the password securely with the Pilot. Email verification is required at first sign-in.</p>
           </>}
           <div className="provision-section"><span>02</span><strong>License & operations</strong></div>
-          <label>Drone type<select name="droneType" required defaultValue="">
-            <option value="" disabled>Select drone type</option><option value="multirotor">Multirotor</option><option value="fixed-wing">Fixed-wing</option><option value="hybrid-vtol">Hybrid VTOL</option><option value="other">Other</option>
-          </select></label>
           <label>Pilot license number<input name="pilotLicenseNo" required minLength={3} maxLength={64} autoComplete="off" placeholder="License number" /></label>
-          <label>Usage purpose<select name="usagePurpose" required defaultValue="">
-            <option value="" disabled>Select purpose</option><option value="mapping">Mapping / survey</option><option value="inspection">Infrastructure inspection</option><option value="monitoring">Live monitoring</option><option value="training">Training</option><option value="other">Other</option>
-          </select></label>
+          <label className="provision-wide pilot-license-upload">Flight license image<input name="licenseImage" type="file" accept="image/png,image/jpeg,image/webp" required /><small>PNG, JPG or WEBP · maximum 5 MB. Temporarily retained in this browser until backend storage is available.</small></label>
           <label>Experience years<input name="experienceYears" type="number" required min="0" max="80" step="1" placeholder="0" /></label>
           <label>License issued date<input name="licenseIssuedDate" type="date" required /></label>
           <label>License expired date<input name="licenseExpiredDate" type="date" required /></label>
           <label>DroneOps access<select name="isActive" defaultValue="true"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
           <label className="provision-wide">Description<textarea name="description" maxLength={500} rows={4} placeholder="Operational notes, license scope, or manager remarks" /></label>
           <div className="provision-submit"><button className="button primary" type="submit" disabled={busy}>{busy ? "Please wait..." : accountType === "new" ? "Create Pilot account ->" : "Grant Pilot access ->"}</button></div>
-          <p id="pilot-form-help" className="provision-note">{accountType === "existing" ? "Use the email already registered in Firebase. Its password and sign-in methods will stay unchanged. " : ""}Drone model is intentionally collected later when the Pilot creates a UAV record. Disabled access blocks sign-in to DroneOps.</p>
+          <p id="pilot-form-help" className="provision-note">{accountType === "existing" ? "Use the email already registered in Firebase. Its password and sign-in methods will stay unchanged. " : ""}The flight license image is retained locally until the backend exposes its Supabase bucket URL. Disabled access blocks sign-in to DroneOps.</p>
         </fieldset>
           </form>
         </div>
@@ -194,20 +198,15 @@ export default function PortalControls({ account, registerOnly = false }: Portal
             <p id="pilot-password-help" className="provision-note">Use 12–128 characters. Share the password securely with the Pilot. Email verification is required at first sign-in.</p>
           </>}
           <div className="provision-section"><span>02</span><strong>License & operations</strong></div>
-          <label>Drone type<select name="droneType" required defaultValue="">
-            <option value="" disabled>Select drone type</option><option value="multirotor">Multirotor</option><option value="fixed-wing">Fixed-wing</option><option value="hybrid-vtol">Hybrid VTOL</option><option value="other">Other</option>
-          </select></label>
           <label>Pilot license number<input name="pilotLicenseNo" required minLength={3} maxLength={64} autoComplete="off" placeholder="License number" /></label>
-          <label>Usage purpose<select name="usagePurpose" required defaultValue="">
-            <option value="" disabled>Select purpose</option><option value="mapping">Mapping / survey</option><option value="inspection">Infrastructure inspection</option><option value="monitoring">Live monitoring</option><option value="training">Training</option><option value="other">Other</option>
-          </select></label>
+          <label className="provision-wide pilot-license-upload">Flight license image<input name="licenseImage" type="file" accept="image/png,image/jpeg,image/webp" required /><small>PNG, JPG or WEBP · maximum 5 MB. Temporarily retained in this browser until backend storage is available.</small></label>
           <label>Experience years<input name="experienceYears" type="number" required min="0" max="80" step="1" placeholder="0" /></label>
           <label>License issued date<input name="licenseIssuedDate" type="date" required /></label>
           <label>License expired date<input name="licenseExpiredDate" type="date" required /></label>
           <label>DroneOps access<select name="isActive" defaultValue="true"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
           <label className="provision-wide">Description<textarea name="description" maxLength={500} rows={4} placeholder="Operational notes, license scope, or manager remarks" /></label>
           <div className="provision-submit"><button className="button primary" type="submit" disabled={busy}>{busy ? "Please wait…" : accountType === "new" ? "Create Pilot account →" : "Grant Pilot access →"}</button></div>
-          <p id="pilot-form-help" className="provision-note">{accountType === "existing" ? "Use the email already registered in Firebase. Its password and sign-in methods will stay unchanged. " : ""}Drone model is intentionally collected later when the Pilot creates a UAV record. Disabled access blocks sign-in to DroneOps.</p>
+          <p id="pilot-form-help" className="provision-note">{accountType === "existing" ? "Use the email already registered in Firebase. Its password and sign-in methods will stay unchanged. " : ""}The flight license image is retained locally until the backend exposes its Supabase bucket URL. Disabled access blocks sign-in to DroneOps.</p>
         </fieldset>
           </form>
         </div>
