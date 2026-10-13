@@ -11,6 +11,7 @@ import { getFirebaseAuth } from "@/lib/auth/firebase";
 import { api, ApiError } from "@/lib/auth/client";
 import type { AccountRole, AuthSession } from "@/lib/auth/types";
 import { createPilotRegistration } from "@/lib/pilot-registration";
+import { saveLicenseImage } from "@/lib/license-image-store";
 
 type Action = "google" | "password" | "reset" | "register";
 type AccessMode = "pilot" | "manager";
@@ -119,6 +120,15 @@ export default function LoginForm() {
     }
     const licenseIssuedDate = read("licenseIssuedDate");
     const licenseExpiredDate = read("licenseExpiredDate");
+    const licenseImage = values.get("licenseImage");
+    if (!(licenseImage instanceof File) || !licenseImage.size || !licenseImage.type.startsWith("image/")) {
+      setError("Select an image of the flight license.");
+      return;
+    }
+    if (licenseImage.size > 5 * 1024 * 1024) {
+      setError("The flight license image must be 5 MB or smaller.");
+      return;
+    }
     if (new Date(licenseExpiredDate) <= new Date(licenseIssuedDate)) {
       setError("License expiration date must be after the issued date.");
       return;
@@ -131,9 +141,10 @@ export default function LoginForm() {
         phoneNumber: read("phoneNumber"), dateOfBirth: read("dateOfBirth"),
         pilotLicenseNo: read("pilotLicenseNo"), licenseIssuedDate, licenseExpiredDate,
         experienceYears: Number(read("experienceYears") || 0),
-        droneType: read("droneType"), usagePurpose: read("usagePurpose"),
+        droneType: "Not specified", usagePurpose: "Not specified",
         description: read("description") || null,
       });
+      await saveLicenseImage(read("email"), licenseImage).catch(() => undefined);
       form.reset();
       setRegisterOpen(false);
       setNotice(result.message || "Registration submitted. An Operations Manager will review your request.");
@@ -190,8 +201,7 @@ export default function LoginForm() {
           <label>Experience years<input required name="experienceYears" type="number" min={0} max={80} defaultValue={0} /></label>
           <label>License issued date<input required name="licenseIssuedDate" type="date" /></label>
           <label>License expired date<input required name="licenseExpiredDate" type="date" /></label>
-          <label>Drone type<select required name="droneType" defaultValue=""><option value="" disabled>Select drone type</option><option>Multirotor</option><option>Fixed-wing</option><option>VTOL</option><option>Survey UAV</option></select></label>
-          <label>Usage purpose<select required name="usagePurpose" defaultValue=""><option value="" disabled>Select purpose</option><option>Inspection</option><option>Mapping</option><option>Monitoring</option><option>Emergency response</option></select></label>
+          <label className="pilot-register-wide pilot-license-upload">Flight license image<input required name="licenseImage" type="file" accept="image/png,image/jpeg,image/webp" /><small>PNG, JPG or WEBP · maximum 5 MB. Temporarily retained in this browser until backend storage is available.</small></label>
           <label className="pilot-register-wide">Description<textarea name="description" rows={4} maxLength={500} placeholder="Briefly describe your operating scope or manager contact." /></label>
         </div>
         {error && <p className="pilot-register-error" role="alert">{error}</p>}
