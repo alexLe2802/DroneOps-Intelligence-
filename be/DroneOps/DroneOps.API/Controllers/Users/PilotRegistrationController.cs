@@ -68,7 +68,7 @@ public class PilotRegistrationController : ControllerBase
     }
 
     /// <summary>
-    /// Duyệt đơn Pilot: Dùng mật khẩu gốc tạo User + gửi mã OTP xác thực đăng nhập lần đầu qua Email (Admin)
+    /// Duyệt đơn Pilot: Dùng mật khẩu gốc tạo User + gửi mã OTP xác thực đăng nhập lần đầu qua Email (Operation Manager)
     /// </summary>
     [Authorize(Roles = "operation_manager")]
     [HttpPost("{id:guid}/approve")]
@@ -90,7 +90,7 @@ public class PilotRegistrationController : ControllerBase
     }
 
     /// <summary>
-    /// Từ chối đơn Pilot kèm lý do -> Gửi email thông báo (Admin)
+    /// Từ chối đơn Pilot kèm lý do -> Gửi email thông báo (Operation Manager)
     /// </summary>
     [Authorize(Roles = "operation_manager")]
     [HttpPost("{id:guid}/reject")]
