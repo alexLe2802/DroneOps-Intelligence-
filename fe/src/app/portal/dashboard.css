@@ -109,3 +109,5 @@
 .request-license-pdf span{max-width:220px;overflow-wrap:anywhere;color:#dce7f2}
 .request-license-pdf small{color:#76d9ff}
 @media(max-width:650px){.request-license-files{grid-template-columns:1fr}}
+
+.geofence-editor{padding:18px;margin-bottom:20px;background:var(--panel);border:1px solid var(--line);border-radius:7px}.geofence-fields{border:0;padding:0;margin:0 0 16px;min-width:0}.geofence-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.geofence-actions .module-secondary{width:auto}.geofence-vertices{display:grid;gap:8px;margin-top:14px}.geofence-vertices>div{display:grid;grid-template-columns:28px 1fr 1fr auto;gap:10px;align-items:end}.geofence-vertices label{display:grid;gap:6px;font:9px Consolas,monospace}.geofence-vertices input{width:100%;min-width:0;padding:10px;border:1px solid #314054;background:#0b1119;color:#fff}.geofence-vertices b{align-self:center;color:#65d9ff}@media(max-width:600px){.geofence-vertices>div{grid-template-columns:28px 1fr}.geofence-vertices label{grid-column:2}.geofence-vertices button{grid-column:2}.geofence-editor .mission-field-grid{grid-template-columns:1fr}}
