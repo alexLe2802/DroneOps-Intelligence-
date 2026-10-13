@@ -33,14 +33,18 @@ public class PilotRegistrationController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(new { Message = ex.Message });
+            return BadRequest(new
+            {
+                message = ex.InnerException?.Message ?? ex.Message,
+                detail = ex.InnerException?.ToString()
+            });
         }
     }
 
     /// <summary>
-    /// Lấy danh sách đơn đăng ký (Admin)
+   
     /// </summary>
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "operation_manager")]
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] GetPilotRegistrationsRequest request)
     {
@@ -49,9 +53,9 @@ public class PilotRegistrationController : ControllerBase
     }
 
     /// <summary>
-    /// Lấy chi tiết đơn đăng ký theo ID (Admin)
+    
     /// </summary>
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "operation_manager")]
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetDetail(Guid id)
     {
@@ -66,7 +70,7 @@ public class PilotRegistrationController : ControllerBase
     /// <summary>
     /// Duyệt đơn Pilot: Dùng mật khẩu gốc tạo User + gửi mã OTP xác thực đăng nhập lần đầu qua Email (Admin)
     /// </summary>
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "operation_manager")]
     [HttpPost("{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovePilotRegistrationRequest? request)
     {
@@ -88,7 +92,7 @@ public class PilotRegistrationController : ControllerBase
     /// <summary>
     /// Từ chối đơn Pilot kèm lý do -> Gửi email thông báo (Admin)
     /// </summary>
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "operation_manager")]
     [HttpPost("{id:guid}/reject")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectPilotRegistrationRequest request)
     {

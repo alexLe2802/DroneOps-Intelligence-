@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<MissionApproval> MissionApprovals { get; set; }
     public DbSet<TelemetryRecord> TelemetryRecords { get; set; }
     public DbSet<PilotRegistration> PilotRegistrations { get; set; }
+    public DbSet<LicenseImage> LicenseImages { get; set; }
     public DbSet<MissionSuggestion> MissionSuggestions { get; set; }
     public DbSet<PostFlightReport> PostFlightReports { get; set; }
 

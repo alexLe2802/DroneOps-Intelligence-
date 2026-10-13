@@ -20,7 +20,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin,Pilot")]
+    [Authorize(Roles = "operation_manager,Pilot")]
     public async Task<ActionResult<List<GeofenceResponse>>> GetAllAsync(
         CancellationToken cancellationToken)
     {
@@ -32,7 +32,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = "Admin,Pilot")]
+    [Authorize(Roles = "operation_manager,Pilot")]
     public async Task<ActionResult<GeofenceResponse>> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken)
@@ -56,7 +56,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "operation_manager")]
     public async Task<ActionResult<GeofenceResponse>> CreateAsync(
         [FromBody] CreateGeofenceRequest request,
         CancellationToken cancellationToken)
@@ -82,7 +82,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "operation_manager")]
     public async Task<ActionResult<GeofenceResponse>> UpdateAsync(
         Guid id,
         [FromBody] UpdateGeofenceRequest request,
@@ -115,7 +115,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "operation_manager")]
     public async Task<IActionResult> DeleteAsync(
         Guid id,
         CancellationToken cancellationToken)

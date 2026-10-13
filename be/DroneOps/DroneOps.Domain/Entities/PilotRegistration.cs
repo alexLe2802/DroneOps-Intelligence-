@@ -30,7 +30,6 @@ public class PilotRegistration
     public string UsagePurpose { get; set; } = string.Empty;
 
     public string? Description { get; set; }
-
     public string Status { get; set; } = "Pending";
 
     public string? RejectReason { get; set; }
@@ -40,4 +39,6 @@ public class PilotRegistration
     public DateTime? ReviewedAt { get; set; }
 
     public DateTime CreatedAt { get; set; }
+    public ICollection<LicenseImage> LicenseImages { get; set; }
+    = new List<LicenseImage>();
 }
