@@ -13,12 +13,12 @@ type PortalControlsProps = {
 };
 
 export default function PortalControls({ account, registerOnly = false }: PortalControlsProps) {
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [, setSessions] = useState<SessionInfo[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [, setLoaded] = useState(false);
   const [accountType, setAccountType] = useState("new");
   const [showProvisionForm, setShowProvisionForm] = useState(false);
   const [accountQuery, setAccountQuery] = useState("");
@@ -27,12 +27,22 @@ export default function PortalControls({ account, registerOnly = false }: Portal
   const pending = useRef(false);
   const manager = account.role === "operation_manager";
   const handleError = useCallback((e: unknown) => {
-    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) { window.location.replace("/login"); return; }
+    if (e instanceof ApiError && e.status === 401) {
+      // A domain API can reject JWT while the web session is still valid.
+      // Only redirect when the session authority also rejects authentication.
+      void api("/auth/me").then(() => {
+        setError("The Operator management API does not accept this login session yet. Your session is still valid; registration requests remain available.");
+      }).catch(reason => {
+        if (reason instanceof ApiError && reason.status === 401) window.location.replace("/login");
+        else setError(reason instanceof Error ? reason.message : "Unable to verify your session. Try again.");
+      });
+      return;
+    }
     setError(e instanceof Error ? e.message : "Request failed. Please try again.");
   }, []);
   const load = useCallback(async () => {
     const [nextSessions, nextAccounts] = await Promise.all([
-      api<SessionInfo[]>("/auth/sessions"), manager ? api<Account[]>("/accounts") : Promise.resolve([]),
+      Promise.resolve([] as SessionInfo[]), manager ? api<Account[]>("/accounts") : Promise.resolve([]),
     ]);
     setSessions(nextSessions); setAccounts(nextAccounts); setLoaded(true);
   }, [manager]);
@@ -40,7 +50,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
     let alive = true;
     async function verify() { try { await api("/auth/me"); } catch (e) { if (alive) handleError(e); } }
     Promise.all([
-      api<SessionInfo[]>("/auth/sessions"), manager ? api<Account[]>("/accounts") : Promise.resolve([]),
+      Promise.resolve([] as SessionInfo[]), manager ? api<Account[]>("/accounts") : Promise.resolve([]),
     ]).then(([nextSessions, nextAccounts]) => {
       if (alive) { setSessions(nextSessions); setAccounts(nextAccounts); setLoaded(true); }
     }).catch(e => { if (alive) handleError(e); });
@@ -170,10 +180,6 @@ export default function PortalControls({ account, registerOnly = false }: Portal
     <div className="portal-toolbar"><span className="green">● Authorized workspace</span><button className="button secondary" disabled={busy} onClick={() => logout(false)}>Sign out →</button></div>
     {error && <p className="auth-error" role="alert">{error} <button className="text-button" disabled={busy} onClick={() => act(load)}>Retry</button></p>}
     {message && <p className="auth-feedback" role="status">{message}</p>}
-    <section className="portal-card"><div className="portal-card-heading"><div><span className="auth-kicker">ACCOUNT SECURITY</span><h2>Your active sessions</h2><p>Recognize where you are signed in. Revoke any session you no longer use.</p></div><button className="button outline" disabled={busy || !loaded} onClick={() => logout(true)}>Sign out everywhere</button></div>
-      {!loaded && <p role="status">Loading your sessions…</p>}
-      <ul className="session-list">{sessions.map(s => <li key={s.id}><div><strong>{s.isCurrent ? "This browser" : "Another browser"}</strong><p className="session-agent">{s.userAgent || "Browser information unavailable"}</p><small>Signed in {new Date(s.createdAt).toLocaleString()} · Expires {new Date(s.expiresAt).toLocaleString()}</small></div><button className="button secondary" disabled={busy} onClick={() => act(async () => { await api(`/auth/sessions/${s.id}`, { method: "DELETE" }); if (s.isCurrent) window.location.replace("/login"); else await load(); })}>{s.isCurrent ? "Sign out" : "Revoke"}</button></li>)}</ul>
-    </section>
     {manager && <section className="portal-card"><div className="portal-card-heading"><div><span className="auth-kicker">TEAM ACCESS</span><h2>Operators & accounts</h2><p>Create a Pilot account or grant access to an existing Firebase user.</p></div><button type="button" className="button primary" disabled={busy} aria-haspopup="dialog" onClick={() => setShowProvisionForm(true)}>Register Pilot</button></div>
       {showProvisionForm && <div className="provision-modal-backdrop" role="presentation" onClick={() => setShowProvisionForm(false)}>
         <div className="provision-modal" role="dialog" aria-modal="true" aria-labelledby="pilot-registration-title" onClick={event => event.stopPropagation()}>

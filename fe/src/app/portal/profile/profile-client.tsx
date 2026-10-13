@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Account } from "@/lib/auth/types";
 import { useRouter } from "next/navigation";
-import ActiveSessions from "./active-sessions";
 import { getPilotProfile, getProfile, updateProfile } from "@/lib/portal/client";
 import type { PilotProfile, UserProfile } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../module-state";
@@ -59,6 +58,6 @@ export default function ProfileClient({ account }: { account: Account }) {
       ["License expires", pilot.licenseExpiredDate], ["Experience", `${pilot.experienceYears} years`],
       ["Drone type", pilot.droneType], ["Drone model", pilot.droneModel],
     ].map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "Not provided"}</b></div>)}</div>}</section>}
-    <ActiveSessions />
+
   </>;
 }

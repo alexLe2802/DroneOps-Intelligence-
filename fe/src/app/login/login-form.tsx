@@ -1,23 +1,17 @@
 "use client";
 
-import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
-import {
-  GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
-  sendEmailVerification, sendPasswordResetEmail, signOut, type UserCredential,
-} from "firebase/auth";
-import { FirebaseError } from "firebase/app";
-import { getFirebaseAuth } from "@/lib/auth/firebase";
-import { api, ApiError } from "@/lib/auth/client";
+import { api } from "@/lib/auth/client";
 import type { AccountRole, AuthSession } from "@/lib/auth/types";
 import { createPilotRegistration } from "@/lib/pilot-registration";
 import { saveLicenseFiles } from "@/lib/license-image-store";
 import LicenseFilePicker from "@/app/license-file-picker";
 
-type Action = "google" | "password" | "reset" | "register";
+type Action = "password" | "reset" | "register";
 type AccessMode = "pilot" | "manager";
 
-const resetMessage = "If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.";
+
 const roleByMode: Record<AccessMode, AccountRole> = { pilot: "uav_operator", manager: "operation_manager" };
 const roleMismatch: Record<AccessMode, string> = {
   pilot: "This account belongs to Manager Access. Use the Manager panel to sign in.",
@@ -25,12 +19,17 @@ const roleMismatch: Record<AccessMode, string> = {
 };
 
 export default function LoginForm() {
+  const router = useRouter();
   const [mode, setMode] = useState<AccessMode>("pilot");
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetOtp, setResetOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const inProgress = useRef(false);
   const emailInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
@@ -42,60 +41,25 @@ export default function LoginForm() {
     setBusy(action); setError(""); setNotice("");
     let completed = false;
     try {
-      const auth = getFirebaseAuth();
-      try {
-        if (action === "reset") {
-          await sendPasswordResetEmail(auth, emailInput.current!.value.trim());
-          setNotice(resetMessage);
-          return;
-        }
-        let credential: UserCredential;
-        if (action === "google") {
-          const provider = new GoogleAuthProvider();
-          provider.setCustomParameters({ prompt: "select_account" });
-          credential = await signInWithPopup(auth, provider);
-        } else {
-          credential = await signInWithEmailAndPassword(auth, emailInput.current!.value.trim(), passwordInput.current!.value);
-        }
-        if (!credential.user.emailVerified) {
-          await sendEmailVerification(credential.user);
-          setNotice("Verification email sent. Open the link in your inbox or spam folder, then return here and sign in again.");
-          return;
-        }
-        const session = await api<AuthSession>("/auth/session", { method: "POST", body: JSON.stringify({ idToken: await credential.user.getIdToken(true) }) });
-        if (session.account.role !== roleByMode[mode]) {
-          await api("/auth/logout", { method: "POST" }).catch(() => undefined);
-          setError(roleMismatch[mode]);
-          return;
-        }
-        completed = true;
-      } finally {
-        await signOut(auth);
+      if (action === "reset") {
+        const result = await api<{ message?: string; Message?: string }>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email: emailInput.current!.value.trim() }) });
+        setResetOpen(true); setNotice(result.message ?? result.Message ?? "Reset code sent. Check your email.");
+        return;
       }
+      const session = await api<AuthSession | { code: "first_login_required"; requiresFirstLogin: true }>("/auth/login", {
+        method: "POST", body: JSON.stringify({ email: emailInput.current!.value.trim(), password: passwordInput.current!.value }),
+      });
+      if ("requiresFirstLogin" in session && session.requiresFirstLogin) {
+        router.push("/login/first-time"); return;
+      }
+      if (!("account" in session)) throw new Error("Invalid login response.");
+      if (session.account.role !== roleByMode[mode]) {
+        await api("/auth/logout", { method: "POST" });
+        setError(roleMismatch[mode]); return;
+      }
+      completed = true;
     } catch (e) {
-      if (e instanceof ApiError) setError(e.message);
-      else if (e instanceof FirebaseError) {
-        if (action === "reset" && e.code === "auth/user-not-found") {
-          setNotice(resetMessage);
-        } else {
-          const messages: Record<string, string> = {
-            "auth/invalid-credential": "Unable to sign in. Check your email and password.",
-            "auth/invalid-login-credentials": "Unable to sign in. Check your email and password.",
-            "auth/user-not-found": "Unable to sign in. Check your email and password.",
-            "auth/wrong-password": "Unable to sign in. Check your email and password.",
-            "auth/invalid-email": "Enter a valid email address.",
-            "auth/user-disabled": "This account cannot sign in. Contact your Operations Manager.",
-            "auth/too-many-requests": "Too many attempts. Please wait before trying again.",
-            "auth/popup-closed-by-user": "Sign-in was cancelled. Select Google to try again.",
-            "auth/cancelled-popup-request": "A sign-in window is already open.",
-            "auth/popup-blocked": "Allow pop-ups for this site, then try again.",
-            "auth/unauthorized-domain": "Sign-in is not enabled for this domain. Contact your Operations Manager.",
-            "auth/operation-not-allowed": "This sign-in method has not been enabled. Contact your Operations Manager.",
-            "auth/network-request-failed": "Check your connection and try again.",
-          };
-          setError(messages[e.code] ?? "Unable to complete your request. Please try again.");
-        }
-      } else setError("Unable to sign in. Please try again.");
+      setError(e instanceof Error ? e.message : "Unable to complete your request.");
     } finally {
       if (passwordInput.current) passwordInput.current.value = "";
       setShowPassword(false);
@@ -177,12 +141,18 @@ export default function LoginForm() {
 
     {mode === "pilot" && <button type="button" className="pilot-register-link" disabled={busy !== null} onClick={() => { setRegisterOpen(true); setNotice(""); setError(""); }}>Request Pilot Registration</button>}
 
-    <div className="login-divider"><span>OR CONTINUE WITH</span></div>
-    <button type="button" className="google-login" onClick={() => void login("google")} disabled={busy !== null} aria-busy={busy === "google"}>
-      <Image src="/google-signin.png" width={270} height={60} alt="Sign in with Google" priority />
-    </button>
-    {busy === "google" && <p className="auth-feedback" role="status">Waiting for Google sign-in...</p>}
     {busy === "reset" && <p className="auth-feedback" role="status">Requesting a password reset...</p>}
+    {resetOpen && <form className="email-login-form" onSubmit={async event => {
+      event.preventDefault(); if (inProgress.current) return;
+      inProgress.current = true; setBusy("reset"); setError("");
+      try {
+        if (newPassword !== confirmPassword) throw new Error("Passwords do not match.");
+        const result = await api<{ message?: string; Message?: string }>("/auth/reset-password", { method: "POST", body: JSON.stringify({ email: emailInput.current!.value.trim(), otp: resetOtp.trim(), newPassword, confirmPassword }) });
+        await api("/auth/logout", { method: "POST" });
+        setNotice(result.message ?? result.Message ?? "Password updated. Sign in again."); setResetOpen(false); setResetOtp("");
+      } catch (value) { setError(value instanceof Error ? value.message : "Unable to reset password."); }
+      finally { setNewPassword(""); setConfirmPassword(""); setBusy(null); inProgress.current = false; }
+    }}><h3>Reset password</h3><label>EMAIL OTP<input value={resetOtp} onChange={event => setResetOtp(event.target.value)} required autoComplete="one-time-code" /></label><label>NEW PASSWORD<input type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} required minLength={8} autoComplete="new-password" /></label><label>CONFIRM PASSWORD<input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required minLength={8} autoComplete="new-password" /></label><button className="button primary" disabled={busy !== null}>RESET PASSWORD</button><button type="button" className="text-button" disabled={busy !== null} onClick={() => { setResetOpen(false); setNewPassword(""); setConfirmPassword(""); }}>CANCEL</button></form>}
     {notice && <p className="auth-feedback" role="status">{notice}</p>}
     {error && !registerOpen && <p className="auth-error" role="alert">{error}</p>}
 
