@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { api, ApiError } from "@/lib/auth/client";
 import { roleLabels, type Account, type SessionInfo } from "@/lib/auth/types";
 import PilotRegistrationRequests from "./operators/pilot-registration-requests";
-import { saveLicenseImage } from "@/lib/license-image-store";
+import { saveLicenseFiles } from "@/lib/license-image-store";
 
 type PortalControlsProps = {
   account: Account;
@@ -73,12 +73,12 @@ export default function PortalControls({ account, registerOnly = false }: Portal
     }
     const licenseIssuedDate = read("licenseIssuedDate");
     const licenseExpiredDate = read("licenseExpiredDate");
-    const licenseImage = values.get("licenseImage");
-    if (!(licenseImage instanceof File) || !licenseImage.size || !licenseImage.type.startsWith("image/")) {
-      setError("Select an image of the flight license."); setMessage(""); return;
+    const licenseFiles = values.getAll("licenseFiles").filter((value): value is File => value instanceof File && value.size > 0);
+    if (!licenseFiles.length || licenseFiles.some(file => !file.type.startsWith("image/") && file.type !== "application/pdf")) {
+      setError("Select one or more flight license images or PDF files."); setMessage(""); return;
     }
-    if (licenseImage.size > 5 * 1024 * 1024) {
-      setError("The flight license image must be 5 MB or smaller."); setMessage(""); return;
+    if (licenseFiles.length > 10 || licenseFiles.some(file => file.size > 10 * 1024 * 1024)) {
+      setError("Upload at most 10 files, with each file 10 MB or smaller."); setMessage(""); return;
     }
     if (licenseIssuedDate && licenseExpiredDate && new Date(licenseExpiredDate) <= new Date(licenseIssuedDate)) {
       setError("License expiration date must be after the issued date."); setMessage(""); return;
@@ -98,7 +98,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           description: read("description"),
           isActive: values.get("isActive") === "true",
         }) });
-        await saveLicenseImage(read("email"), licenseImage).catch(() => undefined);
+        await saveLicenseFiles(read("email"), licenseFiles).catch(() => undefined);
         form.reset(); setAccountType("new"); setShowProvisionForm(false); setMessage(result.message); await load();
       } finally {
         // Passwords are never persisted in component state or retained after a network attempt.
@@ -150,7 +150,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           </>}
           <div className="provision-section"><span>02</span><strong>License & operations</strong></div>
           <label>Pilot license number<input name="pilotLicenseNo" required minLength={3} maxLength={64} autoComplete="off" placeholder="License number" /></label>
-          <label className="provision-wide pilot-license-upload">Flight license image<input name="licenseImage" type="file" accept="image/png,image/jpeg,image/webp" required /><small>PNG, JPG or WEBP · maximum 5 MB. Temporarily retained in this browser until backend storage is available.</small></label>
+          <label className="provision-wide pilot-license-upload">Flight license pages<input name="licenseFiles" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required multiple /><small>Select multiple images or PDF documents · maximum 10 files and 10 MB per file.</small></label>
           <label>Experience years<input name="experienceYears" type="number" required min="0" max="80" step="1" placeholder="0" /></label>
           <label>License issued date<input name="licenseIssuedDate" type="date" required /></label>
           <label>License expired date<input name="licenseExpiredDate" type="date" required /></label>
@@ -199,7 +199,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           </>}
           <div className="provision-section"><span>02</span><strong>License & operations</strong></div>
           <label>Pilot license number<input name="pilotLicenseNo" required minLength={3} maxLength={64} autoComplete="off" placeholder="License number" /></label>
-          <label className="provision-wide pilot-license-upload">Flight license image<input name="licenseImage" type="file" accept="image/png,image/jpeg,image/webp" required /><small>PNG, JPG or WEBP · maximum 5 MB. Temporarily retained in this browser until backend storage is available.</small></label>
+          <label className="provision-wide pilot-license-upload">Flight license pages<input name="licenseFiles" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required multiple /><small>Select multiple images or PDF documents · maximum 10 files and 10 MB per file.</small></label>
           <label>Experience years<input name="experienceYears" type="number" required min="0" max="80" step="1" placeholder="0" /></label>
           <label>License issued date<input name="licenseIssuedDate" type="date" required /></label>
           <label>License expired date<input name="licenseExpiredDate" type="date" required /></label>
