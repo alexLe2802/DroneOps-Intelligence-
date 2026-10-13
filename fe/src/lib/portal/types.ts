@@ -74,6 +74,7 @@ export type FlightTelemetryPoint = {
 };
 export type GeofenceCoordinate = { latitude: number; longitude: number };
 export type Geofence = { id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
+export type SaveGeofenceRequest = { name: string; description: string | null; coordinates: GeofenceCoordinate[] };
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {

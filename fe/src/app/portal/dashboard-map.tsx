@@ -20,8 +20,8 @@ export default function DashboardMap({ geofences }: { geofences: Geofence[] }) {
     void import("leaflet").then(({ default: L }) => {
       if (cancelled) return;
       map = L.map(container, { center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: true });
-      L.control.zoom({ position: "topright" }).addTo(map);
-      L.control.scale({ position: "bottomleft", metric: true, imperial: false }).addTo(map);
+      L.control.zoom({ position: "bottomleft" }).addTo(map);
+      L.control.scale({ position: "bottomright", metric: true, imperial: false }).addTo(map);
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
       }).on("tileerror", () => setError("Basemap tile could not be loaded.")).addTo(map);
