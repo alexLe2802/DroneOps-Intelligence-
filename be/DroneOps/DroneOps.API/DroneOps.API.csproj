@@ -29,6 +29,7 @@
 
 	<ItemGroup>
 		<Content Include="../../../database/migrations/001_auth.sql" Link="Migrations/001_auth.sql" CopyToOutputDirectory="PreserveNewest" />
+		<Content Include="../../../database/migrations/004_first_login.sql" Link="Migrations/004_first_login.sql" CopyToOutputDirectory="PreserveNewest" />
 		<Content Include="../../../database/migrations/003_canonical_roles.sql" Link="Migrations/003_canonical_roles.sql" CopyToOutputDirectory="PreserveNewest" />
 		<Content Include="../../../database/migrations/002_ai_assessments.sql" Link="Migrations/002_ai_assessments.sql" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>

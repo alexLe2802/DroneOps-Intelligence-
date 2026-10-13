@@ -102,7 +102,7 @@ public sealed class PostgresAuthStore(NpgsqlDataSource dataSource) : IAuthStore
                    CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'uav_operator' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operation_manager' WHEN 'Admin' THEN 'operation_manager' WHEN 'SystemAdmin' THEN 'operation_manager' WHEN 'operations_manager' THEN 'operation_manager' WHEN 'operation_manager' THEN 'operation_manager' END,
                    u."IsActive"
             FROM public."User" u JOIN public."Role" r ON r."Id" = u."RoleId"
-            WHERE u."WebAccessProvisioned" AND r."Name" IN ('Pilot', 'uav_operator', 'OperationsManager', 'Admin', 'SystemAdmin', 'operations_manager', 'operation_manager')
+            WHERE r."Name" IN ('Pilot', 'uav_operator', 'OperationsManager', 'Admin', 'SystemAdmin', 'operations_manager', 'operation_manager')
             ORDER BY u."CreatedAt" DESC
             """);
         await using var r = await cmd.ExecuteReaderAsync(ct);

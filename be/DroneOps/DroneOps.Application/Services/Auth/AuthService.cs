@@ -72,6 +72,11 @@ public class AuthService : IAuthService
             return null;
         }
 
+        if (user.RequiresFirstLogin)
+        {
+            return new LoginResponse { RequiresFirstLogin = true };
+        }
+
         var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes);
         var token = GenerateToken(user, expiresAt);
 
