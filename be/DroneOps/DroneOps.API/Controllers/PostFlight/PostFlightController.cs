@@ -26,7 +26,7 @@ public class PostFlightController : ControllerBase
     {
         try
         {
-            var isPilotOnly = User.IsInRole("Pilot") && !User.IsInRole("Admin") && !User.IsInRole("OperationsManager");
+            var isPilotOnly = User.IsInRole("Pilot") && !User.IsInRole("operation_manager");
             Guid? pilotUserId = isPilotOnly && TryGetUserId(out var userId) ? userId : null;
 
             var result = await _service.GetFlightHistoryAsync(request, pilotUserId, cancellationToken);
@@ -50,7 +50,7 @@ public class PostFlightController : ControllerBase
             return Ok(new
             {
                 Success = true,
-                Message = "Flight mission finalized and post-flight report generated successfully.", // Đã đổi sang tiếng Anh
+                Message = "Flight mission finalized and post-flight report generated successfully.",
                 Data = result
             });
         }
@@ -119,7 +119,7 @@ public class PostFlightController : ControllerBase
     {
         try
         {
-            var isPilotOnly = User.IsInRole("Pilot") && !User.IsInRole("Admin") && !User.IsInRole("OperationsManager");
+            var isPilotOnly = User.IsInRole("Pilot") && !User.IsInRole("operation_manager");
             Guid? pilotUserId = isPilotOnly && TryGetUserId(out var userId) ? userId : null;
 
             var result = await _service.GetOperationalAnalyticsAsync(pilotUserId, cancellationToken);
