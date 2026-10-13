@@ -10,8 +10,18 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   const path = (await context.params).path.join("/");
   if (!allowed.test(path)) return NextResponse.json({ message: "Not found." }, { status: 404 });
   const token = request.cookies.get(accessCookie)?.value;
-  if (!["GET", "HEAD"].includes(request.method) && request.headers.get("origin") !== request.nextUrl.origin)
-    return NextResponse.json({ message: "Request origin is not allowed." }, { status: 403 });
+  if (!["GET", "HEAD"].includes(request.method)) {
+    // Next.js may construct nextUrl with localhost while the browser uses
+    // 127.0.0.1 or a LAN hostname. Compare against the actual request Host.
+    const host = request.headers.get("host");
+    const origin = request.headers.get("origin");
+    let sameOrigin = false;
+    try {
+      const expected = new URL(`${request.nextUrl.protocol}//${host}`);
+      sameOrigin = Boolean(host && origin && new URL(origin).origin === origin && origin === expected.origin);
+    } catch { /* Missing or malformed origins are rejected. */ }
+    if (!sameOrigin) return NextResponse.json({ message: "Request origin is not allowed." }, { status: 403 });
+  }
   if (path === "auth/me") {
     const session = token ? await sessionFromToken(token) : null;
     return NextResponse.json(session ?? { message: "Sign in again." }, { status: session ? 200 : 401 });
