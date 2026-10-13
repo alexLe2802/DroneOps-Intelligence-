@@ -57,6 +57,7 @@
 .ai-mission-picker{display:grid;gap:7px;margin-bottom:18px;color:var(--sub);font:9px Consolas,monospace;letter-spacing:1px}.ai-mission-picker select{width:min(520px,100%);border:1px solid #314054;background:#0b1119;color:#f3f7fb;padding:11px}
 .dashboard-service-warning{margin:0 0 10px;padding:10px 14px;border:1px solid #66532c;background:#342b1b;color:#f1d28a}.dashboard-service-warning b{font:9px Consolas,monospace;letter-spacing:1px}.dashboard-service-warning p{display:inline;margin:0 0 0 12px;color:#d9c69c}
 .account-filter-empty{margin:0;padding:24px;color:var(--sub);text-align:center}
+.critical-banner.clear>.dash-icon{background:#176b5c;color:#86f2d4}.critical-banner.clear div{color:#72dfc0}.critical-banner a{text-decoration:none}.map-panel a,.incident-panel a,.missions-panel a,.ai-panel a{color:#7bdcff;text-decoration:none;font:8px Consolas,monospace;letter-spacing:.6px}.dashboard-panel-empty{height:125px;margin:8px 0;display:grid;place-content:center;justify-items:center;gap:6px;padding:16px;text-align:center;background:#101720;border:1px solid #222d39;color:#91a0b2}.dashboard-panel-empty>span{font-size:25px;color:#5ed9ff}.dashboard-panel-empty>strong{color:#dce7f1;font:10px Consolas,monospace;letter-spacing:1px}.dashboard-panel-empty>p{margin:0;max-width:300px;line-height:1.45}.bottom-grid button:disabled{opacity:.5}
 
 /* Keep sidebar icons, labels and badges in separate tracks for both links and buttons. */
 .ops-sidebar nav :is(a,button){grid-template-columns:24px minmax(0,1fr) auto;gap:8px}
