@@ -11,7 +11,7 @@ import {
   type PilotRegistrationStatus,
   type PilotRegistrationSummary,
 } from "@/lib/pilot-registration";
-import { getLicenseImage, type StoredLicenseImage } from "@/lib/license-image-store";
+import { getLicenseFiles, type StoredLicenseEvidence } from "@/lib/license-image-store";
 
 const dateValue = (value: string | null | undefined) => value
   ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value))
@@ -33,8 +33,8 @@ export default function PilotRegistrationRequests() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [totalItems, setTotalItems] = useState(0);
-  const [licenseImage, setLicenseImage] = useState<StoredLicenseImage | null>(null);
-  const [licenseImageUrl, setLicenseImageUrl] = useState("");
+  const [licenseEvidence, setLicenseEvidence] = useState<StoredLicenseEvidence | null>(null);
+  const [licenseFileUrls, setLicenseFileUrls] = useState<string[]>([]);
 
   const describeError = useCallback((value: unknown) => {
     if (value instanceof ApiError && value.status === 403) {
@@ -46,12 +46,12 @@ export default function PilotRegistrationRequests() {
   const loadDetail = useCallback(async (id: string) => {
     setSelectedId(id);
     setDetailLoading(true);
-    setLicenseImage(null);
+    setLicenseEvidence(null);
     setError("");
     try {
       const detail = await getPilotRegistration(id);
       setSelected(detail);
-      setLicenseImage(await getLicenseImage(detail.email));
+      setLicenseEvidence(await getLicenseFiles(detail.email));
       setRejectReason("");
     } catch (value) {
       setSelected(null);
@@ -62,11 +62,11 @@ export default function PilotRegistrationRequests() {
   }, [describeError]);
 
   useEffect(() => {
-    if (!licenseImage) { setLicenseImageUrl(""); return; }
-    const url = URL.createObjectURL(licenseImage.blob);
-    setLicenseImageUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [licenseImage]);
+    if (!licenseEvidence) { setLicenseFileUrls([]); return; }
+    const urls = licenseEvidence.files.map(file => URL.createObjectURL(file.blob));
+    setLicenseFileUrls(urls);
+    return () => urls.forEach(url => URL.revokeObjectURL(url));
+  }, [licenseEvidence]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -161,7 +161,7 @@ export default function PilotRegistrationRequests() {
           <div><span>License issued</span><b>{dateValue(selected.licenseIssuedDate)}</b></div>
           <div><span>License expires</span><b>{dateValue(selected.licenseExpiredDate)}</b></div>
         </div>
-        <div className="request-license-evidence"><span>Flight license image</span>{licenseImageUrl ? <><a href={licenseImageUrl} target="_blank" rel="noreferrer"><img src={licenseImageUrl} alt={`Flight license submitted by ${selected.fullName}`} /></a><small>{licenseImage?.fileName} · stored temporarily in this browser</small></> : <div><b>Image unavailable</b><p>This request has no image in this browser. The backend will provide a Supabase bucket URL later.</p></div>}</div>
+        <div className="request-license-evidence"><span>Flight license documents</span>{licenseEvidence?.files.length ? <div className="request-license-files">{licenseEvidence.files.map((file, index) => <article key={`${file.fileName}-${index}`}>{file.contentType === "application/pdf" ? <a className="request-license-pdf" href={licenseFileUrls[index]} target="_blank" rel="noreferrer"><b>PDF</b><span>{file.fileName}</span><small>Open document</small></a> : <a href={licenseFileUrls[index]} target="_blank" rel="noreferrer"><img src={licenseFileUrls[index]} alt={`Flight license page ${index + 1} submitted by ${selected.fullName}`} /></a>}<small>{file.fileName}</small></article>)}</div> : <div><b>Documents unavailable</b><p>This request has no files in this browser. The backend will provide Supabase bucket URLs later.</p></div>}</div>
         <div className="request-description"><span>Applicant description</span><p>{selected.description || "No additional description was submitted."}</p></div>
         {selected.rejectReason && <div className="request-rejection"><span>Rejection reason</span><p>{selected.rejectReason}</p></div>}
         {selected.status === "Pending" && <div className="request-review-controls">
