@@ -139,7 +139,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseRouting();
 
-
 app.UseAuthentication();
 app.UseAuthorization();
 
