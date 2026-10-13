@@ -33,4 +33,5 @@
 		<Content Include="../../../database/migrations/002_ai_assessments.sql" Link="Migrations/002_ai_assessments.sql" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
+
 </Project>
