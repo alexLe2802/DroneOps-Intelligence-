@@ -7,7 +7,9 @@ import type { Geofence } from "@/lib/portal/types";
 
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
-export default function DashboardMap({ geofences }: { geofences: Geofence[] }) {
+type CursorCoordinate = { latitude: number; longitude: number } | null;
+
+export default function DashboardMap({ geofences, onCursorCoordinate }: { geofences: Geofence[]; onCursorCoordinate?: (coordinate: CursorCoordinate) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
 
@@ -20,6 +22,8 @@ export default function DashboardMap({ geofences }: { geofences: Geofence[] }) {
     void import("leaflet").then(({ default: L }) => {
       if (cancelled) return;
       map = L.map(container, { center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: true });
+      map.on("mousemove", event => onCursorCoordinate?.({ latitude: event.latlng.lat, longitude: event.latlng.lng }));
+      map.on("mouseout", () => onCursorCoordinate?.(null));
       L.control.zoom({ position: "bottomleft" }).addTo(map);
       L.control.scale({ position: "bottomright", metric: true, imperial: false }).addTo(map);
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
@@ -52,7 +56,7 @@ export default function DashboardMap({ geofences }: { geofences: Geofence[] }) {
       map?.remove();
       map = undefined;
     };
-  }, [geofences]);
+  }, [geofences, onCursorCoordinate]);
 
   return <div className="dashboard-map-shell">
     <div ref={containerRef} className="dashboard-live-map" />

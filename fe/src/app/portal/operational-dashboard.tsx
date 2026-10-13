@@ -24,6 +24,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
   const [error, setError] = useState<unknown>(null);
   const [feed, setFeed] = useState<Feed>("live");
   const [query, setQuery] = useState("");
+  const [mapCursor, setMapCursor] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -93,8 +94,8 @@ export default function OperationalDashboard({ account }: { account: Account }) 
 
     <div className="operations-grid">
       <section className="map-panel">
-        <header><b>◎ TAC-CANVAS // SGN-04 OPERATIONAL AIRSPACE</b><em>10.8231°N, 106.6297°E</em><span>BACKEND GEOFENCES</span></header>
-        <DashboardMap geofences={zones} />
+        <header><b>◎ TAC-CANVAS // OPERATIONAL AIRSPACE</b><em>{mapCursor ? `${Math.abs(mapCursor.latitude).toFixed(5)}°${mapCursor.latitude >= 0 ? "N" : "S"}, ${Math.abs(mapCursor.longitude).toFixed(5)}°${mapCursor.longitude >= 0 ? "E" : "W"}` : "MOVE CURSOR OVER MAP"}</em><span>BACKEND GEOFENCES</span></header>
+        <DashboardMap geofences={zones} onCursorCoordinate={setMapCursor} />
         <footer><span>Airspace layer: <b>DroneOps Geofences API</b> · {zones.length} zones</span><span><Link href="/portal/geofences">OPEN AIRSPACE REGISTRY</Link> · <Link href="/portal/flight-history">FLIGHT HISTORY →</Link></span></footer>
       </section>
 
