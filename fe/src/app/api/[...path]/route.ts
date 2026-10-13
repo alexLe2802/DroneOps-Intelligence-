@@ -31,7 +31,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
         chunks.push(value);
       }
     }
-    const upstream = await fetch(`${backendUrl()}/api/${path}`, {
+    const upstream = await fetch(`${backendUrl()}/api/${path}${request.nextUrl.search}`, {
       method: request.method, headers, body: size ? Buffer.concat(chunks) : undefined,
       cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(timeoutMs),
     });
