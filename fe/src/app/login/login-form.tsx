@@ -11,7 +11,8 @@ import { getFirebaseAuth } from "@/lib/auth/firebase";
 import { api, ApiError } from "@/lib/auth/client";
 import type { AccountRole, AuthSession } from "@/lib/auth/types";
 import { createPilotRegistration } from "@/lib/pilot-registration";
-import { saveLicenseImage } from "@/lib/license-image-store";
+import { saveLicenseFiles } from "@/lib/license-image-store";
+import LicenseFilePicker from "@/app/license-file-picker";
 
 type Action = "google" | "password" | "reset" | "register";
 type AccessMode = "pilot" | "manager";
@@ -120,13 +121,13 @@ export default function LoginForm() {
     }
     const licenseIssuedDate = read("licenseIssuedDate");
     const licenseExpiredDate = read("licenseExpiredDate");
-    const licenseImage = values.get("licenseImage");
-    if (!(licenseImage instanceof File) || !licenseImage.size || !licenseImage.type.startsWith("image/")) {
-      setError("Select an image of the flight license.");
+    const licenseFiles = values.getAll("licenseFiles").filter((value): value is File => value instanceof File && value.size > 0);
+    if (!licenseFiles.length || licenseFiles.some(file => !file.type.startsWith("image/") && file.type !== "application/pdf")) {
+      setError("Select one or more flight license images or PDF files.");
       return;
     }
-    if (licenseImage.size > 5 * 1024 * 1024) {
-      setError("The flight license image must be 5 MB or smaller.");
+    if (licenseFiles.length > 10 || licenseFiles.some(file => file.size > 10 * 1024 * 1024)) {
+      setError("Upload at most 10 files, with each file 10 MB or smaller.");
       return;
     }
     if (new Date(licenseExpiredDate) <= new Date(licenseIssuedDate)) {
@@ -144,7 +145,7 @@ export default function LoginForm() {
         droneType: "Not specified", usagePurpose: "Not specified",
         description: read("description") || null,
       });
-      await saveLicenseImage(read("email"), licenseImage).catch(() => undefined);
+      await saveLicenseFiles(read("email"), licenseFiles).catch(() => undefined);
       form.reset();
       setRegisterOpen(false);
       setNotice(result.message || "Registration submitted. An Operations Manager will review your request.");
@@ -201,7 +202,7 @@ export default function LoginForm() {
           <label>Experience years<input required name="experienceYears" type="number" min={0} max={80} defaultValue={0} /></label>
           <label>License issued date<input required name="licenseIssuedDate" type="date" /></label>
           <label>License expired date<input required name="licenseExpiredDate" type="date" /></label>
-          <label className="pilot-register-wide pilot-license-upload">Flight license image<input required name="licenseImage" type="file" accept="image/png,image/jpeg,image/webp" /><small>PNG, JPG or WEBP · maximum 5 MB. Temporarily retained in this browser until backend storage is available.</small></label>
+          <LicenseFilePicker />
           <label className="pilot-register-wide">Description<textarea name="description" rows={4} maxLength={500} placeholder="Briefly describe your operating scope or manager contact." /></label>
         </div>
         {error && <p className="pilot-register-error" role="alert">{error}</p>}
