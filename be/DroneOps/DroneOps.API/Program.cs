@@ -1,3 +1,4 @@
+using DroneOps.API.Auth;
 using System.Text;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
@@ -84,8 +85,15 @@ var jwtSettings = jwtSection.Get<JwtSettings>()
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = "DroneOpsAuth";
+    options.DefaultChallengeScheme = "DroneOpsAuth";
+})
+.AddPolicyScheme("DroneOpsAuth", "Bearer or Firebase session", options =>
+{
+    options.ForwardDefaultSelector = context =>
+        context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? JwtBearerDefaults.AuthenticationScheme
+            : SessionAuthenticationHandler.SchemeName;
 })
 .AddJwtBearer(options =>
 {
@@ -127,6 +135,9 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+if (await AuthDatabaseCommands.RunAsync(args, app.Services, app.Configuration)) return;
+app.UseAuthErrorHandling();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -137,8 +148,8 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 
 
+app.UseRateLimiter();
 app.UseAuthentication();
-
 app.UseAuthorization();
 
 app.MapControllers();
