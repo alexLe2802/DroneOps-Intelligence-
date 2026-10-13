@@ -1,5 +1,5 @@
 import { api } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
 
 export async function getPilotMissions(): Promise<PilotMission[]> {
   const page = await getFlightHistory({ pageSize: 100 });
@@ -91,4 +91,8 @@ export function updateGeofence(id: string, request: GeofenceRequest): Promise<Ge
 }
 export function deleteGeofence(id: string): Promise<void> {
   return api<void>(`/geofences/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function getPilotProfile(): Promise<PilotProfile> {
+  return api<PilotProfile>("/users/pilot-profile");
 }

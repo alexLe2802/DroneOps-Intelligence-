@@ -5,6 +5,6 @@ import UavManagementClient from "./uav-management-client";
 export const metadata = { title: "UAV Management | DroneOps Intelligence" };
 
 export default async function UavManagementPage() {
-  const session = await requirePortalSession(["operations_manager"]);
+  const session = await requirePortalSession(["operation_manager"]);
   return <PortalShell account={session.account}><UavManagementClient /></PortalShell>;
 }

@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
@@ -9,7 +9,7 @@ namespace DroneOps.API.Controllers.Missions;
 
 [ApiController]
 [Route("api/mission-suggestions")]
-[Authorize(Roles = "Pilot")]
+[Authorize(Roles = "uav_operator")]
 public sealed class MissionSuggestionsController
     : ControllerBase
 {
