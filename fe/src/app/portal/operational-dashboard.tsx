@@ -119,8 +119,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     </section>
 
     <section className="bottom-grid">
-      <article><header><b>PAYLOAD CAMERA // ACTIVE FEED</b><span>API PENDING</span></header><div className="dashboard-panel-empty"><span>▣</span><strong>LIVE VIDEO UNAVAILABLE</strong><p>The backend does not expose a payload video endpoint.</p></div><footer><span>Source: pending backend integration</span><button disabled>EXPAND VIEW</button></footer></article>
-      <article><header><b>LOCAL WEATHER // SGN-04</b><span>API PENDING</span></header><div className="dashboard-panel-empty"><span>◌</span><strong>WEATHER DATA UNAVAILABLE</strong><p>No weather endpoint is available in the current backend.</p></div><footer><span>Operational weather requires API data</span></footer></article>
+      <article><header><b>MISSION ROUTE WEATHER</b><span>API PENDING</span></header><div className="dashboard-panel-empty"><span>◌</span><strong>WAYPOINT WEATHER UNAVAILABLE</strong><p>The backend should resolve forecast conditions for each mission waypoint and scheduled flight time.</p></div><footer><span>Awaiting mission weather API</span></footer></article>
       <article><header><b>{manager ? "GCS CREW ASSIGNMENTS" : "MY UAV ASSIGNMENT"}</b><span>{manager ? "API PENDING" : "BACKEND"}</span></header>{manager ? <div className="dashboard-panel-empty"><span>◎</span><strong>CREW ROSTER UNAVAILABLE</strong><p>The backend does not expose live crew assignments.</p></div> : <ul>{aircraft.length ? aircraft.slice(0, 3).map(item => <li key={item.id}><i /><span>{item.code} · {item.name}</span><b>{item.status}</b></li>) : <li><i className="alert-dot" /><span>No UAV assigned</span><b>—</b></li>}</ul>}<footer><span>{manager ? "Awaiting crew API" : `${aircraft.length} assigned aircraft`}</span></footer></article>
     </section>
   </PortalShell>;
