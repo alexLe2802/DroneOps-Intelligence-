@@ -15,7 +15,7 @@ const isActive = (status: string) => status.toLowerCase().replaceAll(" ", "") ==
 const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
 
 export default function OperationalDashboard({ account }: { account: Account }) {
-  const manager = account.role === "operations_manager";
+  const manager = account.role === "operation_manager";
   const [analytics, setAnalytics] = useState<OperationalAnalytics | null>(null);
   const [missions, setMissions] = useState<FlightHistoryItem[] | null>(null);
   const [aircraft, setAircraft] = useState<AssignedUav[]>([]);

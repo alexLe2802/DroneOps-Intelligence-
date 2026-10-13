@@ -18,7 +18,7 @@ type Action = "google" | "password" | "reset" | "register";
 type AccessMode = "pilot" | "manager";
 
 const resetMessage = "If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.";
-const roleByMode: Record<AccessMode, AccountRole> = { pilot: "uav_operator", manager: "operations_manager" };
+const roleByMode: Record<AccessMode, AccountRole> = { pilot: "uav_operator", manager: "operation_manager" };
 const roleMismatch: Record<AccessMode, string> = {
   pilot: "This account belongs to Manager Access. Use the Manager panel to sign in.",
   manager: "This account belongs to Pilot Access. Use the Pilot panel to sign in.",

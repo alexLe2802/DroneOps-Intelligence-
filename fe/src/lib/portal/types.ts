@@ -110,3 +110,11 @@ export type AiAssessment = {
 };
 
 export type PortalRole = AccountRole;
+
+export type PilotProfile = {
+  userId: string; fullName: string; email: string; createdAt: string;
+  pilotId: string; phoneNumber: string | null; dateOfBirth: string | null;
+  pilotLicenseNo: string; licenseIssuedDate: string | null;
+  licenseExpiredDate: string | null; experienceYears: number;
+  droneType: string | null; droneModel: string | null;
+};
