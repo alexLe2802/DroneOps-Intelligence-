@@ -24,10 +24,11 @@ export default function PortalShell({ account, children, dashboard = false, acti
     <aside className="ops-sidebar">
       <Link className="ops-brand" href="/portal"><Image src="/droneops-logo.svg" width={34} height={34} alt="" priority /><div><b>DRONEOPS</b><span>INTELLIGENCE</span></div></Link>
       <div className="airspace-label"><span>ACTIVE AIRSPACE</span><b>UTM SECTOR 04</b></div>
-      <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{nav.map(([icon, label, badge], index) => {
+      <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{nav.map(([icon, label, badge]) => {
         const href =
           label === "Operators" ? "/portal/operators" :
           label === "UAV Management" ? "/portal/uav-management" :
+          label === "Mission Planning" ? "/portal/mission-planning" :
           label === "Dashboard" || label === "My Dashboard" ? "/portal" :
           label === "AI Risk Assessment" ? "/portal/ai-assessment" :
           label === "Flight History & Reports" || label === "Flight History" ? "/portal/flight-history" :
