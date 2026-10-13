@@ -1,4 +1,4 @@
-import { api } from "@/lib/auth/client";
+import { api, ApiError } from "@/lib/auth/client";
 import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, UpdateProfileRequest, UserProfile } from "./types";
 
 export async function getPilotMissions(): Promise<PilotMission[]> {
@@ -14,6 +14,43 @@ export async function getPilotMissions(): Promise<PilotMission[]> {
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
   const result = await api<Omit<MissionDetail, "uavCode" | "latestVersion">>("/missions", { method: "POST", body: JSON.stringify(request) });
   return { ...result, uavCode: null, latestVersion: 1 };
+}
+
+export async function getMission(id: string): Promise<MissionDetail> {
+  let result: Partial<MissionDetail> & Pick<MissionDetail, "id" | "name" | "status">;
+  try {
+    result = await api<Partial<MissionDetail> & Pick<MissionDetail, "id" | "name" | "status">>(`/missions/${encodeURIComponent(id)}`);
+  } catch (error) {
+    if (error instanceof SyntaxError || (error instanceof ApiError && (error.status === 403 || error.status === 404))) {
+      const summary = (await getPilotMissions()).find(mission => mission.id === id);
+      if (summary) return { ...summary, waypoints: [], detailAvailable: false };
+      throw new Error("Mission details are not available from the backend yet.");
+    }
+    throw error;
+  }
+  if (!result?.id || !result.name || !Array.isArray(result.waypoints)) {
+    throw new Error("Mission details are not available from the backend yet.");
+  }
+  return {
+    id: result.id,
+    name: result.name,
+    description: result.description ?? null,
+    status: result.status,
+    uavId: result.uavId ?? null,
+    uavCode: result.uavCode ?? null,
+    startTime: result.startTime ?? null,
+    endTime: result.endTime ?? null,
+    createdAt: result.createdAt ?? "",
+    latestVersion: result.latestVersion ?? 1,
+    detailAvailable: true,
+    waypoints: result.waypoints.map((point, index) => ({
+      sequenceOrder: point.sequenceOrder ?? index + 1,
+      latitude: Number(point.latitude),
+      longitude: Number(point.longitude),
+      altitude: Number(point.altitude ?? 0),
+      actionType: point.actionType ?? "FlyThrough",
+    })),
+  };
 }
 
 export async function getAssignedUavs(): Promise<AssignedUav[]> {

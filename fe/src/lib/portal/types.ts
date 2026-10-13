@@ -39,7 +39,7 @@ export type CreateMissionRequest = {
   endTime: string;
   waypoints: MissionWaypoint[];
 };
-export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[] };
+export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[]; detailAvailable?: boolean };
 
 export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
