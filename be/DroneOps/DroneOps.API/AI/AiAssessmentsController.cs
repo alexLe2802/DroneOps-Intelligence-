@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -16,11 +17,14 @@ public sealed class AiAssessmentsController(NpgsqlDataSource dataSource, IAiAsse
     IOptions<AiSettings> options) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private SessionIdentity Current => (SessionIdentity)HttpContext.Items[typeof(SessionIdentity)]!;
+    private Guid AccountId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private bool IsManager => User.IsInRole(AccountRoles.Manager);
 
     [HttpPost]
     public async Task<IActionResult> Create(CreateAiAssessmentRequest request, CancellationToken ct)
     {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out _))
+            return Unauthorized(new { message = "Invalid authenticated account." });
         if (request.EndTime <= request.StartTime)
             return BadRequest(new { message = "Mission end time must be after its start time." });
         if (request.Incidents.Any(value => value.Length > 300))
@@ -51,6 +55,8 @@ public sealed class AiAssessmentsController(NpgsqlDataSource dataSource, IAiAsse
     [HttpGet("mission/{missionRef}")]
     public async Task<IActionResult> List(string missionRef, CancellationToken ct)
     {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out _))
+            return Unauthorized(new { message = "Invalid authenticated account." });
         if (missionRef.Length is < 1 or > 80) return BadRequest(new { message = "Invalid mission reference." });
         await using var command = dataSource.CreateCommand("""
             SELECT id, mission_ref, mission_version, provider, model, status, result, error_code, created_at, completed_at
@@ -59,8 +65,8 @@ public sealed class AiAssessmentsController(NpgsqlDataSource dataSource, IAiAsse
             ORDER BY created_at DESC LIMIT 20
             """);
         command.Parameters.AddWithValue("mission", missionRef);
-        command.Parameters.AddWithValue("account", Current.Account.Id);
-        command.Parameters.AddWithValue("manager", Current.Account.Role == AccountRoles.Manager);
+        command.Parameters.AddWithValue("account", AccountId);
+        command.Parameters.AddWithValue("manager", IsManager);
         await using var reader = await command.ExecuteReaderAsync(ct);
         var results = new List<AiAssessmentResponse>();
         while (await reader.ReadAsync(ct)) results.Add(Read(reader));
@@ -78,7 +84,7 @@ public sealed class AiAssessmentsController(NpgsqlDataSource dataSource, IAiAsse
         command.Parameters.AddWithValue("id", id);
         command.Parameters.AddWithValue("mission", request.MissionRef.Trim());
         command.Parameters.AddWithValue("version", request.MissionVersion);
-        command.Parameters.AddWithValue("requester", Current.Account.Id);
+        command.Parameters.AddWithValue("requester", AccountId);
         command.Parameters.AddWithValue("provider", settings.Provider);
         command.Parameters.AddWithValue("model", settings.Model);
         command.Parameters.AddWithValue("hash", contextHash);
