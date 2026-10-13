@@ -1,3 +1,4 @@
+using DroneOps.Domain;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -41,6 +42,10 @@ async Task<HttpResponseMessage> Mutate(HttpClient client, string path, object? d
 }
 try
 {
+    Check(CanonicalRoles.Normalize("Pilot") == AccountRoles.Operator, "Legacy pilot normalizes to canonical operator");
+    foreach (var role in new[] { "Admin", "SystemAdmin", "OperationsManager", "operations_manager", "operation_manager" })
+        Check(CanonicalRoles.Normalize(role) == AccountRoles.Manager, "Manager role normalization: " + role);
+    Check(!AccountRoles.IsValid("operations_manager") && AccountRoles.IsValid("operation_manager"), "Only canonical manager role is emitted");
     var now = DateTimeOffset.UtcNow;
     JsonElement Claims(string provider, bool verified = true, long? authTime = null) => JsonSerializer.SerializeToElement(new {
         email = "Manager@Example.com", email_verified = verified,
@@ -66,7 +71,7 @@ try
     Check((await Mutate(anon, "/api/auth/session", new { idToken = "invalid-token-000000000000" })).StatusCode == HttpStatusCode.Unauthorized, "Invalid identity proof rejected");
     Check((await Mutate(anon, "/api/auth/session", new { idToken = "valid-unknown-proof-0001" })).StatusCode == HttpStatusCode.Forbidden, "Unprovisioned Google account rejected");
     using var op = Client();
-    var login = await Mutate(op, "/api/auth/session", new { idToken = "valid-operator-proof-0001", role = "operations_manager" });
+    var login = await Mutate(op, "/api/auth/session", new { idToken = "valid-operator-proof-0001", role = "operation_manager" });
     Check(login.StatusCode == HttpStatusCode.OK, "Provisioned operator signs in");
     var setCookie = login.Headers.GetValues("Set-Cookie").Single(v => v.StartsWith("droneops_session="));
     Check(setCookie.Contains("httponly", StringComparison.OrdinalIgnoreCase) && setCookie.Contains("samesite=strict", StringComparison.OrdinalIgnoreCase), "Session cookie is HttpOnly and SameSite Strict");
@@ -85,7 +90,7 @@ try
     var managerSid = managerSessions[0].GetProperty("id").GetGuid();
     await Mutate(op, $"/api/auth/sessions/{managerSid}", method: "DELETE");
     Check((await manager.GetAsync("/api/auth/me")).StatusCode == HttpStatusCode.OK, "A user cannot revoke another user's session");
-    Check((await Mutate(manager, "/api/accounts", new { email = "new@example.com", displayName = "New Operator", accountType = "new", password = "Test-only-password!", role = "operations_manager" })).StatusCode == HttpStatusCode.Created && store.LastProvisionedRole == AccountRoles.Operator, "Manager provisioning cannot create arbitrary privileged roles");
+    Check((await Mutate(manager, "/api/accounts", new { email = "new@example.com", displayName = "New Operator", accountType = "new", password = "Test-only-password!", role = "operation_manager" })).StatusCode == HttpStatusCode.Created && store.LastProvisionedRole == AccountRoles.Operator, "Manager provisioning cannot create arbitrary privileged roles");
     Check(store.Provisioned.Single().Role == AccountRoles.Operator && store.LastUid == directory.Users["new@example.com"].Uid, "New Pilot is bound to Firebase UID and server-assigned role");
     Check((await Mutate(manager, "/api/accounts", new { email = "NEW@example.com", displayName = "Duplicate", accountType = "new", password = "Test-only-password!" })).StatusCode == HttpStatusCode.Conflict && directory.Created == 1, "Duplicate normalized email rejected before Firebase creation");
     Check((await Mutate(manager, "/api/accounts", new { email = "other@example.com", displayName = " ", accountType = "existing" })).StatusCode == HttpStatusCode.BadRequest, "Blank Pilot name rejected");

@@ -1,4 +1,5 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using DroneOps.Domain;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -131,6 +132,9 @@ public class PilotRegistrationService : IPilotRegistrationService
                 Email = x.Email,
                 PhoneNumber = x.PhoneNumber,
                 DroneType = x.DroneType,
+                DroneModel = x.DroneModel,
+                PilotLicenseNo = x.PilotLicenseNo,
+                UsagePurpose = x.UsagePurpose,
                 Status = x.Status,
                 CreatedAt = x.CreatedAt
             }).ToList(),
@@ -163,8 +167,8 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         var cleanEmail = registration.Email.Trim().ToLowerInvariant();
 
-        // Tìm hoặc khởi tạo Role "Pilot"
-        var pilotRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == "pilot");
+        // Tìm hoặc khởi tạo Role "uav_operator"
+        var pilotRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == "uav_operator");
         Guid roleId;
         if (pilotRole != null)
         {
@@ -175,7 +179,7 @@ public class PilotRegistrationService : IPilotRegistrationService
             var newRole = new Role
             {
                 Id = Guid.NewGuid(),
-                Name = "Pilot",
+                Name = "uav_operator",
                 CreatedAt = DateTimeOffset.UtcNow
             };
             await _context.Roles.AddAsync(newRole);
@@ -324,7 +328,7 @@ public class PilotRegistrationService : IPilotRegistrationService
                 Id = user.Id,
                 FullName = user.FullName,
                 Email = user.Email,
-                Role = user.Role?.Name ?? "Pilot"
+                Role = CanonicalRoles.Normalize(user.Role?.Name ?? "uav_operator")
             }
         };
     }
@@ -385,7 +389,7 @@ public class PilotRegistrationService : IPilotRegistrationService
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.FullName),
             new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Role, user.Role?.Name ?? "Pilot"),
+            new(ClaimTypes.Role, CanonicalRoles.Normalize(user.Role?.Name ?? "uav_operator")),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

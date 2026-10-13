@@ -30,9 +30,9 @@ public static class AuthDatabaseCommands
                 WITH added AS (
                     INSERT INTO public."User"("Id", "Email", "FullName", "RoleId", "PasswordHash", "CreatedAt", "WebAccessProvisioned")
                     SELECT @id, @email, 'Operations Manager', r."Id", '', now(), true
-                    FROM public."Role" r WHERE r."Name" = 'OperationsManager'
+                    FROM public."Role" r WHERE r."Name" = 'operation_manager'
                     AND NOT EXISTS (SELECT 1 FROM public."User" u JOIN public."Role" mr ON mr."Id" = u."RoleId"
-                                    WHERE mr."Name" = 'OperationsManager' AND u."WebAccessProvisioned")
+                                    WHERE mr."Name" = 'operation_manager' AND u."WebAccessProvisioned")
                     ON CONFLICT DO NOTHING RETURNING "Id" AS id
                 ) INSERT INTO droneops.auth_audit(target_id, action) SELECT id, 'manager.bootstrapped' FROM added
                 """, connection, tx);
