@@ -32,9 +32,6 @@ builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionSt
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Đăng ký dịch vụ Rate Limiting để hỗ trợ app.UseRateLimiter() hoạt động ổn định
-builder.Services.AddRateLimiter(_ => { });
-
 // 1. Cấu hình "Cái Khóa" (Authorize button) trên giao diện Swagger UI
 builder.Services.AddSwaggerGen(options =>
 {
@@ -140,6 +137,7 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 
 app.UseAuthentication();
+
 app.UseAuthorization();
 
 app.MapControllers();
