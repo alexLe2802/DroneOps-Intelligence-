@@ -94,3 +94,4 @@ button:disabled { cursor:wait; opacity:.55; }
 .pilot-register-wide { grid-column:1/-1; }
 .pilot-register-error { margin:0 22px 16px; padding:11px 12px; border:1px solid #743744; background:#3e2028; color:#ffb6ba; }
 .pilot-register-modal footer { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 22px 22px; border-top:1px solid var(--border); }
+.pilot-license-upload input[type="file"] { padding:9px; cursor:pointer; }.pilot-license-upload input[type="file"]::file-selector-button { margin-right:12px; border:0; border-radius:3px; padding:8px 11px; background:#1caeea; color:#07131c; font-weight:700; cursor:pointer; }.pilot-license-upload small { color:var(--muted); line-height:1.45; }
