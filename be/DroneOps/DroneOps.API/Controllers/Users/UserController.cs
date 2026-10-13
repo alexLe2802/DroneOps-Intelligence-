@@ -99,7 +99,7 @@ public sealed class UserController : ControllerBase
                     RETURNING "Id", "FullName", "Email", "RoleId", "CreatedAt"
                 )
                 SELECT u."Id", u."FullName", u."Email",
-                       CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operations_manager' END,
+                       CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'uav_operator' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operation_manager' WHEN 'Admin' THEN 'operation_manager' WHEN 'SystemAdmin' THEN 'operation_manager' WHEN 'operations_manager' THEN 'operation_manager' WHEN 'operation_manager' THEN 'operation_manager' END,
                        u."CreatedAt"
                 FROM updated u JOIN public."Role" r ON r."Id" = u."RoleId"
                 """);
@@ -130,7 +130,7 @@ public sealed class UserController : ControllerBase
     {
         await using var command = _dataSource.CreateCommand("""
             SELECT u."Id", u."FullName", u."Email",
-                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operations_manager' END,
+                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'uav_operator' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operation_manager' WHEN 'Admin' THEN 'operation_manager' WHEN 'SystemAdmin' THEN 'operation_manager' WHEN 'operations_manager' THEN 'operation_manager' WHEN 'operation_manager' THEN 'operation_manager' END,
                    u."CreatedAt"
             FROM public."User" u JOIN public."Role" r ON r."Id" = u."RoleId"
             WHERE u."Id" = @id AND u."IsActive" AND u."WebAccessProvisioned"
@@ -162,7 +162,7 @@ public sealed class UserController : ControllerBase
             userIdClaim,
             out userId);
     }
-    [Authorize(Roles = "Pilot")]
+    [Authorize(Roles = "uav_operator")]
     [HttpGet("pilot-profile")]
     public async Task<IActionResult> GetPilotProfile(
       CancellationToken cancellationToken)

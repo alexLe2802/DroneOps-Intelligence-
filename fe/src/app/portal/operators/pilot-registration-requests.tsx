@@ -38,7 +38,7 @@ export default function PilotRegistrationRequests() {
 
   const describeError = useCallback((value: unknown) => {
     if (value instanceof ApiError && value.status === 403) {
-      return "Manager access to registration requests is not enabled by the backend yet. Ask BE to allow the operations_manager role.";
+      return "Your account does not have permission to review registration requests. Sign in with an Operations Manager account.";
     }
     return value instanceof Error ? value.message : "Unable to load registration requests.";
   }, []);
