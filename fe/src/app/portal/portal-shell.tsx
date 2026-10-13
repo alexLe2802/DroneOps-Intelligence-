@@ -18,7 +18,7 @@ export default function PortalShell({ account, children, dashboard = false, acti
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => { cancelAnimationFrame(frame); clearInterval(timer); };
   }, []);
-  const manager = account.role === "operations_manager";
+  const manager = account.role === "operation_manager";
   const nav = manager ? managerNavItems : operatorNavItems;
   return <div className={`ops-shell${dashboard ? "" : " module-shell"}`}>
     <aside className="ops-sidebar">

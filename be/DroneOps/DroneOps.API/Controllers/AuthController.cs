@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.Auth;
+using DroneOps.Application.DTOs.Request.Auth;
 using DroneOps.Application.Interfaces.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -41,6 +41,7 @@ public class AuthController : ControllerBase
             });
         }
 
+        if (result.RequiresFirstLogin) return Ok(new { code = "first_login_required", requiresFirstLogin = true, message = "Enter the OTP from your approval email to activate your account." });
         return Ok(result);
     }
 

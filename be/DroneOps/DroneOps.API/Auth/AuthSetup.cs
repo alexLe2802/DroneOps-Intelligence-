@@ -77,7 +77,15 @@ public static class AuthSetup
     {
         app.Use(async (context, next) =>
         {
-            if ((context.Request.Path.StartsWithSegments("/api/accounts") ||
+            // Password endpoints return JWTs; they do not authenticate using
+            // ambient Firebase cookies that Swagger may send on localhost.
+            var passwordEndpoint = context.Request.Path.Value is
+                "/api/auth/login" or "/api/auth/register" or "/api/auth/verify-register" or
+                "/api/auth/forgot-password" or "/api/auth/reset-password" or
+                "/api/pilot-registrations/first-time-login" or
+                "/api/pilot-registrations/first-time-login/resend-otp";
+            var bearer = context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+            if (!passwordEndpoint && !bearer && (context.Request.Path.StartsWithSegments("/api/accounts") ||
                  context.Request.Path.StartsWithSegments("/api/auth") &&
                  context.Request.Path.Value is not ("/api/auth/login" or "/api/auth/register" or "/api/auth/verify-register" or "/api/auth/forgot-password" or "/api/auth/reset-password") ||
                  context.Request.Path.StartsWithSegments("/api") &&

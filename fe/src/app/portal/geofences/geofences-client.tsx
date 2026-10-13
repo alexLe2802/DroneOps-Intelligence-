@@ -13,7 +13,7 @@ type Editor = { mode: "create" | "edit"; id?: string; name: string; description:
 const errorText = (value: unknown) => value instanceof ApiError || value instanceof Error ? value.message : "Unable to complete this action.";
 
 export default function GeofencesClient({ account }: { account: Account }) {
-  const manager = account.role === "operations_manager";
+  const manager = account.role === "operation_manager";
   const [zones, setZones] = useState<Geofence[] | null>(null);
   const [selected, setSelected] = useState<Geofence | null>(null);
   const [error, setError] = useState<unknown>(null);

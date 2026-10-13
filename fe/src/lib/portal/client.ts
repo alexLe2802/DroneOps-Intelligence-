@@ -1,5 +1,5 @@
 import { api } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, SaveGeofenceRequest, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
 
 export async function getPilotMissions(): Promise<PilotMission[]> {
   const page = await getFlightHistory({ pageSize: 100 });
@@ -64,22 +64,6 @@ export function getGeofences(): Promise<Geofence[]> {
   return api<Geofence[]>("/geofences");
 }
 
-export function getGeofence(id: string): Promise<Geofence> {
-  return api<Geofence>(`/geofences/${encodeURIComponent(id)}`);
-}
-
-export function createGeofence(request: SaveGeofenceRequest): Promise<Geofence> {
-  return api<Geofence>("/geofences", { method: "POST", body: JSON.stringify(request) });
-}
-
-export function updateGeofence(id: string, request: SaveGeofenceRequest): Promise<Geofence> {
-  return api<Geofence>(`/geofences/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(request) });
-}
-
-export function deleteGeofence(id: string): Promise<void> {
-  return api<void>(`/geofences/${encodeURIComponent(id)}`, { method: "DELETE" });
-}
-
 export function getProfile(): Promise<UserProfile> {
   return api<UserProfile>("/users/profile");
 }
@@ -94,4 +78,21 @@ export function createAiAssessment(request: AiAssessmentRequest): Promise<AiAsse
 
 export function getAiAssessments(missionRef: string): Promise<AiAssessment[]> {
   return api<AiAssessment[]>(`/ai/assessments/mission/${encodeURIComponent(missionRef)}`);
+}
+
+export function getGeofence(id: string): Promise<Geofence> {
+  return api<Geofence>(`/geofences/${encodeURIComponent(id)}`);
+}
+export function createGeofence(request: GeofenceRequest): Promise<Geofence> {
+  return api<Geofence>("/geofences", { method: "POST", body: JSON.stringify(request) });
+}
+export function updateGeofence(id: string, request: GeofenceRequest): Promise<Geofence> {
+  return api<Geofence>(`/geofences/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(request) });
+}
+export function deleteGeofence(id: string): Promise<void> {
+  return api<void>(`/geofences/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function getPilotProfile(): Promise<PilotProfile> {
+  return api<PilotProfile>("/users/pilot-profile");
 }

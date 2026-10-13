@@ -1,3 +1,5 @@
+using DroneOps.Domain;
+using System.Security.Claims;
 using DroneOps.API.AI;
 using DroneOps.API.Auth;
 using System.Text;
@@ -131,6 +133,18 @@ builder.Services.AddAuthentication(options =>
     // Bắt sự kiện lỗi xác thực và in ra Console để dễ theo dõi
     options.Events = new JwtBearerEvents
     {
+        OnTokenValidated = context =>
+        {
+            if (context.Principal?.Identity is ClaimsIdentity identity)
+                foreach (var claim in identity.FindAll(identity.RoleClaimType).ToArray())
+                {
+                    var normalized = CanonicalRoles.Normalize(claim.Value);
+                    if (normalized == claim.Value) continue;
+                    identity.RemoveClaim(claim);
+                    identity.AddClaim(new Claim(identity.RoleClaimType, normalized));
+                }
+            return Task.CompletedTask;
+        },
         OnAuthenticationFailed = context =>
         {
             Console.WriteLine($"\n>>> [JWT AUTHENTICATION ERROR]: {context.Exception.Message}\n");
