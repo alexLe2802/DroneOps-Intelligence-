@@ -10,6 +10,7 @@ const formatSize = (bytes: number) => bytes < 1024 * 1024
 export default function LicenseFilePicker() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const inputId = "pilot-license-files";
 
   function updateInput(nextFiles: File[]) {
     const transfer = new DataTransfer();
@@ -18,9 +19,10 @@ export default function LicenseFilePicker() {
     setFiles(nextFiles);
   }
 
-  return <label className="pilot-register-wide pilot-license-upload">
-    Flight license pages
+  return <div className="pilot-register-wide pilot-license-upload">
+    <label htmlFor={inputId}>Flight license pages</label>
     <input
+      id={inputId}
       ref={inputRef}
       required
       multiple
@@ -42,5 +44,5 @@ export default function LicenseFilePicker() {
         <button type="button" aria-label={`Remove ${file.name}`} onClick={() => updateInput(files.filter(item => fileKey(item) !== fileKey(file)))}>Remove</button>
       </li>)}</ul>
     </div>}
-  </label>;
+  </div>;
 }
