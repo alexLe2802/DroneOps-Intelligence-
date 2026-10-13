@@ -11,6 +11,7 @@ import {
   type PilotRegistrationStatus,
   type PilotRegistrationSummary,
 } from "@/lib/pilot-registration";
+import { getLicenseImage, type StoredLicenseImage } from "@/lib/license-image-store";
 
 const dateValue = (value: string | null | undefined) => value
   ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value))
@@ -32,6 +33,8 @@ export default function PilotRegistrationRequests() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [totalItems, setTotalItems] = useState(0);
+  const [licenseImage, setLicenseImage] = useState<StoredLicenseImage | null>(null);
+  const [licenseImageUrl, setLicenseImageUrl] = useState("");
 
   const describeError = useCallback((value: unknown) => {
     if (value instanceof ApiError && value.status === 403) {
@@ -43,9 +46,12 @@ export default function PilotRegistrationRequests() {
   const loadDetail = useCallback(async (id: string) => {
     setSelectedId(id);
     setDetailLoading(true);
+    setLicenseImage(null);
     setError("");
     try {
-      setSelected(await getPilotRegistration(id));
+      const detail = await getPilotRegistration(id);
+      setSelected(detail);
+      setLicenseImage(await getLicenseImage(detail.email));
       setRejectReason("");
     } catch (value) {
       setSelected(null);
@@ -54,6 +60,13 @@ export default function PilotRegistrationRequests() {
       setDetailLoading(false);
     }
   }, [describeError]);
+
+  useEffect(() => {
+    if (!licenseImage) { setLicenseImageUrl(""); return; }
+    const url = URL.createObjectURL(licenseImage.blob);
+    setLicenseImageUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [licenseImage]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -128,7 +141,7 @@ export default function PilotRegistrationRequests() {
         <thead><tr><th>Applicant</th><th>License</th><th>Submitted</th><th>Status</th></tr></thead>
         <tbody>{items.map(item => <tr key={item.id} className={selectedId === item.id ? "selected" : ""}>
           <td><button type="button" onClick={() => void loadDetail(item.id)}><strong>{item.fullName}</strong><span>{item.email}</span></button></td>
-          <td><b>{item.pilotLicenseNo || "Not supplied"}</b><span>{item.droneType}</span></td>
+          <td><b>{item.pilotLicenseNo || "Not supplied"}</b><span>Flight license</span></td>
           <td>{dateValue(item.createdAt)}</td>
           <td><span className={statusClass(item.status)}>{item.status}</span></td>
         </tr>)}</tbody>
@@ -147,9 +160,8 @@ export default function PilotRegistrationRequests() {
           <div><span>Experience</span><b>{selected.experienceYears ?? 0} years</b></div>
           <div><span>License issued</span><b>{dateValue(selected.licenseIssuedDate)}</b></div>
           <div><span>License expires</span><b>{dateValue(selected.licenseExpiredDate)}</b></div>
-          <div><span>Drone type</span><b>{selected.droneType || "Not provided"}</b></div>
-          <div><span>Usage purpose</span><b>{selected.usagePurpose || "Not provided"}</b></div>
         </div>
+        <div className="request-license-evidence"><span>Flight license image</span>{licenseImageUrl ? <><a href={licenseImageUrl} target="_blank" rel="noreferrer"><img src={licenseImageUrl} alt={`Flight license submitted by ${selected.fullName}`} /></a><small>{licenseImage?.fileName} · stored temporarily in this browser</small></> : <div><b>Image unavailable</b><p>This request has no image in this browser. The backend will provide a Supabase bucket URL later.</p></div>}</div>
         <div className="request-description"><span>Applicant description</span><p>{selected.description || "No additional description was submitted."}</p></div>
         {selected.rejectReason && <div className="request-rejection"><span>Rejection reason</span><p>{selected.rejectReason}</p></div>}
         {selected.status === "Pending" && <div className="request-review-controls">
