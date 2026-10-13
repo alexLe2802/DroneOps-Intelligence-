@@ -7,7 +7,7 @@ namespace DroneOps.API.Controllers.UAVs;
 
 [ApiController]
 [Route("api/admin/uavs")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "operation_manager")]
 public class AdminUavController : ControllerBase
 {
     private readonly IUavService _uavService;

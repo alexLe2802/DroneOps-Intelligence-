@@ -48,30 +48,51 @@ public class PilotRegistrationService : IPilotRegistrationService
     public async Task RegisterAsync(CreatePilotRegistrationRequest request)
     {
         var existed = await _repository.EmailExistsAsync(request.Email);
+
         if (existed)
         {
             throw new Exception("Email already registered.");
         }
 
+        var registrationId = Guid.NewGuid();
+
         var registration = new PilotRegistration
         {
-            Id = Guid.NewGuid(),
+            Id = registrationId,
+
             FullName = request.FullName,
             Email = request.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password), // Mật khẩu gốc được mã hóa
+
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+
             PhoneNumber = request.PhoneNumber,
             DateOfBirth = request.DateOfBirth,
+
             DroneType = request.DroneType,
             DroneModel = request.DroneModel,
+
             PilotLicenseNo = request.PilotLicenseNo,
             LicenseIssuedDate = request.LicenseIssuedDate,
             LicenseExpiredDate = request.LicenseExpiredDate,
+
             ExperienceYears = request.ExperienceYears,
             UsagePurpose = request.UsagePurpose,
             Description = request.Description,
+
             Status = "Pending",
             CreatedAt = DateTime.UtcNow
         };
+
+        registration.LicenseImages = request.LicenseImageUrls
+            .Select(url => new LicenseImage
+            {
+                Id = Guid.NewGuid(),
+                PilotRegistrationId = registrationId,
+                ImageUrl = url,
+                ImageType = "PilotLicense",
+                CreatedAt = DateTime.UtcNow
+            })
+            .ToList();
 
         await _repository.AddAsync(registration);
         await _repository.SaveChangesAsync();
