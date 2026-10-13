@@ -39,7 +39,7 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
       L.control.scale({ position: "bottomleft", metric: true, imperial: false }).addTo(map);
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
-      }).on("tileerror", () => setError("Không thể tải lớp bản đồ nền.")).addTo(map);
+      }).on("tileerror", () => setError("Unable to load the basemap.")).addTo(map);
 
       zones.forEach(zone => {
         if (zone.id === editingId || zone.coordinates.length < 3) return;
@@ -80,7 +80,7 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
       }
       resizeFrame = requestAnimationFrame(() => map.invalidateSize({ animate: false, pan: false }));
       setError("");
-    }).catch(reason => setError(reason instanceof Error ? reason.message : "Không thể mở bản đồ."));
+    }).catch(reason => setError(reason instanceof Error ? reason.message : "Unable to open the map."));
 
     return () => {
       cancelled = true;
@@ -120,7 +120,7 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
 
   return <div className="geofence-editor-map-shell">
     <div ref={containerRef} className="geofence-editor-map" />
-    <div className="geofence-map-instruction">Nhấp lên bản đồ để thêm điểm theo thứ tự · Tối thiểu 3 điểm</div>
+    <div className="geofence-map-instruction">Click the map to add vertices in order · At least 3 vertices</div>
     {error && <div className="dashboard-map-error" role="alert">{error}</div>}
   </div>;
 }

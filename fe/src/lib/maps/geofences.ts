@@ -6,17 +6,17 @@ export function describeGeofence(zone: Geofence) {
   const text = `${zone.name} ${zone.description ?? ""}`.toLowerCase();
   const category: GeofenceCategory = /vùng cấm bay|prohibited|^vvp|mod-cb/.test(text) ? "prohibited" : "restricted";
   const labels: Record<GeofenceCategory, string> = {
-    prohibited: "Vùng cấm bay", restricted: "Vùng giới hạn bay",
+    prohibited: "Prohibited airspace", restricted: "Restricted airspace",
   };
   const colors: Record<GeofenceCategory, string> = {
     prohibited: "#ef3340", restricted: "#facc15",
   };
   const limits = zone.description?.match(/Vertical limits:\s*(.*?)\s+to\s+(.*?)\./i);
   const limitLabel = limits && !/^unspecified$/i.test(limits[1]) && !/^unspecified$/i.test(limits[2])
-    ? `Giới hạn độ cao: ${limits[1]} → ${limits[2]}`
+    ? `Altitude limits: ${limits[1]} → ${limits[2]}`
     : category === "restricted"
-      ? "Giới hạn theo ranh giới khu vực; nguồn chưa công bố giới hạn độ cao."
-      : "Nguồn chưa công bố giới hạn độ cao.";
+      ? "Boundary restrictions apply; altitude limits are not specified by the source."
+      : "Altitude limits are not specified by the source.";
   return { category, label: labels[category], color: colors[category], limitLabel };
 }
 
