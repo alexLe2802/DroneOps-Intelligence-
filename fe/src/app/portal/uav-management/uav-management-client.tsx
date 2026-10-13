@@ -18,12 +18,12 @@ export default function UavManagementClient() {
     try {
       const result = await getPendingUavs(search);
       setAircraft(result);
-      setSelected(current => current && !result.some(item => item.id === current.id) ? null : current);
+
     } catch (reason) { setError(reason); }
     finally { setBusy(false); }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
 
   async function inspect(id: string) {
     setBusy(true); setError(null); setMessage("");

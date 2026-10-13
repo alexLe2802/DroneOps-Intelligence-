@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.DTOs.Response.Auth;
 using DroneOps.Application.DTOs.Response.Pages;
 using DroneOps.Application.DTOs.Response.Users;
@@ -21,6 +21,8 @@ public interface IPilotRegistrationService
 
     // 5. Admin từ chối đơn kèm lý do
     Task<bool> RejectPilotRegistrationAsync(Guid registrationId, RejectPilotRegistrationRequest request);
+
+    Task ResendFirstLoginOtpAsync(string email, string password, CancellationToken cancellationToken = default);
 
     // 6. Pilot đăng nhập lần đầu: Nhập Email + Mật khẩu đã tạo + Mã OTP
     Task<LoginResponse> FirstTimeLoginAsync(PilotFirstTimeLoginRequest request, CancellationToken cancellationToken = default);

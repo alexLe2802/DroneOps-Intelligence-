@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using DroneOps.Application.DTOs.Request.UAVs;
 using DroneOps.Application.Interfaces.UAVs;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +8,7 @@ namespace DroneOps.API.Controllers.UAVs;
 
 [ApiController]
 [Route("api/uavs")]
-[Authorize(Roles = "Pilot")]
+[Authorize(Roles = "uav_operator")]
 public class UavController : ControllerBase
 {
     private readonly IUavService _uavService;

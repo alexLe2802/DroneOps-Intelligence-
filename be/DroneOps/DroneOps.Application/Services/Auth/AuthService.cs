@@ -1,4 +1,5 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using DroneOps.Domain;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -71,6 +72,11 @@ public class AuthService : IAuthService
             return null;
         }
 
+        if (user.RequiresFirstLogin)
+        {
+            return new LoginResponse { RequiresFirstLogin = true };
+        }
+
         var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes);
         var token = GenerateToken(user, expiresAt);
 
@@ -83,7 +89,7 @@ public class AuthService : IAuthService
                 Id = user.Id,
                 FullName = user.FullName,
                 Email = user.Email,
-                Role = user.Role?.Name ?? "User"
+                Role = CanonicalRoles.Normalize(user.Role?.Name ?? "User")
             }
         };
     }
@@ -96,7 +102,7 @@ public class AuthService : IAuthService
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.FullName),
             new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Role, user.Role?.Name ?? "User"),
+            new(ClaimTypes.Role, CanonicalRoles.Normalize(user.Role?.Name ?? "User")),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -136,7 +142,7 @@ public class AuthService : IAuthService
         RegisterRequest request,
         CancellationToken cancellationToken = default)
     {
-        return await ProcessRegistrationAsync(request, "Pilot", cancellationToken);
+        return await ProcessRegistrationAsync(request, "uav_operator", cancellationToken);
     }
 
     // 3. Luồng đăng ký tài khoản PILOT (USER) (CODE GỐC - GIỮ NGUYÊN 100%)
@@ -144,7 +150,7 @@ public class AuthService : IAuthService
         RegisterRequest request,
         CancellationToken cancellationToken = default)
     {
-        return await ProcessRegistrationAsync(request, "Pilot", cancellationToken);
+        return await ProcessRegistrationAsync(request, "uav_operator", cancellationToken);
     }
 
     // Hàm xử lý chung: Kiểm tra dữ liệu, rate limit, lưu Cache và gửi Mail (CODE GỐC - GIỮ NGUYÊN 100%)
@@ -212,7 +218,7 @@ public class AuthService : IAuthService
         _cache.Set(cacheKey, cacheEntry, TimeSpan.FromMinutes(10));
         _cache.Set(rateLimitKey, true, TimeSpan.FromSeconds(60));
 
-        var roleDisplayName = roleName == "Pilot" ? "Pilot / User" : "Admin";
+        var roleDisplayName = roleName == "uav_operator" ? "Pilot / User" : "Admin";
         var emailBody = $@"
             <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;'>
                 <h2 style='color: #1a73e8;'>DroneOps {roleDisplayName} Verification Code</h2>
@@ -261,7 +267,7 @@ public class AuthService : IAuthService
             throw new Exception($"Invalid verification code. You have {5 - pending.FailedAttempts} attempt(s) remaining.");
         }
 
-        // Lấy đúng Role từ Database theo RoleName được lưu trong Cache ("Admin" hoặc "Pilot")
+        // Lấy đúng Role từ Database theo RoleName được lưu trong Cache ("Admin" hoặc "uav_operator")
         var targetRole = await _context.Roles
             .FirstOrDefaultAsync(r => r.Name.ToLower() == pending.RoleName.ToLower(), cancellationToken);
 
@@ -463,7 +469,7 @@ public class AuthService : IAuthService
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
-        public string RoleName { get; set; } = "Pilot"; // Lưu trữ role: Admin hoặc Pilot
+        public string RoleName { get; set; } = "uav_operator"; // Lưu trữ role: Admin hoặc Pilot
         public string Code { get; set; } = string.Empty;
         public int FailedAttempts { get; set; }
     }

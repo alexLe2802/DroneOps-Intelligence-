@@ -14,11 +14,11 @@ public sealed class PostgresAuthStore(NpgsqlDataSource dataSource) : IAuthStore
         // Lock the provisioned account to serialize binding, session creation, and account deactivation.
         await using var lookup = new NpgsqlCommand("""
             SELECT u."Id", u."Email", u."FullName",
-                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operations_manager' END,
+                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'uav_operator' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operation_manager' WHEN 'Admin' THEN 'operation_manager' WHEN 'SystemAdmin' THEN 'operation_manager' WHEN 'operations_manager' THEN 'operation_manager' WHEN 'operation_manager' THEN 'operation_manager' END,
                    u."IsActive", u."FirebaseUid"
             FROM public."User" u JOIN public."Role" r ON r."Id" = u."RoleId"
             WHERE lower(trim(u."Email")) = @email AND u."WebAccessProvisioned"
-              AND r."Name" IN ('Pilot', 'OperationsManager') FOR UPDATE OF u
+              AND r."Name" IN ('Pilot', 'uav_operator', 'OperationsManager', 'Admin', 'SystemAdmin', 'operations_manager', 'operation_manager') FOR UPDATE OF u
             """, connection, tx);
         lookup.Parameters.AddWithValue("email", email.ToLowerInvariant());
         Account account;
@@ -52,12 +52,12 @@ public sealed class PostgresAuthStore(NpgsqlDataSource dataSource) : IAuthStore
     {
         await using var cmd = dataSource.CreateCommand("""
             SELECT a."Id", a."Email", a."FullName",
-                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operations_manager' END,
+                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'uav_operator' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operation_manager' WHEN 'Admin' THEN 'operation_manager' WHEN 'SystemAdmin' THEN 'operation_manager' WHEN 'operations_manager' THEN 'operation_manager' WHEN 'operation_manager' THEN 'operation_manager' END,
                    a."IsActive", s.id, s.expires_at
             FROM public."User" a JOIN public."Role" r ON r."Id" = a."RoleId"
             JOIN droneops.auth_sessions s ON s.account_id = a."Id"
             WHERE a."FirebaseUid" = @uid AND a."IsActive" AND a."WebAccessProvisioned"
-              AND r."Name" IN ('Pilot', 'OperationsManager') AND s.token_hash = @hash
+              AND r."Name" IN ('Pilot', 'uav_operator', 'OperationsManager', 'Admin', 'SystemAdmin', 'operations_manager', 'operation_manager') AND s.token_hash = @hash
             AND s.revoked_at IS NULL AND s.expires_at > now()
             """);
         cmd.Parameters.AddWithValue("uid", uid);
@@ -99,10 +99,10 @@ public sealed class PostgresAuthStore(NpgsqlDataSource dataSource) : IAuthStore
     {
         await using var cmd = dataSource.CreateCommand("""
             SELECT u."Id", u."Email", u."FullName",
-                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operations_manager' END,
+                   CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'uav_operator' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operation_manager' WHEN 'Admin' THEN 'operation_manager' WHEN 'SystemAdmin' THEN 'operation_manager' WHEN 'operations_manager' THEN 'operation_manager' WHEN 'operation_manager' THEN 'operation_manager' END,
                    u."IsActive"
             FROM public."User" u JOIN public."Role" r ON r."Id" = u."RoleId"
-            WHERE u."WebAccessProvisioned" AND r."Name" IN ('Pilot', 'OperationsManager')
+            WHERE r."Name" IN ('Pilot', 'uav_operator', 'OperationsManager', 'Admin', 'SystemAdmin', 'operations_manager', 'operation_manager')
             ORDER BY u."CreatedAt" DESC
             """);
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -125,7 +125,7 @@ public sealed class PostgresAuthStore(NpgsqlDataSource dataSource) : IAuthStore
                 INSERT INTO public."User"("Id", "Email", "FullName", "FirebaseUid", "IsActive", "RoleId",
                                           "CreatedBy", "PasswordHash", "CreatedAt", "WebAccessProvisioned")
                 SELECT @id, @email, @name, @uid, @active, r."Id", @manager, '', now(), true
-                FROM public."Role" r WHERE r."Name" = 'Pilot'
+                FROM (SELECT "Id" FROM public."Role" WHERE "Name" IN ('uav_operator', 'Pilot') ORDER BY ("Name" = 'uav_operator') DESC LIMIT 1) r
                 ON CONFLICT DO NOTHING RETURNING "Id" AS id
             ) INSERT INTO droneops.auth_audit(actor_id, target_id, action)
             SELECT @manager, id, 'operator.provisioned' FROM added
@@ -146,7 +146,7 @@ public sealed class PostgresAuthStore(NpgsqlDataSource dataSource) : IAuthStore
         // Managers cannot disable/demote another manager (including the last active manager).
         await using var cmd = new NpgsqlCommand("""
             UPDATE public."User" u SET "IsActive" = @active, "UpdatedAt" = now()
-            FROM public."Role" r WHERE r."Id" = u."RoleId" AND r."Name" = 'Pilot'
+            FROM public."Role" r WHERE r."Id" = u."RoleId" AND r."Name" IN ('uav_operator', 'Pilot')
               AND u."Id" = @id AND u."WebAccessProvisioned"
             """, connection, tx);
         cmd.Parameters.AddWithValue("id", accountId);

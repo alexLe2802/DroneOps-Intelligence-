@@ -1,4 +1,5 @@
-﻿using DroneOps.Application.DTOs.Request.Users;
+using Microsoft.AspNetCore.RateLimiting;
+using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.Interfaces.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,7 +41,7 @@ public class PilotRegistrationController : ControllerBase
     /// <summary>
     /// Lấy danh sách đơn đăng ký (Admin)
     /// </summary>
-    [Authorize(Roles = "Admin,SystemAdmin")]
+    [Authorize(Roles = "operation_manager")]
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] GetPilotRegistrationsRequest request)
     {
@@ -51,7 +52,7 @@ public class PilotRegistrationController : ControllerBase
     /// <summary>
     /// Lấy chi tiết đơn đăng ký theo ID (Admin)
     /// </summary>
-    [Authorize(Roles = "Admin,SystemAdmin")]
+    [Authorize(Roles = "operation_manager")]
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetDetail(Guid id)
     {
@@ -66,7 +67,7 @@ public class PilotRegistrationController : ControllerBase
     /// <summary>
     /// Duyệt đơn Pilot: Dùng mật khẩu gốc tạo User + gửi mã OTP xác thực đăng nhập lần đầu qua Email (Admin)
     /// </summary>
-    [Authorize(Roles = "Admin,SystemAdmin")]
+    [Authorize(Roles = "operation_manager")]
     [HttpPost("{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovePilotRegistrationRequest? request)
     {
@@ -88,7 +89,7 @@ public class PilotRegistrationController : ControllerBase
     /// <summary>
     /// Từ chối đơn Pilot kèm lý do -> Gửi email thông báo (Admin)
     /// </summary>
-    [Authorize(Roles = "Admin,SystemAdmin")]
+    [Authorize(Roles = "operation_manager")]
     [HttpPost("{id:guid}/reject")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectPilotRegistrationRequest request)
     {
@@ -111,7 +112,23 @@ public class PilotRegistrationController : ControllerBase
     /// Đăng nhập lần đầu cho Pilot: Nhập Email + Mật khẩu đã đăng ký + Mã OTP gửi về email
     /// </summary>
     [AllowAnonymous]
+    [HttpPost("first-time-login/resend-otp")]
+    [EnableRateLimiting("login")]
+    public async Task<IActionResult> ResendFirstLoginOtp([FromBody] DroneOps.Application.DTOs.Request.Auth.LoginRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            return BadRequest(new { message = "Email and password are required." });
+        try
+        {
+            await _service.ResendFirstLoginOtpAsync(request.Email, request.Password, cancellationToken);
+            return Ok(new { message = "A new OTP has been emailed. It expires in 10 minutes.", expiresInSeconds = 600, retryAfterSeconds = 60 });
+        }
+        catch (Exception e) { return BadRequest(new { message = e.Message }); }
+    }
+
+    [AllowAnonymous]
     [HttpPost("first-time-login")]
+    [EnableRateLimiting("login")]
     public async Task<IActionResult> FirstTimeLogin([FromBody] PilotFirstTimeLoginRequest request, CancellationToken cancellationToken)
     {
         try

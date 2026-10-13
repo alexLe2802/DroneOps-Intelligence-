@@ -73,6 +73,7 @@ export type FlightTelemetryPoint = {
   speed: number | null; batteryLevel: number | null; recordedAt: string;
 };
 export type GeofenceCoordinate = { latitude: number; longitude: number };
+export type GeofenceRequest = { name: string; description: string | null; coordinates: GeofenceCoordinate[] };
 export type Geofence = { id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
 export type SaveGeofenceRequest = { name: string; description: string | null; coordinates: GeofenceCoordinate[] };
 
@@ -110,3 +111,11 @@ export type AiAssessment = {
 };
 
 export type PortalRole = AccountRole;
+
+export type PilotProfile = {
+  userId: string; fullName: string; email: string; createdAt: string;
+  pilotId: string; phoneNumber: string | null; dateOfBirth: string | null;
+  pilotLicenseNo: string; licenseIssuedDate: string | null;
+  licenseExpiredDate: string | null; experienceYears: number;
+  droneType: string | null; droneModel: string | null;
+};
