@@ -12,6 +12,7 @@ import { api, ApiError } from "@/lib/auth/client";
 import type { AccountRole, AuthSession } from "@/lib/auth/types";
 import { createPilotRegistration } from "@/lib/pilot-registration";
 import { saveLicenseFiles } from "@/lib/license-image-store";
+import LicenseFilePicker from "@/app/license-file-picker";
 
 type Action = "google" | "password" | "reset" | "register";
 type AccessMode = "pilot" | "manager";
@@ -201,7 +202,7 @@ export default function LoginForm() {
           <label>Experience years<input required name="experienceYears" type="number" min={0} max={80} defaultValue={0} /></label>
           <label>License issued date<input required name="licenseIssuedDate" type="date" /></label>
           <label>License expired date<input required name="licenseExpiredDate" type="date" /></label>
-          <label className="pilot-register-wide pilot-license-upload">Flight license pages<input required multiple name="licenseFiles" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" /><small>Select multiple images or PDF documents · maximum 10 files and 10 MB per file. Temporarily retained in this browser until backend storage is available.</small></label>
+          <LicenseFilePicker />
           <label className="pilot-register-wide">Description<textarea name="description" rows={4} maxLength={500} placeholder="Briefly describe your operating scope or manager contact." /></label>
         </div>
         {error && <p className="pilot-register-error" role="alert">{error}</p>}

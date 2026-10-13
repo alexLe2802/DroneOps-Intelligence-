@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/auth/client";
 import { roleLabels, type Account, type SessionInfo } from "@/lib/auth/types";
 import PilotRegistrationRequests from "./operators/pilot-registration-requests";
 import { saveLicenseFiles } from "@/lib/license-image-store";
+import LicenseFilePicker from "@/app/license-file-picker";
 
 type PortalControlsProps = {
   account: Account;
@@ -150,7 +151,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           </>}
           <div className="provision-section"><span>02</span><strong>License & operations</strong></div>
           <label>Pilot license number<input name="pilotLicenseNo" required minLength={3} maxLength={64} autoComplete="off" placeholder="License number" /></label>
-          <label className="provision-wide pilot-license-upload">Flight license pages<input name="licenseFiles" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required multiple /><small>Select multiple images or PDF documents · maximum 10 files and 10 MB per file.</small></label>
+          <LicenseFilePicker />
           <label>Experience years<input name="experienceYears" type="number" required min="0" max="80" step="1" placeholder="0" /></label>
           <label>License issued date<input name="licenseIssuedDate" type="date" required /></label>
           <label>License expired date<input name="licenseExpiredDate" type="date" required /></label>
@@ -199,7 +200,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           </>}
           <div className="provision-section"><span>02</span><strong>License & operations</strong></div>
           <label>Pilot license number<input name="pilotLicenseNo" required minLength={3} maxLength={64} autoComplete="off" placeholder="License number" /></label>
-          <label className="provision-wide pilot-license-upload">Flight license pages<input name="licenseFiles" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required multiple /><small>Select multiple images or PDF documents · maximum 10 files and 10 MB per file.</small></label>
+          <LicenseFilePicker />
           <label>Experience years<input name="experienceYears" type="number" required min="0" max="80" step="1" placeholder="0" /></label>
           <label>License issued date<input name="licenseIssuedDate" type="date" required /></label>
           <label>License expired date<input name="licenseExpiredDate" type="date" required /></label>
