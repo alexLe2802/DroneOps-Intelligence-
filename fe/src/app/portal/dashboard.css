@@ -112,3 +112,95 @@
 @media(max-width:650px){.request-license-files{grid-template-columns:1fr}}
 
 .geofence-editor{padding:18px;margin-bottom:20px;background:var(--panel);border:1px solid var(--line);border-radius:7px}.geofence-fields{border:0;padding:0;margin:0 0 16px;min-width:0}.geofence-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.geofence-actions .module-secondary{width:auto}.geofence-vertices{display:grid;gap:8px;margin-top:14px}.geofence-vertices>div{display:grid;grid-template-columns:28px 1fr 1fr auto;gap:10px;align-items:end}.geofence-vertices label{display:grid;gap:6px;font:9px Consolas,monospace}.geofence-vertices input{width:100%;min-width:0;padding:10px;border:1px solid #314054;background:#0b1119;color:#fff}.geofence-vertices b{align-self:center;color:#65d9ff}@media(max-width:600px){.geofence-vertices>div{grid-template-columns:28px 1fr}.geofence-vertices label{grid-column:2}.geofence-vertices button{grid-column:2}.geofence-editor .mission-field-grid{grid-template-columns:1fr}}
+
+/* Mission planning registry */
+.mission-registry{display:grid;gap:14px}
+.mission-registry-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:4px 0 2px}
+.mission-registry-heading>div:first-child{min-width:0}
+.mission-registry-heading h1{max-width:720px;margin:7px 0 6px;font-size:34px;line-height:1.14;letter-spacing:0}
+.mission-registry-heading p:not(.module-kicker){max-width:720px;margin:0;color:var(--sub);line-height:1.5}
+.mission-registry-actions{display:grid;grid-template-columns:145px 210px;gap:8px;flex:0 0 auto}
+.mission-registry-actions button{min-height:54px;border:1px solid #303a49;border-radius:2px;background:#252c37;color:#e6edf5;font:700 9px Consolas,monospace;letter-spacing:1px}
+.mission-registry-actions .plan-mission{border-color:#1caeea;background:#1caeea;color:#06131c;font:700 13px Arial,sans-serif;letter-spacing:0}
+.mission-registry-actions button:disabled{cursor:not-allowed;opacity:.55}
+.mission-status-grid{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));gap:8px}
+.mission-status-grid button{position:relative;min-height:126px;padding:14px 12px 18px;overflow:hidden;border:1px solid #242c38;border-radius:5px;background:#171d27;color:#dfe7f1;text-align:left}
+.mission-status-grid button::after{content:"";position:absolute;right:12px;bottom:10px;left:12px;height:2px;background:#3e4856}
+.mission-status-grid button:hover,.mission-status-grid button.active{border-color:#5bcff4;background:#1b2531}
+.mission-status-grid button.active{box-shadow:inset 0 3px #5bcff4}
+.mission-status-grid button>span{display:block;min-height:26px;color:#aeb9c7;font:8px Consolas,monospace;letter-spacing:1.1px;text-transform:uppercase}
+.mission-status-grid button>strong{display:block;max-width:115px;font-size:18px;line-height:1.25;letter-spacing:0}
+.mission-status-grid button>b{position:absolute;right:12px;top:47px;color:#72d8ff;font:700 20px Consolas,monospace}
+.mission-status-grid .pending>b{color:#c7a9ff}.mission-status-grid .approved>b{color:#65e4bd}.mission-status-grid .completed>b{color:#bec7d4}.mission-status-grid .cancelled>b{color:#ffaaa4}
+.mission-status-grid .pending::after{background:#a985ed}.mission-status-grid .approved::after{background:#55d8b4}.mission-status-grid .in-flight::after{background:#7bcdf2}.mission-status-grid .cancelled::after{background:#ef9a9d}
+.mission-registry-filters{display:grid;grid-template-columns:minmax(230px,1fr) 180px 150px 150px auto;gap:10px;align-items:end;padding:14px;background:#171d27;border:1px solid #242c38;border-radius:5px}
+.mission-registry-filters label{display:grid;gap:6px;color:#aeb9c7;font:8px Consolas,monospace;letter-spacing:1px}
+.mission-registry-filters input,.mission-registry-filters select{width:100%;min-width:0;height:38px;border:1px solid #293443;border-radius:2px;background:#222934;color:#e7edf5;padding:0 11px;font-size:11px}
+.mission-registry-filters input::placeholder{color:#8794a5}
+.mission-registry-filters>button{height:38px;border:1px solid #313c4b;border-radius:2px;background:#111821;color:#cdd7e3;padding:0 16px;font:9px Consolas,monospace;letter-spacing:1px}
+.mission-registry-filters>button:hover{border-color:#5bcff4;color:#70d9ff}
+.mission-manifest-panel{overflow:hidden;background:#171d27;border:1px solid #242c38;border-radius:5px}
+.mission-manifest-panel>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:#1c232e;color:#dce6f2;font:9px Consolas,monospace;letter-spacing:1px}
+.mission-manifest-panel>header b{color:#78d7fa}.mission-manifest-panel>header b span{color:#b9c5d2}.mission-manifest-panel>header>span{color:#67e4bd}
+.mission-manifest-table-wrap{overflow-x:auto}
+.mission-manifest-panel table{width:100%;min-width:1160px;border-collapse:collapse;table-layout:fixed}
+.mission-manifest-panel th{padding:12px 14px;background:#0c121b;color:#aeb9c7;text-align:left;font:8px Consolas,monospace;letter-spacing:1px;text-transform:uppercase}
+.mission-manifest-panel th:nth-child(1){width:118px}.mission-manifest-panel th:nth-child(2){width:210px}.mission-manifest-panel th:nth-child(3){width:145px}.mission-manifest-panel th:nth-child(4){width:145px}.mission-manifest-panel th:nth-child(5){width:185px}.mission-manifest-panel th:nth-child(6){width:110px}.mission-manifest-panel th:nth-child(7){width:130px}.mission-manifest-panel th:nth-child(8){width:75px}
+.mission-manifest-panel td{padding:15px 14px;border-top:1px solid #242c38;color:#e5ebf3;vertical-align:top}
+.mission-manifest-panel tbody tr:hover{background:#1a222d}
+.mission-manifest-panel td b,.mission-manifest-panel td strong,.mission-manifest-panel td small{display:block}
+.mission-manifest-panel td strong{overflow:hidden;color:#f1f5fa;font-size:14px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+.mission-manifest-panel td b{font:700 10px Consolas,monospace;line-height:1.35}.mission-manifest-panel td small{margin-top:5px;overflow:hidden;color:#8f9bad;font:8px Consolas,monospace;letter-spacing:.5px;line-height:1.35;text-overflow:ellipsis}
+.mission-manifest-panel .mission-code{color:#76d9ff;font-size:11px}
+.registry-state{display:inline-block;max-width:100%;padding:6px 7px;background:#303946;color:#dce4ed;font:8px Consolas,monospace;letter-spacing:.7px;text-transform:uppercase;overflow-wrap:anywhere}
+.registry-state.pending{background:#3a304a;color:#d7c1ff}.registry-state.approved,.registry-state.completed{background:#173b35;color:#70e5c3}.registry-state.active{background:#17364a;color:#82d7ff}.registry-state.draft{background:#303640;color:#b9c4d1}.registry-state.cancelled{background:#4a252b;color:#ffb0aa}
+.mission-manifest-panel td>a{display:inline-block;color:#72d9ff;font:700 9px Consolas,monospace;letter-spacing:.7px;text-decoration:none}
+.mission-registry-empty{padding:36px!important;color:#8f9bad!important;text-align:center;font:10px Consolas,monospace}
+.mission-manifest-panel>footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 16px;background:#222934;color:#c2ccd8;font:9px Consolas,monospace;letter-spacing:.4px}
+.mission-manifest-panel>footer>div{display:flex;align-items:center;gap:8px}
+.mission-manifest-panel>footer button{height:30px;border:1px solid #333e4d;border-radius:2px;background:#141b24;color:#dfe7ef;padding:0 10px;font:8px Consolas,monospace}
+.mission-manifest-panel>footer button:disabled{opacity:.35}.mission-manifest-panel>footer b{display:grid;place-items:center;width:30px;height:30px;background:#75cffa;color:#07131c}
+.mission-registry-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.mission-registry-insights article{min-height:132px;padding:15px;background:#171d27;border:1px solid #242c38;border-radius:4px}
+.mission-registry-insights header{display:flex;align-items:center;justify-content:space-between;gap:12px}.mission-registry-insights h2{margin:0;font-size:17px;letter-spacing:0}
+.mission-registry-insights header b{color:#65e4bd;font:9px Consolas,monospace;letter-spacing:1px}.mission-registry-insights header b.alert{color:#ffaaa4}
+.mission-registry-insights p{min-height:40px;margin:14px 0;color:#b7c1ce;line-height:1.4}
+.mission-registry-insights article>div{height:5px;overflow:hidden;background:#343c48}.mission-registry-insights article>div i{display:block;height:100%;background:#70d4fa}.mission-registry-insights article:nth-child(2)>div i{background:#65e4bd}
+.mission-registry-insights a{color:#70d8ff;font:8px Consolas,monospace;letter-spacing:1px;text-decoration:none}
+@media(max-width:1280px){.mission-status-grid{grid-template-columns:repeat(4,minmax(130px,1fr))}.mission-registry-filters{grid-template-columns:minmax(230px,1fr) 180px 150px 150px}.mission-registry-filters>button{grid-column:4}}
+@media(max-width:900px){.mission-registry-heading{align-items:flex-start;flex-direction:column}.mission-registry-actions{width:100%;grid-template-columns:1fr 1.4fr}.mission-status-grid{grid-template-columns:repeat(2,minmax(130px,1fr))}.mission-registry-filters{grid-template-columns:1fr 1fr}.mission-registry-filters .mission-search{grid-column:1/-1}.mission-registry-filters>button{grid-column:auto}.mission-registry-insights{grid-template-columns:1fr}.mission-manifest-panel>footer{align-items:flex-start;flex-direction:column}}
+@media(max-width:560px){.mission-registry-heading h1{font-size:27px}.mission-registry-actions{grid-template-columns:1fr}.mission-status-grid,.mission-registry-filters{grid-template-columns:1fr}.mission-registry-filters .mission-search{grid-column:auto}.mission-status-grid button{min-height:104px}.mission-manifest-panel>header{align-items:flex-start;flex-direction:column}}
+
+/* Rich registry composition */
+.mission-registry-heading{align-items:center;min-height:112px}
+.mission-registry-eyebrow{display:flex;align-items:center;gap:10px;color:#97a5b6;font:9px Consolas,monospace;letter-spacing:1.2px}
+.mission-registry-eyebrow>span{padding:4px 8px;background:#17354c;color:#75d8ff}
+.mission-registry-eyebrow>b{font-weight:400}.mission-registry-eyebrow i{display:inline-block;width:6px;height:6px;margin-left:4px;border-radius:50%;background:#65e4bd;box-shadow:0 0 10px #65e4bd88}
+.mission-registry-actions button{display:grid;align-items:center;justify-content:center;column-gap:9px;padding:8px 12px}
+.mission-registry-actions .manifest-export{grid-template-columns:30px auto}.mission-registry-actions .manifest-export>span{display:grid;place-items:center;width:28px;height:28px;border:1px solid #4a596b;color:#75d8ff;font:8px Consolas,monospace}
+.mission-registry-actions .manifest-export>b{font:700 9px/1.15 Consolas,monospace;letter-spacing:1px}
+.mission-registry-actions .plan-mission{grid-template-columns:25px auto;grid-template-rows:auto auto}.mission-registry-actions .plan-mission>span{grid-row:1/3;font-size:24px}.mission-registry-actions .plan-mission>b{align-self:end;font-size:14px}.mission-registry-actions .plan-mission>small{align-self:start;font:8px Consolas,monospace;letter-spacing:1px}
+.mission-api-notice{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border:1px solid #725d2d;background:#322a1c;color:#f5d68d}
+.mission-api-notice b{font:9px Consolas,monospace;letter-spacing:1px}.mission-api-notice p{margin:5px 0 0;color:#d8c9a7}
+.mission-api-notice>button{flex:0 0 30px;height:30px;border:1px solid #725d2d;background:#15120d;color:#f5d68d}
+.mission-status-grid button:hover,.mission-status-grid button.selected{border-color:#5bcff4;background:#1b2531}.mission-status-grid button.selected{box-shadow:inset 0 3px #5bcff4}.mission-status-grid button.active{box-shadow:none}
+.mission-status-grid button>header{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:28px}
+.mission-status-grid button>header span{color:#aeb9c7;font:8px Consolas,monospace;letter-spacing:1.1px;text-transform:uppercase}
+.mission-status-grid button>header i{display:grid;place-items:center;min-width:25px;height:22px;padding:0 4px;border:1px solid #354253;color:#8edcff;font:8px Consolas,monospace;font-style:normal}
+.mission-status-grid button>div{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-top:10px}
+.mission-status-grid button>div strong{max-width:118px;font-size:18px;line-height:1.22;letter-spacing:0}.mission-status-grid button>div b{color:#72d8ff;font:700 21px Consolas,monospace}
+.mission-status-grid .pending>div b,.mission-status-grid .pending>header i{color:#c7a9ff}.mission-status-grid .approved>div b,.mission-status-grid .approved>header i{color:#65e4bd}.mission-status-grid .completed>div b{color:#bec7d4}.mission-status-grid .cancelled>div b,.mission-status-grid .cancelled>header i{color:#ffaaa4}
+.mission-registry-filters{grid-template-columns:minmax(260px,1.25fr) minmax(200px,.8fr) 145px 145px 154px;padding:16px 14px}
+.mission-filter-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}.mission-filter-actions button{height:38px;border:1px solid #313c4b;border-radius:2px;background:#111821;color:#cdd7e3;font:8px Consolas,monospace;letter-spacing:.8px}.mission-filter-actions button:hover{border-color:#5bcff4;color:#70d9ff}.mission-filter-actions button:disabled{opacity:.45}
+.mission-manifest-panel>header>div{display:flex;align-items:center;gap:10px}.mission-manifest-panel>header em{padding:4px 7px;background:#2a313c;color:#c4ceda;font-style:normal}.mission-manifest-panel>header strong{color:#65e4bd}
+.mission-manifest-panel td{height:76px}.mission-manifest-panel .registry-danger-row{background:#21171c}.mission-manifest-panel .registry-danger-row .mission-code{color:#ffaaa4}.mission-manifest-panel .registry-danger-row td:nth-child(2)>strong{text-decoration:line-through;text-decoration-thickness:1px}
+.registry-pilot{display:flex;align-items:center;gap:9px}.registry-pilot>i{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:50%;background:#303844;color:#8edcff;font:8px Consolas,monospace;font-style:normal}.registry-pilot>span{min-width:0}
+.mission-manifest-panel>footer .manifest-range{display:flex;align-items:center;flex-direction:row;flex-wrap:wrap;gap:10px 24px;min-width:0}
+.manifest-range>span{color:#c9d2dd;white-space:nowrap}.manifest-range>span strong{color:#f0f5fa;font-weight:700}
+.manifest-range>em{display:flex;align-items:center;gap:7px;height:30px;padding:0 10px;border:1px solid #343f4e;background:#171e28;color:#9facbc;font-style:normal;letter-spacing:1px;white-space:nowrap}
+.manifest-range>em strong{color:#76d8ff;font:700 10px Consolas,monospace}.manifest-range>em small{font:8px Consolas,monospace}
+.mission-manifest-panel>footer nav{display:flex;align-items:center;gap:4px}.mission-manifest-panel>footer nav button{min-width:30px;padding:0}.mission-manifest-panel>footer nav button.current{border-color:#75cffa;background:#75cffa;color:#07131c}
+.mission-registry-insights article{display:flex;flex-direction:column;min-height:156px}.mission-registry-insights header>div{display:flex;align-items:center;gap:8px}.mission-registry-insights header>div>i{display:grid;place-items:center;width:26px;height:26px;border:1px solid #365168;color:#70d8ff;font:8px Consolas,monospace;font-style:normal}.mission-registry-insights .registry-progress{height:5px;margin-top:auto;overflow:hidden;background:#343c48}.mission-registry-insights .registry-progress i{display:block;height:100%;background:#70d4fa}.mission-registry-insights article:nth-child(2) .registry-progress i{background:#65e4bd}.mission-registry-insights article>footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;color:#909daf;font:8px Consolas,monospace;letter-spacing:1px}.mission-registry-insights article>footer b{color:#dce5ef}.mission-registry-insights article>footer a{color:#70d8ff}
+@media(max-width:1280px){.mission-registry-filters{grid-template-columns:minmax(240px,1fr) minmax(190px,1fr) 145px 145px}.mission-filter-actions{grid-column:3/5}.mission-status-grid button>div strong{font-size:17px}}
+@media(max-width:900px){.mission-registry-heading{align-items:flex-start}.mission-registry-filters{grid-template-columns:1fr 1fr}.mission-filter-actions{grid-column:auto}.mission-registry-filters .mission-sector{grid-column:auto}.mission-manifest-panel>footer .manifest-range{align-items:center;flex-direction:row;gap:8px 14px}}
+@media(max-width:560px){.mission-registry-actions button{min-height:50px}.mission-registry-filters{grid-template-columns:1fr}.mission-filter-actions{grid-column:auto}.mission-registry-filters .mission-sector{grid-column:auto}.mission-status-grid button>div strong{font-size:16px}.mission-api-notice{align-items:flex-start}.mission-manifest-panel>header>div{align-items:flex-start;flex-direction:column}}
