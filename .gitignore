@@ -119,4 +119,4 @@ next-env.d.ts
 *.coveragexml
 *.dmp
 be/DroneOps/DroneOps.API/appsettings.json
-be/DroneOps/DroneOps.API/appsettings.json
+
