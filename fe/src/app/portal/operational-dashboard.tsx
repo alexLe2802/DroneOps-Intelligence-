@@ -2,60 +2,126 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import PortalShell from "./portal-shell";
 import type { Account } from "@/lib/auth/types";
 import { getAssignedUavs, getFlightHistory, getGeofences, getOperationalAnalytics } from "@/lib/portal/client";
 import type { AssignedUav, FlightHistoryItem, Geofence, OperationalAnalytics } from "@/lib/portal/types";
-import { ModuleError, ModuleLoading } from "./module-state";
 import DashboardMap from "./dashboard-map";
+import { ModuleError, ModuleLoading } from "./module-state";
+import PortalShell from "./portal-shell";
+
+type Feed = "live" | "gcs" | "simulation";
+
+const isActive = (status: string) => status.toLowerCase().replaceAll(" ", "") === "inprogress";
+const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
 
 export default function OperationalDashboard({ account }: { account: Account }) {
+  const manager = account.role === "operations_manager";
   const [analytics, setAnalytics] = useState<OperationalAnalytics | null>(null);
   const [missions, setMissions] = useState<FlightHistoryItem[] | null>(null);
   const [aircraft, setAircraft] = useState<AssignedUav[]>([]);
   const [zones, setZones] = useState<Geofence[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<unknown>(null);
-  const [serviceWarnings, setServiceWarnings] = useState<string[]>([]);
+  const [feed, setFeed] = useState<Feed>("live");
   const [query, setQuery] = useState("");
-  const manager = account.role === "operations_manager";
+
   const load = useCallback(async () => {
     setError(null);
-    try {
-      const [summary, history, geofences, uavs] = await Promise.allSettled([
-        getOperationalAnalytics(), getFlightHistory({ pageSize: 25 }), getGeofences(),
-        manager ? Promise.resolve([]) : getAssignedUavs(),
-      ]);
-      if (summary.status === "rejected") throw summary.reason;
-      if (history.status === "rejected") throw history.reason;
-      setAnalytics(summary.value); setMissions(history.value.items);
-      setZones(geofences.status === "fulfilled" ? geofences.value : []);
-      setAircraft(uavs.status === "fulfilled" ? uavs.value : []);
-      const warnings: string[] = [];
-      if (geofences.status === "rejected") warnings.push("Geofences are unavailable because the backend role policy does not allow this web-session role.");
-      if (uavs.status === "rejected") warnings.push("Assigned UAVs are unavailable because the backend role policy does not allow this web-session role.");
-      setServiceWarnings(warnings);
-    } catch (reason) { setError(reason); }
+    const results = await Promise.allSettled([
+      getOperationalAnalytics(),
+      getFlightHistory({ pageSize: 100 }),
+      getGeofences(),
+      manager ? Promise.resolve([] as AssignedUav[]) : getAssignedUavs(),
+    ]);
+    const [summary, history, geofences, uavs] = results;
+    if (summary.status === "rejected") return setError(summary.reason);
+    if (history.status === "rejected") return setError(history.reason);
+    setAnalytics(summary.value);
+    setMissions(history.value.items);
+    setZones(geofences.status === "fulfilled" ? geofences.value : []);
+    setAircraft(uavs.status === "fulfilled" ? uavs.value : []);
+    const nextWarnings: string[] = [];
+    if (geofences.status === "rejected") nextWarnings.push("Geofence API is currently unavailable for this session.");
+    if (uavs.status === "rejected") nextWarnings.push("Assigned UAV API is currently unavailable for this session.");
+    setWarnings(nextWarnings);
   }, [manager]);
+
   useEffect(() => { void load(); }, [load]);
-  const filtered = useMemo(() => missions?.filter(item => `${item.missionName} ${item.uavCode} ${item.pilotName} ${item.status}`.toLowerCase().includes(query.toLowerCase())) ?? [], [missions, query]);
+
+  const activeMissions = useMemo(() => missions?.filter(item => isActive(item.status)) ?? [], [missions]);
+  const filteredActive = useMemo(() => activeMissions.filter(item =>
+    `${item.missionName} ${item.missionId} ${item.uavCode} ${item.pilotName}`.toLowerCase().includes(query.toLowerCase())), [activeMissions, query]);
+  const incidentMissions = useMemo(() => missions?.filter(item => item.totalIncidents > 0).slice(0, 2) ?? [], [missions]);
+
   if (error) return <PortalShell account={account} dashboard><ModuleError error={error} retry={() => void load()} /></PortalShell>;
   if (!analytics || !missions) return <PortalShell account={account} dashboard><ModuleLoading label="Loading operational dashboard" /></PortalShell>;
-  const activeFlights = missions.filter(item => item.status.toLowerCase() === "inprogress").length;
+
+  const pending = Math.max(analytics.totalFlights - analytics.completedFlights - analytics.abortedOrFailedFlights, 0);
   const activeUavs = aircraft.filter(item => item.status.toLowerCase() === "active").length;
+  const hasIncidents = analytics.totalIncidentsRecorded > 0;
+  const latestMission = missions[0];
+
   return <PortalShell account={account} dashboard>
-    {serviceWarnings.length > 0 && <section className="dashboard-service-warning" role="status"><b>PARTIAL BACKEND ACCESS</b>{serviceWarnings.map(message => <p key={message}>{message}</p>)}</section>}
-    <section className="dashboard-heading"><div><p>◎ {manager ? "MANAGED OPERATIONAL SCOPE" : "OWN / ASSIGNED SCOPE"}</p><h1>{manager ? <>Operations Manager<br />Command Center</> : <>My Mission Operations<br />Workspace</>}</h1><span className="scope-note">Live values below are retrieved from the DroneOps backend.</span></div><Link className="preset-button" href="/portal/geofences">⌁ AIRSPACE REGISTRY</Link>{!manager && <Link className="new-mission" href="/portal/missions/new">⊕ NEW MISSION</Link>}</section>
-    <section className="metric-grid" aria-label="Operational summary">
-      <article><span>ACTIVE FLIGHTS</span><strong>{activeFlights}<small>IN PROGRESS</small></strong><p className={activeFlights ? "ok" : ""}>{activeFlights ? "● Mission activity detected" : "No active flight recorded"}</p></article>
-      <article><span>TOTAL FLIGHTS</span><strong>{analytics.totalFlights}<small>RECORDED</small></strong><div className="mini-stats"><b>{analytics.completedFlights}<small>DONE</small></b><b>{analytics.abortedOrFailedFlights}<small>FAILED</small></b></div></article>
-      <article><span>SUCCESS RATE</span><strong className="blue">{analytics.successRatePercentage.toFixed(1)}%<small>RECORDED</small></strong><p>{analytics.totalFlightHours.toFixed(1)} flight hours</p></article>
-      <article><span>{manager ? "CONTROLLED AIRSPACE" : "ASSIGNED UAV"}</span><strong className="ok">{serviceWarnings.length ? "—" : manager ? zones.length : activeUavs}<small>{manager ? "GEOFENCES" : `${aircraft.length} TOTAL`}</small></strong><p>{serviceWarnings.length ? "Role access pending" : manager ? "Configured restriction records" : "Approved aircraft available"}</p></article>
-      <article><span>INCIDENTS</span><strong className={analytics.totalIncidentsRecorded ? "warn" : "ok"}>{analytics.totalIncidentsRecorded}<small>RECORDED</small></strong><p>{analytics.totalDistanceKilometers.toFixed(1)} km total distance</p></article>
+    <section className={`critical-banner${hasIncidents ? "" : " clear"}`}>
+      <span className="dash-icon">{hasIncidents ? "!" : "✓"}</span>
+      <div>{hasIncidents ? "CRITICAL ADVISORY" : "AIRSPACE STATUS"}<br />BACKEND RECORDS</div>
+      <p>{hasIncidents ? `${analytics.totalIncidentsRecorded} incident${analytics.totalIncidentsRecorded === 1 ? "" : "s"} recorded across mission history.` : "No recorded incidents require immediate attention."}</p>
+      <Link className="preset-button" href="/portal/flight-history">VIEW RECORDS</Link>
+      {hasIncidents && <Link className="new-mission danger-button" href="/portal/flight-history">OPEN INCIDENTS</Link>}
     </section>
-    <div className="operations-grid dashboard-data-grid">
-      <section className="map-panel"><header><b>OPERATIONAL AIRSPACE MAP</b><em>BASEMAP + BACKEND GEOFENCES</em></header><DashboardMap geofences={zones} /><footer><span>Map: Leaflet / Esri Street Map · Airspace zones: DroneOps Geofences API</span><Link href="/portal/flight-history">OPEN RECORDED FLIGHT HISTORY →</Link></footer></section>
-      <aside className="insight-column"><section className="ai-panel"><header><div><h2>Operational data coverage</h2><span>BACKEND SYNCHRONIZED</span></div></header><article><h3>MISSION HISTORY</h3><p>{missions.length} recent records loaded for this account scope.</p></article><article><h3>AIRSPACE RESTRICTIONS</h3><p>{serviceWarnings.length ? "Waiting for backend role-policy alignment." : `${zones.length} configured geofences are available for route review.`}</p><Link className="module-secondary module-link" href="/portal/geofences">VIEW GEOFENCES</Link></article></section></aside>
+
+    {warnings.length > 0 && <section className="dashboard-service-warning" role="status"><b>PARTIAL BACKEND ACCESS</b>{warnings.map(message => <p key={message}>{message}</p>)}</section>}
+
+    <section className="dashboard-heading">
+      <div><p>◎ SECTOR SGN-04 TECH PARK OPERATIONAL THEATER</p><h1>Mission &amp; Fleet Operations Hub</h1></div>
+      <div className="feed-tabs" aria-label="Dashboard data mode">
+        <button className={feed === "live" ? "active" : ""} onClick={() => setFeed("live")}>LIVE FEED</button>
+        <button className={feed === "gcs" ? "active" : ""} onClick={() => setFeed("gcs")}>GCS SYNC</button>
+        <button className={feed === "simulation" ? "active" : ""} onClick={() => setFeed("simulation")}>SIMULATION</button>
+      </div>
+      <Link className="preset-button" href="/portal/geofences">⌁ SECTOR PRESETS</Link>
+      <Link className="new-mission" href={manager ? "/portal/uav-management" : "/portal/missions/new"}>{manager ? "REVIEW UAV QUEUE" : "+ NEW MISSION DISPATCH"}</Link>
+    </section>
+
+    <section className="metric-grid" aria-label="Operational summary">
+      <article><span>ACTIVE FLIGHTS</span><span className="dash-icon">⌁</span><strong>{activeMissions.length}<small>/ {missions.length} IN VIEW</small></strong><p className={activeMissions.length ? "ok" : ""}>{activeMissions.length ? "● Mission status: InProgress" : "No active flight recorded"}</p></article>
+      <article><span>MISSION OPERATIONS</span><span className="dash-icon">◇</span><strong>{analytics.totalFlights}<small>TOTAL</small></strong><div className="mini-stats"><b>{analytics.completedFlights}<small>DONE</small></b><b>{analytics.abortedOrFailedFlights}<small>FAILED</small></b><b>{pending}<small>PENDING</small></b></div></article>
+      <article><span>AIRSPACE SAFETY</span><span className="dash-icon">△</span><strong className={hasIncidents ? "warn" : "ok"}>{analytics.totalIncidentsRecorded}<small>INCIDENTS</small></strong><p>{zones.length} restriction records <em>{analytics.successRatePercentage.toFixed(1)}% success</em></p></article>
+      <article><span>FLEET READINESS</span><span className="dash-icon">⌘</span><strong className="blue">{manager ? "—" : activeUavs}<small>{manager ? "API PENDING" : `/ ${aircraft.length} ACTIVE`}</small></strong><p>{manager ? "Fleet-wide UAV endpoint unavailable" : "Assigned UAV API"}</p></article>
+      <article><span>TELEMETRY INGEST</span><span className="dash-icon">⌁</span><strong>—<small>NO LIVE FEED</small></strong><p>Live telemetry API unavailable</p><div className="progress"><i style={{ width: "0%" }} /></div></article>
+    </section>
+
+    <div className="operations-grid">
+      <section className="map-panel">
+        <header><b>◎ TAC-CANVAS // SGN-04 OPERATIONAL AIRSPACE</b><em>10.8231°N, 106.6297°E</em><span>BACKEND GEOFENCES</span></header>
+        <DashboardMap geofences={zones} />
+        <footer><span>Airspace layer: <b>DroneOps Geofences API</b> · {zones.length} zones</span><span><Link href="/portal/geofences">OPEN AIRSPACE REGISTRY</Link> · <Link href="/portal/flight-history">FLIGHT HISTORY →</Link></span></footer>
+      </section>
+
+      <aside className="insight-column">
+        <section className="ai-panel">
+          <header><span className="dash-icon">◎</span><div><h2>AI Decision Engine</h2><span>GEMINI ASSESSMENT SERVICE</span></div><b>AI</b></header>
+          <article><h3>{latestMission ? latestMission.missionName : "NO MISSION CONTEXT"}<small>{latestMission?.status ?? "IDLE"}</small></h3><p>{latestMission ? `Latest backend mission record for ${latestMission.uavCode || "an unassigned UAV"}.` : "Create a mission before requesting an assessment."}</p><div><span>{latestMission ? `${latestMission.totalIncidents} recorded incidents` : "No mission selected"}</span><Link className="module-link" href="/portal/ai-assessment">OPEN ASSESSMENT →</Link></div></article>
+        </section>
+        <section className="incident-panel">
+          <header><div><h2>Critical Incidents &amp; Approvals</h2><span>RECORDED MISSION EVENTS</span></div><Link href="/portal/flight-history">VIEW ALL</Link></header>
+          {incidentMissions.length ? incidentMissions.map(item => <article key={item.missionId}><time>{formatDate(item.startTime)}</time><b className="warn">{item.totalIncidents} INCIDENT{item.totalIncidents === 1 ? "" : "S"}</b><h3>{item.missionName}</h3><p>{item.uavCode || "Unassigned UAV"} · {item.status}</p></article>) : <article><b className="ok">NO CRITICAL RECORDS</b><h3>Operational history is clear</h3><p>The Flight History API returned no mission incidents.</p></article>}
+        </section>
+      </aside>
     </div>
-    <section className="missions-panel"><header><div><span className="dash-icon">⌁</span><h2>Mission Registry<span>Authorized records from Flight History API</span></h2></div><label>⌕ <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter by mission, UAV, pilot or status" /></label></header><div className="table-wrap"><table><thead><tr><th>MISSION</th><th>UAV ASSET</th><th>PILOT</th><th>START</th><th>DURATION</th><th>INCIDENTS</th><th>STATUS</th><th>REPORT</th></tr></thead><tbody>{filtered.map(item => <tr key={item.missionId}><td><b className="blue">{item.missionName}</b><span>{item.missionId.slice(0, 8).toUpperCase()}</span></td><td><b>{item.uavCode || "—"}</b><span>{item.uavName}</span></td><td>{item.pilotName || "—"}</td><td>{item.startTime ? new Date(item.startTime).toLocaleString() : "Not scheduled"}</td><td>{item.durationMinutes.toFixed(0)} min</td><td><b className={item.totalIncidents ? "warn" : "ok"}>{item.totalIncidents}</b></td><td><span className={`status status-${item.status.toLowerCase()}`}>{item.status}</span></td><td>{item.hasReport ? "AVAILABLE" : "PENDING"}</td></tr>)}</tbody></table>{filtered.length === 0 && <p className="dashboard-table-empty">No mission matches this view.</p>}</div></section>
+
+    <section className="missions-panel">
+      <header><div><span className="dash-icon">⌁</span><h2>Active Airborne Missions<span>Mission records currently marked InProgress by Flight History API</span></h2></div><label>⌕ <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter active missions" /></label></header>
+      <div className="table-wrap"><table><thead><tr><th>MISSION ID</th><th>UAV ASSET</th><th>ASSIGNED PILOT</th><th>FLIGHT PHASE</th><th>START</th><th>DURATION</th><th>INCIDENTS</th><th>ACTION</th></tr></thead><tbody>
+        {filteredActive.map(item => <tr key={item.missionId} className={item.totalIncidents ? "danger-row" : ""}><td><b className="blue">{item.missionName}</b><span>{item.missionId.slice(0, 8).toUpperCase()}</span></td><td><b>{item.uavCode || "—"}</b><span>{item.uavName || "Unassigned"}</span></td><td>{item.pilotName || "—"}</td><td><span className="phase">{item.status}</span></td><td>{formatDate(item.startTime)}</td><td>{item.durationMinutes.toFixed(0)} min</td><td><b className={item.totalIncidents ? "warn" : "ok"}>{item.totalIncidents}</b></td><td><Link href="/portal/flight-history">OPEN RECORD →</Link></td></tr>)}
+        {filteredActive.length === 0 && <tr><td className="dashboard-table-empty" colSpan={8}>No mission currently has InProgress status.</td></tr>}
+      </tbody></table></div>
+    </section>
+
+    <section className="bottom-grid">
+      <article><header><b>PAYLOAD CAMERA // ACTIVE FEED</b><span>API PENDING</span></header><div className="dashboard-panel-empty"><span>▣</span><strong>LIVE VIDEO UNAVAILABLE</strong><p>The backend does not expose a payload video endpoint.</p></div><footer><span>Source: pending backend integration</span><button disabled>EXPAND VIEW</button></footer></article>
+      <article><header><b>LOCAL WEATHER // SGN-04</b><span>API PENDING</span></header><div className="dashboard-panel-empty"><span>◌</span><strong>WEATHER DATA UNAVAILABLE</strong><p>No weather endpoint is available in the current backend.</p></div><footer><span>Operational weather requires API data</span></footer></article>
+      <article><header><b>{manager ? "GCS CREW ASSIGNMENTS" : "MY UAV ASSIGNMENT"}</b><span>{manager ? "API PENDING" : "BACKEND"}</span></header>{manager ? <div className="dashboard-panel-empty"><span>◎</span><strong>CREW ROSTER UNAVAILABLE</strong><p>The backend does not expose live crew assignments.</p></div> : <ul>{aircraft.length ? aircraft.slice(0, 3).map(item => <li key={item.id}><i /><span>{item.code} · {item.name}</span><b>{item.status}</b></li>) : <li><i className="alert-dot" /><span>No UAV assigned</span><b>—</b></li>}</ul>}<footer><span>{manager ? "Awaiting crew API" : `${aircraft.length} assigned aircraft`}</span></footer></article>
+    </section>
   </PortalShell>;
 }
