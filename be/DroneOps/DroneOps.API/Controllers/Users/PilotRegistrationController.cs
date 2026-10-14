@@ -33,12 +33,16 @@ public class PilotRegistrationController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(new { Message = ex.Message });
+            return BadRequest(new
+            {
+                message = ex.InnerException?.Message ?? ex.Message,
+                detail = ex.InnerException?.ToString()
+            });
         }
     }
 
     /// <summary>
-    /// Lấy danh sách đơn đăng ký (Operation Manager)
+   
     /// </summary>
     [Authorize(Roles = "operation_manager")]
     [HttpGet]
@@ -49,7 +53,7 @@ public class PilotRegistrationController : ControllerBase
     }
 
     /// <summary>
-    /// Lấy chi tiết đơn đăng ký theo ID (Operation Manager)
+    
     /// </summary>
     [Authorize(Roles = "operation_manager")]
     [HttpGet("{id:guid}")]
