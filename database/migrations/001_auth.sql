@@ -9,20 +9,22 @@ INSERT INTO droneops.roles(code, display_name) VALUES
     ('uav_operator', 'UAV Operator / Pilot'),
     ('operations_manager', 'Operations Manager')
 ON CONFLICT (code) DO NOTHING;
-CREATE TABLE IF NOT EXISTS droneops.accounts (
-    id uuid PRIMARY KEY,
-    email text NOT NULL UNIQUE CHECK (email = lower(trim(email))),
-    display_name text NOT NULL CHECK (length(display_name) BETWEEN 1 AND 120),
-    firebase_uid text UNIQUE,
-    role_code text NOT NULL REFERENCES droneops.roles(code),
-    is_active boolean NOT NULL DEFAULT true,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    created_by uuid REFERENCES droneops.accounts(id)
-);
+-- User/Role are supplied by the existing application schema.
+ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS "FirebaseUid" text;
+ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS "IsActive" boolean NOT NULL DEFAULT true;
+ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS "WebAccessProvisioned" boolean NOT NULL DEFAULT false;
+ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS "UpdatedAt" timestamptz NOT NULL DEFAULT now();
+ALTER TABLE public."User" ADD COLUMN IF NOT EXISTS "CreatedBy" uuid REFERENCES public."User"("Id");
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_firebase_uid ON public."User"("FirebaseUid") WHERE "FirebaseUid" IS NOT NULL;
+INSERT INTO public."Role"("Id", "Name", "CreatedAt")
+SELECT gen_random_uuid(), 'OperationsManager', now()
+WHERE NOT EXISTS (SELECT 1 FROM public."Role" WHERE "Name" = 'OperationsManager');
+INSERT INTO public."Role"("Id", "Name", "CreatedAt")
+SELECT gen_random_uuid(), 'Pilot', now()
+WHERE NOT EXISTS (SELECT 1 FROM public."Role" WHERE "Name" = 'Pilot');
 CREATE TABLE IF NOT EXISTS droneops.auth_sessions (
     id uuid PRIMARY KEY,
-    account_id uuid NOT NULL REFERENCES droneops.accounts(id),
+    account_id uuid NOT NULL REFERENCES public."User"("Id"),
     token_hash varchar(64) NOT NULL UNIQUE CHECK (length(token_hash) = 64),
     login_proof_hash varchar(64) NOT NULL UNIQUE CHECK (length(login_proof_hash) = 64),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -33,15 +35,14 @@ CREATE TABLE IF NOT EXISTS droneops.auth_sessions (
 CREATE INDEX IF NOT EXISTS ix_auth_sessions_account ON droneops.auth_sessions(account_id, expires_at) WHERE revoked_at IS NULL;
 CREATE TABLE IF NOT EXISTS droneops.auth_audit (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    actor_id uuid REFERENCES droneops.accounts(id),
-    target_id uuid REFERENCES droneops.accounts(id),
+    actor_id uuid REFERENCES public."User"("Id"),
+    target_id uuid REFERENCES public."User"("Id"),
     action text NOT NULL,
     occurred_at timestamptz NOT NULL DEFAULT now()
 );
 -- This private schema is accessed by the backend connection only, never the Supabase client API.
 REVOKE ALL ON SCHEMA droneops FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA droneops FROM PUBLIC;
-ALTER TABLE droneops.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneops.auth_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneops.auth_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneops.roles ENABLE ROW LEVEL SECURITY;
