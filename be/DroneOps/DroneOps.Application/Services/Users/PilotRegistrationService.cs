@@ -1,4 +1,5 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using DroneOps.Domain;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -152,6 +153,9 @@ public class PilotRegistrationService : IPilotRegistrationService
                 Email = x.Email,
                 PhoneNumber = x.PhoneNumber,
                 DroneType = x.DroneType,
+                DroneModel = x.DroneModel,
+                PilotLicenseNo = x.PilotLicenseNo,
+                UsagePurpose = x.UsagePurpose,
                 Status = x.Status,
                 CreatedAt = x.CreatedAt
             }).ToList(),
@@ -184,8 +188,8 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         var cleanEmail = registration.Email.Trim().ToLowerInvariant();
 
-        // Tìm hoặc khởi tạo Role "Pilot"
-        var pilotRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == "pilot");
+        // Tìm hoặc khởi tạo Role "uav_operator"
+        var pilotRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == "uav_operator");
         Guid roleId;
         if (pilotRole != null)
         {
@@ -196,7 +200,7 @@ public class PilotRegistrationService : IPilotRegistrationService
             var newRole = new Role
             {
                 Id = Guid.NewGuid(),
-                Name = "Pilot",
+                Name = "uav_operator",
                 CreatedAt = DateTimeOffset.UtcNow
             };
             await _context.Roles.AddAsync(newRole);
@@ -225,6 +229,7 @@ public class PilotRegistrationService : IPilotRegistrationService
             user.PasswordHash = registration.PasswordHash;
             _context.Users.Update(user);
         }
+        user.RequiresFirstLogin = true;
         await _context.SaveChangesAsync();
 
         // Tạo bản ghi hồ sơ Pilot liên kết với User
@@ -266,8 +271,8 @@ public class PilotRegistrationService : IPilotRegistrationService
         var otpCode = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
         var cacheKey = $"PILOT_FIRST_LOGIN_OTP_{cleanEmail}";
 
-        // Lưu mã OTP vào Cache (hiệu lực 24 giờ để Pilot có thời gian vào kích hoạt)
-        _cache.Set(cacheKey, otpCode, TimeSpan.FromHours(24));
+        // Lưu mã OTP vào Cache (hiệu lực 10 phút để Pilot có thời gian vào kích hoạt)
+
 
         // Gửi email chúc mừng và cung cấp mã OTP kích hoạt lần đầu
         var emailSubject = "[DroneOps] Pilot Registration Approved - First-Time Login OTP";
@@ -281,12 +286,15 @@ public class PilotRegistrationService : IPilotRegistrationService
                     <p style='margin: 0 0 8px 0;'><strong>Password:</strong> <em>The password you created during registration</em></p>
                     <p style='margin: 0;'><strong>First-Time Login OTP:</strong> <span style='font-size: 24px; font-weight: bold; color: #d93025; letter-spacing: 4px;'>{otpCode}</span></p>
                 </div>
+                <p>This OTP expires in 10 minutes. You can request a new code on the activation screen.</p>
                 <p><em>Please proceed to the First-Time Login screen, enter your registered Email, Password, and the OTP code above to activate your account.</em></p>
                 <br/>
                 <p style='margin: 0; color: #70757a; font-size: 13px;'>Best regards,<br/><strong>DroneOps Intelligence Team</strong></p>
             </div>";
 
         await _emailService.SendEmailAsync(registration.Email, emailSubject, emailBody);
+        _cache.Set(cacheKey, otpCode, TimeSpan.FromMinutes(10));
+        _cache.Set($"PILOT_FIRST_LOGIN_RESEND_{cleanEmail}", true, TimeSpan.FromSeconds(60));
 
         return true;
     }
@@ -296,6 +304,27 @@ public class PilotRegistrationService : IPilotRegistrationService
     // Pilot nhập: Email + Mật khẩu lúc đăng ký + Mã OTP từ email
     // Sau khi thành công, hệ thống xóa OTP và trả về Token JWT
     // =========================================================================
+    private static readonly SemaphoreSlim ResendLock = new(1, 1);
+    public async Task ResendFirstLoginOtpAsync(string email, string password, CancellationToken cancellationToken = default)
+    {
+        var cleanEmail = email.Trim().ToLowerInvariant();
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail, cancellationToken);
+        if (user is null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+            throw new Exception("Invalid email or password.");
+        if (!user.RequiresFirstLogin) throw new Exception("This account is already activated. Sign in normally.");
+        await ResendLock.WaitAsync(cancellationToken);
+        try
+        {
+            var cooldown = $"PILOT_FIRST_LOGIN_RESEND_{cleanEmail}";
+            if (_cache.TryGetValue(cooldown, out _)) throw new Exception("Wait 60 seconds before requesting another OTP.");
+            var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+            await _emailService.SendEmailAsync(cleanEmail, "DroneOps - First-Time Login OTP", $"<p>Your activation OTP is <strong>{code}</strong>. It expires in 10 minutes. Any previous code is no longer valid.</p>");
+            _cache.Set($"PILOT_FIRST_LOGIN_OTP_{cleanEmail}", code, TimeSpan.FromMinutes(10));
+            _cache.Set(cooldown, true, TimeSpan.FromSeconds(60));
+        }
+        finally { ResendLock.Release(); }
+    }
+
     public async Task<LoginResponse> FirstTimeLoginAsync(PilotFirstTimeLoginRequest request, CancellationToken cancellationToken = default)
     {
         var cleanEmail = request.Email.Trim().ToLowerInvariant();
@@ -317,6 +346,12 @@ public class PilotRegistrationService : IPilotRegistrationService
             throw new Exception("Invalid password.");
         }
 
+        if (!user.RequiresFirstLogin)
+            throw new Exception("This account is already activated. Sign in normally.");
+        var attemptsKey = $"PILOT_FIRST_LOGIN_ATTEMPTS_{cleanEmail}";
+        if (_cache.Get<int>(attemptsKey) >= 5)
+            throw new Exception("Too many incorrect OTP attempts. Try again in 15 minutes.");
+
         // 3. Kiểm tra mã OTP gửi về email
         var cacheKey = $"PILOT_FIRST_LOGIN_OTP_{cleanEmail}";
         if (!_cache.TryGetValue(cacheKey, out string? cachedOtp) || string.IsNullOrEmpty(cachedOtp))
@@ -326,11 +361,16 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         if (!string.Equals(cachedOtp, request.Otp.Trim(), StringComparison.OrdinalIgnoreCase))
         {
+            _cache.Set(attemptsKey, _cache.Get<int>(attemptsKey) + 1, TimeSpan.FromMinutes(15));
             throw new Exception("Invalid OTP code. Please check your email and try again.");
         }
 
         // 4. Xác thực thành công -> Xóa mã OTP khỏi Cache (các lần sau không cần OTP nữa)
+        var activated = await _context.Users.Where(u => u.Id == user.Id && u.RequiresFirstLogin)
+            .ExecuteUpdateAsync(update => update.SetProperty(u => u.RequiresFirstLogin, false), cancellationToken);
+        if (activated != 1) throw new Exception("This account is already activated. Sign in normally.");
         _cache.Remove(cacheKey);
+        _cache.Remove(attemptsKey);
 
         // 5. Tạo JWT Token đăng nhập trực tiếp vào hệ thống
         var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes);
@@ -345,7 +385,7 @@ public class PilotRegistrationService : IPilotRegistrationService
                 Id = user.Id,
                 FullName = user.FullName,
                 Email = user.Email,
-                Role = user.Role?.Name ?? "Pilot"
+                Role = CanonicalRoles.Normalize(user.Role?.Name ?? "uav_operator")
             }
         };
     }
@@ -406,7 +446,7 @@ public class PilotRegistrationService : IPilotRegistrationService
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.FullName),
             new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Role, user.Role?.Name ?? "Pilot"),
+            new(ClaimTypes.Role, CanonicalRoles.Normalize(user.Role?.Name ?? "uav_operator")),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

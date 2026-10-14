@@ -3,7 +3,7 @@ namespace DroneOps.Persistence.Auth;
 public static class AccountRoles
 {
     public const string Operator = "uav_operator";
-    public const string Manager = "operations_manager";
+    public const string Manager = "operation_manager";
     public static bool IsValid(string role) => role is Operator or Manager;
 }
 

@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.DTOs.Response.Telemetry;
@@ -11,7 +11,7 @@ namespace DroneOps.API.Controllers;
 
 [ApiController]
 [Route("api/missions")]
-[Authorize(Roles = "Pilot,operation_manager")]
+[Authorize(Roles = "uav_operator")]
 public sealed class MissionsController : ControllerBase
 {
     private readonly IMissionService _missionService;

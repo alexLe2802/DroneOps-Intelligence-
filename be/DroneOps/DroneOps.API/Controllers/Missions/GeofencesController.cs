@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.Geofences;
+using DroneOps.Application.DTOs.Request.Geofences;
 using DroneOps.Application.DTOs.Response.Geofences;
 using DroneOps.Application.Interfaces.Geofences;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +20,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "operation_manager,Pilot")]
+    [Authorize(Roles = "operation_manager,uav_operator")]
     public async Task<ActionResult<List<GeofenceResponse>>> GetAllAsync(
         CancellationToken cancellationToken)
     {
@@ -32,7 +32,7 @@ public class GeofencesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = "operation_manager,Pilot")]
+    [Authorize(Roles = "operation_manager,uav_operator")]
     public async Task<ActionResult<GeofenceResponse>> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken)
