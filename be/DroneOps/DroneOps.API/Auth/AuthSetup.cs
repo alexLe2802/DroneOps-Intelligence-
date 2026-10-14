@@ -39,7 +39,7 @@ public static class AuthSetup
         });
         services.AddAuthentication(SessionAuthenticationHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, SessionAuthenticationHandler>(SessionAuthenticationHandler.SchemeName, _ => { });
-        services.AddAuthorization(o => o.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+        services.AddAuthorization();
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = 429;
@@ -66,7 +66,7 @@ public static class AuthSetup
                 // Do not serialize/log tokens, credentials, SQL parameters, or upstream error bodies.
                 context.RequestServices.GetRequiredService<ILoggerFactory>()
                     .CreateLogger("DroneOps.AuthDependencies")
-                    .LogWarning("An authentication dependency failed with {ExceptionType}.", e.GetType().Name);
+                    .LogWarning("An authentication dependency failed with {ExceptionType}; inner type {InnerType}.", e.GetType().Name, e.InnerException?.GetType().Name);
                 context.Response.StatusCode = 503;
                 await context.Response.WriteAsJsonAsync(new { code = "auth_unavailable", message = "Sign-in services are temporarily unavailable. Please try again later." });
             }
@@ -77,7 +77,20 @@ public static class AuthSetup
     {
         app.Use(async (context, next) =>
         {
-            if (context.Request.Path.StartsWithSegments("/api") &&
+            // Password endpoints return JWTs; they do not authenticate using
+            // ambient Firebase cookies that Swagger may send on localhost.
+            var passwordEndpoint = context.Request.Path.Value is
+                "/api/auth/login" or "/api/auth/register" or "/api/auth/verify-register" or
+                "/api/auth/forgot-password" or "/api/auth/reset-password" or
+                "/api/pilot-registrations/first-time-login" or
+                "/api/pilot-registrations/first-time-login/resend-otp";
+            var bearer = context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+            if (!passwordEndpoint && !bearer && (context.Request.Path.StartsWithSegments("/api/accounts") ||
+                 context.Request.Path.StartsWithSegments("/api/auth") &&
+                 context.Request.Path.Value is not ("/api/auth/login" or "/api/auth/register" or "/api/auth/verify-register" or "/api/auth/forgot-password" or "/api/auth/reset-password") ||
+                 context.Request.Path.StartsWithSegments("/api") &&
+                 context.Request.Cookies.ContainsKey(context.RequestServices.GetRequiredService<SessionCookies>().Name) &&
+                 !context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) &&
                 !HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method) && !HttpMethods.IsOptions(context.Request.Method))
             {
                 var origin = context.RequestServices.GetRequiredService<IOptions<AuthSettings>>().Value.PublicOrigin;
