@@ -15,7 +15,15 @@ export type PilotMission = {
   latestVersion: number;
 };
 
-export type WaypointAction = "FlyThrough" | "Hover" | "Photo" | "Land";
+export type PagedResponse<T> = {
+  items: T[];
+  pageNumber: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
 export type MissionWaypoint = {
   sequenceOrder: number;
   latitude: number;
@@ -31,10 +39,9 @@ export type CreateMissionRequest = {
   endTime: string;
   waypoints: MissionWaypoint[];
 };
-export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[] };
+export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[]; detailAvailable?: boolean };
 
-export type UavStatus = "Available" | "Assigned" | "InFlight" | "Maintenance" | "Offline";
-export type UavApprovalStatus = "Approved" | "PendingCreate" | "PendingUpdate";
+export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
 export type AssignedUav = {
   id: string;
@@ -42,16 +49,33 @@ export type AssignedUav = {
   name: string;
   model: string | null;
   status: UavStatus;
-  batteryPercent: number | null;
-  lastTelemetryAt: string | null;
-  assignedMissionId: string | null;
+  pilotId: string;
+  pilotName: string;
   createdAt: string;
-  approvalStatus: UavApprovalStatus;
 };
 
 // Mirrors the writable fields on DroneOps.Domain.Entities.UAV.
 export type CreateUavRequest = { code: string; name: string; model: string | null };
 export type UpdateUavRequest = CreateUavRequest;
+
+export type FlightHistoryItem = {
+  missionId: string; missionName: string; status: string; uavId: string | null;
+  uavName: string; uavCode: string; pilotName: string; startTime: string | null;
+  endTime: string | null; durationMinutes: number; totalIncidents: number; hasReport: boolean;
+};
+export type OperationalAnalytics = {
+  totalFlights: number; completedFlights: number; abortedOrFailedFlights: number;
+  totalFlightHours: number; totalDistanceKilometers: number; totalIncidentsRecorded: number;
+  successRatePercentage: number;
+};
+export type FlightTelemetryPoint = {
+  latitude: number | null; longitude: number | null; altitude: number | null;
+  speed: number | null; batteryLevel: number | null; recordedAt: string;
+};
+export type GeofenceCoordinate = { latitude: number; longitude: number };
+export type GeofenceRequest = { name: string; description: string | null; coordinates: GeofenceCoordinate[] };
+export type Geofence = { id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
+export type SaveGeofenceRequest = { name: string; description: string | null; coordinates: GeofenceCoordinate[] };
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {
@@ -87,3 +111,11 @@ export type AiAssessment = {
 };
 
 export type PortalRole = AccountRole;
+
+export type PilotProfile = {
+  userId: string; fullName: string; email: string; createdAt: string;
+  pilotId: string; phoneNumber: string | null; dateOfBirth: string | null;
+  pilotLicenseNo: string; licenseIssuedDate: string | null;
+  licenseExpiredDate: string | null; experienceYears: number;
+  droneType: string | null; droneModel: string | null;
+};

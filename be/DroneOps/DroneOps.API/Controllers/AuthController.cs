@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Auth;
+using DroneOps.Application.DTOs.Request.Auth;
 using DroneOps.Application.Interfaces.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -41,6 +41,7 @@ public class AuthController : ControllerBase
             });
         }
 
+        if (result.RequiresFirstLogin) return Ok(new { code = "first_login_required", requiresFirstLogin = true, message = "Enter the OTP from your approval email to activate your account." });
         return Ok(result);
     }
 
@@ -71,32 +72,7 @@ public class AuthController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Đăng ký tài khoản PILOT / USER (gán role Pilot)
-    /// </summary>
-    [AllowAnonymous]
-    [HttpPost("register-pilot")]
-    public async Task<IActionResult> RegisterPilot(
-        [FromBody] RegisterRequest request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var message = await _authService.RegisterPilotAsync(request, cancellationToken);
-            return Ok(new
-            {
-                Message = message
-            });
-        }
-        catch (Exception ex)
-        {
-            var detail = ex.InnerException != null ? $"{ex.Message} ({ex.InnerException.Message})" : ex.Message;
-            return BadRequest(new
-            {
-                Message = detail
-            });
-        }
-    }
+
 
     /// <summary>
     /// Xác thực mã OTP để kích hoạt tài khoản
@@ -123,6 +99,56 @@ public class AuthController : ControllerBase
             {
                 Message = detail
             });
+        }
+    }
+
+    /// <summary>
+    /// Quên mật khẩu: Gửi mã OTP xác nhận về email (Áp dụng chung cho cả Admin và Pilot)
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _authService.ForgotPasswordAsync(request, cancellationToken);
+            return Ok(new
+            {
+                Success = result,
+                Message = "Verification code has been sent to your email."
+            });
+        }
+        catch (Exception ex)
+        {
+            var detail = ex.InnerException != null ? $"{ex.Message} ({ex.InnerException.Message})" : ex.Message;
+            return BadRequest(new { Message = detail });
+        }
+    }
+
+    /// <summary>
+    /// Đặt lại mật khẩu mới bằng mã OTP
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _authService.ResetPasswordAsync(request, cancellationToken);
+            return Ok(new
+            {
+                Success = result,
+                Message = "Password has been reset successfully. You can now login with your new password."
+            });
+        }
+        catch (Exception ex)
+        {
+            var detail = ex.InnerException != null ? $"{ex.Message} ({ex.InnerException.Message})" : ex.Message;
+            return BadRequest(new { Message = detail });
         }
     }
 }

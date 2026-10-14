@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS droneops.ai_assessments (
     id uuid PRIMARY KEY,
     mission_ref varchar(80) NOT NULL,
     mission_version integer NOT NULL CHECK (mission_version > 0),
-    requested_by uuid NOT NULL REFERENCES droneops.accounts(id),
+    requested_by uuid NOT NULL REFERENCES public."User"("Id"),
     provider varchar(40) NOT NULL,
     model varchar(120) NOT NULL,
     context_hash varchar(64) NOT NULL CHECK (length(context_hash) = 64),

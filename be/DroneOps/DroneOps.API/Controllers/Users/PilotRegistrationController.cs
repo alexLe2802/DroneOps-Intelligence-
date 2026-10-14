@@ -1,0 +1,144 @@
+using Microsoft.AspNetCore.RateLimiting;
+using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.Interfaces.Users;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace DroneOps.API.Controllers;
+
+[ApiController]
+[Route("api/pilot-registrations")]
+public class PilotRegistrationController : ControllerBase
+{
+    private readonly IPilotRegistrationService _service;
+
+    public PilotRegistrationController(IPilotRegistrationService service)
+    {
+        _service = service;
+    }
+
+    /// <summary>
+    /// Nộp đơn đăng ký Pilot (kèm mật khẩu tự đặt)
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost]
+    public async Task<IActionResult> Register(CreatePilotRegistrationRequest request)
+    {
+        try
+        {
+            await _service.RegisterAsync(request);
+            return Ok(new
+            {
+                Message = "Registration submitted successfully."
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Lấy danh sách đơn đăng ký (Admin)
+    /// </summary>
+    [Authorize(Roles = "operation_manager")]
+    [HttpGet]
+    public async Task<IActionResult> GetAll([FromQuery] GetPilotRegistrationsRequest request)
+    {
+        var result = await _service.GetAllAsync(request);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Lấy chi tiết đơn đăng ký theo ID (Admin)
+    /// </summary>
+    [Authorize(Roles = "operation_manager")]
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetDetail(Guid id)
+    {
+        var result = await _service.GetDetailAsync(id);
+        if (result == null)
+        {
+            return NotFound(new { Message = "Pilot registration not found." });
+        }
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Duyệt đơn Pilot: Dùng mật khẩu gốc tạo User + gửi mã OTP xác thực đăng nhập lần đầu qua Email (Admin)
+    /// </summary>
+    [Authorize(Roles = "operation_manager")]
+    [HttpPost("{id:guid}/approve")]
+    public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovePilotRegistrationRequest? request)
+    {
+        try
+        {
+            var result = await _service.ApprovePilotRegistrationAsync(id, request);
+            return Ok(new
+            {
+                Success = result,
+                Message = "Registration approved. OTP has been sent to the pilot's email."
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Từ chối đơn Pilot kèm lý do -> Gửi email thông báo (Admin)
+    /// </summary>
+    [Authorize(Roles = "operation_manager")]
+    [HttpPost("{id:guid}/reject")]
+    public async Task<IActionResult> Reject(Guid id, [FromBody] RejectPilotRegistrationRequest request)
+    {
+        try
+        {
+            var result = await _service.RejectPilotRegistrationAsync(id, request);
+            return Ok(new
+            {
+                Success = result,
+                Message = "Registration rejected and notification email has been sent."
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Đăng nhập lần đầu cho Pilot: Nhập Email + Mật khẩu đã đăng ký + Mã OTP gửi về email
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("first-time-login/resend-otp")]
+    [EnableRateLimiting("login")]
+    public async Task<IActionResult> ResendFirstLoginOtp([FromBody] DroneOps.Application.DTOs.Request.Auth.LoginRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            return BadRequest(new { message = "Email and password are required." });
+        try
+        {
+            await _service.ResendFirstLoginOtpAsync(request.Email, request.Password, cancellationToken);
+            return Ok(new { message = "A new OTP has been emailed. It expires in 10 minutes.", expiresInSeconds = 600, retryAfterSeconds = 60 });
+        }
+        catch (Exception e) { return BadRequest(new { message = e.Message }); }
+    }
+
+    [AllowAnonymous]
+    [HttpPost("first-time-login")]
+    [EnableRateLimiting("login")]
+    public async Task<IActionResult> FirstTimeLogin([FromBody] PilotFirstTimeLoginRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _service.FirstTimeLoginAsync(request, cancellationToken);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+}

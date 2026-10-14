@@ -1,4 +1,5 @@
-﻿using DroneOps.Application.DTOs.Users;
+﻿using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.DTOs.Response.Users;
 using DroneOps.Application.Interfaces.Users;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
@@ -8,10 +9,14 @@ namespace DroneOps.Application.Services.Users;
 public sealed class UserService : IUserService
 {
     private readonly IUserRepository _userRepository;
+    private readonly IPilotRepository _pilotRepository;
 
-    public UserService(IUserRepository userRepository)
+    public UserService(
+        IUserRepository userRepository,
+        IPilotRepository pilotRepository)
     {
         _userRepository = userRepository;
+        _pilotRepository = pilotRepository;
     }
 
     public async Task<UserProfileResponse?> GetProfileAsync(
@@ -89,6 +94,44 @@ public sealed class UserService : IUserService
             Email = user.Email,
             Role = user.Role.Name,
             CreatedAt = user.CreatedAt
+        };
+    }
+    public async Task<PilotProfileResponse?>
+     GetPilotProfileAsync(
+         Guid userId,
+         CancellationToken cancellationToken = default)
+    {
+        var pilot = await _pilotRepository
+            .GetByUserIdAsync(
+                userId,
+                cancellationToken);
+
+        if (pilot is null)
+        {
+            return null;
+        }
+
+        return new PilotProfileResponse
+        {
+            UserId = pilot.User.Id,
+
+            PilotId = pilot.Id,
+
+            FullName = pilot.User.FullName,
+
+            Email = pilot.User.Email,
+
+            PhoneNumber = pilot.PhoneNumber,
+
+            DateOfBirth = pilot.DateOfBirth,
+
+            PilotLicenseNo = pilot.PilotLicenseNo,
+
+            LicenseIssuedDate = pilot.LicenseIssuedDate,
+
+            LicenseExpiredDate = pilot.LicenseExpiredDate,
+
+            ExperienceYears = pilot.ExperienceYears
         };
     }
 }

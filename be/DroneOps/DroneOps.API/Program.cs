@@ -1,11 +1,13 @@
-using System.Text;
-using DroneOps.API.Auth;
-using DroneOps.API.HealthChecks;
+using DroneOps.Domain;
+using System.Security.Claims;
 using DroneOps.API.AI;
+using DroneOps.API.Auth;
+using System.Text;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
 using DroneOps.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -14,7 +16,7 @@ var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
 
-// Local development secrets are ignored by Git. Deployment settings override them.
+// Các thiết lập bảo mật local được nạp khi chạy môi trường Development
 if (builder.Environment.IsDevelopment())
 {
     builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
@@ -29,24 +31,21 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "Configure ConnectionStrings__DefaultConnection or development appsettings.Local.json.");
 }
 
-// One application-managed data source, disposed with the DI container.
+// Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
-builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseHealthCheck>("postgres", timeout: TimeSpan.FromSeconds(10));
-
 builder.Services.Configure<AiSettings>(builder.Configuration.GetSection(AiSettings.SectionName));
 builder.Services.AddHttpClient<IAiAssessmentClient, GeminiAssessmentClient>(client =>
 {
     client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
     client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Ai:TimeoutSeconds", 30));
 });
-
-
-builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// 1. Cấu hình "Cái Khóa" (Authorize button) trên giao diện Swagger
+// Đăng ký dịch vụ Rate Limiting để hỗ trợ app.UseRateLimiter() hoạt động ổn định
+builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
+
+// 1. Cấu hình "Cái Khóa" (Authorize button) trên giao diện Swagger UI
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
@@ -54,6 +53,9 @@ builder.Services.AddSwaggerGen(options =>
         Title = "DroneOps.API",
         Version = "v1"
     });
+
+    // Dùng Full Name (kèm Namespace) làm SchemaId để tránh xung đột tên giữa các lớp Request DTO
+    options.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
 
     // Định nghĩa chuẩn xác thực JWT Bearer cho Swagger
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -63,10 +65,10 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Dán chuỗi accessToken nhận được sau khi Login vào đây."
+        Description = "Paste your JWT accessToken received after login here (Swagger will automatically prefix with Bearer)."
     });
 
-    // Yêu cầu Swagger tự động đính kèm Token vào Header khi gọi API
+    // Tự động đính kèm Token vào Header khi gọi API trên Swagger
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -86,7 +88,8 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddApplicationServices();
 builder.Services.AddPersistenceServices(builder.Configuration);
 
-// 2. Kích hoạt JWT cho API clients, đồng thời giữ FirebaseSession cho web.
+// 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
+// Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container
 var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
 builder.Services.Configure<JwtSettings>(jwtSection);
 var jwtSettings = jwtSection.Get<JwtSettings>()
@@ -108,23 +111,51 @@ builder.Services.AddAuthentication(options =>
 {
     options.RequireHttpsMetadata = false;
     options.SaveToken = true;
+    options.IncludeErrorDetails = true; // Bật thông báo chi tiết nếu xác thực không thành công
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
+        // Kiểm tra chữ ký bảo mật hợp lệ
         ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key)),
+
+        // Kiểm tra đúng nguồn cấp (Issuer) và đối tượng nhận (Audience)
+        ValidateIssuer = true,
         ValidIssuer = jwtSettings.Issuer,
+        ValidateAudience = true,
         ValidAudience = jwtSettings.Audience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
+
+        // Kiểm tra hạn sử dụng của Token
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.FromMinutes(1) // Cho phép độ trễ đồng hồ tối đa 1 phút
+    };
+
+    // Bắt sự kiện lỗi xác thực và in ra Console để dễ theo dõi
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = context =>
+        {
+            if (context.Principal?.Identity is ClaimsIdentity identity)
+                foreach (var claim in identity.FindAll(identity.RoleClaimType).ToArray())
+                {
+                    var normalized = CanonicalRoles.Normalize(claim.Value);
+                    if (normalized == claim.Value) continue;
+                    identity.RemoveClaim(claim);
+                    identity.AddClaim(new Claim(identity.RoleClaimType, normalized));
+                }
+            return Task.CompletedTask;
+        },
+        OnAuthenticationFailed = context =>
+        {
+            Console.WriteLine($"\n>>> [JWT AUTHENTICATION ERROR]: {context.Exception.Message}\n");
+            return Task.CompletedTask;
+        }
     };
 });
 
 #endregion
 
 var app = builder.Build();
-
-#region Middleware
 
 if (await AuthDatabaseCommands.RunAsync(args, app.Services, app.Configuration)) return;
 app.UseAuthErrorHandling();
@@ -137,14 +168,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
+
+
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthCsrfProtection();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health/database").AllowAnonymous();
-
-#endregion
 
 app.Run();

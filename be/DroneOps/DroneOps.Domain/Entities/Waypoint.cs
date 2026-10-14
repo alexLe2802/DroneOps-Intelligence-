@@ -1,10 +1,13 @@
-﻿namespace DroneOps.Domain.Entities;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
-public class Waypoint
+namespace DroneOps.Domain.Entities;
+
+[Table("Waypoint")]
+public sealed class Waypoint
 {
     public Guid Id { get; set; }
 
-    public Guid MissionVersionId { get; set; }
+    public Guid MissionId { get; set; }
 
     public int SequenceOrder { get; set; }
 
@@ -16,7 +19,7 @@ public class Waypoint
 
     public string? ActionType { get; set; }
 
-    public DateTimeOffset CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 
-    public MissionVersion MissionVersion { get; set; } = null!;
+    public Mission? Mission { get; set; }
 }
