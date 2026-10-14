@@ -23,6 +23,7 @@ using Microsoft.Extensions.DependencyInjection;
 using DroneOps.Application.Interfaces.Incidents;
 using DroneOps.Application.Services.Incidents;
 
+
 namespace DroneOps.Application;
 
 public static class DependencyInjection
@@ -48,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IPostFlightService, PostFlightService>();
         services.AddScoped<ITelemetryIngestionService, TelemetryIngestionService>();
         services.AddScoped<IIncidentService, IncidentService>();
+        services.AddScoped<IMissionApprovalService, MissionApprovalService>();
         services.AddHttpClient<
 IAIService,
 OpenAIService>(client =>
