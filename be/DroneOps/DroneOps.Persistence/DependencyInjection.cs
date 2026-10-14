@@ -22,6 +22,10 @@ public static class DependencyInjection
             .GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException(
                 "DefaultConnection is missing.");
+
+        services.AddSingleton<NpgsqlDataSource>(_ =>
+            PostgresDataSourceFactory.Create(connectionString));
+
         services.AddDbContext<AppDbContext>((serviceProvider, options) =>
         {
             var dataSource = serviceProvider
@@ -38,20 +42,19 @@ public static class DependencyInjection
                 });
         });
 
-        
         services.AddScoped(
             typeof(IGenericRepository<>),
             typeof(GenericRepository<>));
 
-    
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IPilotRepository, PilotRepository>();
-        services.AddScoped<IPilotRegistrationRepository,PilotRegistrationRepository>();
-        services.AddScoped<IUavRepository,UavRepository>();
+        services.AddScoped<IPilotRegistrationRepository, PilotRegistrationRepository>();
+        services.AddScoped<IUavRepository, UavRepository>();
         services.AddScoped<IMissionRepository, MissionRepository>();
         services.AddScoped<IGeofenceRepository, GeofenceRepository>();
-        services.AddScoped< IMissionSuggestionRepository, MissionSuggestionRepository>();
+        services.AddScoped<IMissionSuggestionRepository, MissionSuggestionRepository>();
         services.AddScoped<IPostFlightRepository, PostFlightRepository>();
+
         return services;
     }
 }

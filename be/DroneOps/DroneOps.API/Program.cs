@@ -28,13 +28,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
-builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
-builder.Services.Configure<AiSettings>(builder.Configuration.GetSection(AiSettings.SectionName));
-builder.Services.AddHttpClient<IAiAssessmentClient, GeminiAssessmentClient>(client =>
-{
-    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
-    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Ai:TimeoutSeconds", 30));
-});
+//builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -119,18 +113,6 @@ builder.Services.AddAuthentication(options =>
     // Bắt sự kiện lỗi xác thực và in ra Console để dễ theo dõi
     options.Events = new JwtBearerEvents
     {
-        OnTokenValidated = context =>
-        {
-            if (context.Principal?.Identity is ClaimsIdentity identity)
-                foreach (var claim in identity.FindAll(identity.RoleClaimType).ToArray())
-                {
-                    var normalized = CanonicalRoles.Normalize(claim.Value);
-                    if (normalized == claim.Value) continue;
-                    identity.RemoveClaim(claim);
-                    identity.AddClaim(new Claim(identity.RoleClaimType, normalized));
-                }
-            return Task.CompletedTask;
-        },
         OnAuthenticationFailed = context =>
         {
             Console.WriteLine($"\n>>> [JWT AUTHENTICATION ERROR]: {context.Exception.Message}\n");
@@ -138,6 +120,8 @@ builder.Services.AddAuthentication(options =>
         }
     };
 });
+
+builder.Services.AddAuthorization();
 
 #endregion
 
