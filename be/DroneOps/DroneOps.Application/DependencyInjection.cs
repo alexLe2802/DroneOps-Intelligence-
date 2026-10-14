@@ -3,21 +3,23 @@ using DroneOps.Application.Interfaces.Auth;
 using DroneOps.Application.Interfaces.Geofences;
 using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Interfaces.PostFlight;
+using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Application.Interfaces.UAVs;
 using DroneOps.Application.Interfaces.Users;
 using DroneOps.Application.Services;
 using DroneOps.Application.Services.Auth;
 using DroneOps.Application.Services.Missions;
 using DroneOps.Application.Services.PostFlight;
+using DroneOps.Application.Services.Telemetry;
 using DroneOps.Application.Services.UAVs;
 using DroneOps.Application.Services.Users;
 using DroneOps.Application.Validators.Users;
+using DroneOps.Persistence.Interfaces;
 using DroneOps.Persistence.Repositories;
 using DroneOps.Persistence.Services.AI;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.Extensions.DependencyInjection;
-using DroneOps.Persistence.Interfaces;
 
 namespace DroneOps.Application;
 
@@ -42,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IMissionService, MissionService>();
         services.AddScoped<IMissionSuggestionService,MissionSuggestionService>();
         services.AddScoped<IPostFlightService, PostFlightService>();
+        services.AddScoped<ITelemetryIngestionService, TelemetryIngestionService>();
         services.AddHttpClient<
 IAIService,
 OpenAIService>(client =>
