@@ -18,17 +18,21 @@ export default function PortalShell({ account, children, dashboard = false, acti
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => { cancelAnimationFrame(frame); clearInterval(timer); };
   }, []);
-  const manager = account.role === "operations_manager";
+  const manager = account.role === "operation_manager";
   const nav = manager ? managerNavItems : operatorNavItems;
   return <div className={`ops-shell${dashboard ? "" : " module-shell"}`}>
     <aside className="ops-sidebar">
       <Link className="ops-brand" href="/portal"><Image src="/droneops-logo.svg" width={34} height={34} alt="" priority /><div><b>DRONEOPS</b><span>INTELLIGENCE</span></div></Link>
       <div className="airspace-label"><span>ACTIVE AIRSPACE</span><b>UTM SECTOR 04</b></div>
-      <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{nav.map(([icon, label, badge], index) => {
+      <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{nav.map(([icon, label, badge]) => {
         const href =
           label === "Operators" ? "/portal/operators" :
+          label === "UAV Management" ? "/portal/uav-management" :
+          label === "Mission Planning" ? "/portal/mission-planning" :
           label === "Dashboard" || label === "My Dashboard" ? "/portal" :
           label === "AI Risk Assessment" ? "/portal/ai-assessment" :
+          label === "Flight History & Reports" || label === "Flight History" ? "/portal/flight-history" :
+          label === "Fleet & Restrictions" || label === "Validation Results" ? "/portal/geofences" :
           !manager && label === "My Missions" ? "/portal/missions" :
           !manager && label === "Assigned UAV" ? "/portal/uav" :
           null;

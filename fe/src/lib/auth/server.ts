@@ -1,32 +1,33 @@
 import "server-only";
 import { cookies } from "next/headers";
-import type { AuthSession } from "./types";
+import type { AuthSession, AccountRole } from "./types";
 
+export const accessCookie = process.env.NODE_ENV === "production" ? "__Host-droneops_access" : "droneops_access";
 export function backendUrl() {
   const url = new URL(process.env.API_BASE_URL ?? "http://localhost:5159");
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/")
-    throw new Error("API_BASE_URL must be a trusted backend origin.");
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/") throw new Error("API_BASE_URL must be a trusted backend origin.");
   return url.origin;
 }
-
-export async function readSession(): Promise<AuthSession | null> {
-  const jar = await cookies();
-  const name = process.env.NODE_ENV === "production" ? "__Host-droneops_session" : "droneops_session";
-  const cookie = jar.get(name);
-  if (!cookie) return null;
-  const request = () => fetch(`${backendUrl()}/api/auth/me`, {
-    headers: { Cookie: `${name}=${cookie.value}` }, cache: "no-store", signal: AbortSignal.timeout(20000),
-  });
-  let response: Response;
-  try {
-    response = await request();
-  } catch (error) {
-    // Firebase revocation verification can be slow on its first request while the
-    // Admin SDK establishes its upstream connection. Retry this idempotent read once.
-    if (!(error instanceof DOMException && error.name === "TimeoutError")) throw error;
-    response = await request();
-  }
+export function canonicalRole(role: string): AccountRole | null {
+  if (["uav_operator", "Pilot"].includes(role)) return "uav_operator";
+  if (["operation_manager", "operations_manager", "OperationsManager", "Admin", "SystemAdmin"].includes(role)) return "operation_manager";
+  return null;
+}
+export async function sessionFromToken(token: string): Promise<AuthSession | null> {
+  // The backend verifies signature/expiry; JWT decoding below only extracts expiry after verification.
+  const response = await fetch(`${backendUrl()}/api/users/profile`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(20000) });
   if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) throw new Error("Authentication service is unavailable.");
-  return response.json();
+  const profile = await response.json();
+  const role = canonicalRole(profile.role);
+  if (!role) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    if (!Number.isFinite(claims.exp) || claims.exp * 1000 <= Date.now()) return null;
+    return { account: { id: profile.id, email: profile.email, displayName: profile.fullName, role, isActive: true }, expiresAt: new Date(claims.exp * 1000).toISOString() };
+  } catch { return null; }
+}
+export async function readSession(): Promise<AuthSession | null> {
+  const token = (await cookies()).get(accessCookie)?.value;
+  return token ? sessionFromToken(token) : null;
 }

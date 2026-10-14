@@ -5,12 +5,12 @@ export function proxy(request: NextRequest) {
   const dev = process.env.NODE_ENV === "development";
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://apis.google.com${dev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'", // Existing drone uses style attributes; scripts still require nonces.
-    "img-src 'self' data: blob: https://tiles.openfreemap.org https://tile.openstreetmap.org", "font-src 'self'",
-    `connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://droneops-intelligence.firebaseapp.com https://tiles.openfreemap.org${dev ? " ws://localhost:* ws://127.0.0.1:*" : ""}`,
+    "img-src 'self' data: blob: https://server.arcgisonline.com", "font-src 'self'",
+    `connect-src 'self' https://server.arcgisonline.com${dev ? " ws://localhost:* ws://127.0.0.1:*" : ""}`,
     "worker-src 'self' blob:",
-    "frame-src https://droneops-intelligence.firebaseapp.com https://accounts.google.com",
+    "frame-src 'none'",
     "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
     ...(dev ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");
@@ -27,4 +27,4 @@ export function proxy(request: NextRequest) {
   if (!dev) response.headers.set("Strict-Transport-Security", "max-age=31536000");
   return response;
 }
-export const config = { matcher: ["/", "/login", "/portal/:path*"] };
+export const config = { matcher: ["/", "/login", "/login/:path*", "/portal/:path*"] };

@@ -1,3 +1,9 @@
+> Current storage: backend authentication/account/profile queries use `public."User"`
+> joined to `public."Role"`. Firebase UID and web access flags are stored on User.
+> `Pilot` maps to `uav_operator`; `OperationsManager` maps to `operations_manager`.
+> Authentication and AI audit/session tables remain in the `droneops` schema.
+> The obsolete `droneops.accounts` table is no longer required by backend queries.
+
 # Firebase authentication and application sessions
 
 ## Scope and roles
