@@ -1,7 +1,9 @@
-﻿namespace DroneOps.Application.DTOs.Response.Auth;
+namespace DroneOps.Application.DTOs.Response.Auth;
 
 public class LoginResponse
 {
+    public bool RequiresFirstLogin { get; set; }
+
     public string AccessToken { get; set; } = string.Empty;
 
     public DateTime ExpiresAt { get; set; }

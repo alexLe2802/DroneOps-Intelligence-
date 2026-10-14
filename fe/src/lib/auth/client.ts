@@ -20,7 +20,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     const validationMessage = problem?.errors && typeof problem.errors === "object"
       ? Object.values(problem.errors).flat().find((value): value is string => typeof value === "string")
       : undefined;
-    throw new ApiError(problem?.message ?? validationMessage ?? (response.status === 429 ? "Too many sign-in attempts. Please wait a minute." : "Request failed. Please try again."), response.status);
+    throw new ApiError(problem?.message ?? problem?.Message ?? validationMessage ?? (response.status === 429 ? "Too many sign-in attempts. Please wait a minute." : "Request failed. Please try again."), response.status);
   }
   return response.status === 204 ? undefined as T : response.json();
 }
