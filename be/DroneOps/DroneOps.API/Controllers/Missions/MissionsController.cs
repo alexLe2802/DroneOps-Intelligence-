@@ -11,7 +11,7 @@ namespace DroneOps.API.Controllers;
 
 [ApiController]
 [Route("api/missions")]
-[Authorize(Roles = "uav_operator")]
+[Authorize(Roles = "Pilot,operation_manager,uav_operator,operations_manager")]
 public sealed class MissionsController : ControllerBase
 {
     private readonly IMissionService _missionService;
@@ -26,13 +26,11 @@ public sealed class MissionsController : ControllerBase
     }
 
     /// <summary>
-    /// Tạo nhiệm vụ bay mới (Chỉ dành cho Pilot)
+    /// Tạo nhiệm vụ bay mới (Dành cho Phi công)
     /// </summary>
     [HttpPost]
-    [Authorize(Roles = "Pilot")]
-    [ProducesResponseType(
-        typeof(MissionResponse),
-        StatusCodes.Status201Created)]
+    [Authorize(Roles = "Pilot,uav_operator")]
+    [ProducesResponseType(typeof(MissionResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -46,10 +44,12 @@ public sealed class MissionsController : ControllerBase
             ?? User.FindFirstValue("sub");
 
         if (!Guid.TryParse(pilotIdValue, out var pilotId))
+        {
             return Unauthorized(new
             {
                 message = "Invalid authenticated user."
             });
+        }
 
         var response = await _missionService.CreateAsync(
             pilotId,
@@ -78,7 +78,7 @@ public sealed class MissionsController : ControllerBase
     {
         try
         {
-            var isManager = User.IsInRole("operation_manager");
+            var isManager = User.IsInRole("operation_manager") || User.IsInRole("operations_manager");
             Guid? currentUserId = TryGetUserId(out var userId) ? userId : null;
 
             var result = await _telemetryService.GetLatestMissionTelemetryAsync(
