@@ -20,6 +20,8 @@ using DroneOps.Persistence.Services.AI;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.Extensions.DependencyInjection;
+using DroneOps.Application.Interfaces.Incidents;
+using DroneOps.Application.Services.Incidents;
 
 namespace DroneOps.Application;
 
@@ -45,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<IMissionSuggestionService,MissionSuggestionService>();
         services.AddScoped<IPostFlightService, PostFlightService>();
         services.AddScoped<ITelemetryIngestionService, TelemetryIngestionService>();
+        services.AddScoped<IIncidentService, IncidentService>();
         services.AddHttpClient<
 IAIService,
 OpenAIService>(client =>
