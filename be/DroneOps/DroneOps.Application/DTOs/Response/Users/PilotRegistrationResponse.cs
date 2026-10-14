@@ -18,7 +18,9 @@ public class PilotRegistrationResponse
 
     public string UsagePurpose { get; set; } = string.Empty;
 
+    public List<string> LicenseImageUrls { get; set; } = [];
     public string Status { get; set; } = string.Empty;
-
     public DateTime CreatedAt { get; set; }
+
+
 }
