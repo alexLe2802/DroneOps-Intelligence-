@@ -1,5 +1,9 @@
-﻿namespace DroneOps.Domain.Entities;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 
+namespace DroneOps.Domain.Entities;
+
+// Ánh xạ chính xác vào bảng "MissionApproval" (dạng số ít) trong PostgreSQL
+[Table("MissionApproval")]
 public class MissionApproval
 {
     public Guid Id { get; set; }
@@ -14,7 +18,9 @@ public class MissionApproval
 
     public DateTimeOffset? ApprovedAt { get; set; }
 
+    [ForeignKey(nameof(MissionId))]
     public Mission Mission { get; set; } = null!;
 
+    [ForeignKey(nameof(UserId))]
     public User User { get; set; } = null!;
 }
