@@ -50,7 +50,7 @@ public class PostFlightController : ControllerBase
             return Ok(new
             {
                 Success = true,
-                Message = "Flight mission finalized and post-flight report generated successfully.", // Đã đổi sang tiếng Anh
+                Message = "Flight mission finalized and post-flight report generated successfully.",
                 Data = result
             });
         }

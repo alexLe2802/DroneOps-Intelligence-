@@ -37,4 +37,6 @@ public class CreatePilotRegistrationRequest
     public int? ExperienceYears { get; set; }
 
     public string? Description { get; set; }
+
+    public List<string> LicenseImageUrls { get; set; } = [];
 }

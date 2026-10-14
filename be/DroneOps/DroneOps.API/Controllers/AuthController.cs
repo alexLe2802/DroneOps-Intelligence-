@@ -46,7 +46,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Đăng ký tài khoản ADMIN (gán role Admin)
+  
     /// </summary>
     [AllowAnonymous]
     [HttpPost("register")]
