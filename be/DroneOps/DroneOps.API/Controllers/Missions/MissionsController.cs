@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
+using DroneOps.Application.DTOs.Response.Telemetry;
 using DroneOps.Application.Interfaces.Missions;
+using DroneOps.Application.Interfaces.Telemetry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,13 +15,21 @@ namespace DroneOps.API.Controllers;
 public sealed class MissionsController : ControllerBase
 {
     private readonly IMissionService _missionService;
+    private readonly ITelemetryIngestionService _telemetryService;
 
-    public MissionsController(IMissionService missionService)
+    public MissionsController(
+        IMissionService missionService,
+        ITelemetryIngestionService telemetryService)
     {
         _missionService = missionService;
+        _telemetryService = telemetryService;
     }
 
+    /// <summary>
+    /// Tạo nhiệm vụ bay mới (Chỉ dành cho Pilot)
+    /// </summary>
     [HttpPost]
+    [Authorize(Roles = "Pilot")]
     [ProducesResponseType(
         typeof(MissionResponse),
         StatusCodes.Status201Created)]
@@ -47,13 +57,57 @@ public sealed class MissionsController : ControllerBase
             cancellationToken);
 
         return Created(
-     $"/api/missions/{response.Id}",
-     response);
+            $"/api/missions/{response.Id}",
+            response);
     }
 
     [HttpGet("{id:guid}")]
     public IActionResult GetByIdAsync(Guid id)
     {
         return Ok();
+    }
+
+    /// <summary>
+    /// Lấy snapshot viễn trắc (telemetry) hợp lệ mới nhất của một nhiệm vụ bay (SCR Live Monitoring)
+    /// </summary>
+    [HttpGet("{id:guid}/telemetry/latest")]
+    [ProducesResponseType(typeof(MissionLatestTelemetryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetLatestTelemetryAsync(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var isManager = User.IsInRole("operation_manager");
+            Guid? currentUserId = TryGetUserId(out var userId) ? userId : null;
+
+            var result = await _telemetryService.GetLatestMissionTelemetryAsync(
+                id,
+                currentUserId,
+                isManager,
+                cancellationToken);
+
+            if (result == null)
+            {
+                return NotFound(new { message = $"Mission with ID '{id}' was not found." });
+            }
+
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private bool TryGetUserId(out Guid userId)
+    {
+        userId = Guid.Empty;
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        return Guid.TryParse(value, out userId);
     }
 }

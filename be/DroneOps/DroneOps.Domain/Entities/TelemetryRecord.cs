@@ -2,15 +2,24 @@
 
 namespace DroneOps.Domain.Entities;
 
-// Chỉ định ánh xạ chính xác vào bảng "TelemetryRecord" (số ít) trong CSDL
+// Ánh xạ vào bảng "TelemetryRecord" trong CSDL
 [Table("TelemetryRecord")]
 public class TelemetryRecord
 {
     public Guid Id { get; set; }
 
-    public Guid MissionId { get; set; }
+    public string? SourceId { get; set; }
 
     public Guid UAVId { get; set; }
+
+    public Guid? MissionId { get; set; }
+
+    public DateTimeOffset SourceTimestamp { get; set; }
+
+    public DateTimeOffset ReceivedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    // Giữ RecordedAt để tương thích ngược 100% với module PostFlight hiện tại
+    public DateTimeOffset RecordedAt { get; set; }
 
     public decimal? Latitude { get; set; }
 
@@ -18,13 +27,24 @@ public class TelemetryRecord
 
     public decimal? Altitude { get; set; }
 
+    public string? AltitudeReference { get; set; } = "Relative";
+
     public decimal? Speed { get; set; }
 
     public int? BatteryLevel { get; set; }
 
-    public DateTimeOffset RecordedAt { get; set; }
+    public string? FlightMode { get; set; }
 
-    public Mission Mission { get; set; } = null!;
+    public bool Armed { get; set; }
+
+    public int? MissionSequence { get; set; }
+
+    public string? IdempotencyKey { get; set; }
+
+    public bool IsValid { get; set; } = true;
+
+    // Navigation properties
+    public Mission? Mission { get; set; }
 
     public UAV UAV { get; set; } = null!;
 }

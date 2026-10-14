@@ -1,7 +1,3 @@
-using DroneOps.Domain;
-using System.Security.Claims;
-using DroneOps.API.AI;
-using DroneOps.API.Auth;
 using System.Text;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
@@ -32,18 +28,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
-builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
-builder.Services.Configure<AiSettings>(builder.Configuration.GetSection(AiSettings.SectionName));
-builder.Services.AddHttpClient<IAiAssessmentClient, GeminiAssessmentClient>(client =>
-{
-    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
-    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Ai:TimeoutSeconds", 30));
-});
+//builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
-// Đăng ký dịch vụ Rate Limiting để hỗ trợ app.UseRateLimiter() hoạt động ổn định
-builder.Services.AddDroneOpsAuth(builder.Configuration, builder.Environment);
 
 // 1. Cấu hình "Cái Khóa" (Authorize button) trên giao diện Swagger UI
 builder.Services.AddSwaggerGen(options =>
@@ -97,15 +84,8 @@ var jwtSettings = jwtSection.Get<JwtSettings>()
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = "DroneOpsAuth";
-    options.DefaultChallengeScheme = "DroneOpsAuth";
-})
-.AddPolicyScheme("DroneOpsAuth", "Bearer or Firebase session", options =>
-{
-    options.ForwardDefaultSelector = context =>
-        context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-            ? JwtBearerDefaults.AuthenticationScheme
-            : SessionAuthenticationHandler.SchemeName;
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(options =>
 {
@@ -133,18 +113,6 @@ builder.Services.AddAuthentication(options =>
     // Bắt sự kiện lỗi xác thực và in ra Console để dễ theo dõi
     options.Events = new JwtBearerEvents
     {
-        OnTokenValidated = context =>
-        {
-            if (context.Principal?.Identity is ClaimsIdentity identity)
-                foreach (var claim in identity.FindAll(identity.RoleClaimType).ToArray())
-                {
-                    var normalized = CanonicalRoles.Normalize(claim.Value);
-                    if (normalized == claim.Value) continue;
-                    identity.RemoveClaim(claim);
-                    identity.AddClaim(new Claim(identity.RoleClaimType, normalized));
-                }
-            return Task.CompletedTask;
-        },
         OnAuthenticationFailed = context =>
         {
             Console.WriteLine($"\n>>> [JWT AUTHENTICATION ERROR]: {context.Exception.Message}\n");
@@ -159,8 +127,6 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-if (await AuthDatabaseCommands.RunAsync(args, app.Services, app.Configuration)) return;
-app.UseAuthErrorHandling();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -172,9 +138,8 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 
 
-app.UseRateLimiter();
+
 app.UseAuthentication();
-app.UseAuthCsrfProtection();
 app.UseAuthorization();
 
 app.MapControllers();
