@@ -50,6 +50,7 @@ export default function MissionDetailClient({ id }: { id: string }) {
 
   if (error) return <ModuleError error={error} retry={load} />;
   if (!mission) return <ModuleLoading label="Loading mission details" />;
+  const canEdit = ["draft", "rejected"].includes(mission.status.toLowerCase().replaceAll(" ", ""));
 
   return <>
     <header className="module-heading mission-detail-heading">
@@ -58,7 +59,7 @@ export default function MissionDetailClient({ id }: { id: string }) {
         <div className="mission-title-line"><h1>{mission.name}</h1><span className={`status status-${mission.status.toLowerCase()}`}>{formatStatus(mission.status)}</span></div>
         <p>{mission.description ?? "No mission description has been provided."}</p>
       </div>
-      <div className="heading-actions"><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></div>
+      <div className="heading-actions"><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}</div>
     </header>
     {mission.detailAvailable === false && <p className="api-pending-banner" role="status"><b>MISSION DETAIL API PENDING</b> Showing the available mission summary. Route and waypoint data will appear when the backend returns a response from GET /api/missions/{mission.id}.</p>}
 
