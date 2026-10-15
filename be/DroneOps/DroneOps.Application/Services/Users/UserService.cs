@@ -1,4 +1,5 @@
 ﻿using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.Users;
 using DroneOps.Application.Interfaces.Users;
 using DroneOps.Domain.Entities;
@@ -132,6 +133,63 @@ public sealed class UserService : IUserService
             LicenseExpiredDate = pilot.LicenseExpiredDate,
 
             ExperienceYears = pilot.ExperienceYears
+        };
+    }
+
+    public async Task<PagedResponse<UserProfileResponse>>
+      GetAllUsersAsync(
+          UserFilterRequest request,
+          CancellationToken cancellationToken = default)
+    {
+        int pageNumber =
+            request.PageNumber < 1
+                ? 1
+                : request.PageNumber;
+
+        int pageSize = request.PageSize switch
+        {
+            < 1 => 10,
+            > 100 => 100,
+            _ => request.PageSize
+        };
+
+        string? search =
+            string.IsNullOrWhiteSpace(request.Search)
+                ? null
+                : request.Search.Trim();
+
+        string? role =
+            string.IsNullOrWhiteSpace(request.Role)
+                ? null
+                : request.Role.Trim();
+
+        (
+            IReadOnlyList<User> Items,
+            int TotalCount
+        ) result = await _userRepository.GetPagedWithRoleAsync(
+            pageNumber,
+            pageSize,
+            search,
+            role,
+            cancellationToken);
+
+        IReadOnlyList<UserProfileResponse> items =
+            result.Items
+                .Select(MapToProfileResponse)
+                .ToList();
+
+        int totalPages = result.TotalCount == 0
+            ? 0
+            : (int)Math.Ceiling(
+                result.TotalCount / (double)pageSize);
+
+        return new PagedResponse<UserProfileResponse>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalItems = result.TotalCount,
+            TotalPages = totalPages
         };
     }
 }

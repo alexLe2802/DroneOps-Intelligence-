@@ -1,4 +1,5 @@
 ﻿using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.Users;
 
 namespace DroneOps.Application.Interfaces.Users;
@@ -17,4 +18,9 @@ public interface IUserService
     Task<PilotProfileResponse?> GetPilotProfileAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    Task<PagedResponse<UserProfileResponse>>
+      GetAllUsersAsync(
+          UserFilterRequest request,
+          CancellationToken cancellationToken = default);
 }

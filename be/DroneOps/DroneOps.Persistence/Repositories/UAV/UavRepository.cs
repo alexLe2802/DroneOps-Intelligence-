@@ -78,4 +78,54 @@ public sealed class UavRepository
                 x => x.Id == uavId,
                 cancellationToken);
     }
+
+    public async Task<(
+     IReadOnlyList<UAV> Items,
+     int TotalCount)> GetAllPagedAsync(
+         string? keyword,
+         string? status,
+         int pageNumber,
+         int pageSize,
+         CancellationToken cancellationToken = default)
+    {
+        IQueryable<UAV> query = DbSet
+    .AsNoTracking()
+    .Include(x => x.Pilot)
+        .ThenInclude(x => x.User);
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            string normalizedKeyword =
+                keyword.Trim().ToLowerInvariant();
+
+            query = query.Where(uav =>
+                uav.Code.ToLower().Contains(normalizedKeyword) ||
+                uav.Name.ToLower().Contains(normalizedKeyword) ||
+                (
+                    uav.Model != null &&
+                    uav.Model.ToLower().Contains(normalizedKeyword)
+                ));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            string normalizedStatus =
+                status.Trim().ToLowerInvariant();
+
+            query = query.Where(uav =>
+                uav.Status.ToLower() == normalizedStatus);
+        }
+
+        int totalCount =
+            await query.CountAsync(cancellationToken);
+
+        List<UAV> items = await query
+            .OrderByDescending(uav => uav.CreatedAt)
+            .ThenBy(uav => uav.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
 }

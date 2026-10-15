@@ -31,6 +31,39 @@ public sealed class MissionRepository : IMissionRepository
             x => x.Id == uavId,
             cancellationToken);
     }
+    public async Task<Mission?> GetByIdAsync(
+    Guid missionId,
+    CancellationToken cancellationToken = default)
+    {
+        return await _context.Missions
+            .AsNoTracking()
+            .Include(x => x.Waypoints)
+            .Include(x => x.Creator)
+            .Include(x => x.UAV)
+            .FirstOrDefaultAsync(
+                x => x.Id == missionId,
+                cancellationToken);
+    }
+    public async Task<List<Mission>> GetAllAsync(
+      CancellationToken cancellationToken = default)
+    {
+        return await _context.Missions
+            .AsNoTracking()
+            .Include(x => x.Waypoints)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+    public async Task<List<Mission>> GetByCreatorAsync(
+    Guid creatorId,
+    CancellationToken cancellationToken = default)
+    {
+        return await _context.Missions
+            .AsNoTracking()
+            .Include(x => x.Waypoints)
+            .Where(x => x.CreatedBy == creatorId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task SaveChangesAsync(
         CancellationToken cancellationToken = default)

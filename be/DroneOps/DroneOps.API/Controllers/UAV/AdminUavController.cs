@@ -1,3 +1,4 @@
+using DroneOps.Application.DTOs.Request.UAV;
 using DroneOps.Application.DTOs.Request.Uavs;
 using DroneOps.Application.Interfaces.UAVs;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +17,19 @@ public class AdminUavController : ControllerBase
         IUavService uavService)
     {
         _uavService = uavService;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+    [FromQuery] GetAllUavsRequest request,
+    CancellationToken cancellationToken = default)
+    {
+        var result =
+            await _uavService.GetAllAsync(
+                request,
+                cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpGet("pending")]
