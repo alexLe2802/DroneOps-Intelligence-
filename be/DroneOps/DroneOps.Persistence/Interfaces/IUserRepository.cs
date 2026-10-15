@@ -12,4 +12,11 @@ public interface IUserRepository : IGenericRepository<User>
     Task<User?> GetByIdWithRoleAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<User> Items, int TotalCount)>
+       GetPagedWithRoleAsync(
+           int pageNumber,
+           int pageSize,
+           string? search,
+           string? role,
+           CancellationToken cancellationToken = default);
 }

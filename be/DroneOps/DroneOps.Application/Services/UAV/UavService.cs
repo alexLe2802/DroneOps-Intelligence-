@@ -1,6 +1,10 @@
-﻿using DroneOps.Application.DTOs.Request.UAVs;
+﻿using DroneOps.Application.DTOs.Request.UAV;
+using DroneOps.Application.DTOs.Request.UAVs;
+using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.UAVs;
 using DroneOps.Application.Interfaces.UAVs;
+
+
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
 
@@ -212,7 +216,64 @@ public sealed class UavService
             uav,
             uav.Pilot.User.FullName);
     }
+    public async Task<PagedResponse<UavResponse>>
+     GetAllAsync(
+         GetAllUavsRequest request,
+         CancellationToken cancellationToken = default)
+    {
+        int pageNumber =
+            request.PageNumber < 1
+                ? 1
+                : request.PageNumber;
 
+        int pageSize = request.PageSize switch
+        {
+            < 1 => 10,
+            > 100 => 100,
+            _ => request.PageSize
+        };
+
+        string? keyword =
+            string.IsNullOrWhiteSpace(request.Keyword)
+                ? null
+                : request.Keyword.Trim();
+
+        string? status =
+            string.IsNullOrWhiteSpace(request.Status)
+                ? null
+                : request.Status.Trim();
+
+        (
+            IReadOnlyList<UAV> Items,
+            int TotalCount
+        ) result = await _uavRepository.GetAllPagedAsync(
+            keyword,
+            status,
+            pageNumber,
+            pageSize,
+            cancellationToken);
+
+        IReadOnlyList<UavResponse> items =
+    result.Items
+        .Select(uav => MapToResponse(
+            uav,
+            uav.Pilot.User.FullName))
+        .ToList();
+
+        int totalPages = result.TotalCount == 0
+            ? 0
+            : (int)Math.Ceiling(
+                result.TotalCount / (double)pageSize);
+
+        return new PagedResponse<UavResponse>
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalItems = result.TotalCount,
+            TotalPages = totalPages,
+            Items = items
+        };
+    }
     private static UavResponse MapToResponse(
      UAV uav,
      string pilotName)
