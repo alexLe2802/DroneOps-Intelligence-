@@ -78,7 +78,49 @@ public sealed class MissionService : IMissionService
 
         return MapToResponse(mission);
     }
+    public async Task<MissionResponse?> GetByIdAsync(
+    Guid missionId,
+    CancellationToken cancellationToken = default)
+    {
+        Mission? mission =
+            await _missionRepository.GetByIdAsync(
+                missionId,
+                cancellationToken);
 
+        if (mission is null)
+        {
+            return null;
+        }
+
+        return MapToResponse(mission);
+    }
+    public async Task<List<MissionResponse>>
+    GetAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        List<Mission> missions =
+            await _missionRepository.GetAllAsync(
+                cancellationToken);
+
+        return missions
+            .Select(MapToResponse)
+            .ToList();
+    }
+
+    public async Task<List<MissionResponse>>
+    GetMyAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        List<Mission> missions =
+            await _missionRepository.GetByCreatorAsync(
+                userId,
+                cancellationToken);
+
+        return missions
+            .Select(MapToResponse)
+            .ToList();
+    }
     private static MissionResponse MapToResponse(
         Mission mission)
     {

@@ -11,7 +11,16 @@ public interface IMissionRepository
     Task<bool> UavExistsAsync(
         Guid uavId,
         CancellationToken cancellationToken = default);
+    Task<Mission?> GetByIdAsync(
+    Guid missionId,
+    CancellationToken cancellationToken = default);
 
+    Task<List<Mission>> GetAllAsync(
+     CancellationToken cancellationToken = default);
+
+    Task<List<Mission>> GetByCreatorAsync(
+        Guid creatorId,
+        CancellationToken cancellationToken = default);
     Task SaveChangesAsync(
         CancellationToken cancellationToken = default);
 }

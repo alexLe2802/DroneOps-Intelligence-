@@ -1,11 +1,12 @@
-using System.Security.Claims;
-using DroneOps.Persistence.Auth;
-using Npgsql;
 using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.Users;
 using DroneOps.Application.Interfaces.Users;
+using DroneOps.Persistence.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Npgsql;
+using System.Security.Claims;
 
 namespace DroneOps.API.Controllers.Users;
 
@@ -22,6 +23,20 @@ public sealed class UserController : ControllerBase
     {
         _userService = userService;
         _dataSource = dataSource;
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "operation_manager")]
+    public async Task<IActionResult> GetAllUsers(
+     [FromQuery] UserFilterRequest request,
+     CancellationToken cancellationToken)
+    {
+        PagedResponse<UserProfileResponse> result =
+            await _userService.GetAllUsersAsync(
+                request,
+                cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpGet("profile")]

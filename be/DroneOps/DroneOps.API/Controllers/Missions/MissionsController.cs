@@ -25,9 +25,44 @@ public sealed class MissionsController : ControllerBase
         _telemetryService = telemetryService;
     }
 
-    /// <summary>
-    /// Tạo nhiệm vụ bay mới (Dành cho Phi công)
-    /// </summary>
+
+    [HttpGet]
+    [Authorize(Roles = "operation_manager")]
+    public async Task<IActionResult> GetAll(
+     CancellationToken cancellationToken)
+    {
+        var result =
+            await _missionService.GetAllAsync(
+                cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("my")]
+    [Authorize(Roles = "Pilot,uav_operator")]
+    public async Task<IActionResult> GetMy(
+    CancellationToken cancellationToken)
+    {
+        var userIdValue =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub");
+
+        if (!Guid.TryParse(
+            userIdValue,
+            out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result =
+            await _missionService.GetMyAsync(
+                userId,
+                cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpPost]
     [Authorize(Roles = "Pilot,uav_operator")]
     [ProducesResponseType(typeof(MissionResponse), StatusCodes.Status201Created)]
@@ -62,9 +97,22 @@ public sealed class MissionsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public IActionResult GetByIdAsync(Guid id)
+    [Authorize(Roles = "operation_manager")]
+    public async Task<ActionResult<MissionResponse>> GetByIdAsync(
+     Guid id,
+     CancellationToken cancellationToken)
     {
-        return Ok();
+        var result =
+            await _missionService.GetByIdAsync(
+                id,
+                cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
     }
 
     /// <summary>
