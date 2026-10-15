@@ -1,5 +1,5 @@
-import { api } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
+import { api, ApiError } from "@/lib/auth/client";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDecision, MissionDetail, OperationalAnalytics, PagedPendingMissionApprovals, PagedResponse, PilotMission, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
 
 export async function getPilotMissions(): Promise<PilotMission[]> {
   const page = await getFlightHistory({ pageSize: 100 });
@@ -14,6 +14,31 @@ export async function getPilotMissions(): Promise<PilotMission[]> {
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
   const result = await api<Omit<MissionDetail, "uavCode" | "latestVersion">>("/missions", { method: "POST", body: JSON.stringify(request) });
   return { ...result, uavCode: null, latestVersion: 1 };
+}
+
+export function getPendingMissionApprovals(params: { pageNumber?: number; pageSize?: number; search?: string; fromDate?: string; toDate?: string } = {}): Promise<PagedPendingMissionApprovals> {
+  const query = new URLSearchParams({
+    pageNumber: String(params.pageNumber ?? 1),
+    pageSize: String(params.pageSize ?? 100),
+  });
+  if (params.search) query.set("search", params.search);
+  if (params.fromDate) query.set("fromDate", params.fromDate);
+  if (params.toDate) query.set("toDate", params.toDate);
+  return api<PagedPendingMissionApprovals>(`/missions/pending-approvals?${query}`);
+}
+
+export function approveMission(missionId: string, comment: string): Promise<MissionDecision> {
+  return api<MissionDecision>(`/missions/${encodeURIComponent(missionId)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ comment: comment.trim() || null, expectedStatus: "Pending Review" }),
+  });
+}
+
+export function rejectMission(missionId: string, reason: string): Promise<MissionDecision> {
+  return api<MissionDecision>(`/missions/${encodeURIComponent(missionId)}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason.trim(), expectedStatus: "Pending Review" }),
+  });
 }
 
 export async function getMission(id: string): Promise<MissionDetail> {
