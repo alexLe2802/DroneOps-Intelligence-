@@ -156,7 +156,6 @@ export default function LoginForm() {
     {notice && <p className="auth-feedback" role="status">{notice}</p>}
     {error && !registerOpen && <p className="auth-error" role="alert">{error}</p>}
 
-    <div className="login-directive"><b>NOTICE BR-01:</b> Strict role-based access control applies. Pilot registrations require Operations Manager approval before portal access is enabled.</div>
 
     {registerOpen && <div className="pilot-register-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) { setRegisterOpen(false); setError(""); } }}>
       <form className="pilot-register-modal" aria-label="Pilot registration request" onSubmit={submitRegistration}>
