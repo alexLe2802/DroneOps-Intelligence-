@@ -21,7 +21,8 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
     let resizeFrame: number | undefined;
     void import("leaflet").then(({ default: L }) => {
       if (cancelled) return;
-      map = L.map(container, { center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: true });
+      // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
+      map = L.map(container, { center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: false });
       map.on("mousemove", event => onCursorCoordinate?.({ latitude: event.latlng.lat, longitude: event.latlng.lng }));
       map.on("mouseout", () => onCursorCoordinate?.(null));
       L.control.zoom({ position: "bottomleft" }).addTo(map);
