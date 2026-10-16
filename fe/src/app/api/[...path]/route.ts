@@ -4,7 +4,7 @@ import { accessCookie, backendUrl, sessionFromToken } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const allowed = /^(auth\/(csrf|login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users\/(profile|pilot-profile)|uavs\/myUAV|uavs|admin\/uavs\/(?:pending|[0-9a-f-]{36}(?:\/(?:activate|reject|deactivate))?)|missions(?:\/my|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36})?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|report|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
+const allowed = /^(auth\/(login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users\/(profile|pilot-profile)|uavs\/myUAV|uavs|admin\/uavs\/(?:pending|[0-9a-f-]{36}(?:\/(?:activate|reject|deactivate))?)|missions(?:\/my|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36})?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|report|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
@@ -38,12 +38,12 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   const aiRequest = path === "ai/assessments" || path.startsWith("ai/assessments/mission/");
   const timeoutMs = (path === "ai/assessments" || path === "mission-suggestions") && request.method === "POST" ? 60000 : 20000;
   const headers = new Headers();
-  for (const name of ["content-type", "x-csrf-token", "origin", "user-agent"]) {
+  for (const name of ["content-type", "origin", "user-agent"]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const cookieNames = ["droneops_session", "__Host-droneops_session", "droneops_csrf", "__Host-droneops_csrf"];
+  const cookieNames = ["droneops_session", "__Host-droneops_session"];
   headers.set("cookie", request.cookies.getAll().filter(c => cookieNames.includes(c.name)).map(c => `${c.name}=${c.value}`).join("; "));
   try {
     // Stream with a strict cap so oversized requests cannot consume unbounded BFF memory.
