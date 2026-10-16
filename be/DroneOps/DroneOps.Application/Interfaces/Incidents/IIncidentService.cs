@@ -16,4 +16,14 @@ public interface IIncidentService
         Guid? currentUserId,
         bool isManager,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy sự cố của một nhiệm vụ phục vụ SSE: snapshot ban đầu hoặc các thay đổi sau mốc thời gian.
+    /// </summary>
+    Task<List<IncidentItemResponse>> GetMissionIncidentFeedAsync(
+        Guid missionId,
+        Guid? currentUserId,
+        bool isManager,
+        DateTimeOffset? changedAfter,
+        CancellationToken cancellationToken = default);
 }

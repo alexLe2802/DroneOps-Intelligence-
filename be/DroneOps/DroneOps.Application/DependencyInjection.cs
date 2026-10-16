@@ -1,6 +1,7 @@
 ﻿using DroneOps.Application.Interfaces.AI;
 using DroneOps.Application.Interfaces.Auth;
 using DroneOps.Application.Interfaces.Geofences;
+using DroneOps.Application.Interfaces.Incidents;
 using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Interfaces.PostFlight;
 using DroneOps.Application.Interfaces.Telemetry;
@@ -8,11 +9,13 @@ using DroneOps.Application.Interfaces.UAVs;
 using DroneOps.Application.Interfaces.Users;
 using DroneOps.Application.Services;
 using DroneOps.Application.Services.Auth;
+using DroneOps.Application.Services.Incidents;
 using DroneOps.Application.Services.Missions;
 using DroneOps.Application.Services.PostFlight;
 using DroneOps.Application.Services.Telemetry;
 using DroneOps.Application.Services.UAVs;
 using DroneOps.Application.Services.Users;
+using DroneOps.Application.Validators.Missions;
 using DroneOps.Application.Validators.Users;
 using DroneOps.Persistence.Interfaces;
 using DroneOps.Persistence.Repositories;
@@ -20,8 +23,6 @@ using DroneOps.Persistence.Services.AI;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.Extensions.DependencyInjection;
-using DroneOps.Application.Interfaces.Incidents;
-using DroneOps.Application.Services.Incidents;
 
 
 namespace DroneOps.Application;
@@ -37,6 +38,8 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssemblyContaining
             <CreatePilotRegistrationValidator>();
+
+        services.AddScoped<MissionBusinessValidator>();
 
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IAuthService, AuthService>();

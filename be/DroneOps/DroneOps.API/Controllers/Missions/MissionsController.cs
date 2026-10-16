@@ -115,6 +115,38 @@ public sealed class MissionsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = "uav_operator")]
+    public async Task<ActionResult<MissionResponse>>
+    UpdateAsync(
+        Guid id,
+        [FromBody] CreateMissionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userIdValue =
+            User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub");
+
+        if (!Guid.TryParse(userIdValue, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result =
+            await _missionService.UpdateAsync(
+                id,
+                userId,
+                request,
+                cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
+    }
+
     /// <summary>
     /// Lấy snapshot viễn trắc (telemetry) hợp lệ mới nhất của một nhiệm vụ bay (SCR Live Monitoring)
     /// </summary>
