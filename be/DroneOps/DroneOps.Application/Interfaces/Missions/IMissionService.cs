@@ -19,6 +19,11 @@ public interface IMissionService
     Task<List<MissionResponse>> GetMyAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+    Task<MissionResponse?> UpdateAsync(
+    Guid missionId,
+    Guid userId,
+    CreateMissionRequest request,
+    CancellationToken cancellationToken = default);
     Task<bool> SubmitMissionAsync(Guid id, CancellationToken cancellationToken = default);
     Task<object> ValidateMissionParamsAsync(MissionValidateDto request, CancellationToken cancellationToken = default);
     Task<bool> CancelMissionAsync(Guid id, string? reason, CancellationToken cancellationToken = default);
