@@ -1,5 +1,7 @@
-﻿using DroneOps.Application.DTOs.Request.Uavs;
+﻿using DroneOps.Application.DTOs.Request.UAV;
+using DroneOps.Application.DTOs.Request.Uavs;
 using DroneOps.Application.DTOs.Request.UAVs;
+using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.UAVs;
 
 namespace DroneOps.Application.Interfaces.UAVs;
@@ -35,5 +37,8 @@ public interface IUavService
 
     Task<UavResponse?> DeactivateAsync(
         Guid uavId,
+        CancellationToken cancellationToken = default);
+    Task<PagedResponse<UavResponse>> GetAllAsync(
+        GetAllUavsRequest request,
         CancellationToken cancellationToken = default);
 }

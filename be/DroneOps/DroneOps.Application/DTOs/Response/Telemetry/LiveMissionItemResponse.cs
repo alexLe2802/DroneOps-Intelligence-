@@ -36,4 +36,8 @@ public class LiveMissionItemResponse
     public DateTimeOffset? LastSeen { get; set; }
     public string ConnectivityStatus { get; set; } = "Offline"; // Online, Stale, Offline
     public double? DataAgeSeconds { get; set; }
+
+    public int WaypointTotal { get; set; }
+
+    public double? ProgressPercent { get; set; }
 }

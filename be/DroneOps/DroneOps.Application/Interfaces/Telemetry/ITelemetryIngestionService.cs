@@ -5,7 +5,7 @@ namespace DroneOps.Application.Interfaces.Telemetry;
 
 public interface ITelemetryIngestionService
 {
-    Task<bool> IngestSampleAsync(
+    Task<TelemetryIngestResult> IngestSampleAsync(
         string idempotencyKey,
         IngestTelemetrySampleRequest request,
         CancellationToken cancellationToken = default);

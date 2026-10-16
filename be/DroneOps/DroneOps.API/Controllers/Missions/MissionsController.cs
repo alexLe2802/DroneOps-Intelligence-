@@ -11,7 +11,7 @@ namespace DroneOps.API.Controllers;
 
 [ApiController]
 [Route("api/missions")]
-[Authorize(Roles = "uav_operator")]
+[Authorize(Roles = "Pilot,operation_manager,uav_operator,operations_manager")]
 public sealed class MissionsController : ControllerBase
 {
     private readonly IMissionService _missionService;
@@ -25,14 +25,47 @@ public sealed class MissionsController : ControllerBase
         _telemetryService = telemetryService;
     }
 
-    /// <summary>
-    /// Tạo nhiệm vụ bay mới (Chỉ dành cho Pilot)
-    /// </summary>
+
+    [HttpGet]
+    [Authorize(Roles = "operation_manager")]
+    public async Task<IActionResult> GetAll(
+     CancellationToken cancellationToken)
+    {
+        var result =
+            await _missionService.GetAllAsync(
+                cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("my")]
+    [Authorize(Roles = "Pilot,uav_operator")]
+    public async Task<IActionResult> GetMy(
+    CancellationToken cancellationToken)
+    {
+        var userIdValue =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub");
+
+        if (!Guid.TryParse(
+            userIdValue,
+            out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result =
+            await _missionService.GetMyAsync(
+                userId,
+                cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpPost]
-    [Authorize(Roles = "Pilot")]
-    [ProducesResponseType(
-        typeof(MissionResponse),
-        StatusCodes.Status201Created)]
+    [Authorize(Roles = "Pilot,uav_operator")]
+    [ProducesResponseType(typeof(MissionResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -46,10 +79,12 @@ public sealed class MissionsController : ControllerBase
             ?? User.FindFirstValue("sub");
 
         if (!Guid.TryParse(pilotIdValue, out var pilotId))
+        {
             return Unauthorized(new
             {
                 message = "Invalid authenticated user."
             });
+        }
 
         var response = await _missionService.CreateAsync(
             pilotId,
@@ -62,9 +97,54 @@ public sealed class MissionsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public IActionResult GetByIdAsync(Guid id)
+    [Authorize(Roles = "operation_manager")]
+    public async Task<ActionResult<MissionResponse>> GetByIdAsync(
+     Guid id,
+     CancellationToken cancellationToken)
     {
-        return Ok();
+        var result =
+            await _missionService.GetByIdAsync(
+                id,
+                cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
+    }
+
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = "uav_operator")]
+    public async Task<ActionResult<MissionResponse>>
+    UpdateAsync(
+        Guid id,
+        [FromBody] CreateMissionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userIdValue =
+            User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub");
+
+        if (!Guid.TryParse(userIdValue, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result =
+            await _missionService.UpdateAsync(
+                id,
+                userId,
+                request,
+                cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
     }
 
     /// <summary>
@@ -78,7 +158,7 @@ public sealed class MissionsController : ControllerBase
     {
         try
         {
-            var isManager = User.IsInRole("operation_manager");
+            var isManager = User.IsInRole("operation_manager") || User.IsInRole("operations_manager");
             Guid? currentUserId = TryGetUserId(out var userId) ? userId : null;
 
             var result = await _telemetryService.GetLatestMissionTelemetryAsync(

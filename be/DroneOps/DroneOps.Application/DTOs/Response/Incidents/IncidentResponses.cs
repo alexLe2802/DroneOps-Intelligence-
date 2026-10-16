@@ -40,6 +40,14 @@ public class IncidentDetailResponse : IncidentItemResponse
     public Guid? ResolvedBy { get; set; }
     public string? ResolvedByName { get; set; }
     public string? ResolutionNotes { get; set; }
+
+    public DateTimeOffset? SourceTimestamp { get; set; }
+
+    public DateTimeOffset? ReceivedAt { get; set; }
+
+    public string? AppliedRule { get; set; }
+
+    public double? Threshold { get; set; }
 }
 
 public class PagedIncidentsResponse

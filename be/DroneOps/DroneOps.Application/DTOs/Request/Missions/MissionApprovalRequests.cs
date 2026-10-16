@@ -19,12 +19,25 @@ public class GetPendingApprovalsRequest
 public class ApproveMissionRequest
 {
     public string? Comment { get; set; }
-    public string? ExpectedStatus { get; set; } = "Pending Review";
+
+    /// <summary>
+    /// Trạng thái mà FE đang nhìn; lệch so với DB thì trả 409 (stale / concurrent).
+    /// </summary>
+    public string? ExpectedStatus { get; set; }
+
+    /// <summary>
+    /// Phiên bản kế hoạch FE đang review; hiện tại mỗi mission = 1 revision đang chờ duyệt.
+    /// </summary>
+    public int? ExpectedVersion { get; set; }
+
     public Guid? ValidationRunId { get; set; }
 }
 
 public class RejectMissionRequest
 {
     public string Reason { get; set; } = string.Empty;
-    public string? ExpectedStatus { get; set; } = "Pending Review";
+
+    public string? ExpectedStatus { get; set; }
+
+    public int? ExpectedVersion { get; set; }
 }

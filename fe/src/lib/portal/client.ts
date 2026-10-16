@@ -1,19 +1,57 @@
-import { api } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDetail, OperationalAnalytics, PagedResponse, PilotMission, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
+import { api, ApiError } from "@/lib/auth/client";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDecision, MissionDetail, OperationalAnalytics, PagedPendingMissionApprovals, PagedResponse, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
 
-export async function getPilotMissions(): Promise<PilotMission[]> {
-  const page = await getFlightHistory({ pageSize: 100 });
-  return page.items.map(item => ({
-    id: item.missionId, name: item.missionName, description: null,
-    status: item.status as PilotMission["status"], uavId: item.uavId,
-    uavCode: item.uavCode || null, startTime: item.startTime, endTime: item.endTime,
-    createdAt: item.startTime ?? item.endTime ?? "", latestVersion: 1,
+type MissionApiRecord = Omit<MissionDetail, "uavCode" | "latestVersion" | "detailAvailable">;
+
+export async function getPilotMissions(): Promise<MissionDetail[]> {
+  const [missions, aircraft] = await Promise.all([
+    api<MissionApiRecord[]>("/missions/my"),
+    getAssignedUavs().catch(() => [] as AssignedUav[]),
+  ]);
+  const uavCodes = new Map(aircraft.map(item => [item.id, item.code]));
+  return missions.map(mission => ({
+    ...mission,
+    uavCode: mission.uavId ? uavCodes.get(mission.uavId) ?? null : null,
+    latestVersion: 1,
+    detailAvailable: true,
+    waypoints: Array.isArray(mission.waypoints) ? mission.waypoints.map((point, index) => ({
+      sequenceOrder: point.sequenceOrder ?? index + 1,
+      latitude: Number(point.latitude),
+      longitude: Number(point.longitude),
+      altitude: Number(point.altitude ?? 0),
+      actionType: point.actionType ?? "FlyThrough",
+    })) : [],
   }));
 }
 
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
   const result = await api<Omit<MissionDetail, "uavCode" | "latestVersion">>("/missions", { method: "POST", body: JSON.stringify(request) });
   return { ...result, uavCode: null, latestVersion: 1 };
+}
+
+export function getPendingMissionApprovals(params: { pageNumber?: number; pageSize?: number; search?: string; fromDate?: string; toDate?: string } = {}): Promise<PagedPendingMissionApprovals> {
+  const query = new URLSearchParams({
+    pageNumber: String(params.pageNumber ?? 1),
+    pageSize: String(params.pageSize ?? 100),
+  });
+  if (params.search) query.set("search", params.search);
+  if (params.fromDate) query.set("fromDate", params.fromDate);
+  if (params.toDate) query.set("toDate", params.toDate);
+  return api<PagedPendingMissionApprovals>(`/missions/pending-approvals?${query}`);
+}
+
+export function approveMission(missionId: string, comment: string): Promise<MissionDecision> {
+  return api<MissionDecision>(`/missions/${encodeURIComponent(missionId)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ comment: comment.trim() || null, expectedStatus: "Pending Review" }),
+  });
+}
+
+export function rejectMission(missionId: string, reason: string): Promise<MissionDecision> {
+  return api<MissionDecision>(`/missions/${encodeURIComponent(missionId)}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason.trim(), expectedStatus: "Pending Review" }),
+  });
 }
 
 export async function getMission(id: string): Promise<MissionDetail> {
@@ -23,7 +61,7 @@ export async function getMission(id: string): Promise<MissionDetail> {
   } catch (error) {
     if (error instanceof SyntaxError || (error instanceof ApiError && (error.status === 403 || error.status === 404))) {
       const summary = (await getPilotMissions()).find(mission => mission.id === id);
-      if (summary) return { ...summary, waypoints: [], detailAvailable: false };
+      if (summary) return summary;
       throw new Error("Mission details are not available from the backend yet.");
     }
     throw error;

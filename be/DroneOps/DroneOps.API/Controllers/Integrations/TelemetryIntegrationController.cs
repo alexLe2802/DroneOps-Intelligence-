@@ -47,28 +47,42 @@ public class TelemetryIntegrationController : ControllerBase
                 });
             }
 
-            var success = await _telemetryService.IngestSampleAsync(
+            var result = await _telemetryService.IngestSampleAsync(
                 idempotencyKey,
                 request,
                 cancellationToken);
 
-            return StatusCode(StatusCodes.Status201Created, new
+            var payload = new
             {
-                success = true,
-                message = "Telemetry sample ingested successfully.",
+                success = result.Accepted,
+                duplicate = result.IsDuplicate,
+                lateArrival = result.IsLateArrival,
+                usedForLatestProjection = result.UsedForLatestProjection,
+                message = result.Message,
+                recordId = result.RecordId,
+                raisedIncidentId = result.RaisedIncidentId,
                 sourceId = request.SourceId,
                 uavId = request.UavId,
                 receivedAt = DateTimeOffset.UtcNow
-            });
+            };
+
+            // Replay idempotent trả 200; gói mới trả 201.
+            return result.IsDuplicate
+                ? Ok(payload)
+                : StatusCode(StatusCodes.Status201Created, payload);
         }
         catch (KeyNotFoundException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error occurred during telemetry ingestion.");
-            return BadRequest(new { message = ex.Message });
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Telemetry ingestion failed." });
         }
     }
 }

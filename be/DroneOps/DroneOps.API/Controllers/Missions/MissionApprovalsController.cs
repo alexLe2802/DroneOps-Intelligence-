@@ -38,10 +38,9 @@ public class MissionApprovalsController : ControllerBase
             var result = await _approvalService.GetPendingApprovalsAsync(request, managerId, cancellationToken);
             return Ok(result);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            var detail = ex.InnerException != null ? $"{ex.Message} -> {ex.InnerException.Message}" : ex.Message;
-            return BadRequest(new { message = detail });
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Failed to load pending approvals." });
         }
     }
 
@@ -79,10 +78,9 @@ public class MissionApprovalsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            var detail = ex.InnerException != null ? $"{ex.Message} -> {ex.InnerException.Message}" : ex.Message;
-            return BadRequest(new { message = detail });
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Failed to approve mission." });
         }
     }
 
@@ -120,10 +118,9 @@ public class MissionApprovalsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            var detail = ex.InnerException != null ? $"{ex.Message} -> {ex.InnerException.Message}" : ex.Message;
-            return BadRequest(new { message = detail });
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Failed to reject mission." });
         }
     }
 
