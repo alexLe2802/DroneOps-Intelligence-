@@ -23,4 +23,19 @@ public interface IMissionRepository
         CancellationToken cancellationToken = default);
     Task SaveChangesAsync(
         CancellationToken cancellationToken = default);
+
+    Task<Mission?> GetByIdForUpdateAsync(
+    Guid missionId,
+    CancellationToken cancellationToken = default);
+    Task DeleteWaypointsByMissionIdAsync(
+     Guid missionId,
+     CancellationToken cancellationToken = default);
+
+    Task AddWaypointsAsync(
+        IEnumerable<Waypoint> waypoints,
+        CancellationToken cancellationToken = default);
+    Task<bool> IsUavOwnedByUserAsync(
+    Guid uavId,
+    Guid userId,
+    CancellationToken cancellationToken = default);
 }
