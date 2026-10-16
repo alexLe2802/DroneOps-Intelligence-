@@ -8,7 +8,7 @@ namespace DroneOps.API.Controllers;
 
 [ApiController]
 [Route("api/live/missions")]
-[Authorize(Roles = "Pilot,operation_manager")]
+[Authorize(Roles = "Pilot,operation_manager,uav_operator,operations_manager")]
 public class LiveMissionsController : ControllerBase
 {
     private readonly ITelemetryIngestionService _telemetryService;
@@ -28,7 +28,7 @@ public class LiveMissionsController : ControllerBase
     {
         try
         {
-            var isManager = User.IsInRole("operation_manager");
+            var isManager = User.IsInRole("operation_manager") || User.IsInRole("operations_manager");
             Guid? currentUserId = TryGetUserId(out var userId) ? userId : null;
 
             var result = await _telemetryService.GetLiveMissionsAsync(

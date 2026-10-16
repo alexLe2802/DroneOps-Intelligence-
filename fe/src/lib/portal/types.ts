@@ -41,6 +41,42 @@ export type CreateMissionRequest = {
 };
 export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[]; detailAvailable?: boolean };
 
+export type PendingMissionApproval = {
+  missionId: string;
+  missionName: string;
+  description: string | null;
+  status: string;
+  createdAt: string;
+  startTime: string | null;
+  endTime: string | null;
+  pilotId: string;
+  pilotName: string | null;
+  pilotEmail: string | null;
+  uavId: string | null;
+  uavCode: string | null;
+  uavName: string | null;
+  waypointCount: number;
+  validationStatus: string;
+};
+
+export type PagedPendingMissionApprovals = {
+  items: PendingMissionApproval[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export type MissionDecision = {
+  missionId: string;
+  decision: "Approved" | "Rejected" | string;
+  previousStatus: string;
+  newStatus: string;
+  comment: string | null;
+  decidedAt: string;
+  decidedBy: string;
+};
+
 export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
 export type AssignedUav = {

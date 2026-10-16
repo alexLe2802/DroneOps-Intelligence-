@@ -32,4 +32,16 @@ public class MissionLatestTelemetryResponse
     public double? DataAgeSeconds { get; set; }
     public bool IsStale { get; set; } = true;
     public bool IsValid { get; set; }
+
+    /// <summary>
+    /// Missing | Latest | Stale | Offline — phân biệt snapshot rỗng với dữ liệu cũ, không dùng playback.
+    /// </summary>
+    public string SnapshotKind { get; set; } = "Missing";
+
+    public int WaypointTotal { get; set; }
+
+    /// <summary>
+    /// Tiến độ D-05: missionSequence / tổng waypoint, kẹp 0–100; không dùng Completed khi mất kết nối.
+    /// </summary>
+    public double? ProgressPercent { get; set; }
 }
