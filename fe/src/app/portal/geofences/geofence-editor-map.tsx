@@ -31,8 +31,9 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
 
     void import("leaflet").then(({ default: L }) => {
       if (cancelled) return;
+      // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
       const map = L.map(container, {
-        center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: true,
+        center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: false,
       });
       mapRef.current = map;
       L.control.zoom({ position: "bottomright" }).addTo(map);

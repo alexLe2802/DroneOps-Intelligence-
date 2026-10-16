@@ -104,6 +104,13 @@ export async function createUav(request: CreateUavRequest): Promise<AssignedUav>
   return api<AssignedUav>("/uavs", { method: "POST", body: JSON.stringify(request) });
 }
 
+export function getManagedUavs(filters: { pageNumber?: number; keyword?: string; status?: string } = {}): Promise<PagedResponse<AssignedUav>> {
+  const params = new URLSearchParams({ PageNumber: String(filters.pageNumber ?? 1), PageSize: "20" });
+  if (filters.keyword?.trim()) params.set("Keyword", filters.keyword.trim());
+  if (filters.status) params.set("Status", filters.status);
+  return api<PagedResponse<AssignedUav>>(`/admin/uavs?${params}`);
+}
+
 export async function getPendingUavs(keyword = ""): Promise<AssignedUav[]> {
   const params = new URLSearchParams({ page: "1", pageSize: "100" });
   if (keyword.trim()) params.set("keyword", keyword.trim());
