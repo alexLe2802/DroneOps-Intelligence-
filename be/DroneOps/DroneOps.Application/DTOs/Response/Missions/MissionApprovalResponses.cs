@@ -25,7 +25,18 @@ public class PendingApprovalItemResponse
     public string? UavName { get; set; }
 
     public int WaypointCount { get; set; }
-    public string ValidationStatus { get; set; } = "Passed";
+
+    /// <summary>
+    /// Tóm tắt kiểm tra kế hoạch: Passed / Incomplete / Failed (không hard-code Passed).
+    /// </summary>
+    public string ValidationStatus { get; set; } = "Incomplete";
+
+    public List<string> ValidationIssues { get; set; } = new();
+
+    /// <summary>
+    /// Phiên bản kế hoạch hiện tại dùng làm expectedVersion khi approve/reject.
+    /// </summary>
+    public int CurrentVersion { get; set; } = 1;
 }
 
 public class PagedPendingApprovalsResponse
@@ -46,4 +57,8 @@ public class MissionDecisionResponse
     public string? Comment { get; set; }
     public DateTimeOffset DecidedAt { get; set; }
     public Guid DecidedBy { get; set; }
+
+    public bool IdempotentReplay { get; set; }
+
+    public Guid? ValidationRunId { get; set; }
 }

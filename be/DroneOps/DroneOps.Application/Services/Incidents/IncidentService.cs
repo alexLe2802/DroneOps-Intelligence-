@@ -24,14 +24,12 @@ public class IncidentService : IIncidentService
     {
         var query = _context.Incidents
             .AsNoTracking()
-            .Include(i => i.Mission)
-                .ThenInclude(m => m.UAV)
             .AsQueryable();
 
         // Pilot / UAV Operator chỉ được xem các sự cố thuộc mission do chính mình quản lý
         if (!isManager && currentUserId.HasValue)
         {
-            query = query.Where(i => i.Mission.CreatedBy == currentUserId.Value);
+            query = query.Where(i => i.Mission != null && i.Mission.CreatedBy == currentUserId.Value);
         }
 
         // Lọc theo Mission cụ thể
@@ -43,7 +41,7 @@ public class IncidentService : IIncidentService
         // Lọc theo UAV cụ thể
         if (request.UavId.HasValue)
         {
-            query = query.Where(i => i.Mission.UAVId == request.UavId.Value);
+            query = query.Where(i => i.Mission != null && i.Mission.UAVId == request.UavId.Value);
         }
 
         // Lọc theo Loại sự cố (Type)
@@ -100,10 +98,10 @@ public class IncidentService : IIncidentService
             {
                 Id = i.Id,
                 MissionId = i.MissionId,
-                MissionName = i.Mission.Name,
-                UavId = i.Mission.UAVId,
-                UavCode = i.Mission.UAV != null ? i.Mission.UAV.Code : null,
-                UavName = i.Mission.UAV != null ? i.Mission.UAV.Name : null,
+                MissionName = i.Mission != null ? i.Mission.Name : string.Empty,
+                UavId = i.Mission != null ? i.Mission.UAVId : null,
+                UavCode = i.Mission != null && i.Mission.UAV != null ? i.Mission.UAV.Code : null,
+                UavName = i.Mission != null && i.Mission.UAV != null ? i.Mission.UAV.Name : null,
                 Title = i.Title,
                 Description = i.Description,
                 Type = i.Type,
@@ -148,18 +146,7 @@ public class IncidentService : IIncidentService
             throw new UnauthorizedAccessException("You do not have permission to view this incident.");
         }
 
-        object? evidenceObject = null;
-        if (!string.IsNullOrWhiteSpace(incident.Evidence))
-        {
-            try
-            {
-                evidenceObject = JsonSerializer.Deserialize<object>(incident.Evidence);
-            }
-            catch
-            {
-                evidenceObject = incident.Evidence;
-            }
-        }
+        var evidence = ParseEvidence(incident.Evidence);
 
         return new IncidentDetailResponse
         {
@@ -177,14 +164,118 @@ public class IncidentService : IIncidentService
             Latitude = incident.Latitude,
             Longitude = incident.Longitude,
             CreatedAt = incident.CreatedAt,
-            Evidence = evidenceObject,
+            Evidence = evidence.Payload,
             AcknowledgedAt = incident.AcknowledgedAt,
             AcknowledgedBy = incident.AcknowledgedBy,
             AcknowledgedByName = incident.Acknowledger?.FullName ?? incident.Acknowledger?.Email,
             ResolvedAt = incident.ResolvedAt,
             ResolvedBy = incident.ResolvedBy,
             ResolvedByName = incident.Resolver?.FullName ?? incident.Resolver?.Email,
-            ResolutionNotes = incident.ResolutionNotes
+            ResolutionNotes = incident.ResolutionNotes,
+            SourceTimestamp = evidence.SourceTimestamp,
+            ReceivedAt = evidence.ReceivedAt,
+            AppliedRule = evidence.AppliedRule,
+            Threshold = evidence.Threshold
         };
+    }
+
+    public async Task<List<IncidentItemResponse>> GetMissionIncidentFeedAsync(
+        Guid missionId,
+        Guid? currentUserId,
+        bool isManager,
+        DateTimeOffset? changedAfter,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.Incidents
+            .AsNoTracking()
+            .Where(i => i.MissionId == missionId);
+
+        if (!isManager && currentUserId.HasValue)
+        {
+            query = query.Where(i => i.Mission.CreatedBy == currentUserId.Value);
+        }
+
+        if (changedAfter.HasValue)
+        {
+            var since = changedAfter.Value;
+            query = query.Where(i =>
+                i.CreatedAt > since ||
+                (i.AcknowledgedAt != null && i.AcknowledgedAt > since) ||
+                (i.ResolvedAt != null && i.ResolvedAt > since));
+        }
+
+        return await query
+            .OrderBy(i => i.CreatedAt)
+            .Select(i => new IncidentItemResponse
+            {
+                Id = i.Id,
+                MissionId = i.MissionId,
+                MissionName = i.Mission.Name,
+                UavId = i.Mission.UAVId,
+                UavCode = i.Mission.UAV != null ? i.Mission.UAV.Code : null,
+                UavName = i.Mission.UAV != null ? i.Mission.UAV.Name : null,
+                Title = i.Title,
+                Description = i.Description,
+                Type = i.Type,
+                Severity = i.Severity ?? "Medium",
+                Status = i.Status,
+                Latitude = i.Latitude,
+                Longitude = i.Longitude,
+                CreatedAt = i.CreatedAt,
+                AcknowledgedAt = i.AcknowledgedAt,
+                ResolvedAt = i.ResolvedAt
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    private static EvidenceParseResult ParseEvidence(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new EvidenceParseResult();
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(raw);
+            var root = document.RootElement;
+            return new EvidenceParseResult
+            {
+                Payload = JsonSerializer.Deserialize<object>(raw),
+                SourceTimestamp = ReadDate(root, "sourceTimestamp"),
+                ReceivedAt = ReadDate(root, "receivedAt"),
+                AppliedRule = root.TryGetProperty("appliedRule", out var rule) ? rule.GetString() : null,
+                Threshold = root.TryGetProperty("threshold", out var threshold) && threshold.ValueKind == JsonValueKind.Number
+                    ? threshold.GetDouble()
+                    : null
+            };
+        }
+        catch (JsonException)
+        {
+            return new EvidenceParseResult { Payload = raw };
+        }
+    }
+
+    private static DateTimeOffset? ReadDate(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return DateTimeOffset.TryParse(value.GetString(), out var parsed) ? parsed : null;
+    }
+
+    private sealed class EvidenceParseResult
+    {
+        public object? Payload { get; set; }
+
+        public DateTimeOffset? SourceTimestamp { get; set; }
+
+        public DateTimeOffset? ReceivedAt { get; set; }
+
+        public string? AppliedRule { get; set; }
+
+        public double? Threshold { get; set; }
     }
 }
