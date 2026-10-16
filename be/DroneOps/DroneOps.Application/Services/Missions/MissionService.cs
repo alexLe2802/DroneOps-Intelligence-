@@ -1,6 +1,7 @@
 ﻿using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
+using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Entities;
 
 namespace DroneOps.Application.Services;
@@ -8,23 +9,24 @@ namespace DroneOps.Application.Services;
 public sealed class MissionService : IMissionService
 {
     private readonly IMissionRepository _missionRepository;
+    private readonly MissionBusinessValidator _businessValidator;
 
-    public MissionService(IMissionRepository missionRepository)
+    public MissionService(
+       IMissionRepository missionRepository,
+       MissionBusinessValidator businessValidator)
     {
         _missionRepository = missionRepository;
+        _businessValidator = businessValidator;
     }
-
     public async Task<MissionResponse> CreateAsync(
         Guid pilotId,
         CreateMissionRequest request,
         CancellationToken cancellationToken = default)
     {
-        var uavExists = await _missionRepository.UavExistsAsync(
-            request.UavId,
-            cancellationToken);
-
-        if (!uavExists)
-            throw new KeyNotFoundException("UAV was not found.");
+        await _businessValidator.ValidateUavAsync(
+     request.UavId,
+     pilotId,
+     cancellationToken);
 
         var now = DateTime.UtcNow;
 
@@ -149,5 +151,81 @@ public sealed class MissionService : IMissionService
                 })
                 .ToList()
         };
+    }
+
+    public async Task<MissionResponse?> UpdateAsync(
+ Guid missionId,
+ Guid userId,
+ CreateMissionRequest request,
+ CancellationToken cancellationToken = default)
+    {
+        Mission? mission =
+            await _missionRepository.GetByIdForUpdateAsync(
+                missionId,
+                cancellationToken);
+
+        if (mission is null)
+        {
+            return null;
+        }
+
+        MissionBusinessValidator.ValidateMissionOwnership(
+    mission,
+    userId);
+
+        await _businessValidator.ValidateUavAsync(
+            request.UavId,
+            userId,
+            cancellationToken);
+
+        mission.UAVId = request.UavId;
+        mission.Name = request.Name.Trim();
+
+        mission.Description =
+            string.IsNullOrWhiteSpace(request.Description)
+                ? null
+                : request.Description.Trim();
+
+        mission.StartTime =
+            request.StartTime.ToUniversalTime();
+
+        mission.EndTime =
+            request.EndTime.ToUniversalTime();
+
+        await _missionRepository.DeleteWaypointsByMissionIdAsync(
+            mission.Id,
+            cancellationToken);
+
+        DateTime now = DateTime.UtcNow;
+
+        List<Waypoint> newWaypoints =
+            request.Waypoints
+                .OrderBy(x => x.SequenceOrder)
+                .Select(waypointRequest => new Waypoint
+                {
+                    Id = Guid.NewGuid(),
+                    MissionId = mission.Id,
+                    SequenceOrder = waypointRequest.SequenceOrder,
+                    Latitude = waypointRequest.Latitude,
+                    Longitude = waypointRequest.Longitude,
+                    Altitude = waypointRequest.Altitude,
+                    ActionType = string.IsNullOrWhiteSpace(
+                        waypointRequest.ActionType)
+                            ? null
+                            : waypointRequest.ActionType.Trim(),
+                    CreatedAt = now
+                })
+                .ToList();
+
+        await _missionRepository.AddWaypointsAsync(
+            newWaypoints,
+            cancellationToken);
+
+        await _missionRepository.SaveChangesAsync(
+            cancellationToken);
+
+        mission.Waypoints = newWaypoints;
+
+        return MapToResponse(mission);
     }
 }

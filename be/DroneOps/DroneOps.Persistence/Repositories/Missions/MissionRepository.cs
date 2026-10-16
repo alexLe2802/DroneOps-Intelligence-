@@ -65,6 +65,43 @@ public sealed class MissionRepository : IMissionRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<Mission?> GetByIdForUpdateAsync(
+     Guid missionId,
+     CancellationToken cancellationToken = default)
+    {
+        return await _context.Missions
+            .FirstOrDefaultAsync(
+                x => x.Id == missionId,
+                cancellationToken);
+    }
+    public async Task DeleteWaypointsByMissionIdAsync(
+     Guid missionId,
+     CancellationToken cancellationToken = default)
+    {
+        await _context.Waypoints
+            .Where(x => x.MissionId == missionId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    public async Task AddWaypointsAsync(
+        IEnumerable<Waypoint> waypoints,
+        CancellationToken cancellationToken = default)
+    {
+        await _context.Waypoints.AddRangeAsync(
+            waypoints,
+            cancellationToken);
+    }
+    public Task<bool> IsUavOwnedByUserAsync(
+    Guid uavId,
+    Guid userId,
+    CancellationToken cancellationToken = default)
+    {
+        return _context.UAVs.AnyAsync(
+            uav =>
+                uav.Id == uavId &&
+                uav.Pilot.UserId == userId,
+            cancellationToken);
+    }
     public async Task SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {

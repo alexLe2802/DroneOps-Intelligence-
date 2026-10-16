@@ -22,8 +22,7 @@ public interface IUavRepository
         Guid uavId,
         CancellationToken cancellationToken = default);
 
-    Task<(
-      IReadOnlyList<UAV> Items,
+    Task<(IReadOnlyList<UAV> Items,
       int TotalCount)> GetAllPagedAsync(
           string? keyword,
           string? status,
