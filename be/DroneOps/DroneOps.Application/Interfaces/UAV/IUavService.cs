@@ -41,4 +41,7 @@ public interface IUavService
     Task<PagedResponse<UavResponse>> GetAllAsync(
         GetAllUavsRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<bool> UpdateAsync(Guid userId, Guid uavId, UpdateUavRequest request, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(Guid userId, Guid uavId, CancellationToken cancellationToken = default);
 }
