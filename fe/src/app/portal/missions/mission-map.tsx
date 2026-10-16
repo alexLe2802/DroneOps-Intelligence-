@@ -20,7 +20,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
   const onAddRef = useRef(onAdd);
   const onUpdateRef = useRef(onUpdate);
   const [error, setError] = useState("");
-  const [mapReady, setMapReady] = useState(false);
+  const [mapReady, setMapReady] = useState<Leaflet.Map | null>(null);
   useEffect(() => { onAddRef.current = onAdd; }, [onAdd]);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
@@ -55,13 +55,15 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
       resizeFrame = requestAnimationFrame(() => {
         if (!cancelled) map.invalidateSize({ animate: false, pan: false });
       });
-      setMapReady(true);
+      setMapReady(map);
       setError("");
     }).catch(reason => setError(reason instanceof Error ? reason.message : "Map could not be loaded."));
     return () => {
       cancelled = true;
       if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
       markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
+      routeRef.current = null;
       mapRef.current?.stop();
       mapRef.current?.remove();
       mapRef.current = null;
@@ -75,7 +77,9 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || mapRef.current !== map) return;
       markersRef.current.forEach(marker => marker.remove());
-      routeRef.current?.remove();
+      if (routeRef.current && map.hasLayer(routeRef.current)) routeRef.current.remove();
+      routeRef.current = null;
+      if (waypoints.some(point => !Number.isFinite(point.latitude) || Math.abs(point.latitude) > 90 || !Number.isFinite(point.longitude) || Math.abs(point.longitude) > 180)) return;
       markersRef.current = waypoints.map((point, index) => {
         const marker = L.marker([point.latitude, point.longitude], {
           draggable: !readOnly,
