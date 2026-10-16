@@ -16,8 +16,16 @@ export function canonicalRole(role: string): AccountRole | null {
 export async function sessionFromToken(token: string): Promise<AuthSession | null> {
   // The backend verifies signature/expiry; JWT decoding below only extracts expiry after verification.
   const response = await fetch(`${backendUrl()}/api/users/profile`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(20000) });
-  if (response.status === 401 || response.status === 403) return null;
-  if (!response.ok) throw new Error("Authentication service is unavailable.");
+  if (response.status === 401 || response.status === 403 || response.status === 404) return null;
+  if (!response.ok) {
+    // Log only upstream status and request IDs; never log the access token or response body.
+    console.error("Authentication profile request failed", {
+      endpoint: "/api/users/profile",
+      status: response.status,
+      traceId: response.headers.get("traceparent") ?? response.headers.get("x-request-id"),
+    });
+    throw new Error(`Authentication service is unavailable (profile API HTTP ${response.status}).`);
+  }
   const profile = await response.json();
   const role = canonicalRole(profile.role);
   if (!role) return null;
