@@ -1,10 +1,10 @@
 ﻿using System.Security.Claims;
 using System.Text.Json;
-using DroneOps.Application.DTOs.Request.Incidents;
 using DroneOps.Application.Interfaces.Incidents;
 using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Persistence.Data;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +15,11 @@ namespace DroneOps.API.Controllers.Integrations;
 [Authorize(Roles = "Pilot,operation_manager,uav_operator,operations_manager")]
 public class LiveStreamController : ControllerBase
 {
+    private static readonly JsonSerializerOptions SseJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly AppDbContext _context;
     private readonly ITelemetryIngestionService _telemetryService;
     private readonly IIncidentService _incidentService;
@@ -30,13 +35,19 @@ public class LiveStreamController : ControllerBase
     }
 
     /// <summary>
-    /// Luồng Server-Sent Events (SSE) phát dữ liệu viễn trắc và sự cố thời gian thực theo nhiệm vụ (SCR-10 / UC-14 / KAN-36)
+    /// Luồng SSE: telemetry + sự cố theo mission. Không phải video livestream. Tái kết nối gửi snapshot.
     /// </summary>
     [HttpGet]
     [Produces("text/event-stream")]
     public async Task GetLiveStream([FromQuery] Guid missionId, CancellationToken cancellationToken)
     {
-        // 1. Kiểm tra tồn tại và phân quyền nhiệm vụ
+        if (missionId == Guid.Empty)
+        {
+            Response.StatusCode = StatusCodes.Status400BadRequest;
+            await Response.WriteAsJsonAsync(new { message = "Query parameter missionId is required." }, cancellationToken);
+            return;
+        }
+
         var mission = await _context.Missions
             .AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == missionId, cancellationToken);
@@ -44,7 +55,7 @@ public class LiveStreamController : ControllerBase
         if (mission == null)
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
-            await Response.WriteAsync("Mission not found.", cancellationToken);
+            await Response.WriteAsJsonAsync(new { message = "Mission not found." }, cancellationToken);
             return;
         }
 
@@ -54,21 +65,23 @@ public class LiveStreamController : ControllerBase
         if (!isManager && currentUserId.HasValue && mission.CreatedBy != currentUserId.Value)
         {
             Response.StatusCode = StatusCodes.Status403Forbidden;
-            await Response.WriteAsync("Forbidden: You do not own this mission stream.", cancellationToken);
+            await Response.WriteAsJsonAsync(new { message = "Forbidden: You do not own this mission stream." }, cancellationToken);
             return;
         }
 
-        // 2. Thiết lập header SSE chuẩn
+        HttpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
         Response.Headers.Append("Content-Type", "text/event-stream");
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");
+        Response.Headers.Append("X-Accel-Buffering", "no");
 
         long eventSequence = 1;
         DateTimeOffset? lastSentTelemetryTime = null;
+        var knownIncidentStatus = new Dictionary<Guid, string>();
+        DateTimeOffset incidentWatermark = DateTimeOffset.UtcNow.AddHours(-24);
 
         try
         {
-            // 3. Khi vừa kết nối: Gửi ngay snapshot viễn trắc mới nhất và danh sách sự cố chưa xử lý (Reconnect/Resync)
             var initialSnapshot = await _telemetryService.GetLatestMissionTelemetryAsync(
                 missionId, currentUserId, isManager, cancellationToken);
 
@@ -78,19 +91,23 @@ public class LiveStreamController : ControllerBase
                 lastSentTelemetryTime = initialSnapshot.SourceTimestamp;
             }
 
-            var openIncidents = await _incidentService.GetIncidentsAsync(
-                new GetIncidentsRequest { MissionId = missionId, Status = "Open", PageSize = 20 },
-                currentUserId, isManager, cancellationToken);
+            var openIncidents = await _incidentService.GetMissionIncidentFeedAsync(
+                missionId, currentUserId, isManager, changedAfter: null, cancellationToken);
 
-            foreach (var incident in openIncidents.Items)
+            foreach (var incident in openIncidents.Where(i => i.Status != "Resolved"))
             {
-                await WriteSseEventAsync("incidentRaised", eventSequence++, incident, cancellationToken);
+                var eventName = incident.Status == "Open" ? "incidentRaised" : "incidentUpdated";
+                await WriteSseEventAsync(eventName, eventSequence++, incident, cancellationToken);
+                knownIncidentStatus[incident.Id] = incident.Status;
+                if (incident.CreatedAt > incidentWatermark)
+                {
+                    incidentWatermark = incident.CreatedAt;
+                }
             }
 
-            // 4. Vòng lặp duy trì kết nối (Keep-Alive Heartbeat) và stream dữ liệu mới
             while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(2000, cancellationToken); // Nhịp kiểm tra mỗi 2 giây
+                await Task.Delay(1500, cancellationToken);
 
                 var currentTelemetry = await _telemetryService.GetLatestMissionTelemetryAsync(
                     missionId, currentUserId, isManager, cancellationToken);
@@ -102,24 +119,56 @@ public class LiveStreamController : ControllerBase
                 }
                 else
                 {
-                    // Gửi nhịp keep-alive để giữ vững kết nối SSE không bị ngắt bởi trình duyệt hoặc proxy
                     await Response.WriteAsync($": keep-alive {DateTimeOffset.UtcNow:O}\n\n", cancellationToken);
                     await Response.Body.FlushAsync(cancellationToken);
+                }
+
+                var changedIncidents = await _incidentService.GetMissionIncidentFeedAsync(
+                    missionId, currentUserId, isManager, incidentWatermark, cancellationToken);
+
+                foreach (var incident in changedIncidents)
+                {
+                    var isNew = !knownIncidentStatus.ContainsKey(incident.Id);
+                    var eventName = isNew && incident.Status == "Open" ? "incidentRaised" : "incidentUpdated";
+                    await WriteSseEventAsync(eventName, eventSequence++, incident, cancellationToken);
+                    knownIncidentStatus[incident.Id] = incident.Status;
+
+                    var latestChange = MaxTime(incident.CreatedAt, incident.AcknowledgedAt, incident.ResolvedAt);
+                    if (latestChange > incidentWatermark)
+                    {
+                        incidentWatermark = latestChange;
+                    }
                 }
             }
         }
         catch (OperationCanceledException)
         {
-            // Trình duyệt của Frontend ngắt kết nối hoặc đóng tab -> tự động dọn dẹp và giải phóng tài nguyên sạch sẽ
+            // Client đóng tab / ngắt SSE: vòng lặp kết thúc, không giữ subscription rò rỉ giữa các scope.
         }
     }
 
     private async Task WriteSseEventAsync(string eventName, long id, object data, CancellationToken ct)
     {
-        var json = JsonSerializer.Serialize(data);
+        var json = JsonSerializer.Serialize(data, SseJson);
         var sseMessage = $"id: {id}\nevent: {eventName}\ndata: {json}\n\n";
         await Response.WriteAsync(sseMessage, ct);
         await Response.Body.FlushAsync(ct);
+    }
+
+    private static DateTimeOffset MaxTime(DateTimeOffset created, DateTimeOffset? acknowledged, DateTimeOffset? resolved)
+    {
+        var max = created;
+        if (acknowledged.HasValue && acknowledged.Value > max)
+        {
+            max = acknowledged.Value;
+        }
+
+        if (resolved.HasValue && resolved.Value > max)
+        {
+            max = resolved.Value;
+        }
+
+        return max;
     }
 
     private bool TryGetUserId(out Guid userId)
