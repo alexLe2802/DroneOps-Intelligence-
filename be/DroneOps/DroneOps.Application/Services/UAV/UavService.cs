@@ -3,8 +3,6 @@ using DroneOps.Application.DTOs.Request.UAVs;
 using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.UAVs;
 using DroneOps.Application.Interfaces.UAVs;
-
-
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
 
@@ -54,17 +52,11 @@ public sealed class UavService
         var uav = new UAV
         {
             Id = Guid.NewGuid(),
-
             PilotId = pilot.Id,
-
             Code = request.Code.Trim(),
-
             Name = request.Name.Trim(),
-
             Model = request.Model?.Trim(),
-
             Status = "Pending",
-
             CreatedAt = DateTime.UtcNow
         };
 
@@ -105,6 +97,36 @@ public sealed class UavService
                     x,
                     pilot.User.FullName))
             .ToList();
+    }
+
+    public async Task<bool> UpdateAsync(
+        Guid userId,
+        Guid uavId,
+        UpdateUavRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
+        if (uav == null) return false;
+
+        uav.Code = request.UavCode.Trim();
+        uav.Name = request.UavName.Trim();
+        uav.Model = request.Description?.Trim();
+
+        await _uavRepository.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> DeleteAsync(
+        Guid userId,
+        Guid uavId,
+        CancellationToken cancellationToken = default)
+    {
+        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
+        if (uav == null) return false;
+
+        _uavRepository.Remove(uav);
+        await _uavRepository.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public async Task<List<UavResponse>> GetPendingAsync(
@@ -170,6 +192,7 @@ public sealed class UavService
             uav,
             uav.Pilot.User.FullName);
     }
+
     public async Task<UavResponse?> DeactivateAsync(
     Guid uavId,
     CancellationToken cancellationToken = default)
@@ -193,6 +216,7 @@ public sealed class UavService
             uav,
             uav.Pilot.User.FullName);
     }
+
     public async Task<UavResponse?> ActivateAsync(
     Guid uavId,
     CancellationToken cancellationToken = default)
@@ -216,6 +240,7 @@ public sealed class UavService
             uav,
             uav.Pilot.User.FullName);
     }
+
     public async Task<PagedResponse<UavResponse>>
      GetAllAsync(
          GetAllUavsRequest request,
@@ -274,6 +299,7 @@ public sealed class UavService
             Items = items
         };
     }
+
     private static UavResponse MapToResponse(
      UAV uav,
      string pilotName)
@@ -291,5 +317,3 @@ public sealed class UavService
         };
     }
 }
-
-   
