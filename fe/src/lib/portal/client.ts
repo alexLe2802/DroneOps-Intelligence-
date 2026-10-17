@@ -104,6 +104,15 @@ export async function createUav(request: CreateUavRequest): Promise<AssignedUav>
   return api<AssignedUav>("/uavs", { method: "POST", body: JSON.stringify(request) });
 }
 
+// PUT uses the backend's update DTO, which differs from the create DTO.
+export async function updateAssignedUav(id: string, request: CreateUavRequest): Promise<void> {
+  await api(`/uavs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ uavCode: request.code, uavName: request.name, description: request.model }) });
+}
+
+export async function deleteAssignedUav(id: string): Promise<void> {
+  await api(`/uavs/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 export function getManagedUavs(filters: { pageNumber?: number; keyword?: string; status?: string } = {}): Promise<PagedResponse<AssignedUav>> {
   const params = new URLSearchParams({ PageNumber: String(filters.pageNumber ?? 1), PageSize: "20" });
   if (filters.keyword?.trim()) params.set("Keyword", filters.keyword.trim());
