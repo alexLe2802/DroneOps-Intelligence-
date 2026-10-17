@@ -19,8 +19,14 @@ public interface IUserService
         Guid userId,
         CancellationToken cancellationToken = default);
 
-    Task<PagedResponse<UserProfileResponse>>
-      GetAllUsersAsync(
+    Task<PagedResponse<UserProfileResponse>> GetAllUsersAsync(
           UserFilterRequest request,
           CancellationToken cancellationToken = default);
+
+Task<UpdatePilotProfileResponse?>UpdatePilotProfileAsync(
+        Guid userId,
+        UpdatePilotProfileRequest request,
+        CancellationToken cancellationToken = default);
+
+
 }

@@ -205,4 +205,59 @@ public sealed class UserController : ControllerBase
 
         return Ok(profile);
     }
+
+    [Authorize(Roles = "uav_operator")]
+    [HttpPut("pilot-profile")]
+    [ProducesResponseType(
+    typeof(UpdatePilotProfileResponse),
+    StatusCodes.Status200OK)]
+    [ProducesResponseType(
+    StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+    StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+    StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+    StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdatePilotProfile(
+    [FromBody] UpdatePilotProfileRequest request,
+    CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out Guid userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid access token."
+            });
+        }
+
+        try
+        {
+            UpdatePilotProfileResponse? result =
+                await _userService.UpdatePilotProfileAsync(
+                    userId,
+                    request,
+                    cancellationToken);
+
+            if (result is null)
+            {
+                return NotFound(new
+                {
+                    message = "Pilot profile not found."
+                });
+            }
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+            when (ex.Message.Contains(
+                "pending",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict(new
+            {
+                message = ex.Message
+            });
+        }
+    }
 }

@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
-
+namespace DroneOps.Domain.Entities;
 [Table("PilotRegistration")]
 public class PilotRegistration
 {
