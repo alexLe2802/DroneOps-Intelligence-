@@ -9,6 +9,7 @@ export default function UavManagementClient() {
   const [aircraft, setAircraft] = useState<AssignedUav[] | null>(null);
   const [selected, setSelected] = useState<AssignedUav | null>(null);
   const requestId = useRef(0);
+  const mutationPending = useRef(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
@@ -47,7 +48,9 @@ export default function UavManagementClient() {
   }
 
   async function changeStatus(action: "activate" | "reject" | "deactivate") {
-    if (!selected) return;
+    if (!selected || mutationPending.current) return;
+    if (action !== "activate" && !window.confirm(`${action === "deactivate" ? "Deactivate" : "Reject"} UAV ${selected.code}?`)) return;
+    mutationPending.current = true;
     setBusy(true); setError(null); setMessage("");
     try {
       const updated = await setManagedUavStatus(selected.id, action);
@@ -56,7 +59,7 @@ export default function UavManagementClient() {
       if (page > 1) setPage(1);
       else await load();
     } catch (reason) { setError(reason); }
-    finally { setBusy(false); }
+    finally { mutationPending.current = false; setBusy(false); }
   }
 
   if (!aircraft && !error) return <ModuleLoading label="Loading UAV fleet" />;
@@ -72,7 +75,7 @@ export default function UavManagementClient() {
           <div className="uav-actions" aria-label="Fleet pagination"><button className="module-secondary" disabled={busy || page <= 1} onClick={() => setPage(value => value - 1)}>PREVIOUS</button><span role="status">Page {page} / {Math.max(1, totalPages)} · {totalItems} UAVs</span><button className="module-secondary" disabled={busy || page >= totalPages} onClick={() => setPage(value => value + 1)}>NEXT</button></div>
         </section>
         <aside className="manager-uav-detail">
-          {!selected ? <div className="manager-uav-placeholder"><span>◈</span><h2>Select a UAV</h2><p>Select an aircraft from the list to view its details.</p></div> : <><header><div><p className="module-kicker">UAV RECORD</p><h2>{selected.code}</h2></div><span className={`status status-${selected.status.toLowerCase()}`}>{selected.status}</span></header><dl><div><dt>Name</dt><dd>{selected.name}</dd></div><div><dt>Model</dt><dd>{selected.model ?? "Not specified"}</dd></div><div><dt>Pilot</dt><dd>{selected.pilotName}</dd></div><div><dt>Created</dt><dd>{new Date(selected.createdAt).toLocaleString()}</dd></div></dl><div className="uav-actions"><button className="module-primary" disabled={busy || selected.status === "Active"} onClick={() => void changeStatus("activate")}>APPROVE & ACTIVATE</button><button className="module-danger" disabled={busy || selected.status !== "Pending"} onClick={() => void changeStatus("reject")}>REJECT</button>{selected.status.toLowerCase() === "active" && <button className="module-danger" disabled={busy} onClick={() => void changeStatus("deactivate")}>DEACTIVATE</button>}</div></>}
+          {!selected ? <div className="manager-uav-placeholder"><span>◈</span><h2>Select a UAV</h2><p>Select an aircraft from the list to view its details.</p></div> : <><header><div><p className="module-kicker">UAV RECORD</p><h2>{selected.code}</h2></div><span className={`status status-${selected.status.toLowerCase()}`}>{selected.status}</span></header><dl><div><dt>Name</dt><dd>{selected.name}</dd></div><div><dt>Model</dt><dd>{selected.model ?? "Not specified"}</dd></div><div><dt>Pilot</dt><dd>{selected.pilotName}</dd></div><div><dt>Created</dt><dd>{new Date(selected.createdAt).toLocaleString()}</dd></div></dl><div className="uav-actions"><button className="module-primary" disabled={busy || !["pending", "inactive", "rejected"].includes(selected.status.toLowerCase())} onClick={() => void changeStatus("activate")}>{selected.status.toLowerCase() === "inactive" ? "REACTIVATE" : "APPROVE & ACTIVATE"}</button><button className="module-danger" disabled={busy || selected.status.toLowerCase() !== "pending"} onClick={() => void changeStatus("reject")}>REJECT</button>{selected.status.toLowerCase() === "active" && <button className="module-danger" disabled={busy} onClick={() => void changeStatus("deactivate")}>DEACTIVATE</button>}</div></>}
         </aside>
       </div>
 
