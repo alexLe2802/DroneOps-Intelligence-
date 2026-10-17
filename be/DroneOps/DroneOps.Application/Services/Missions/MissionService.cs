@@ -51,22 +51,15 @@ public sealed class MissionService : IMissionService
             mission.Waypoints.Add(new Waypoint
             {
                 Id = Guid.NewGuid(),
-
                 MissionId = mission.Id,
-
                 SequenceOrder = waypointRequest.SequenceOrder,
-
                 Latitude = waypointRequest.Latitude,
-
                 Longitude = waypointRequest.Longitude,
-
                 Altitude = waypointRequest.Altitude,
-
                 ActionType = string.IsNullOrWhiteSpace(
                     waypointRequest.ActionType)
                     ? null
                     : waypointRequest.ActionType.Trim(),
-
                 CreatedAt = now
             });
         }
@@ -80,9 +73,10 @@ public sealed class MissionService : IMissionService
 
         return MapToResponse(mission);
     }
+
     public async Task<MissionResponse?> GetByIdAsync(
-    Guid missionId,
-    CancellationToken cancellationToken = default)
+        Guid missionId,
+        CancellationToken cancellationToken = default)
     {
         Mission? mission =
             await _missionRepository.GetByIdAsync(
@@ -96,8 +90,8 @@ public sealed class MissionService : IMissionService
 
         return MapToResponse(mission);
     }
-    public async Task<List<MissionResponse>>
-    GetAllAsync(
+
+    public async Task<List<MissionResponse>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
         List<Mission> missions =
@@ -109,8 +103,7 @@ public sealed class MissionService : IMissionService
             .ToList();
     }
 
-    public async Task<List<MissionResponse>>
-    GetMyAsync(
+    public async Task<List<MissionResponse>> GetMyAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
@@ -123,6 +116,46 @@ public sealed class MissionService : IMissionService
             .Select(MapToResponse)
             .ToList();
     }
+
+    public async Task<bool> SubmitMissionAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var mission = await _missionRepository.GetByIdAsync(id, cancellationToken);
+        if (mission == null || mission.Status != "Draft") return false;
+
+        mission.Status = "Submitted";
+
+        await _missionRepository.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<object> ValidateMissionParamsAsync(
+        MissionValidateDto request,
+        CancellationToken cancellationToken = default)
+    {
+        bool isValid = request.Waypoints != null && request.Waypoints.Count > 0;
+        return await Task.FromResult(new
+        {
+            isValid = isValid,
+            message = isValid ? "Mission parameters are valid." : "Waypoints cannot be empty."
+        });
+    }
+
+    public async Task<bool> CancelMissionAsync(
+        Guid id,
+        string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        var mission = await _missionRepository.GetByIdAsync(id, cancellationToken);
+        if (mission == null) return false;
+
+        mission.Status = "Cancelled";
+
+        await _missionRepository.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     private static MissionResponse MapToResponse(
         Mission mission)
     {
