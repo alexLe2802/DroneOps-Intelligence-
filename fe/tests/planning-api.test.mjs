@@ -24,6 +24,42 @@ test("mission creation preserves UTC schedule and ordered waypoints in a single 
   finally { mock.mock.restore(); }
 });
 
+test("mission update sends the complete draft to the mission PUT endpoint", async () => {
+  const input = { name: "Updated survey", uavId: "uav-id", description: "Revised route", startTime: "2026-10-17T01:00:00.000Z", endTime: "2026-10-17T02:00:00.000Z", waypoints: [1, 2].map(i => ({ sequenceOrder: i, latitude: 10 + i, longitude: 106, altitude: 50, actionType: "FlyThrough" })) };
+  const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(url, "/api/missions/mission-id");
+    assert.equal(options.method, "PUT");
+    assert.deepEqual(JSON.parse(options.body), input);
+    return Response.json({ ...input, id: "mission-id", status: "Draft", waypoints: input.waypoints });
+  });
+  try {
+    const saved = await client.updateMission("mission-id", input);
+    assert.equal(saved.name, input.name);
+    assert.equal(saved.detailAvailable, true);
+    assert.equal(mock.mock.calls.length, 1);
+  } finally { mock.mock.restore(); }
+});
+
+test("mission lifecycle calls validation, submit and cancel contracts", async () => {
+  const mission = { id: "mission-id", name: "Survey", status: "Draft", description: null, uavId: "uav-id", uavCode: "UAV-01", startTime: null, endTime: null, createdAt: "", latestVersion: 1, waypoints: [{ sequenceOrder: 1, latitude: 10, longitude: 106, altitude: 50, actionType: "TakeOff" }] };
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push([url, options.method, options.body ? JSON.parse(options.body) : null]);
+    if (url.endsWith("/validate")) return Response.json({ isValid: true, message: "Mission parameters are valid." });
+    return Response.json({ message: "OK" });
+  });
+  try {
+    assert.equal((await client.validateMission(mission)).isValid, true);
+    await client.submitMission(mission.id);
+    await client.cancelMission(mission.id, "Weather changed");
+    assert.deepEqual(calls, [
+      ["/api/missions/validate", "POST", { missionId: "mission-id", waypoints: [{ latitude: 10, longitude: 106, altitude: 50 }] }],
+      ["/api/missions/mission-id/submit", "PUT", null],
+      ["/api/missions/mission-id/cancel", "PUT", { reason: "Weather changed" }],
+    ]);
+  } finally { mock.mock.restore(); }
+});
+
 test("geofence list/detail/create/update/delete use the existing backend contracts", async () => {
   const body = { name: "Area", description: null, coordinates: [{ latitude: 10, longitude: 106 }, { latitude: 11, longitude: 106 }, { latitude: 11, longitude: 107 }] };
   const zone = { ...body, id: "zone-id" };
