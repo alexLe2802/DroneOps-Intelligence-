@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
-import { getAssignedUavs, getGeofences, getMission } from "@/lib/portal/client";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { getAssignedUavs, getGeofences, getMission, updateMission } from "@/lib/portal/client";
 import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../../module-state";
 import MissionMap from "../../mission-map";
@@ -44,6 +44,8 @@ export default function MissionEditClient({ id }: { id: string }) {
   const [loadError, setLoadError] = useState<unknown>(null);
   const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const savePending = useRef(false);
 
   const load = useCallback(() => {
     setMission(null);
@@ -131,16 +133,37 @@ export default function MissionEditClient({ id }: { id: string }) {
     if (dirty && !window.confirm("Discard the unsaved mission changes?")) event.preventDefault();
   }
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!value) return;
+    if (!value || savePending.current) return;
     setFormError("");
     setNotice("");
     if (value.waypoints.length < 2) { setFormError("Keep at least two waypoints in the flight route."); return; }
     if (new Date(value.endTime) <= new Date(value.startTime)) { setFormError("End time must be later than start time."); return; }
     if (value.waypoints.some(point => point.latitude < -90 || point.latitude > 90 || point.longitude < -180 || point.longitude > 180)) { setFormError("A waypoint is outside the valid latitude or longitude range."); return; }
     if (value.waypoints.some(point => point.altitude < 0 || point.altitude > 500)) { setFormError("Waypoint altitude must be between 0 and 500 metres."); return; }
-    setNotice("The edit is valid and ready to save. Backend still needs PUT /api/missions/{id} before these changes can be persisted.");
+    savePending.current = true;
+    setSaving(true);
+    try {
+      const saved = await updateMission(id, {
+        uavId: value.uavId,
+        name: value.name.trim(),
+        description: value.description.trim() || null,
+        startTime: new Date(value.startTime).toISOString(),
+        endTime: new Date(value.endTime).toISOString(),
+        waypoints: value.waypoints.map((point, index) => ({ ...point, sequenceOrder: index + 1 })),
+      });
+      const next = editorValue(saved);
+      setMission(saved);
+      setValue(next);
+      setInitialValue(JSON.stringify(next));
+      setNotice("Mission draft saved successfully.");
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message : "Unable to save the mission draft.");
+    } finally {
+      savePending.current = false;
+      setSaving(false);
+    }
   }
 
   if (loadError) return <ModuleError error={loadError} retry={load} />;
@@ -156,9 +179,8 @@ export default function MissionEditClient({ id }: { id: string }) {
       <div><p className="module-kicker">PILOT / MY MISSIONS / EDIT PLAN</p><div className="mission-title-line"><h1>Edit Mission Plan</h1><span className={`status status-${mission.status.toLowerCase()}`}>{mission.status}</span></div><p>Update mission details and refine the planned flight path.</p></div>
       <div className="heading-actions"><span className={`edit-dirty-state${dirty ? " changed" : ""}`}>{dirty ? "UNSAVED CHANGES" : "NO CHANGES"}</span><Link className="module-secondary module-link" href={`/portal/missions/${id}`} onClick={leave}>BACK TO MISSION</Link></div>
     </header>
-    <p className="api-pending-banner"><b>UPDATE API PENDING</b> This editor is ready for integration. Saving requires <code>PUT /api/missions/{id}</code> from the backend.</p>
-
     <form className="mission-builder mission-edit-form" onSubmit={submit}>
+      <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Plan configuration</h2><p>Revise the assigned aircraft, schedule and mission brief.</p></div><button type="button" className="text-action" disabled={!dirty} onClick={resetChanges}>RESET CHANGES</button></div>
         <div className="mission-field-grid">
@@ -172,13 +194,14 @@ export default function MissionEditClient({ id }: { id: string }) {
 
       <section className="route-builder">
         <div className="builder-section-title"><span>02</span><div><h2>Route and waypoint sequence</h2><p>Drag route nodes, click the map to add one, or edit exact values below.</p></div><button type="button" className="text-action" disabled={!value.waypoints.length} onClick={() => patchValue({ waypoints: [] })}>CLEAR ROUTE</button></div>
-        <MissionMap waypoints={value.waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} />
+        <MissionMap waypoints={value.waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
         <div className="waypoint-list mission-edit-waypoint-list">{value.waypoints.length === 0 ? <div className="waypoint-empty">Click the map to add the first route waypoint.</div> : value.waypoints.map((point, index) => <article key={`${point.sequenceOrder}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" max="500" value={point.altitude} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><div className="waypoint-order-actions"><button type="button" title="Move waypoint up" aria-label={`Move waypoint ${index + 1} up`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" title="Move waypoint down" aria-label={`Move waypoint ${index + 1} down`} disabled={index === value.waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" title="Remove waypoint" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div></article>)}</div>
       </section>
+      </fieldset>
 
       {formError && <p className="form-error" role="alert">{formError}</p>}
       {notice && <p className="mission-edit-notice" role="status">{notice}</p>}
-      <footer className="builder-footer"><p><b>{value.waypoints.length}</b> WAYPOINTS · VERSION {mission.latestVersion.toString().padStart(2, "0")} · {dirty ? "CHANGES PENDING" : "UNCHANGED"}</p><div><Link className="module-secondary module-link" href={`/portal/missions/${id}`} onClick={leave}>CANCEL</Link><button type="submit" className="module-primary" disabled={!dirty}>SAVE DRAFT</button></div></footer>
+      <footer className="builder-footer"><p><b>{value.waypoints.length}</b> WAYPOINTS · VERSION {mission.latestVersion.toString().padStart(2, "0")} · {dirty ? "CHANGES PENDING" : "UNCHANGED"}</p><div><Link className="module-secondary module-link" href={`/portal/missions/${id}`} onClick={leave}>CANCEL</Link><button type="submit" className="module-primary" disabled={!dirty || saving}>{saving ? "SAVING..." : "SAVE DRAFT"}</button></div></footer>
     </form>
   </>;
 }

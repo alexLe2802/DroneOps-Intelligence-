@@ -1,6 +1,6 @@
 import type { AccountRole } from "@/lib/auth/types";
 
-export type MissionStatus = "Draft" | "PendingApproval" | "Approved" | "InProgress" | "Completed" | "Rejected";
+export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
 
 export type PilotMission = {
   id: string;
@@ -40,6 +40,7 @@ export type CreateMissionRequest = {
   waypoints: MissionWaypoint[];
 };
 export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[]; detailAvailable?: boolean };
+export type MissionValidationResult = { isValid: boolean; message: string };
 
 export type PendingMissionApproval = {
   missionId: string;
