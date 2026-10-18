@@ -160,8 +160,10 @@ public sealed class UserController : ControllerBase
         if (!await reader.ReadAsync(ct)) return null;
         return new UserProfileResponse
         {
-            Id = reader.GetGuid(0), FullName = reader.GetString(1),
-            Email = reader.GetString(2), Role = reader.GetString(3),
+            Id = reader.GetGuid(0),
+            FullName = reader.GetString(1),
+            Email = reader.GetString(2),
+            Role = reader.GetString(3),
             CreatedAt = reader.GetFieldValue<DateTimeOffset>(4)
         };
     }
@@ -177,6 +179,7 @@ public sealed class UserController : ControllerBase
             userIdClaim,
             out userId);
     }
+
     [Authorize(Roles = "uav_operator")]
     [HttpGet("pilot-profile")]
     public async Task<IActionResult> GetPilotProfile(
@@ -204,5 +207,160 @@ public sealed class UserController : ControllerBase
         }
 
         return Ok(profile);
+    }
+
+    [Authorize(Roles = "uav_operator")]
+    [HttpPut("pilot-profile")]
+    [ProducesResponseType(
+    typeof(UpdatePilotProfileResponse),
+    StatusCodes.Status200OK)]
+    [ProducesResponseType(
+    StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+    StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+    StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+    StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdatePilotProfile(
+    [FromBody] UpdatePilotProfileRequest request,
+    CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out Guid userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid access token."
+            });
+        }
+
+        try
+        {
+            UpdatePilotProfileResponse? result =
+                await _userService.UpdatePilotProfileAsync(
+                    userId,
+                    request,
+                    cancellationToken);
+
+            if (result is null)
+            {
+                return NotFound(new
+                {
+                    message = "Pilot profile not found."
+                });
+            }
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+            when (ex.Message.Contains(
+                "pending",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    // =========================================================================
+    // CÁC ENDPOINT MỚI: ĐỔI EMAIL & ĐỔI MẬT KHẨU CÓ XÁC THỰC
+    // =========================================================================
+
+    /// <summary>
+    /// 1. Yêu cầu đổi email: Kiểm tra mật khẩu hiện tại và gửi mã OTP về email mới
+    /// </summary>
+    [HttpPost("change-email/request")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> RequestChangeEmail(
+        [FromBody] ChangeEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out Guid userId))
+        {
+            return Unauthorized(new { message = "Invalid access token." });
+        }
+
+        if (HttpContext.Items[typeof(SessionIdentity)] is SessionIdentity session)
+        {
+            userId = session.Account.Id;
+        }
+
+        try
+        {
+            var message = await _userService.RequestChangeEmailAsync(userId, request, cancellationToken);
+            return Ok(new { message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 2. Xác thực đổi email: Kiểm tra mã OTP và cập nhật email mới vào Database
+    /// </summary>
+    [HttpPost("change-email/confirm")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ConfirmChangeEmail(
+        [FromBody] VerifyChangeEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out Guid userId))
+        {
+            return Unauthorized(new { message = "Invalid access token." });
+        }
+
+        if (HttpContext.Items[typeof(SessionIdentity)] is SessionIdentity session)
+        {
+            userId = session.Account.Id;
+        }
+
+        try
+        {
+            var success = await _userService.ConfirmChangeEmailAsync(userId, request, cancellationToken);
+            return Ok(new { success, message = "Email has been successfully changed." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 3. Đổi mật khẩu: Xác thực mật khẩu cũ và cập nhật mật khẩu mới chuẩn bảo mật
+    /// </summary>
+    [HttpPost("change-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out Guid userId))
+        {
+            return Unauthorized(new { message = "Invalid access token." });
+        }
+
+        if (HttpContext.Items[typeof(SessionIdentity)] is SessionIdentity session)
+        {
+            userId = session.Account.Id;
+        }
+
+        try
+        {
+            var success = await _userService.ChangePasswordAsync(userId, request, cancellationToken);
+            return Ok(new { success, message = "Password has been successfully changed." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

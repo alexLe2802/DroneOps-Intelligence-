@@ -163,7 +163,7 @@ export function getManagedUav(id: string): Promise<AssignedUav> {
   return api<AssignedUav>(`/admin/uavs/${encodeURIComponent(id)}`);
 }
 
-export function setManagedUavStatus(id: string, action: "activate" | "reject" | "deactivate"): Promise<AssignedUav> {
+export function setManagedUavStatus(id: string, action: "approve" | "activate" | "reject" | "deactivate"): Promise<AssignedUav> {
   return api<AssignedUav>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" });
 }
 
