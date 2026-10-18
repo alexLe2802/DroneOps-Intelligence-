@@ -18,10 +18,10 @@ public interface IUavService
         CancellationToken cancellationToken = default);
 
     Task<List<UavResponse>> GetPendingAsync(
-    string? keyword = null,
-    int page = 1,
-    int pageSize = 10,
-    CancellationToken cancellationToken = default);
+        string? keyword = null,
+        int page = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default);
 
     Task<UavResponse?> GetDetailAsync(
         Guid uavId,
@@ -38,10 +38,21 @@ public interface IUavService
     Task<UavResponse?> DeactivateAsync(
         Guid uavId,
         CancellationToken cancellationToken = default);
+
     Task<PagedResponse<UavResponse>> GetAllAsync(
         GetAllUavsRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<bool> UpdateAsync(Guid userId, Guid uavId, UpdateUavRequest request, CancellationToken cancellationToken = default);
-    Task<bool> DeleteAsync(Guid userId, Guid uavId, CancellationToken cancellationToken = default);
+    // Cập nhật thông tin UAV
+    Task<bool> UpdateAsync(
+        Guid userId,
+        Guid uavId,
+        UpdateUavRequest request,
+        CancellationToken cancellationToken = default);
+
+    // Xóa UAV (Sẽ xử lý xóa mọi trạng thái ở trong UavService.cs)
+    Task<bool> DeleteAsync(
+        Guid userId,
+        Guid uavId,
+        CancellationToken cancellationToken = default);
 }
