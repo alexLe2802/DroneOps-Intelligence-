@@ -1,14 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace DroneOps.Application.DTOs.Request.UAVs;
 
-public class UpdateUavRequest
+public sealed class UpdateUavRequest
 {
-    public string UavCode { get; set; } = string.Empty;
-    public string UavName { get; set; } = string.Empty;
-    public string? Description { get; set; }
+    [Required(ErrorMessage = "UAV code is required.")]
+    [StringLength(50, ErrorMessage = "UAV code must not exceed 50 characters.")]
+    public string Code { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "UAV name is required.")]
+    [StringLength(100, ErrorMessage = "UAV name must not exceed 100 characters.")]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(100, ErrorMessage = "UAV model must not exceed 100 characters.")]
+    public string? Model { get; set; }
 }
