@@ -7,11 +7,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   const method = options.method ?? "GET";
   const headers = new Headers(options.headers);
   if (method !== "GET") {
-    // Request a fresh anti-forgery token after each change of authenticated identity.
-    const csrfResponse = await fetch("/api/auth/csrf", { cache: "no-store", credentials: "same-origin" });
-    if (!csrfResponse.ok) throw new ApiError("Unable to secure your request. Please try again.", csrfResponse.status);
-    const csrf: { csrfToken: string } = await csrfResponse.json();
-    headers.set("X-CSRF-TOKEN", csrf.csrfToken);
+    // The JWT proxy checks the request Origin before forwarding mutations.
     headers.set("Content-Type", "application/json");
   }
   const response = await fetch(`/api${path}`, { ...options, headers, credentials: "same-origin", cache: "no-store" });
