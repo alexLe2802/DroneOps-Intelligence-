@@ -39,7 +39,7 @@ public sealed class MissionService : IMissionService
             Description = string.IsNullOrWhiteSpace(request.Description)
                 ? null
                 : request.Description.Trim(),
-            Status = "Draft",
+            Status = "Pending",
             StartTime = request.StartTime.ToUniversalTime(),
             EndTime = request.EndTime.ToUniversalTime(),
             CreatedAt = now
