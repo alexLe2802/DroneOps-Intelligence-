@@ -1,5 +1,5 @@
 import { api, ApiError } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDecision, MissionDetail, OperationalAnalytics, PagedPendingMissionApprovals, PagedResponse, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDecision, MissionDetail, MissionValidationResult, OperationalAnalytics, PagedPendingMissionApprovals, PagedResponse, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "latestVersion" | "detailAvailable">;
 
@@ -27,6 +27,39 @@ export async function getPilotMissions(): Promise<MissionDetail[]> {
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
   const result = await api<Omit<MissionDetail, "uavCode" | "latestVersion">>("/missions", { method: "POST", body: JSON.stringify(request) });
   return { ...result, uavCode: null, latestVersion: 1 };
+}
+
+export async function updateMission(id: string, request: CreateMissionRequest): Promise<MissionDetail> {
+  const result = await api<Omit<MissionDetail, "uavCode" | "latestVersion">>(`/missions/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(request),
+  });
+  return { ...result, uavCode: null, latestVersion: 1, detailAvailable: true };
+}
+
+export function validateMission(mission: MissionDetail): Promise<MissionValidationResult> {
+  return api<MissionValidationResult>("/missions/validate", {
+    method: "POST",
+    body: JSON.stringify({
+      missionId: mission.id,
+      waypoints: mission.waypoints.map(point => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+        altitude: point.altitude,
+      })),
+    }),
+  });
+}
+
+export function submitMission(id: string): Promise<{ message: string }> {
+  return api<{ message: string }>(`/missions/${encodeURIComponent(id)}/submit`, { method: "PUT" });
+}
+
+export function cancelMission(id: string, reason: string): Promise<{ message: string }> {
+  return api<{ message: string }>(`/missions/${encodeURIComponent(id)}/cancel`, {
+    method: "PUT",
+    body: JSON.stringify({ reason: reason.trim() }),
+  });
 }
 
 export function getPendingMissionApprovals(params: { pageNumber?: number; pageSize?: number; search?: string; fromDate?: string; toDate?: string } = {}): Promise<PagedPendingMissionApprovals> {
