@@ -31,6 +31,10 @@ public interface IUavService
         Guid uavId,
         CancellationToken cancellationToken = default);
 
+    Task<UavResponse?> ApproveAsync(
+        Guid uavId,
+        CancellationToken cancellationToken = default);
+
     Task<UavResponse?> ActivateAsync(
         Guid uavId,
         CancellationToken cancellationToken = default);

@@ -106,7 +106,7 @@ public sealed class UavService : IUavService
         return true;
     }
 
-    // 4. Xóa UAV: Cho phép xóa toàn bộ Drone ở MỌI TRẠNG THÁI (Pending, Approved, Rejected, Active, Inactive)
+    // 4. Xóa UAV: Cho phép xóa toàn bộ Drone ở MỌI TRẠNG THÁI (Pending, Rejected, Active, Inactive)
     public async Task<bool> DeleteAsync(
         Guid userId,
         Guid uavId,
@@ -173,6 +173,7 @@ public sealed class UavService : IUavService
             return null;
         }
 
+        EnsureStatus(uav, "Pending", "reject");
         uav.Status = "Rejected";
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
@@ -194,6 +195,7 @@ public sealed class UavService : IUavService
             return null;
         }
 
+        EnsureStatus(uav, "Active", "deactivate");
         uav.Status = "Inactive";
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
@@ -201,7 +203,29 @@ public sealed class UavService : IUavService
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
 
-    // 9. Duyệt / Kích hoạt UAV -> Chuyển trạng thái sang "Active"
+    // 9. Duyệt UAV: Pending -> Active. "Approved" là hành động, không phải trạng thái UAV.
+    public async Task<UavResponse?> ApproveAsync(
+        Guid uavId,
+        CancellationToken cancellationToken = default)
+    {
+        var uav = await _uavRepository.GetDetailAsync(
+            uavId,
+            cancellationToken);
+
+        if (uav is null)
+        {
+            return null;
+        }
+
+        EnsureStatus(uav, "Pending", "approve");
+        uav.Status = "Active";
+
+        await _uavRepository.SaveChangesAsync(cancellationToken);
+
+        return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
+    }
+
+    // 10. Kích hoạt lại UAV đã bị vô hiệu hóa: Inactive -> Active
     public async Task<UavResponse?> ActivateAsync(
         Guid uavId,
         CancellationToken cancellationToken = default)
@@ -215,6 +239,7 @@ public sealed class UavService : IUavService
             return null;
         }
 
+        EnsureStatus(uav, "Inactive", "activate");
         uav.Status = "Active";
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
@@ -222,7 +247,7 @@ public sealed class UavService : IUavService
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
 
-    // 10. Lấy toàn bộ danh sách UAV có phân trang và lọc theo Status
+    // 11. Lấy toàn bộ danh sách UAV có phân trang và lọc theo Status
     public async Task<PagedResponse<UavResponse>> GetAllAsync(
         GetAllUavsRequest request,
         CancellationToken cancellationToken = default)
@@ -283,5 +308,14 @@ public sealed class UavService : IUavService
             Status = uav.Status,
             CreatedAt = uav.CreatedAt
         };
+    }
+
+    private static void EnsureStatus(UAV uav, string expectedStatus, string action)
+    {
+        if (!string.Equals(uav.Status, expectedStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Cannot {action} UAV with status '{uav.Status}'. Only {expectedStatus} UAVs can be {action}d.");
+        }
     }
 }
