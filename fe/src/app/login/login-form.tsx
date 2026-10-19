@@ -170,7 +170,7 @@ export default function LoginForm() {
           <label>License issued date<input required name="licenseIssuedDate" type="date" /></label>
           <label>License expired date<input required name="licenseExpiredDate" type="date" /></label>
           <LicenseFilePicker />
-          <label className="pilot-register-wide">Description<textarea name="description" rows={4} maxLength={500} placeholder="Briefly describe your operating scope or manager contact." /></label>
+          <label className="pilot-register-wide">Briefly describe your experience<textarea name="description" rows={4} maxLength={500} placeholder="Briefly describe your flight experience." /></label>
         </div>
         {error && <p className="pilot-register-error" role="alert">{error}</p>}
         <footer><p>Your application will remain pending until an Operations Manager reviews it.</p><button type="submit" className="button primary" disabled={busy !== null}>{busy === "register" ? "Sending..." : "Submit Registration Request"}</button></footer>

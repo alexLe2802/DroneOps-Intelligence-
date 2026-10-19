@@ -474,8 +474,6 @@ public sealed class UserService : IUserService
             FailedAttempts = 0
         };
 
-        _cache.Set(cacheKey, cacheEntry, TimeSpan.FromMinutes(10));
-        _cache.Set(rateLimitKey, true, TimeSpan.FromSeconds(60));
 
         var emailBody = $@"
             <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;'>
@@ -493,6 +491,8 @@ public sealed class UserService : IUserService
             "DroneOps - Email Change Verification Code",
             emailBody);
 
+        _cache.Set(cacheKey, cacheEntry, TimeSpan.FromMinutes(10));
+        _cache.Set(rateLimitKey, true, TimeSpan.FromSeconds(60));
         return "Verification code has been sent to your new email address.";
     }
 
@@ -524,7 +524,6 @@ public sealed class UserService : IUserService
                 _cache.Remove(cacheKey);
                 throw new Exception("Too many incorrect attempts. Your verification code has been invalidated.");
             }
-            _cache.Set(cacheKey, pending, TimeSpan.FromMinutes(10));
             throw new Exception($"Invalid verification code. You have {5 - pending.FailedAttempts} attempt(s) remaining.");
         }
 
@@ -534,6 +533,8 @@ public sealed class UserService : IUserService
             throw new Exception("User not found.");
         }
 
+        if (await _context.Users.AnyAsync(u => u.Id != userId && u.Email.ToLower() == pending.NewEmail, cancellationToken))
+            throw new Exception("This email address is already registered by another account.");
         user.Email = pending.NewEmail;
         _context.Users.Update(user);
         await _context.SaveChangesAsync(cancellationToken);

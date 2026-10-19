@@ -5,6 +5,12 @@ using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
 using Microsoft.AspNetCore.Authorization;
 
+if (args.Length == 2 && args[0] == "--license-workflow")
+{
+    await LicenseWorkflowChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
+
 // Offline checks for the current JWT API. No database or external identity provider is used.
 var passed = 0;
 void Check(bool condition, string name)
@@ -27,6 +33,12 @@ Check(typeof(AvatarController).GetCustomAttribute<AuthorizeAttribute>() is not n
     "Avatar controller requires authentication");
 Check(!typeof(AvatarController).GetMethods().Any(m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null),
     "No anonymous avatar actions");
+Check(typeof(LicenseChangesController).GetCustomAttribute<AuthorizeAttribute>() is not null,
+    "License history and evidence require authentication");
+Check(typeof(LicenseChangesController).GetMethod("Submit")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "uav_operator",
+    "Only operators can submit license changes");
+Check(typeof(LicenseChangesController).GetMethod("Review")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
+    "Only managers can review license changes");
 var validator = new CreatePilotRegistrationValidator();
 var today = DateOnly.FromDateTime(DateTime.UtcNow);
 CreatePilotRegistrationRequest Valid() => new()
