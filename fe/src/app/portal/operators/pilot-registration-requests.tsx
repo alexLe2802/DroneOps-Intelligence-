@@ -152,7 +152,7 @@ export default function PilotRegistrationRequests() {
           <div><span>License expires</span><b>{dateValue(selected.licenseExpiredDate)}</b></div>
         </div>
         <div className="request-license-evidence"><span>Flight license documents</span>{selected.licenseImageUrls?.length ? <div className="request-license-files">{selected.licenseImageUrls.map((url, index) => <article key={url}><a href={url} target="_blank" rel="noreferrer">{new URL(url).pathname.endsWith(".pdf") ? <b>Open license PDF {index + 1}</b> : <Image unoptimized width={800} height={800} style={{ width: "100%", height: "auto" }} src={url} alt={`Flight license page ${index + 1} submitted by ${selected.fullName}`} />}</a><small>License document {index + 1}</small></article>)}</div> : <div><b>Documents unavailable</b><p>No documents were uploaded with this application.</p></div>}<button type="button" onClick={() => void loadDetail(selected.id)}>Refresh document links</button></div>
-        <div className="request-description"><span>Applicant description</span><p>{selected.description || "No additional description was submitted."}</p></div>
+        <div className="request-description"><span>Flight experience</span><p>{selected.description || "No additional description was submitted."}</p></div>
         {selected.rejectReason && <div className="request-rejection"><span>Rejection reason</span><p>{selected.rejectReason}</p></div>}
         {selected.status === "Pending" && <div className="request-review-controls">
           <label>Rejection reason<textarea value={rejectReason} onChange={event => setRejectReason(event.target.value)} maxLength={500} rows={3} placeholder="Required only when rejecting this request" /></label>

@@ -166,7 +166,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           <label>License issued date<input name="licenseIssuedDate" type="date" required /></label>
           <label>License expired date<input name="licenseExpiredDate" type="date" required /></label>
           <label>DroneOps access<select name="isActive" defaultValue="true"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
-          <label className="provision-wide">Description<textarea name="description" maxLength={500} rows={4} placeholder="Operational notes, license scope, or manager remarks" /></label>
+          <label className="provision-wide">Briefly describe your experience<textarea name="description" maxLength={500} rows={4} placeholder="Briefly describe your flight experience." /></label>
           <div className="provision-submit"><button className="button primary" type="submit" disabled={busy}>{busy ? "Please wait..." : accountType === "new" ? "Create Pilot account ->" : "Grant Pilot access ->"}</button></div>
           <p id="pilot-form-help" className="provision-note">{accountType === "existing" ? "Use the email already registered in Firebase. Its password and sign-in methods will stay unchanged. " : ""}The flight license image is retained locally until the backend exposes its Supabase bucket URL. Disabled access blocks sign-in to DroneOps.</p>
         </fieldset>
@@ -211,7 +211,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           <label>License issued date<input name="licenseIssuedDate" type="date" required /></label>
           <label>License expired date<input name="licenseExpiredDate" type="date" required /></label>
           <label>DroneOps access<select name="isActive" defaultValue="true"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
-          <label className="provision-wide">Description<textarea name="description" maxLength={500} rows={4} placeholder="Operational notes, license scope, or manager remarks" /></label>
+          <label className="provision-wide">Briefly describe your experience<textarea name="description" maxLength={500} rows={4} placeholder="Briefly describe your flight experience." /></label>
           <div className="provision-submit"><button className="button primary" type="submit" disabled={busy}>{busy ? "Please wait…" : accountType === "new" ? "Create Pilot account →" : "Grant Pilot access →"}</button></div>
           <p id="pilot-form-help" className="provision-note">{accountType === "existing" ? "Use the email already registered in Firebase. Its password and sign-in methods will stay unchanged. " : ""}The flight license image is retained locally until the backend exposes its Supabase bucket URL. Disabled access blocks sign-in to DroneOps.</p>
         </fieldset>

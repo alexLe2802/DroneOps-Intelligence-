@@ -1,6 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import EmailChange from "./email-change";
+import OperatorEdit from "./operator-edit";
+import LicenseChanges from "./license-changes";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "@/lib/auth/client";
@@ -69,7 +72,7 @@ export default function ProfileClient({ account }: { account: Account }) {
   if (!profile) return <ModuleLoading label="Loading your profile" />;
   return <>
     <header className="module-heading"><div><p className="module-kicker">ACCOUNT / PERSONAL DETAILS</p><h1>Profile</h1><p>Review your identity and update the name shown in DroneOps.</p></div></header>
-    <section className="profile-layout"><aside className="profile-summary"><span>{profile.avatarUrl ? <Image unoptimized width={128} height={128} src={profile.avatarUrl} alt="Your avatar" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : profile.fullName.slice(0, 1).toUpperCase()}</span><label>Change avatar<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={e => setAvatarFile(e.target.files?.[0] ?? null)} /></label><small>JPEG, PNG or WebP · up to 5 MB</small><button type="button" disabled={!avatarFile || uploading} onClick={() => void uploadAvatar()}>{uploading ? "Uploading…" : "Update avatar"}</button>{avatarError && <p role="alert">{avatarError}</p>}<h2>{profile.fullName}</h2><p>{profile.email}</p><b>{profile.role.replaceAll("_", " ")}</b><small>MEMBER SINCE {new Date(profile.createdAt).toLocaleDateString()}</small></aside><form className="profile-form" onSubmit={submit}><div><p className="module-kicker">EDIT PROFILE</p><h2>Personal information</h2></div><label>FULL NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={100} required /></label><label>EMAIL ADDRESS<input value={profile.email} readOnly disabled /></label><p className="field-help">Email and role are managed by your Operations Manager.</p>{message && <p className="module-success" role="status">{message}</p>}<button className="module-primary" disabled={saving || name.trim() === profile.fullName}>{saving ? "SAVING…" : "SAVE CHANGES"}</button></form></section>
+    <section className="profile-layout"><aside className="profile-summary"><span>{profile.avatarUrl ? <Image unoptimized width={128} height={128} src={profile.avatarUrl} alt="Your avatar" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : profile.fullName.slice(0, 1).toUpperCase()}</span><label>Change avatar<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={e => setAvatarFile(e.target.files?.[0] ?? null)} /></label><small>JPEG, PNG or WebP · up to 5 MB</small><button type="button" disabled={!avatarFile || uploading} onClick={() => void uploadAvatar()}>{uploading ? "Uploading…" : "Update avatar"}</button>{avatarError && <p role="alert">{avatarError}</p>}<h2>{profile.fullName}</h2><p>{profile.email}</p><b>{profile.role.replaceAll("_", " ")}</b><small>MEMBER SINCE {new Date(profile.createdAt).toLocaleDateString()}</small></aside><form className="profile-form" onSubmit={submit}><div><p className="module-kicker">EDIT PROFILE</p><h2>Personal information</h2></div><label>FULL NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={100} required /></label><label>EMAIL ADDRESS<input value={profile.email} readOnly disabled /></label><p className="field-help">Verify your new address below to change your email. Your role is managed by your Operations Manager.</p>{message && <p className="module-success" role="status">{message}</p>}<button className="module-primary" disabled={saving || name.trim() === profile.fullName}>{saving ? "SAVING…" : "SAVE CHANGES"}</button></form></section>
     {account.role === "uav_operator" && <section className="mission-fields" aria-label="Operator license details"><h2>Operator & flight license</h2>{pilotError ? <div role="alert"><p>{pilotError}</p><button className="module-secondary" type="button" onClick={retryPilot}>RETRY</button></div> : !pilot ? <p role="status">Loading operator details…</p> : <div className="request-detail-grid">{[
       ["Phone", pilot.phoneNumber], ["Date of birth", pilot.dateOfBirth],
       ["License number", pilot.pilotLicenseNo], ["License issued", pilot.licenseIssuedDate],
@@ -77,5 +80,8 @@ export default function ProfileClient({ account }: { account: Account }) {
       ["Drone type", pilot.droneType], ["Drone model", pilot.droneModel],
     ].map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "Not provided"}</b></div>)}</div>}</section>}
 
+    <EmailChange onChanged={async () => { const updated = await getProfile(); setProfile(updated); router.refresh(); }} />
+    {account.role === "uav_operator" && pilot && <OperatorEdit key={`${pilot.phoneNumber}-${pilot.dateOfBirth}-${pilot.experienceYears}`} pilot={pilot} onUpdated={async () => setPilot(await getPilotProfile())} />}
+    {account.role === "uav_operator" && <LicenseChanges onRefresh={retryPilot} />}
   </>;
 }
