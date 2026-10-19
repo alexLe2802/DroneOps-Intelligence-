@@ -22,4 +22,4 @@ Only operation_manager can request registration details. The detail API returns 
 
 Existing documents stored only in a browser's IndexedDB are not migrated automatically. New applications persist documents in Supabase and can be reviewed on another machine.
 
-Verification: BE build, FE typecheck, targeted ESLint, verify compilation and the changed frontend files. A temporary HTTP mock check also passed image/PDF validation, spoofed MIME rejection, private upload, signed URLs and cleanup. Live upload requires the backend storage key.
+Verification: BE build, FE typecheck, targeted ESLint, verify compilation and the changed frontend files. A temporary HTTP mock check also passed image/PDF validation, spoofed MIME rejection, private upload, signed URLs and cleanup. Live verification against the configured private bucket passed: upload a temporary PNG, create a signed URL, download and compare the original bytes, then delete the temporary object. The local configuration file is ignored by Git.
