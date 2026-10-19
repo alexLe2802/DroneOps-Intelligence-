@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/auth/client";
 import styles from "./pilot-roster.module.css";
+import UserAvatar from "../user-avatar";
+import OperatorCredentials from "./operator-credentials";
 import PilotRegistrationRequests from "./pilot-registration-requests";
 
-type Pilot = { id: string; fullName: string; email: string; role: string; createdAt: string };
+type Pilot = { avatarUrl?: string | null; id: string; fullName: string; email: string; role: string; createdAt: string };
 type UserPage = { items: Pilot[]; totalPages: number };
 
 export default function PilotRoster() {
@@ -48,7 +50,6 @@ export default function PilotRoster() {
   const items = pilots.slice((currentPage - 1) * 20, currentPage * 20);
   const selected = pilots.find(pilot => pilot.id === selectedId) ?? items[0];
   const unavailable = loading || Boolean(error);
-  const initials = (name: string) => name.trim().split(/\s+/).map(part => part[0]).slice(0, 2).join("").toUpperCase();
   const date = (value: string) => new Date(value).toLocaleDateString("en-GB");
   return <div className={styles.page}>
     <header className={styles.hero}>
@@ -69,7 +70,7 @@ export default function PilotRoster() {
         {error && <div className={styles.empty} role="alert"><h3>Unable to load pilots</h3><p>{error}</p><button type="button" className={styles.refresh} onClick={() => setRevision(value => value + 1)}>Try again</button></div>}
         {loading ? <div className={styles.empty} role="status">Loading personnel records…</div> : !error && <>
           <div className={styles.tableWrap}><table><thead><tr><th>Operator identity</th><th>Role & authority</th><th>Registered</th></tr></thead><tbody>{items.map(pilot => <tr key={pilot.id} className={selected?.id === pilot.id ? styles.selected : ""}>
-            <td><button type="button" className={styles.identity} aria-pressed={selected?.id === pilot.id} onClick={() => setSelectedId(pilot.id)}><span className={styles.avatar}>{initials(pilot.fullName)}</span><span><strong>{pilot.fullName}</strong><small>{pilot.email}</small></span></button></td>
+            <td><button type="button" className={styles.identity} aria-pressed={selected?.id === pilot.id} onClick={() => setSelectedId(pilot.id)}><UserAvatar src={pilot.avatarUrl} name={pilot.fullName} size={38} /><span><strong>{pilot.fullName}</strong><small>{pilot.email}</small></span></button></td>
             <td><span className={styles.pilotBadge}>↗ UAV PILOT</span><small className={styles.subtext}>OPERATOR ACCOUNT</small></td><td className={styles.date}>{date(pilot.createdAt)}</td>
           </tr>)}</tbody></table></div>
           {items.length === 0 && <div className={styles.empty}><h3>No pilots found</h3><p>{query ? "Try a different name or email address." : "Pilot accounts will appear here once registered."}</p></div>}
@@ -79,10 +80,10 @@ export default function PilotRoster() {
       <aside className={styles.detail} aria-label="Selected operator profile">
         <div className={styles.detailHeading}><div className={styles.eyebrow}>OPERATOR SPECIFICATION <span aria-hidden="true">●</span></div><h2>Operator Profile & Credentials</h2><p>{selected && !unavailable ? selected.fullName : "Select a pilot to review their record"}</p></div>
         {selected && !unavailable ? <>
-          <div className={styles.profile}><span className={styles.largeAvatar}>{initials(selected.fullName)}</span><div><h3>{selected.fullName}</h3><span className={styles.pilotBadge}>UAV OPERATOR / PILOT</span></div></div>
-          <dl className={styles.fields}><div><dt>Full legal name</dt><dd>{selected.fullName}</dd></div><div><dt>Registered on</dt><dd>{date(selected.createdAt)}</dd></div><div className={styles.wide}><dt>Email address</dt><dd>{selected.email}</dd></div><div className={styles.wide}><dt>Operator ID</dt><dd className={styles.identifier}>{selected.id}</dd></div><div><dt>License number</dt><dd className={styles.muted}>Not available</dd></div><div><dt>License expiry</dt><dd className={styles.muted}>Not available</dd></div></dl>
+          <div className={styles.profile}><UserAvatar src={selected.avatarUrl} name={selected.fullName} size={48} /><div><h3>{selected.fullName}</h3><span className={styles.pilotBadge}>UAV OPERATOR / PILOT</span></div></div>
+          <dl className={styles.fields}><div><dt>Full legal name</dt><dd>{selected.fullName}</dd></div><div><dt>Registered on</dt><dd>{date(selected.createdAt)}</dd></div><div className={styles.wide}><dt>Email address</dt><dd>{selected.email}</dd></div><div className={styles.wide}><dt>Operator ID</dt><dd className={styles.identifier}>{selected.id}</dd></div></dl>
+          <OperatorCredentials key={`${selected.id}-${revision}`} userId={selected.id} />
         </> : <div className={styles.empty}>{loading ? "Loading operator profile…" : "No operator selected"}</div>}
-        <div className={styles.directive}><span aria-hidden="true">◇</span><div><b>FLIGHT CREDENTIALS</b><p>License details and flight clearance status are not available yet.</p></div></div>
         <div className={styles.licenseAction}><button type="button" disabled className={styles.revoke} aria-describedby="revoke-license-note"><span aria-hidden="true">⊘</span> Revoke License</button><p id="revoke-license-note">License revocation will be available soon.</p></div>
       </aside>
     </div>}

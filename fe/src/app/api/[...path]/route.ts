@@ -4,7 +4,7 @@ import { accessCookie, backendUrl, sessionFromToken } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const allowed = /^(license-changes(?:\/[0-9a-f-]{36}(?:\/review)?)?|users\/change-email\/(request|confirm)|auth\/(login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/with-files|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users(?:\/(profile|pilot-profile|avatar))?|uavs(?:\/myUAV|\/[0-9a-f-]{36})?|admin\/uavs(?:\/(?:pending|[0-9a-f-]{36}(?:\/(?:activate|reject|deactivate))?))?|missions(?:\/my|\/validate|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject|submit|cancel))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36})?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|report|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
+const allowed = /^(users\/[0-9a-f-]{36}\/(avatar|credentials)|license-changes(?:\/[0-9a-f-]{36}(?:\/review)?)?|users\/change-email\/(request|confirm)|auth\/(login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/with-files|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users(?:\/(profile|pilot-profile|avatar))?|uavs(?:\/myUAV|\/[0-9a-f-]{36})?|admin\/uavs(?:\/(?:pending|[0-9a-f-]{36}(?:\/(?:activate|reject|deactivate))?))?|missions(?:\/my|\/validate|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject|submit|cancel))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36})?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|report|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
@@ -73,7 +73,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       method: request.method, headers, body,
       cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(timeoutMs),
     });
-    if (path === "users/avatar" && request.method === "GET" && upstream.status === 302) {
+    if ((path === "users/avatar" || /^users\/[0-9a-f-]{36}\/avatar$/.test(path)) && request.method === "GET" && upstream.status === 302) {
       const location = upstream.headers.get("location");
       if (!location || !location.startsWith("https://diaswbzjhvzwxcadlias.supabase.co/storage/v1/")) throw new Error("Invalid media redirect");
       return new NextResponse(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });

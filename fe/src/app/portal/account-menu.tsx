@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import UserAvatar from "./user-avatar";
 
 import "./account-menu.css";
 import Link from "next/link";
@@ -41,7 +41,7 @@ export default function AccountMenu({ account }: { account: Account }) {
   return <div className="account-menu" ref={root} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
   }}>
-    <button type="button" className="avatar" ref={trigger} aria-label={`Account options for ${account.displayName}`} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(value => !value)}>{account.avatarUrl ? <Image unoptimized width={40} height={40} src={account.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : account.displayName.slice(0, 1).toUpperCase()}</button>
+    <button type="button" className="avatar" ref={trigger} aria-label={`Account options for ${account.displayName}`} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(value => !value)}><UserAvatar src={account.avatarUrl} name={account.displayName} size={32} /></button>
     {open && <div id={panelId} className="account-menu-panel">
       <Link href="/portal/profile" onClick={() => setOpen(false)}>Profile</Link>
       <button type="button" disabled={busy} onClick={() => void signOut()}>{busy ? "Signing out…" : "Sign out"}</button>
