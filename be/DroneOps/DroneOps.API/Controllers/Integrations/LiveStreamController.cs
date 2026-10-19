@@ -12,7 +12,7 @@ namespace DroneOps.API.Controllers.Integrations;
 
 [ApiController]
 [Route("api/live/stream")]
-[Authorize(Roles = "Pilot,operation_manager,uav_operator,operations_manager")]
+[Authorize(Roles = "Pilot,uav_operator,operation_manager,operations_manager")]
 public class LiveStreamController : ControllerBase
 {
     private static readonly JsonSerializerOptions SseJson = new()
@@ -36,6 +36,8 @@ public class LiveStreamController : ControllerBase
 
     /// <summary>
     /// Luồng SSE: telemetry + sự cố theo mission. Không phải video livestream. Tái kết nối gửi snapshot.
+    /// - Operation Manager: Được quyền xem và giám sát tất cả các mission stream.
+    /// - Pilot (uav_operator): Chỉ được xem và giám sát mission stream do chính mình tạo/đăng ký.
     /// </summary>
     [HttpGet]
     [Produces("text/event-stream")]
@@ -59,10 +61,11 @@ public class LiveStreamController : ControllerBase
             return;
         }
 
-        var isManager = User.IsInRole("operation_manager") || User.IsInRole("operations_manager");
+        var isManager = IsOperationManager();
         Guid? currentUserId = TryGetUserId(out var userId) ? userId : null;
 
-        if (!isManager && currentUserId.HasValue && mission.CreatedBy != currentUserId.Value)
+        // Chỉ Operation Manager được xem tất cả; Pilot chỉ được xem mission do chính mình đăng ký (CreatedBy)
+        if (!isManager && (!currentUserId.HasValue || mission.CreatedBy != currentUserId.Value))
         {
             Response.StatusCode = StatusCodes.Status403Forbidden;
             await Response.WriteAsJsonAsync(new { message = "Forbidden: You do not own this mission stream." }, cancellationToken);
@@ -169,6 +172,22 @@ public class LiveStreamController : ControllerBase
         }
 
         return max;
+    }
+
+    private bool IsOperationManager()
+    {
+        if (User.IsInRole("operation_manager") || User.IsInRole("operations_manager"))
+        {
+            return true;
+        }
+
+        var roleClaims = User.FindAll(ClaimTypes.Role)
+            .Concat(User.FindAll("role"))
+            .Select(c => c.Value);
+
+        return roleClaims.Any(r =>
+            string.Equals(r, "operation_manager", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(r, "operations_manager", StringComparison.OrdinalIgnoreCase));
     }
 
     private bool TryGetUserId(out Guid userId)
