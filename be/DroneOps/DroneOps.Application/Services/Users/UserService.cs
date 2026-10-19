@@ -196,7 +196,11 @@ public sealed class UserService : IUserService
 
         IReadOnlyList<UserProfileResponse> items =
             result.Items
-                .Select(MapToProfileResponse)
+                .Select(user => {
+                    var profile = MapToProfileResponse(user);
+                    profile.AvatarUrl = user.AvatarPath is null ? null : $"/api/users/{user.Id}/avatar?v=" + Uri.EscapeDataString(user.AvatarPath);
+                    return profile;
+                })
                 .ToList();
 
         int totalPages = result.TotalCount == 0

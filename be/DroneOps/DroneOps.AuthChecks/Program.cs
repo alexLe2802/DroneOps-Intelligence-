@@ -39,6 +39,8 @@ Check(typeof(LicenseChangesController).GetMethod("Submit")!.GetCustomAttribute<A
     "Only operators can submit license changes");
 Check(typeof(LicenseChangesController).GetMethod("Review")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
     "Only managers can review license changes");
+Check(typeof(OperatorCredentialsController).GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
+    "Other operators' credentials and avatars require manager authorization");
 var validator = new CreatePilotRegistrationValidator();
 var today = DateOnly.FromDateTime(DateTime.UtcNow);
 CreatePilotRegistrationRequest Valid() => new()

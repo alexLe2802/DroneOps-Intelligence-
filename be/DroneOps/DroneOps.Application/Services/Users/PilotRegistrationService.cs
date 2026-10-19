@@ -262,6 +262,8 @@ public class PilotRegistrationService : IPilotRegistrationService
             _context.Set<Pilot>().Update(pilot);
         }
 
+        foreach (var image in registration.LicenseImages) image.PilotId = pilot.Id;
+
         // Cập nhật trạng thái đơn thành Approved
         registration.Status = "Approved";
         registration.ReviewedAt = DateTime.UtcNow;
