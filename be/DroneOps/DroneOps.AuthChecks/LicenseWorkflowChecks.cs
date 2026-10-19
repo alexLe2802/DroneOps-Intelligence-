@@ -78,6 +78,12 @@ internal static class LicenseWorkflowChecks
          Check(await Controller(mid,true).Review(second.Id,new(false,""),default) is BadRequestObjectResult,"rejection requires reason");
          Check(await Controller(mid,true).Review(second.Id,new(false,"Test rejection"),default) is OkObjectResult,"manager rejects with reason"); db.ChangeTracker.Clear();
          Check((await db.Pilots.AsNoTracking().SingleAsync(x=>x.Id==pid)).PilotLicenseNo=="UPDATED-1","rejection preserves previously approved license");
+        var credentialResult = await new OperatorCredentialsController(db, storage).Credentials(uid, default);
+        var credentials = JsonSerializer.SerializeToElement(((OkObjectResult)credentialResult).Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Check(credentials.GetProperty("pilotLicenseNo").GetString() == "UPDATED-1"
+            && credentials.GetProperty("experienceYears").GetInt32() == 4
+            && credentials.GetProperty("licenseImageUrls").GetArrayLength() == 1,
+            "manager roster receives current approved credentials and signed document links");
          Console.WriteLine($"{count} workflow integration checks passed. SMTP delivery was simulated; no email was sent.");
         } finally {
          db.ChangeTracker.Clear();
