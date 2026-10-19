@@ -3,10 +3,12 @@ using DroneOps.Application.DTOs.Request.Telemetry;
 using DroneOps.Application.DTOs.Response.Geofences;
 using DroneOps.Application.DTOs.Response.Telemetry;
 using DroneOps.Application.Interfaces.Telemetry;
+using DroneOps.Application.Settings;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DroneOps.Application.Services.Telemetry;
 
@@ -14,7 +16,6 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 {
     private const int OnlineWindowSeconds = 10;
     private const int StaleWindowSeconds = 30;
-    private const int LowBatteryThresholdPercent = 20;
     private const int ClockSkewGraceSeconds = 120;
 
     private static readonly string[] ActiveMissionStatuses =
@@ -35,11 +36,16 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
     private readonly AppDbContext _context;
     private readonly ILogger<TelemetryIngestionService> _logger;
+    private readonly TelemetryMonitoringOptions _monitoring;
 
-    public TelemetryIngestionService(AppDbContext context, ILogger<TelemetryIngestionService> logger)
+    public TelemetryIngestionService(
+        AppDbContext context,
+        ILogger<TelemetryIngestionService> logger,
+        IOptions<TelemetryMonitoringOptions> monitoring)
     {
         _context = context;
         _logger = logger;
+        _monitoring = monitoring.Value;
     }
 
     public async Task<TelemetryIngestResult> IngestSampleAsync(
@@ -187,7 +193,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             return null;
         }
 
-        if (!isManager && currentUserId.HasValue && mission.CreatedBy != currentUserId.Value)
+        if (!isManager && (!currentUserId.HasValue || mission.CreatedBy != currentUserId.Value))
         {
             throw new UnauthorizedAccessException("You do not have permission to view telemetry for this mission.");
         }
@@ -349,8 +355,9 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         }
 
         var missionId = record.MissionId.Value;
+        Guid? firstRaisedIncidentId = null;
 
-        if (record.BatteryLevel.HasValue && record.BatteryLevel.Value <= LowBatteryThresholdPercent)
+        if (record.BatteryLevel.HasValue && record.BatteryLevel.Value <= _monitoring.LowBatteryPercent)
         {
             var raised = await RaiseIfOpenMissingAsync(
                 missionId,
@@ -360,12 +367,50 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                 description: $"Battery dropped to {record.BatteryLevel.Value}%.",
                 record,
                 appliedRule: "LowBattery",
-                threshold: LowBatteryThresholdPercent,
+                threshold: _monitoring.LowBatteryPercent,
                 cancellationToken);
 
             if (raised.HasValue)
             {
-                return raised;
+                firstRaisedIncidentId ??= raised;
+            }
+        }
+
+        if (record.Altitude.HasValue && record.Altitude.Value > _monitoring.MaximumAltitudeMeters)
+        {
+            var raised = await RaiseIfOpenMissingAsync(
+                missionId,
+                type: "AltitudeExceeded",
+                title: "Altitude limit exceeded",
+                severity: "High",
+                description: $"Altitude reached {record.Altitude.Value} m.",
+                record,
+                appliedRule: "MaximumAltitude",
+                threshold: (double)_monitoring.MaximumAltitudeMeters,
+                cancellationToken);
+
+            if (raised.HasValue)
+            {
+                firstRaisedIncidentId ??= raised;
+            }
+        }
+
+        if (record.Speed.HasValue && record.Speed.Value > _monitoring.MaximumGroundSpeedMetersPerSecond)
+        {
+            var raised = await RaiseIfOpenMissingAsync(
+                missionId,
+                type: "SpeedExceeded",
+                title: "Ground speed limit exceeded",
+                severity: "High",
+                description: $"Ground speed reached {record.Speed.Value} m/s.",
+                record,
+                appliedRule: "MaximumGroundSpeed",
+                threshold: (double)_monitoring.MaximumGroundSpeedMetersPerSecond,
+                cancellationToken);
+
+            if (raised.HasValue)
+            {
+                firstRaisedIncidentId ??= raised;
             }
         }
 
@@ -401,7 +446,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
                 if (!insideAny)
                 {
-                    return await RaiseIfOpenMissingAsync(
+                    var raised = await RaiseIfOpenMissingAsync(
                         missionId,
                         type: "GeofenceBreach",
                         title: "Geofence breach detected",
@@ -411,11 +456,16 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                         appliedRule: "GeofenceKeepIn",
                         threshold: null,
                         cancellationToken);
+
+                    if (raised.HasValue)
+                    {
+                        firstRaisedIncidentId ??= raised;
+                    }
                 }
             }
         }
 
-        return null;
+        return firstRaisedIncidentId;
     }
 
     private async Task<Guid?> RaiseIfOpenMissingAsync(
