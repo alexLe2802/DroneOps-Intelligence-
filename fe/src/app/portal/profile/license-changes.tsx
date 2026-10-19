@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { api } from "@/lib/auth/client";
+import styles from "./license-changes.module.css";
+import { ApiError, api } from "@/lib/auth/client";
 import LicenseFilePicker from "@/app/license-file-picker";
 
 type Change = {
@@ -18,15 +19,24 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
   const [message, setMessage] = useState("");
   const [reason, setReason] = useState("");
   const [formVersion, setFormVersion] = useState(0);
   const selection = useRef(0);
   const pendingAction = useRef(false);
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    setLoading(true); setListError("");
     try { setItems(await api<Change[]>("/license-changes")); }
-    catch (e) { setError(e instanceof Error ? e.message : "Unable to load license changes."); }
+    catch (e) {
+      const message = e instanceof ApiError && e.status === 404
+        ? "License review is unavailable. Restart the backend with the latest code, then try again."
+        : e instanceof ApiError && e.status === 401 ? "Your session has expired. Sign in again."
+        : e instanceof ApiError && e.status === 403 ? "Your account does not have permission to view these requests."
+        : e instanceof ApiError ? `Unable to load license changes (HTTP ${e.status}). Please try again.`
+        : "Unable to connect to the license review service. Please try again.";
+      setListError(message);
+    }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { const requestSelection = selection; const timer = window.setTimeout(() => void load(), 0); return () => { window.clearTimeout(timer); requestSelection.current++; }; }, [load]);
@@ -64,19 +74,20 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
     finally { pendingAction.current = false; setBusy(false); }
   }
   const pending = items.some(x => x.status === "Pending");
-  return <section className="mission-fields"><h2>{manager ? "Review license changes" : "Change flight license"}</h2>
-    <p>{manager ? "Review supporting documents and compare the current and proposed license before deciding." : "License number and dates change only after manager approval."}</p>
-    <button type="button" className="module-secondary" disabled={busy || loading} onClick={() => { void load(); onRefresh?.(); if (detail) void inspect(detail.id); }}>Refresh</button>
-    {error && <p role="alert">{error}</p>}{message && <p className="module-success" role="status">{message}</p>}
-    {!manager && (loading ? <p role="status">Loading license requests…</p> : pending ? <p role="status">Your license change is pending review. You can submit another after it is reviewed.</p> : <form key={formVersion} className="profile-form" onSubmit={submit}>
+  return <section className={styles.panel}><header className={styles.header}><div><p className={styles.kicker}>FLIGHT LICENSE / {manager ? "MANAGER REVIEW" : "YOUR DOCUMENTS"}</p><h2>{manager ? "Review license changes" : "Change flight license"}</h2>
+    <p className={styles.description}>{manager ? "Review supporting documents and compare the current and proposed license before deciding." : "License number and dates change only after manager approval."}</p>
+    </div><button type="button" className="module-secondary" disabled={busy || loading} onClick={() => { void load(); onRefresh?.(); if (detail) void inspect(detail.id); }}>{loading ? "Refreshing…" : "↻ Refresh"}</button></header>
+    {listError && <div className={styles.error} role="alert"><strong>Unable to load requests</strong><p>{listError}</p></div>}
+    {error && <p className={styles.error} role="alert">{error}</p>}{message && <p className="module-success" role="status">{message}</p>}
+    {!manager && !listError && (loading ? <p role="status">Loading license requests…</p> : pending ? <p role="status">Your license change is pending review. You can submit another after it is reviewed.</p> : <form key={formVersion} className="profile-form" onSubmit={submit}>
       <label>New license number<input name="pilotLicenseNo" required maxLength={255} disabled={busy} /></label>
       <label>Issued date<input name="licenseIssuedDate" type="date" required disabled={busy} /></label>
       <label>Expiration date<input name="licenseExpiredDate" type="date" min={new Date().toISOString().slice(0, 10)} required disabled={busy} /></label>
       <fieldset disabled={busy}><LicenseFilePicker /></fieldset><button className="module-primary" disabled={busy}>{busy ? "Uploading…" : "Submit for approval"}</button>
     </form>)}
-    <h3>{manager ? "Latest 100 requests" : "Your latest license requests"}</h3>
-    {loading ? <p role="status">Loading…</p> : !items.length ? <p>No license changes submitted.</p> : <div className="request-table-wrap"><table className="request-table"><thead><tr>{manager && <th>Pilot</th>}<th>License</th><th>Status</th><th>Submitted</th><th>Details</th></tr></thead><tbody>{items.map(item => <tr key={item.id}>{manager && <td>{item.fullName}<small>{item.email}</small></td>}<td>{item.pilotLicenseNo}</td><td>{item.status}{item.rejectReason && <p>{item.rejectReason}</p>}</td><td>{new Date(item.createdAt).toLocaleDateString()}</td><td><button type="button" disabled={busy} onClick={() => void inspect(item.id)}>View documents</button></td></tr>)}</tbody></table></div>}
-    {detail && <article className="request-detail-panel"><h3>{detail.fullName} · {detail.status}</h3><div className="request-detail-grid"><div><span>Current license</span><b>{detail.currentLicenseNo}</b><p>{detail.currentIssuedDate} → {detail.currentExpiredDate}</p></div><div><span>Requested license</span><b>{detail.pilotLicenseNo}</b><p>{detail.licenseIssuedDate} → {detail.licenseExpiredDate}</p></div></div>
+    <div className={styles.listHeading}><h3>{manager ? "License change requests" : "Your license requests"}</h3><span>{loading ? "Loading" : listError ? "Unavailable" : `${items.length} requests · latest 100`}</span></div>
+    {loading ? <div className={styles.empty} role="status">Loading license change requests…</div> : listError ? null : !items.length ? <div className={styles.empty}><span aria-hidden="true">▤</span><h3>{manager ? "No license changes to review" : "No license changes yet"}</h3><p>{manager ? "Requests will appear here when an operator submits an updated flight license." : "Your submitted requests and review results will appear here."}</p></div> : <div className="request-table-wrap"><table className="request-table"><thead><tr>{manager && <th>Pilot</th>}<th>License</th><th>Status</th><th>Submitted</th><th>Details</th></tr></thead><tbody>{items.map(item => <tr key={item.id}>{manager && <td>{item.fullName}<small>{item.email}</small></td>}<td>{item.pilotLicenseNo}</td><td><span className={`${styles.status} ${item.status === "Approved" ? styles.approved : item.status === "Rejected" ? styles.rejected : styles.pending}`}>{item.status}</span>{item.rejectReason && <p>{item.rejectReason}</p>}</td><td>{new Date(item.createdAt).toLocaleDateString()}</td><td><button type="button" disabled={busy} onClick={() => void inspect(item.id)}>View documents</button></td></tr>)}</tbody></table></div>}
+    {detail && <article className={`request-detail-panel ${styles.detail}`}><h3>{detail.fullName} · {detail.status}</h3><div className="request-detail-grid"><div><span>Current license</span><b>{detail.currentLicenseNo}</b><p>{detail.currentIssuedDate} → {detail.currentExpiredDate}</p></div><div><span>Requested license</span><b>{detail.pilotLicenseNo}</b><p>{detail.licenseIssuedDate} → {detail.licenseExpiredDate}</p></div></div>
       <div className="request-license-files">{detail.licenseImageUrls.map((url, i) => <a key={url} href={url} target="_blank" rel="noreferrer">{new URL(url).pathname.endsWith(".pdf") ? `Open license PDF ${i + 1}` : <Image unoptimized src={url} alt={`License page ${i + 1}`} width={600} height={400} style={{ width: "100%", height: "auto" }} />}</a>)}</div>
       <button type="button" className="module-secondary" disabled={busy} onClick={() => void inspect(detail.id)}>Refresh document links</button>
       {detail.rejectReason && <p>Rejection reason: {detail.rejectReason}</p>}
