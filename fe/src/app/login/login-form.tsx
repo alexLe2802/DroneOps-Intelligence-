@@ -5,7 +5,6 @@ import { useRef, useState, type FormEvent } from "react";
 import { api } from "@/lib/auth/client";
 import type { AccountRole, AuthSession } from "@/lib/auth/types";
 import { createPilotRegistration } from "@/lib/pilot-registration";
-import { saveLicenseFiles } from "@/lib/license-image-store";
 import LicenseFilePicker from "@/app/license-file-picker";
 
 type Action = "password" | "reset" | "register";
@@ -108,8 +107,7 @@ export default function LoginForm() {
         experienceYears: Number(read("experienceYears") || 0),
         droneType: "Not specified", usagePurpose: "Not specified",
         description: read("description") || null,
-      });
-      await saveLicenseFiles(read("email"), licenseFiles).catch(() => undefined);
+      }, licenseFiles);
       form.reset();
       setRegisterOpen(false);
       setNotice(result.message || "Registration submitted. An Operations Manager will review your request.");
