@@ -86,7 +86,7 @@ export default function MissionForm() {
   }
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!aircraft) return <ModuleLoading label="Loading mission resources" />;
-  const approvedAircraft = aircraft.filter(item => item.status.toLowerCase() === "active");
+  const activeAircraft = aircraft.filter(item => item.status.toLowerCase() === "active");
   return <>
     <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
     <form className="mission-builder mission-create-builder" onSubmit={submit}>
@@ -94,13 +94,13 @@ export default function MissionForm() {
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
         <div className="mission-field-grid">
-          <label>ASSIGNED UAV<select value={uavId} onChange={event => setUavId(event.target.value)} required><option value="">Select an approved UAV</option>{approvedAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+          <label>ASSIGNED UAV<select value={uavId} onChange={event => setUavId(event.target.value)} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
           <label className="full-field">DESCRIPTION<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
           <label>START TIME<input type="datetime-local" value={startTime} onChange={event => setStartTime(event.target.value)} required /></label>
           <label>END TIME<input type="datetime-local" value={endTime} onChange={event => setEndTime(event.target.value)} required /></label>
         </div>
-        {approvedAircraft.length === 0 && <p className="form-warning">No approved and available UAV is ready for mission planning.</p>}
+        {activeAircraft.length === 0 && <p className="form-warning">No active UAV is ready for mission planning.</p>}
       </section>
       <section className="route-builder">
         <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>Click the map in flight order, then configure altitude and action.</p></div><button type="button" className="text-action" disabled={!waypoints.length} onClick={() => { if (window.confirm("Clear all waypoints?")) setWaypoints([]); }}>CLEAR ROUTE</button></div>
@@ -111,7 +111,7 @@ export default function MissionForm() {
       </section>
       </fieldset>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mission will be saved as a draft.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || approvedAircraft.length === 0}>{saving ? "CREATING…" : "CREATE MISSION"}</button></div></footer>
+      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mission will be saved as a draft.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "CREATING…" : "CREATE MISSION"}</button></div></footer>
     </form>
   </>;
 }

@@ -24,4 +24,8 @@ public interface IMissionService
     Guid userId,
     CreateMissionRequest request,
     CancellationToken cancellationToken = default);
+    Task<bool> SubmitMissionAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<object> ValidateMissionParamsAsync(MissionValidateDto request, CancellationToken cancellationToken = default);
+    Task<bool> CancelMissionAsync(Guid id, string? reason, CancellationToken cancellationToken = default);
+
 }

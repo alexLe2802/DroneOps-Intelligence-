@@ -9,8 +9,7 @@ public sealed class UavRepository
     : GenericRepository<UAV>,
       IUavRepository
 {
-    public UavRepository(
-        AppDbContext dbContext)
+    public UavRepository(AppDbContext dbContext)
         : base(dbContext)
     {
     }
@@ -24,36 +23,39 @@ public sealed class UavRepository
             cancellationToken);
     }
 
-   public async Task<List<UAV>> GetPendingAsync(
-    string? keyword = null,
-    int page = 1,
-    int pageSize = 10,
-    CancellationToken cancellationToken = default)
-{
-    var query = DbSet
-        .AsNoTracking()
-        .Include(x => x.Pilot)
-        .ThenInclude(x => x.User)
-        .Where(x => x.Status == "Pending");
-
-    if (!string.IsNullOrWhiteSpace(keyword))
+    // Lấy danh sách UAV chờ duyệt: Hỗ trợ cả "Pending" (mới) và "Pending Review" (nếu có dữ liệu cũ)
+    public async Task<List<UAV>> GetPendingAsync(
+        string? keyword = null,
+        int page = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
     {
-        keyword = keyword.ToLower();
+        var query = DbSet
+            .AsNoTracking()
+            .Include(x => x.Pilot)
+            .ThenInclude(x => x.User)
+            .Where(x => x.Status == "Pending" || x.Status == "Pending Review");
 
-        query = query.Where(x =>
-            x.Code.ToLower().Contains(keyword) ||
-            x.Name.ToLower().Contains(keyword) ||
-            (x.Model != null &&
-             x.Model.ToLower().Contains(keyword)) ||
-            x.Pilot.User.FullName.ToLower().Contains(keyword));
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            keyword = keyword.Trim().ToLower();
+
+            query = query.Where(x =>
+                x.Code.ToLower().Contains(keyword) ||
+                x.Name.ToLower().Contains(keyword) ||
+                (x.Model != null && x.Model.ToLower().Contains(keyword)) ||
+                x.Pilot.User.FullName.ToLower().Contains(keyword));
+        }
+
+        int safePage = page < 1 ? 1 : page;
+        int safePageSize = pageSize < 1 ? 10 : pageSize;
+
+        return await query
+            .OrderByDescending(x => x.CreatedAt)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .ToListAsync(cancellationToken);
     }
-
-    return await query
-        .OrderByDescending(x => x.CreatedAt)
-        .Skip((page - 1) * pageSize)
-        .Take(pageSize)
-        .ToListAsync(cancellationToken);
-}
 
     public async Task<List<UAV>> GetByPilotIdAsync(
         Guid pilotId,
@@ -79,45 +81,47 @@ public sealed class UavRepository
                 cancellationToken);
     }
 
-    public async Task<(
-     IReadOnlyList<UAV> Items,
-     int TotalCount)> GetAllPagedAsync(
-         string? keyword,
-         string? status,
-         int pageNumber,
-         int pageSize,
-         CancellationToken cancellationToken = default)
+    public async Task<(IReadOnlyList<UAV> Items, int TotalCount)> GetAllPagedAsync(
+        string? keyword,
+        string? status,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
     {
         IQueryable<UAV> query = DbSet
-    .AsNoTracking()
-    .Include(x => x.Pilot)
-        .ThenInclude(x => x.User);
+            .AsNoTracking()
+            .Include(x => x.Pilot)
+                .ThenInclude(x => x.User);
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            string normalizedKeyword =
-                keyword.Trim().ToLowerInvariant();
+            string normalizedKeyword = keyword.Trim().ToLowerInvariant();
 
             query = query.Where(uav =>
                 uav.Code.ToLower().Contains(normalizedKeyword) ||
                 uav.Name.ToLower().Contains(normalizedKeyword) ||
-                (
-                    uav.Model != null &&
-                    uav.Model.ToLower().Contains(normalizedKeyword)
-                ));
+                (uav.Model != null && uav.Model.ToLower().Contains(normalizedKeyword)));
         }
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            string normalizedStatus =
-                status.Trim().ToLowerInvariant();
+            string normalizedStatus = status.Trim().ToLowerInvariant();
 
-            query = query.Where(uav =>
-                uav.Status.ToLower() == normalizedStatus);
+            // Nếu lọc theo "pending" hoặc "pending review" thì đều khớp được với "Pending" trong DB
+            if (normalizedStatus == "pending" || normalizedStatus == "pending review")
+            {
+                query = query.Where(uav =>
+                    uav.Status.ToLower() == "pending" ||
+                    uav.Status.ToLower() == "pending review");
+            }
+            else
+            {
+                query = query.Where(uav =>
+                    uav.Status.ToLower() == normalizedStatus);
+            }
         }
 
-        int totalCount =
-            await query.CountAsync(cancellationToken);
+        int totalCount = await query.CountAsync(cancellationToken);
 
         List<UAV> items = await query
             .OrderByDescending(uav => uav.CreatedAt)
@@ -128,5 +132,4 @@ public sealed class UavRepository
 
         return (items, totalCount);
     }
-
 }

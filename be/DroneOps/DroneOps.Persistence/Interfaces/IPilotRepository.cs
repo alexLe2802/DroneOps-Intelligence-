@@ -9,4 +9,15 @@ public interface IPilotRepository
     Task<Pilot?> GetByUserIdAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+    Task<Pilot?> GetByUserIdForUpdateAsync(
+     Guid userId,
+     CancellationToken cancellationToken = default);
+
+    Task<bool> HasPendingUpdateRequestAsync(
+    Guid pilotId,
+    CancellationToken cancellationToken = default);
+
+    Task AddUpdateRequestAsync(
+        PilotUpdateRequest request,
+        CancellationToken cancellationToken = default);
 }
