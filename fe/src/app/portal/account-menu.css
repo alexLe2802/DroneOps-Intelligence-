@@ -7,3 +7,5 @@
 .account-menu-panel button:disabled{opacity:.6;cursor:wait}
 .account-menu-panel p{padding:0 12px;color:#ffb0b2;font:12px/1.5 Arial,sans-serif;overflow-wrap:anywhere}
 .account-menu .avatar{width:32px;height:32px;border-radius:50%;border:1px solid #8acff3;background:#8ed4f5;color:#07121d;font-weight:700}
+
+.account-menu .avatar{display:grid;place-items:center;padding:0;overflow:hidden}
