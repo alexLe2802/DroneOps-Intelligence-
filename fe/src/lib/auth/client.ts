@@ -6,7 +6,7 @@ export class ApiError extends Error {
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = options.method ?? "GET";
   const headers = new Headers(options.headers);
-  if (method !== "GET") {
+  if (method !== "GET" && !(options.body instanceof FormData)) {
     // The JWT proxy checks the request Origin before forwarding mutations.
     headers.set("Content-Type", "application/json");
   }

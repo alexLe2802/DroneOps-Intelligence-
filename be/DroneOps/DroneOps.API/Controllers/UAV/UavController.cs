@@ -8,48 +8,100 @@ namespace DroneOps.API.Controllers.UAVs;
 
 [ApiController]
 [Route("api/uavs")]
-[Authorize(Roles = "uav_operator")]
+[Authorize(Roles = "uav_operator,operation_manager,operations_manager,Admin")]
 public class UavController : ControllerBase
 {
     private readonly IUavService _uavService;
 
-    public UavController(
-        IUavService uavService)
+    public UavController(IUavService uavService)
     {
         _uavService = uavService;
     }
 
+    /// <summary>
+    /// Đăng ký / Tạo mới UAV (Trạng thái mặc định: Pending)
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Create(
-        CreateUavRequest request,
+        [FromBody] CreateUavRequest request,
         CancellationToken cancellationToken)
     {
         var userId = Guid.Parse(
-            User.FindFirst(ClaimTypes.NameIdentifier)!
-                .Value);
+            User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
-        var result =
-            await _uavService.CreateAsync(
-                userId,
-                request,
-                cancellationToken);
+        var result = await _uavService.CreateAsync(
+            userId,
+            request,
+            cancellationToken);
 
         return Ok(result);
     }
 
+    /// <summary>
+    /// Xem danh sách UAV của bản thân (Pilot)
+    /// </summary>
     [HttpGet("myUAV")]
     public async Task<IActionResult> GetMyUavs(
         CancellationToken cancellationToken)
     {
         var userId = Guid.Parse(
-            User.FindFirst(ClaimTypes.NameIdentifier)!
-                .Value);
+            User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
-        var result =
-            await _uavService.GetMyUavsAsync(
-                userId,
-                cancellationToken);
+        var result = await _uavService.GetMyUavsAsync(
+            userId,
+            cancellationToken);
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Cập nhật thông tin UAV
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(
+        Guid id,
+        [FromBody] UpdateUavRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = Guid.Parse(
+            User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var result = await _uavService.UpdateAsync(
+            userId,
+            id,
+            request,
+            cancellationToken);
+
+        if (!result)
+        {
+            return NotFound(new { message = "UAV not found or unauthorized." });
+        }
+
+        return Ok(new { message = "UAV updated successfully." });
+    }
+
+    /// <summary>
+    /// Xóa UAV ở mọi trạng thái (Chỉ dành riêng cho Operation Manager)
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "operation_manager,operations_manager,Admin")]
+    public async Task<IActionResult> Delete(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var userId = Guid.Parse(
+            User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var result = await _uavService.DeleteAsync(
+            userId,
+            id,
+            cancellationToken);
+
+        if (!result)
+        {
+            return NotFound(new { message = "UAV not found." });
+        }
+
+        return Ok(new { message = "UAV deleted successfully." });
     }
 }

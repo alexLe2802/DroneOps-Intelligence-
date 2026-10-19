@@ -112,6 +112,7 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         return new PilotRegistrationDetailResponse
         {
+            LicenseImageUrls = registration.LicenseImages.Select(x => x.ImageUrl).ToList(),
             Id = registration.Id,
             FullName = registration.FullName,
             Email = registration.Email,

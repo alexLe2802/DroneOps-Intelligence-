@@ -1,7 +1,9 @@
-﻿namespace DroneOps.Application.DTOs.Response.Users;
+namespace DroneOps.Application.DTOs.Response.Users;
 
 public sealed class UserProfileResponse
 {
+    public string? AvatarUrl { get; set; }
+
     public Guid Id { get; set; }
 
     public string FullName { get; set; } = string.Empty;
