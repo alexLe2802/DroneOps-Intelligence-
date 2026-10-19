@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.DTOs.Response.Common;
@@ -109,6 +109,7 @@ public sealed class UserService : IUserService
     {
         return new UserProfileResponse
         {
+            AvatarUrl = user.AvatarPath is null ? null : "/api/users/avatar?v=" + Uri.EscapeDataString(user.AvatarPath),
             Id = user.Id,
             FullName = user.FullName,
             Email = user.Email,

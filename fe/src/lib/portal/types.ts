@@ -116,6 +116,7 @@ export type SaveGeofenceRequest = { name: string; description: string | null; co
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {
+  avatarUrl: string | null;
   id: string;
   fullName: string;
   email: string;
