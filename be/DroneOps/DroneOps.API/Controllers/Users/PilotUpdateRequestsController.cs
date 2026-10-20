@@ -12,24 +12,33 @@ using Npgsql;
 
 namespace DroneOps.API.Controllers;
 
-[ApiController, Authorize, Route("api/license-changes")]
-public sealed class LicenseChangesController(AppDbContext db, IUserService users, UserMediaStorage storage,
-    IValidator<UpdatePilotProfileRequest> validator, ILogger<LicenseChangesController> logger) : ControllerBase
+[ApiController, Authorize(Roles = "uav_operator,operation_manager"), Route("api/users/pilot-update-requests")]
+public sealed class PilotUpdateRequestsController(AppDbContext db, IUserService users, UserMediaStorage storage,
+    IValidator<UpdatePilotProfileRequest> validator, ILogger<PilotUpdateRequestsController> logger) : ControllerBase
 {
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private bool IsManager => User.IsInRole("operation_manager");
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct)
+    public async Task<IActionResult> List([FromQuery] PilotUpdateRequestFilterRequest filter, CancellationToken ct)
     {
         var query = db.PilotUpdateRequests.AsNoTracking().AsQueryable();
         if (!IsManager) query = query.Where(x => x.Pilot.UserId == UserId);
-        var items = await query.OrderByDescending(x => x.CreatedAt).Take(100).Select(x => new {
-            x.Id, x.PilotId, fullName = x.Pilot.User.FullName, email = x.Pilot.User.Email,
+        if (!string.IsNullOrWhiteSpace(filter.Status)) query = query.Where(x => x.Status == filter.Status.Trim());
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim();
+            query = query.Where(x => x.Pilot.User.FullName.Contains(search) || x.Pilot.User.Email.Contains(search) || x.PilotLicenseNo.Contains(search));
+        }
+        var pageNumber = Math.Max(1, filter.PageNumber);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var totalItems = await query.CountAsync(ct);
+        var items = await query.OrderByDescending(x => x.CreatedAt).Skip((pageNumber - 1) * pageSize).Take(pageSize).Select(x => new {
+            x.Id, x.PilotId, userId = x.Pilot.UserId, fullName = x.Pilot.User.FullName, email = x.Pilot.User.Email,
             x.PilotLicenseNo, x.LicenseIssuedDate, x.LicenseExpiredDate, x.Status,
             x.RejectReason, x.CreatedAt, x.ReviewedAt, x.ReviewedBy
         }).ToListAsync(ct);
-        return Ok(items);
+        return Ok(new { items, pageNumber, pageSize, totalItems, totalPages = (int)Math.Ceiling(totalItems / (double)pageSize) });
     }
 
     [HttpGet("{id:guid}")]
@@ -43,7 +52,7 @@ public sealed class LicenseChangesController(AppDbContext db, IUserService users
         var urls = new List<string>();
         foreach (var image in item.LicenseImages.Where(x => x.ImageUrl.StartsWith("licenses/")))
             urls.Add(await storage.SignAsync(image.ImageUrl, ct));
-        return Ok(new { item.Id, fullName = item.Pilot.User.FullName, item.Status, item.RejectReason,
+        return Ok(new { item.Id, item.PilotId, userId = item.Pilot.UserId, email = item.Pilot.User.Email, item.CreatedAt, item.ReviewedAt, item.ReviewedBy, fullName = item.Pilot.User.FullName, item.Status, item.RejectReason,
             item.PilotLicenseNo, item.LicenseIssuedDate, item.LicenseExpiredDate,
             currentLicenseNo = item.Pilot.PilotLicenseNo, currentIssuedDate = item.Pilot.LicenseIssuedDate,
             currentExpiredDate = item.Pilot.LicenseExpiredDate, licenseImageUrls = urls });
@@ -55,6 +64,7 @@ public sealed class LicenseChangesController(AppDbContext db, IUserService users
 
     private async Task<IActionResult> SubmitCore(string data, List<IFormFile> files, CancellationToken ct)
     {
+        db.ChangeTracker.Clear();
         UpdatePilotProfileRequest? request;
         try { request = JsonSerializer.Deserialize<UpdatePilotProfileRequest>(data, new JsonSerializerOptions(JsonSerializerDefaults.Web)); }
         catch (JsonException) { return BadRequest(new { message = "Invalid license details." }); }
@@ -99,37 +109,42 @@ public sealed class LicenseChangesController(AppDbContext db, IUserService users
         }
     }
 
-    public sealed record ReviewRequest(bool Approve, string? Reason);
+    [Authorize(Roles = "operation_manager"), HttpPut("{id:guid}/approve")]
+    public Task<IActionResult> Approve(Guid id, CancellationToken ct)
+        => Review(id, true, null, ct);
 
-    [Authorize(Roles = "operation_manager"), HttpPost("{id:guid}/review")]
-    public Task<IActionResult> Review(Guid id, ReviewRequest request, CancellationToken ct)
-        => db.Database.CreateExecutionStrategy().ExecuteAsync(() => ReviewCore(id, request, ct));
+    [Authorize(Roles = "operation_manager"), HttpPut("{id:guid}/reject")]
+    public Task<IActionResult> Reject(Guid id, [FromBody] RejectPilotUpdateRequest request, CancellationToken ct)
+        => Review(id, false, request.RejectReason, ct);
 
-    private async Task<IActionResult> ReviewCore(Guid id, ReviewRequest request, CancellationToken ct)
+    private Task<IActionResult> Review(Guid id, bool approve, string? reason, CancellationToken ct)
+        => db.Database.CreateExecutionStrategy().ExecuteAsync(() => ReviewCore(id, approve, reason, ct));
+
+    private async Task<IActionResult> ReviewCore(Guid id, bool approve, string? reason, CancellationToken ct)
     {
-        if (!request.Approve && (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > 500))
-            return BadRequest(new { message = "Enter a rejection reason up to 500 characters." });
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var status = request.Approve ? "Approved" : "Rejected";
-        var changed = await db.PilotUpdateRequests.Where(x => x.Id == id && x.Status == "Pending")
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, status)
-                .SetProperty(x => x.ReviewedBy, UserId).SetProperty(x => x.ReviewedAt, DateTime.UtcNow)
-                .SetProperty(x => x.RejectReason, request.Approve ? null : request.Reason!.Trim()), ct);
-        if (changed == 0) return Conflict(new { message = "Request was already reviewed or does not exist. Refresh the list." });
-        var item = await db.PilotUpdateRequests.Include(x => x.Pilot).Include(x => x.LicenseImages)
-            .FirstAsync(x => x.Id == id, ct);
-        if (request.Approve)
+        if (!approve && (string.IsNullOrWhiteSpace(reason) || reason.Length > 1000))
+            return BadRequest(new { message = "Enter a rejection reason up to 1000 characters." });
+        // A retry must reload state instead of reusing entities from a rolled-back attempt.
+        db.ChangeTracker.Clear();
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+        try
         {
-            if (!item.LicenseExpiredDate.HasValue || item.LicenseExpiredDate.Value < DateOnly.FromDateTime(DateTime.UtcNow))
+            var item = await db.PilotUpdateRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (item is null) return NotFound();
+            if (item.Status != "Pending") return Conflict(new { message = "Request was already reviewed. Refresh the list." });
+            if (approve && (!item.LicenseExpiredDate.HasValue || item.LicenseExpiredDate.Value < DateOnly.FromDateTime(DateTime.UtcNow)))
                 return BadRequest(new { message = "This license has expired and cannot be approved." });
-            item.Pilot.PilotLicenseNo = item.PilotLicenseNo;
-            item.Pilot.LicenseIssuedDate = item.LicenseIssuedDate;
-            item.Pilot.LicenseExpiredDate = item.LicenseExpiredDate;
-            await db.LicenseImages.Where(x => x.PilotId == item.PilotId).ExecuteUpdateAsync(s => s.SetProperty(x => x.PilotId, (Guid?)null), ct);
-            foreach (var image in item.LicenseImages) image.PilotId = item.PilotId;
-            await db.SaveChangesAsync(ct);
+
+            // Use the original workflow for both decisions and official license/image updates.
+            var result = approve
+                ? await users.ApprovePilotUpdateRequestAsync(id, UserId, ct)
+                : await users.RejectPilotUpdateRequestAsync(id, UserId, new RejectPilotUpdateRequest { RejectReason = reason!.Trim() }, ct);
+            await transaction.CommitAsync(ct);
+            return Ok(result);
         }
-        await transaction.CommitAsync(ct);
-        return Ok(new { message = request.Approve ? "License change approved." : "License change rejected.", status });
+        catch (InvalidOperationException e)
+        {
+            return Conflict(new { message = e.Message });
+        }
     }
 }

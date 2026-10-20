@@ -3,18 +3,17 @@ using DroneOps.Application.DTOs.Request.Telemetry;
 using DroneOps.Application.DTOs.Response.Geofences;
 using DroneOps.Application.DTOs.Response.Telemetry;
 using DroneOps.Application.Interfaces.Telemetry;
+using DroneOps.Application.Settings;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DroneOps.Application.Services.Telemetry;
 
 public class TelemetryIngestionService : ITelemetryIngestionService
 {
-    private const int OnlineWindowSeconds = 10;
-    private const int StaleWindowSeconds = 30;
-    private const int LowBatteryThresholdPercent = 20;
     private const int ClockSkewGraceSeconds = 120;
 
     private static readonly string[] ActiveMissionStatuses =
@@ -35,11 +34,16 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
     private readonly AppDbContext _context;
     private readonly ILogger<TelemetryIngestionService> _logger;
+    private readonly TelemetryMonitoringOptions _monitoring;
 
-    public TelemetryIngestionService(AppDbContext context, ILogger<TelemetryIngestionService> logger)
+    public TelemetryIngestionService(
+        AppDbContext context,
+        ILogger<TelemetryIngestionService> logger,
+        IOptions<TelemetryMonitoringOptions> monitoring)
     {
         _context = context;
         _logger = logger;
+        _monitoring = monitoring.Value;
     }
 
     public async Task<TelemetryIngestResult> IngestSampleAsync(
@@ -56,13 +60,20 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
             if (existing != null)
             {
+                var hasNewerValidSample = existing.MissionId.HasValue && await _context.TelemetryRecords
+                    .AsNoTracking()
+                    .AnyAsync(t => t.MissionId == existing.MissionId &&
+                                   t.IsValid &&
+                                   t.SourceTimestamp > existing.SourceTimestamp,
+                        cancellationToken);
                 _logger.LogInformation("Duplicate telemetry packet ignored. Key hash length: {Length}", idempotencyKey.Length);
                 return new TelemetryIngestResult
                 {
                     Accepted = true,
                     IsDuplicate = true,
+                    IsLateArrival = hasNewerValidSample,
                     RecordId = existing.Id,
-                    UsedForLatestProjection = existing.IsValid,
+                    UsedForLatestProjection = existing.IsValid && !hasNewerValidSample,
                     Message = "Duplicate telemetry sample ignored (idempotent replay)."
                 };
             }
@@ -130,7 +141,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                 ? "Relative"
                 : request.AltitudeReference,
             Speed = request.GroundSpeedMetersPerSecond,
+            HeadingDegrees = request.HeadingDegrees,
             BatteryLevel = request.BatteryPercent,
+            BatteryVoltageVolts = request.BatteryVoltageVolts,
+            BoardTemperatureCelsius = request.BoardTemperatureCelsius,
             FlightMode = string.IsNullOrWhiteSpace(request.FlightMode) ? null : request.FlightMode.Trim(),
             Armed = request.Armed,
             MissionSequence = request.MissionSequence,
@@ -146,7 +160,32 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             raisedIncidentId = await TryRaiseOperationalIncidentsAsync(record, cancellationToken);
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException) when (!string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            // A parallel retry can pass the read check before the first request commits.
+            // The database unique index is authoritative; report its winner as a replay.
+            _context.Entry(record).State = EntityState.Detached;
+            var winner = await _context.TelemetryRecords
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.IdempotencyKey == idempotencyKey, cancellationToken);
+            if (winner == null)
+            {
+                throw;
+            }
+
+            return new TelemetryIngestResult
+            {
+                Accepted = true,
+                IsDuplicate = true,
+                RecordId = winner.Id,
+                UsedForLatestProjection = winner.IsValid,
+                Message = "Duplicate telemetry sample ignored (concurrent idempotent replay)."
+            };
+        }
 
         return new TelemetryIngestResult
         {
@@ -187,7 +226,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             return null;
         }
 
-        if (!isManager && currentUserId.HasValue && mission.CreatedBy != currentUserId.Value)
+        if (!isManager && (!currentUserId.HasValue || mission.CreatedBy != currentUserId.Value))
         {
             throw new UnauthorizedAccessException("You do not have permission to view telemetry for this mission.");
         }
@@ -224,7 +263,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         response.AltitudeMeters = latestRecord.Altitude;
         response.AltitudeReference = latestRecord.AltitudeReference;
         response.GroundSpeedMetersPerSecond = latestRecord.Speed;
+        response.HeadingDegrees = latestRecord.HeadingDegrees;
         response.BatteryPercent = latestRecord.BatteryLevel;
+        response.BatteryVoltageVolts = latestRecord.BatteryVoltageVolts;
+        response.BoardTemperatureCelsius = latestRecord.BoardTemperatureCelsius;
         response.FlightMode = latestRecord.FlightMode;
         response.Armed = latestRecord.Armed;
         response.MissionSequence = latestRecord.MissionSequence;
@@ -326,7 +368,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                 item.Longitude = latest.Longitude;
                 item.AltitudeMeters = latest.Altitude;
                 item.GroundSpeedMetersPerSecond = latest.Speed;
+                item.HeadingDegrees = latest.HeadingDegrees;
                 item.BatteryPercent = latest.BatteryLevel;
+                item.BatteryVoltageVolts = latest.BatteryVoltageVolts;
+                item.BoardTemperatureCelsius = latest.BoardTemperatureCelsius;
                 item.FlightMode = latest.FlightMode;
                 item.Armed = latest.Armed;
                 item.MissionSequence = latest.MissionSequence;
@@ -349,8 +394,9 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         }
 
         var missionId = record.MissionId.Value;
+        Guid? firstRaisedIncidentId = null;
 
-        if (record.BatteryLevel.HasValue && record.BatteryLevel.Value <= LowBatteryThresholdPercent)
+        if (record.BatteryLevel.HasValue && record.BatteryLevel.Value <= _monitoring.LowBatteryPercent)
         {
             var raised = await RaiseIfOpenMissingAsync(
                 missionId,
@@ -360,12 +406,50 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                 description: $"Battery dropped to {record.BatteryLevel.Value}%.",
                 record,
                 appliedRule: "LowBattery",
-                threshold: LowBatteryThresholdPercent,
+                threshold: _monitoring.LowBatteryPercent,
                 cancellationToken);
 
             if (raised.HasValue)
             {
-                return raised;
+                firstRaisedIncidentId ??= raised;
+            }
+        }
+
+        if (record.Altitude.HasValue && record.Altitude.Value > _monitoring.MaximumAltitudeMeters)
+        {
+            var raised = await RaiseIfOpenMissingAsync(
+                missionId,
+                type: "AltitudeExceeded",
+                title: "Altitude limit exceeded",
+                severity: "High",
+                description: $"Altitude reached {record.Altitude.Value} m.",
+                record,
+                appliedRule: "MaximumAltitude",
+                threshold: (double)_monitoring.MaximumAltitudeMeters,
+                cancellationToken);
+
+            if (raised.HasValue)
+            {
+                firstRaisedIncidentId ??= raised;
+            }
+        }
+
+        if (record.Speed.HasValue && record.Speed.Value > _monitoring.MaximumGroundSpeedMetersPerSecond)
+        {
+            var raised = await RaiseIfOpenMissingAsync(
+                missionId,
+                type: "SpeedExceeded",
+                title: "Ground speed limit exceeded",
+                severity: "High",
+                description: $"Ground speed reached {record.Speed.Value} m/s.",
+                record,
+                appliedRule: "MaximumGroundSpeed",
+                threshold: (double)_monitoring.MaximumGroundSpeedMetersPerSecond,
+                cancellationToken);
+
+            if (raised.HasValue)
+            {
+                firstRaisedIncidentId ??= raised;
             }
         }
 
@@ -401,7 +485,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
                 if (!insideAny)
                 {
-                    return await RaiseIfOpenMissingAsync(
+                    var raised = await RaiseIfOpenMissingAsync(
                         missionId,
                         type: "GeofenceBreach",
                         title: "Geofence breach detected",
@@ -411,11 +495,16 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                         appliedRule: "GeofenceKeepIn",
                         threshold: null,
                         cancellationToken);
+
+                    if (raised.HasValue)
+                    {
+                        firstRaisedIncidentId ??= raised;
+                    }
                 }
             }
         }
 
-        return null;
+        return firstRaisedIncidentId;
     }
 
     private async Task<Guid?> RaiseIfOpenMissingAsync(
@@ -448,7 +537,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             longitude = record.Longitude,
             altitude = record.Altitude,
             speed = record.Speed,
+            headingDegrees = record.HeadingDegrees,
             batteryPercent = record.BatteryLevel,
+            batteryVoltageVolts = record.BatteryVoltageVolts,
+            boardTemperatureCelsius = record.BoardTemperatureCelsius,
             flightMode = record.FlightMode,
             sourceTimestamp = record.SourceTimestamp,
             receivedAt = record.ReceivedAt,
@@ -475,12 +567,12 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         return incident.Id;
     }
 
-    private static void ApplyFreshness(MissionLatestTelemetryResponse response, DateTimeOffset receivedAt)
+    private void ApplyFreshness(MissionLatestTelemetryResponse response, DateTimeOffset receivedAt)
     {
         var ageSeconds = (DateTimeOffset.UtcNow - receivedAt).TotalSeconds;
         response.DataAgeSeconds = Math.Round(ageSeconds, 1);
         response.ConnectivityStatus = ClassifyConnectivity(ageSeconds);
-        response.IsStale = ageSeconds > OnlineWindowSeconds;
+        response.IsStale = ageSeconds > StaleAfterSeconds;
         response.SnapshotKind = response.ConnectivityStatus switch
         {
             "Online" => "Latest",
@@ -489,12 +581,17 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         };
     }
 
-    private static string ClassifyConnectivity(double ageSeconds) => ageSeconds switch
+    private string ClassifyConnectivity(double ageSeconds) => ageSeconds switch
     {
-        <= OnlineWindowSeconds => "Online",
-        <= StaleWindowSeconds => "Stale",
+        <= 0 => "Online",
+        _ when ageSeconds <= StaleAfterSeconds => "Online",
+        _ when ageSeconds <= OfflineAfterSeconds => "Stale",
         _ => "Offline"
     };
+
+    private int StaleAfterSeconds => Math.Max(1, _monitoring.StaleAfterSeconds);
+
+    private int OfflineAfterSeconds => Math.Max(StaleAfterSeconds + 1, _monitoring.OfflineAfterSeconds);
 
     private static double? ComputeProgress(int? missionSequence, int waypointTotal)
     {

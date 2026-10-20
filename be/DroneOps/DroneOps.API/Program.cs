@@ -85,8 +85,9 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
+builder.Services.AddHostedService<CommunicationLossMonitor>();
 
 // 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
 // Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container

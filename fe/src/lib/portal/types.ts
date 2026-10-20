@@ -54,6 +54,84 @@ export type MissionWeather = {
   waypoints: { sequenceOrder: number; latitude: number; longitude: number; altitudeMeters: number | null; estimatedArrivalTime: string | null; arrivalTimeReason: string | null; forecastTime: string | null; sourceFetchedAt: string | null; temperatureCelsius: number | null; relativeHumidityPercent: number | null; windSpeedMetersPerSecond: number | null; windDirectionDegrees: number | null; windGustMetersPerSecond: number | null; windReferenceHeightMeters: number; precipitationProbabilityPercent: number | null; precipitationMillimeters: number | null; visibilityMeters: number | null; cloudCoverPercent: number | null; weatherCode: number | null; status: string; riskLevel: string; warnings: string[] }[];
 };
 
+export type LiveMission = {
+  missionId: string;
+  missionName: string;
+  missionStatus: string;
+  startTime: string | null;
+  uavId: string | null;
+  uavCode: string | null;
+  uavName: string | null;
+  pilotId: string;
+  pilotName: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  altitudeMeters: number | null;
+  groundSpeedMetersPerSecond: number | null;
+  batteryPercent: number | null;
+  flightMode: string | null;
+  armed: boolean;
+  missionSequence: number | null;
+  lastSeen: string | null;
+  connectivityStatus: string;
+  dataAgeSeconds: number | null;
+  waypointTotal: number;
+  progressPercent: number | null;
+};
+
+export type MissionTelemetry = {
+  missionId: string;
+  uavId: string | null;
+  uavCode: string | null;
+  uavName: string | null;
+  sourceId: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  altitudeMeters: number | null;
+  altitudeReference: string | null;
+  groundSpeedMetersPerSecond: number | null;
+  batteryPercent: number | null;
+  flightMode: string | null;
+  armed: boolean;
+  missionSequence: number | null;
+  sourceTimestamp: string | null;
+  receivedAt: string | null;
+  connectivityStatus: string;
+  dataAgeSeconds: number | null;
+  isStale: boolean;
+  isValid: boolean;
+  snapshotKind: string;
+  waypointTotal: number;
+  progressPercent: number | null;
+};
+
+export type IncidentItem = {
+  id: string;
+  missionId: string;
+  missionName: string;
+  uavId: string | null;
+  uavCode: string | null;
+  uavName: string | null;
+  title: string;
+  description: string | null;
+  type: string;
+  severity: string;
+  status: string;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  acknowledgedAt: string | null;
+  resolvedAt: string | null;
+};
+
+export type PagedIncidents = {
+  items: IncidentItem[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+};
+
 export type PendingMissionApproval = {
   updateRequestId: string;
   currentPlan: CreateMissionRequest;
@@ -74,6 +152,7 @@ export type PendingMissionApproval = {
   waypointCount: number;
   validationStatus: string;
   validation?: MissionValidationResult | null;
+  validationIssues?: string[];
 };
 
 export type PagedPendingMissionApprovals = {
