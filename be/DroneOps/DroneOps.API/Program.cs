@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager").ToArray();
+var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager" and not "--migrate-telemetry" and not "--check-telemetry-schema").ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
@@ -25,6 +25,15 @@ if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(
         "Configure ConnectionStrings__DefaultConnection or development appsettings.Local.json.");
+}
+
+if (args.Contains("--migrate-telemetry") || args.Contains("--check-telemetry-schema"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    if (args.Contains("--migrate-telemetry")) await TelemetrySchema.MigrateAsync(source);
+    else await TelemetrySchema.CheckAsync(source);
+    Console.WriteLine("Telemetry schema verified.");
+    return;
 }
 
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
@@ -130,6 +139,9 @@ builder.Services.AddAuthorization();
 #endregion
 
 var app = builder.Build();
+
+// Detect a missing deployment migration before background monitoring starts.
+await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.

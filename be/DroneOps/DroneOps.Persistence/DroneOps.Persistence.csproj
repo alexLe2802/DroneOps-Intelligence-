@@ -19,6 +19,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
+		<EmbeddedResource Include="../../../database/migrations/005_nullable_live_telemetry.sql" LogicalName="DroneOps.Persistence.Migrations.005_nullable_live_telemetry.sql" />
 	</ItemGroup>
 
 </Project>
