@@ -239,3 +239,4 @@
 
 /* Review evidence and manager decision stay adjacent without an empty map column. */
 .approval-request-context{padding:18px 20px;border:1px solid #2b3544;border-radius:10px;background:#131c28}.approval-request-context>span{display:block;color:#87a3bd;font:10px Consolas,monospace;letter-spacing:1.4px}.approval-request-context>strong{display:block;margin-top:9px;color:#dceafa;font-size:15px}.approval-request-context>p{margin:8px 0 0;color:#9caec3;font-size:13px;line-height:1.65}
+.approval-decision-guidance{margin:0 16px 16px;padding:14px 16px;border:1px solid #40536a;border-radius:6px;background:#131e2b}.approval-decision-guidance strong{font-size:12px;color:#a8d7ed}.approval-decision-guidance p{margin:7px 0 0;font-size:13px;line-height:1.6;color:#b7c5d6}.approval-decision-guidance button{margin-top:12px}.approval-decision-actions button:disabled{cursor:not-allowed;opacity:.45}

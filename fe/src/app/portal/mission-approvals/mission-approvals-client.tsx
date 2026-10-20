@@ -64,6 +64,18 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   }, [items, query]);
 
   const selected = filtered.find(item => item.missionId === selectedId) ?? filtered[0] ?? null;
+  const missingReview = !selected?.updateRequestId;
+  const missingPlans = !selected?.currentPlan || !selected?.proposedPlan;
+  const validationPassed = selected?.validation?.isValid === true && !selected.validation.stale && !selected.validation.incomplete;
+  const decisionHint = busy ? "Saving your decision…"
+    : refreshing ? "Refreshing review details…"
+    : missingReview ? "Review details are missing. Refresh the queue. If this persists, the running backend must be updated to the mission review version."
+    : decision === "approve" && missingPlans ? "The current plan and proposal must be available before approval. Refresh the queue."
+    : decision === "approve" && !validationPassed ? "Run Revalidate Current Conditions and resolve any blocking findings before approval. You can still reject with a reason."
+    : decision === "reject" && !comment.trim() ? "Enter rejection findings, then confirm that you have reviewed the mission."
+    : !confirmed ? "Tick the review confirmation checkbox to enable your selected decision."
+    : decision === "approve" ? "Ready to approve. The system will validate the proposal again before saving."
+    : "Ready to reject. The reason will be recorded in the review history.";
   const selectedIndex = selected ? filtered.findIndex(item => item.missionId === selected.missionId) : -1;
 
   function moveSelection(direction: -1 | 1) {
@@ -90,8 +102,8 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   }
 
   async function submitDecision(action: Decision) {
-    if (!selected || busy || !confirmed || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan) return;
-    if (action === "approve" && !selected.validation?.isValid) {
+    if (!selected || busy || refreshing || !confirmed || !selected.updateRequestId) return;
+    if (action === "approve" && (missingPlans || !validationPassed)) {
       setError(new Error("Mandatory validation has not passed. Revalidate this mission first."));
       return;
     }
@@ -166,8 +178,9 @@ export default function MissionApprovalsClient({ account }: { account: Account }
           <section className="approval-authorization-panel">
             <header><div><span className="approval-panel-code">DA</span><h2>Decision Authorization</h2></div><b>MANAGER</b></header>
             <div className="approval-authorizer"><span>{account.displayName.slice(0, 1).toUpperCase()}</span><div><b>{account.displayName}</b><small>{account.email}</small></div><em>SESSION ACTIVE</em></div>
-            <fieldset disabled={busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan}><legend>DECISION DIRECTIVE</legend><div className="approval-choice"><label><input type="radio" name="decision" checked={decision === "approve"} onChange={() => setDecision("approve")} /> Authorize Flight</label><label><input type="radio" name="decision" checked={decision === "reject"} onChange={() => setDecision("reject")} /> Reject with Findings</label></div><label className="approval-comment">{decision === "reject" ? "REJECTION FINDINGS" : "REVIEW COMMENT"}<textarea value={comment} onChange={event => setComment(event.target.value)} maxLength={1000} rows={4} placeholder={decision === "reject" ? "Required: explain why the mission cannot be authorized" : "Optional manager comment"} /></label><label className="approval-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I confirm that I reviewed the mission information currently provided by the backend.</label></fieldset>
-            <div className="approval-decision-actions"><button type="button" className="reject" disabled={busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan || !confirmed || decision !== "reject" || !comment.trim()} onClick={() => void submitDecision("reject")}>{busy && decision === "reject" ? "REJECTING..." : "REJECT PLAN"}</button><button type="button" className="approve" disabled={busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan || !confirmed || decision !== "approve" || !selected.validation?.isValid} onClick={() => void submitDecision("approve")}>{busy && decision === "approve" ? "APPROVING..." : "APPROVE & AUTHORIZE"}</button></div>
+            <fieldset disabled={busy || refreshing}><legend>DECISION DIRECTIVE</legend><div className="approval-choice"><label><input type="radio" name="decision" checked={decision === "approve"} onChange={() => setDecision("approve")} /> Authorize Flight</label><label><input type="radio" name="decision" checked={decision === "reject"} onChange={() => setDecision("reject")} /> Reject with Findings</label></div><label className="approval-comment">{decision === "reject" ? "REJECTION FINDINGS" : "REVIEW COMMENT"}<textarea value={comment} onChange={event => setComment(event.target.value)} maxLength={1000} rows={4} placeholder={decision === "reject" ? "Required: explain why the mission cannot be authorized" : "Optional manager comment"} /></label><label className="approval-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I have reviewed this mission and confirm my selected decision.</label></fieldset>
+            <div className="approval-decision-guidance" id="decision-guidance" role="status"><strong>{missingReview ? "Review data required" : decision === "approve" ? "Before approving" : "Before rejecting"}</strong><p>{decisionHint}</p>{missingReview && <button type="button" className="module-secondary" disabled={busy || refreshing} onClick={() => void load()}>REFRESH REVIEW DETAILS</button>}</div>
+            <div className="approval-decision-actions" aria-describedby="decision-guidance"><button type="button" className="reject" disabled={busy || refreshing || missingReview || !confirmed || decision !== "reject" || !comment.trim()} onClick={() => void submitDecision("reject")}>{busy && decision === "reject" ? "REJECTING..." : "REJECT PLAN"}</button><button type="button" className="approve" disabled={busy || refreshing || missingReview || missingPlans || !confirmed || decision !== "approve" || !validationPassed} onClick={() => void submitDecision("approve")}>{busy && decision === "approve" ? "APPROVING..." : "APPROVE & AUTHORIZE"}</button></div>
           </section>
 
 
