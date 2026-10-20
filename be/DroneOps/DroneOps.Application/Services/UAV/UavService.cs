@@ -98,9 +98,11 @@ public sealed class UavService : IUavService
             return false;
         }
 
-        uav.Code = request.UavCode.Trim();
-        uav.Name = request.UavName.Trim();
-        uav.Model = request.Description?.Trim();
+        uav.Code = request.Code.Trim();
+        uav.Name = request.Name.Trim();
+        uav.Model = string.IsNullOrWhiteSpace(request.Model)
+            ? null
+            : request.Model.Trim();
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         return true;

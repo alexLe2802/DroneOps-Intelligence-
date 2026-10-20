@@ -234,6 +234,12 @@ public sealed class UserController : ControllerBase
             });
         }
 
+        if (request.PilotLicenseNo is not null || request.LicenseIssuedDate.HasValue
+            || request.LicenseExpiredDate.HasValue || request.LicenseImageUrls is not null)
+        {
+            return BadRequest(new { message = "Submit license changes with documents to POST /api/users/pilot-update-requests. This endpoint updates personal profile fields only." });
+        }
+
         try
         {
             UpdatePilotProfileResponse? result =

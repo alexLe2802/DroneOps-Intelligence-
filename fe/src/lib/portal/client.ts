@@ -1,5 +1,5 @@
 import { api, ApiError } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, MissionDecision, MissionDetail, MissionValidationResult, OperationalAnalytics, PagedPendingMissionApprovals, PagedResponse, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, LiveMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable">;
 
@@ -56,6 +56,23 @@ export function cancelMission(id: string, reason: string): Promise<{ message: st
     method: "PUT",
     body: JSON.stringify({ reason: reason.trim() }),
   });
+}
+
+export function getLiveMissions(): Promise<LiveMission[]> {
+  return api<LiveMission[]>("/live/missions");
+}
+
+export function getLatestMissionTelemetry(id: string): Promise<MissionTelemetry> {
+  return api<MissionTelemetry>(`/missions/${encodeURIComponent(id)}/telemetry/latest`);
+}
+
+export function getMissionIncidents(missionId: string, pageSize = 8): Promise<PagedIncidents> {
+  const params = new URLSearchParams({ missionId, pageNumber: "1", pageSize: String(pageSize) });
+  return api<PagedIncidents>(`/incidents?${params}`);
+}
+
+export function liveMissionStreamUrl(missionId: string): string {
+  return `/api/live/stream?missionId=${encodeURIComponent(missionId)}`;
 }
 
 export function getPendingMissionApprovals(params: { pageNumber?: number; pageSize?: number; search?: string; fromDate?: string; toDate?: string } = {}): Promise<PagedPendingMissionApprovals> {

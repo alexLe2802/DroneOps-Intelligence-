@@ -28,6 +28,25 @@ public interface IUserService
         UpdatePilotProfileRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<PagedResponse<PilotUpdateRequestResponse>>GetAllPilotRequestsAsync(
+    PilotUpdateRequestFilterRequest request,
+    CancellationToken cancellationToken = default);
+
+    Task<PilotUpdateRequestResponse?>GetPilotUpdateRequestAsync(
+            Guid requestId,
+            CancellationToken cancellationToken = default);
+
+    Task<PilotUpdateRequestResponse?> ApprovePilotUpdateRequestAsync(
+            Guid requestId,
+            Guid reviewerId,
+            CancellationToken cancellationToken = default);
+
+    Task<PilotUpdateRequestResponse?>RejectPilotUpdateRequestAsync(
+            Guid requestId,
+            Guid reviewerId,
+            RejectPilotUpdateRequest request,
+            CancellationToken cancellationToken = default);
+
     // 1. Yêu cầu đổi email (Gửi OTP sang email mới)
     Task<string> RequestChangeEmailAsync(
         Guid userId,

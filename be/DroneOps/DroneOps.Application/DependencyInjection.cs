@@ -15,6 +15,7 @@ using DroneOps.Application.Services.PostFlight;
 using DroneOps.Application.Services.Telemetry;
 using DroneOps.Application.Services.UAVs;
 using DroneOps.Application.Services.Users;
+using DroneOps.Application.Settings;
 using DroneOps.Application.Validators.Missions;
 using DroneOps.Application.Validators.Users;
 using DroneOps.Persistence.Interfaces;
@@ -22,6 +23,7 @@ using DroneOps.Persistence.Repositories;
 using DroneOps.Persistence.Services.AI;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 
@@ -30,8 +32,11 @@ namespace DroneOps.Application;
 public static class DependencyInjection
 {
     public static IServiceCollection AddApplicationServices(
-        this IServiceCollection services)
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
+        services.Configure<TelemetryMonitoringOptions>(
+            configuration.GetSection(TelemetryMonitoringOptions.SectionName));
         services.AddMemoryCache();
 
         services.AddFluentValidationAutoValidation();
