@@ -4,7 +4,7 @@ import { accessCookie, backendUrl, sessionFromToken } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const allowed = /^(users\/[0-9a-f-]{36}\/(avatar|credentials)|license-changes(?:\/[0-9a-f-]{36}(?:\/review)?)?|users\/change-email\/(request|confirm)|auth\/(login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/with-files|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users(?:\/(profile|pilot-profile|avatar))?|uavs(?:\/myUAV|\/[0-9a-f-]{36})?|admin\/uavs(?:\/(?:pending|[0-9a-f-]{36}(?:\/(?:activate|reject|deactivate))?))?|missions(?:\/my|\/validate|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject|submit|cancel))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36})?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|report|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
+const allowed = /^(users\/[0-9a-f-]{36}\/(avatar|credentials)|license-changes(?:\/[0-9a-f-]{36}(?:\/review)?)?|users\/change-email\/(request|confirm)|auth\/(login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/with-files|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users(?:\/(profile|pilot-profile|avatar))?|uavs(?:\/myUAV|\/[0-9a-f-]{36})?|admin\/uavs(?:\/(?:pending|[0-9a-f-]{36}(?:\/(?:activate|reject|deactivate))?))?|missions(?:\/my|\/validate|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject|submit|cancel|telemetry\/latest))?)?|live\/(?:missions|stream)|incidents(?:\/[0-9a-f-]{36})?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36})?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|report|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
@@ -37,6 +37,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     return NextResponse.json({ message: "The PostgreSQL login API does not support session listing or revoking all JWTs yet. Sign out of this browser instead." }, { status: 501 });
   const aiRequest = path === "ai/assessments" || path.startsWith("ai/assessments/mission/");
   const mediaUpload = request.method === "POST" && ["pilot-registrations/with-files", "users/avatar", "license-changes"].includes(path);
+  const liveStream = request.method === "GET" && path === "live/stream";
   const timeoutMs = mediaUpload ? 180000 : (path === "ai/assessments" || path === "mission-suggestions") && request.method === "POST" ? 60000 : 20000;
   const headers = new Headers();
   for (const name of ["content-type", "origin", "user-agent"]) {
@@ -71,7 +72,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
     }
     const upstream = await fetch(`${backendUrl()}/api/${path}${request.nextUrl.search}`, {
       method: request.method, headers, body,
-      cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(timeoutMs),
+      cache: "no-store", redirect: "manual", signal: liveStream ? request.signal : AbortSignal.timeout(timeoutMs),
     });
     if ((path === "users/avatar" || /^users\/[0-9a-f-]{36}\/avatar$/.test(path)) && request.method === "GET" && upstream.status === 302) {
       const location = upstream.headers.get("location");
@@ -97,8 +98,9 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       response.cookies.set(accessCookie, result.accessToken, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/", expires: new Date(session.expiresAt) });
       return response;
     }
-    const responseHeaders = new Headers({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+    const responseHeaders = new Headers({ "Cache-Control": liveStream ? "no-cache, no-transform" : "no-store", "X-Content-Type-Options": "nosniff" });
     if (upstream.headers.has("content-type")) responseHeaders.set("Content-Type", upstream.headers.get("content-type")!);
+    if (liveStream) responseHeaders.set("X-Accel-Buffering", "no");
     const cookies = upstream.headers.getSetCookie();
     if (cookies.length > 0) {
       for (const cookie of cookies) responseHeaders.append("Set-Cookie", cookie);
