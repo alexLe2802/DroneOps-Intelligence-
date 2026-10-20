@@ -17,6 +17,12 @@ if (args.Length == 2 && args[0] == "--mission-approval")
     return;
 }
 
+if (args.Length == 1 && args[0] == "--mission-weather")
+{
+    await MissionWeatherChecks.RunAsync();
+    return;
+}
+
 // Offline checks for the current JWT API. No database or external identity provider is used.
 var passed = 0;
 void Check(bool condition, string name)

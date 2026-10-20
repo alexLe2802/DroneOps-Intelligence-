@@ -8,6 +8,7 @@ namespace DroneOps.Application.DTOs.Request.Missions;
 
 public class MissionValidateDto
 {
+    public Guid? UpdateRequestId { get; set; }
     public Guid MissionId { get; set; }
     public List<WaypointDto>? Waypoints { get; set; }
 }

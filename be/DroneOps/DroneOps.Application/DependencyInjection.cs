@@ -40,6 +40,11 @@ public static class DependencyInjection
             <CreatePilotRegistrationValidator>();
 
         services.AddScoped<MissionBusinessValidator>();
+        services.AddScoped<MissionValidationService>();
+        services.AddScoped<MissionWorkflowService>();
+        services.AddScoped<MissionWeatherQueryService>();
+        services.AddOptions<MissionWeatherOptions>();
+        services.AddHttpClient<IMissionWeatherService, MissionWeatherService>(client => client.Timeout = TimeSpan.FromSeconds(8));
 
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IAuthService, AuthService>();
