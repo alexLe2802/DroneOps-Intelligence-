@@ -23,3 +23,26 @@ Only operation_manager can request registration details. The detail API returns 
 Existing documents stored only in a browser's IndexedDB are not migrated automatically. New applications persist documents in Supabase and can be reviewed on another machine.
 
 Verification: BE build, FE typecheck, targeted ESLint, verify compilation and the changed frontend files. A temporary HTTP mock check also passed image/PDF validation, spoofed MIME rejection, private upload, signed URLs and cleanup. Live verification against the configured private bucket passed: upload a temporary PNG, create a signed URL, download and compare the original bytes, then delete the temporary object. The local configuration file is ignored by Git.
+
+## License updates
+
+All license changes use `/api/users/pilot-update-requests`; `/api/license-changes`
+has been removed. Existing `PilotUpdateRequest` and `LicenseImage` records remain
+in place; no data migration is required.
+
+- Operator: `POST /api/users/pilot-update-requests`, multipart `data` (JSON with
+  `pilotLicenseNo`, `licenseIssuedDate`, `licenseExpiredDate`) and 1–10 `files`.
+- Operator/manager: `GET /api/users/pilot-update-requests?pageNumber=1&pageSize=100&status=Pending`.
+  Returns `items`, `pageNumber`, `pageSize`, `totalItems`, `totalPages`.
+  Operators only receive their own requests; managers can also filter by `search`.
+- Operator/manager: `GET /api/users/pilot-update-requests/{id}`. Includes current
+  license fields and signed `licenseImageUrls`; other operators receive 404.
+- Manager: `PUT /api/users/pilot-update-requests/{id}/approve` (no body).
+- Manager: `PUT /api/users/pilot-update-requests/{id}/reject`, JSON
+  `{"rejectReason":"Reason for rejection"}` (1–1000 characters).
+
+Decisions reuse `UserService` and execute in a serializable, retryable transaction.
+Only pending requests can be reviewed. Approval of expired licenses is blocked.
+`PUT /api/users/pilot-profile` remains for phone, birth date and experience;
+license changes must use the multipart submission endpoint. `GET` on that profile
+still returns the official license. Pending/rejected requests do not replace it.
