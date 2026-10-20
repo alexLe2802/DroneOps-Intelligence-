@@ -121,10 +121,10 @@ public sealed class MissionService : IMissionService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var mission = await _missionRepository.GetByIdAsync(id, cancellationToken);
+        var mission = await _missionRepository.GetByIdForUpdateAsync(id, cancellationToken);
         if (mission == null || mission.Status != "Draft") return false;
 
-        mission.Status = "Submitted";
+        mission.Status = "Pending Review";
 
         await _missionRepository.SaveChangesAsync(cancellationToken);
         return true;
