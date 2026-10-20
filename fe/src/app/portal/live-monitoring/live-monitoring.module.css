@@ -1,0 +1,908 @@
+.monitor {
+  display: grid;
+  gap: 12px;
+  color: #e8eef5;
+}
+
+.monitor button,
+.monitor select {
+  font-family: Consolas, monospace;
+}
+
+.commandHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 138px;
+  padding: 18px;
+  background: #171d27;
+  border: 1px solid #242e3a;
+  border-radius: 6px;
+}
+
+.missionIdentity {
+  min-width: 0;
+}
+
+.eyebrow,
+.missionIdentity p,
+.commandTools,
+.signalStrip,
+.mapPanel header,
+.mapPanel footer,
+.liveRail header,
+.telemetrySection > header,
+.rawPanel,
+.telemetryCard {
+  font-family: Consolas, monospace;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 8px;
+  color: #78d9fb;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+}
+
+.missionIdentity select {
+  width: min(720px, 100%);
+  height: 42px;
+  padding: 0 42px 0 12px;
+  border: 1px solid #324154;
+  border-radius: 3px;
+  background: #0c131c;
+  color: #edf4fa;
+  font-size: 18px;
+  font-weight: 700;
+  outline: none;
+}
+
+.missionIdentity select:focus {
+  border-color: #41c8f1;
+}
+
+.missionIdentity h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.missionIdentity p {
+  margin: 9px 0 0;
+  color: #aab6c4;
+  font-size: 10px;
+  letter-spacing: .6px;
+}
+
+.commandTools {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 8px;
+  justify-content: end;
+  flex: 0 0 auto;
+}
+
+.streamState,
+.freshness,
+.commandTools button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #303b49;
+  border-radius: 3px;
+  background: #202733;
+  color: #dbe5ed;
+  font-size: 8px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.streamState i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8995a3;
+}
+
+.streamState.live i {
+  background: #59e3ba;
+  box-shadow: 0 0 0 4px #59e3ba1f;
+}
+
+.streamState.connecting i,
+.streamState.reconnecting i {
+  background: #ffd272;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.freshness b {
+  color: #69e1bc;
+}
+
+.commandTools button {
+  cursor: pointer;
+  background: #142733;
+  border-color: #315e73;
+  color: #79d8f7;
+}
+
+.commandTools button:hover:not(:disabled) {
+  background: #1a3442;
+}
+
+.commandTools button:disabled {
+  cursor: not-allowed;
+  opacity: .38;
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 13px;
+  border: 1px solid #773943;
+  background: #351d23;
+  color: #ffb1b6;
+}
+
+.errorBanner button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: 8px Consolas, monospace;
+  letter-spacing: 1px;
+}
+
+.signalStrip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.signalStrip > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #29323f;
+  border-left: 3px solid #6f7c8a;
+  background: #171d27;
+}
+
+.signalStrip b {
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.signalStrip span {
+  overflow: hidden;
+  color: #d8e0e8;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signalStrip .good {
+  border-left-color: #56dfb5;
+}
+
+.signalStrip .good b,
+.good {
+  color: #61e4bb !important;
+}
+
+.signalStrip .warning {
+  border-left-color: #f3c76c;
+}
+
+.signalStrip .warning b,
+.warning {
+  color: #f5cd79 !important;
+}
+
+.signalStrip .danger {
+  border-left-color: #ff747b;
+}
+
+.signalStrip .danger b,
+.danger {
+  color: #ff9197 !important;
+}
+
+.operationsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.15fr) minmax(300px, .85fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.operationsGrid[aria-busy="true"] {
+  opacity: .72;
+}
+
+.mapPanel,
+.linkPanel,
+.progressPanel,
+.incidentPanel,
+.telemetryCard,
+.rawPanel {
+  background: #171d27;
+  border: 1px solid #242e3a;
+  border-radius: 6px;
+}
+
+.mapPanel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mapPanel > header,
+.mapPanel > footer,
+.liveRail header,
+.telemetrySection > header,
+.rawPanel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.mapPanel > header {
+  min-height: 64px;
+  padding: 11px 14px;
+}
+
+.mapPanel header span,
+.liveRail header span,
+.telemetrySection header span,
+.rawPanel header span {
+  color: #8bdfff;
+  font-size: 8px;
+  letter-spacing: 1.2px;
+}
+
+.mapPanel h2 {
+  margin: 5px 0 0;
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapPanel header > div:last-child {
+  text-align: right;
+}
+
+.mapPanel header b,
+.mapPanel header small {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.mapPanel header b {
+  color: #62e2b9;
+}
+
+.mapPanel header small {
+  margin-top: 6px;
+  color: #aab5c2;
+}
+
+.mapStage {
+  position: relative;
+  height: 570px;
+  overflow: hidden;
+  background: #101720;
+  border-top: 1px solid #242e3a;
+  border-bottom: 1px solid #242e3a;
+}
+
+.mapCanvas {
+  width: 100%;
+  height: 100%;
+  filter: saturate(.75) brightness(.82) contrast(1.08);
+}
+
+.mapStage :global(.leaflet-control-zoom a) {
+  background: #151d28;
+  border-color: #344151;
+  color: #8bdfff;
+}
+
+.mapStage :global(.leaflet-control-attribution) {
+  background: #101720d9;
+  color: #9eabb8;
+  font-size: 8px;
+}
+
+.mapTopLeft,
+.mapTopRight {
+  position: absolute;
+  z-index: 500;
+  top: 14px;
+  padding: 9px 11px;
+  border: 1px solid #365166;
+  border-radius: 3px;
+  background: #101923ed;
+  color: #8edfff;
+  font: 8px Consolas, monospace;
+  letter-spacing: 1px;
+}
+
+.mapTopLeft {
+  left: 14px;
+}
+
+.mapTopRight {
+  right: 14px;
+  color: #dce5ed;
+}
+
+.mapTopRight i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #57e2b6;
+}
+
+.aircraftIconShell {
+  background: transparent;
+  border: 0;
+}
+
+.aircraftIcon,
+.aircraftPulse {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.aircraftIcon {
+  background: #0b1721;
+  border: 2px solid #7cddff;
+  color: #8fe3ff;
+  font: 700 8px Consolas, monospace;
+  box-shadow: 0 4px 18px #000a;
+}
+
+.aircraftPulse {
+  background: #34c8f466;
+  animation: aircraftPulse 1.8s ease-out infinite;
+}
+
+.mapEmpty,
+.mapError {
+  position: absolute;
+  z-index: 500;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #101923ed;
+  border: 1px solid #344253;
+  font-family: Consolas, monospace;
+}
+
+.mapEmpty {
+  top: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(360px, calc(100% - 32px));
+  padding: 22px;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.mapEmpty b {
+  color: #79dafb;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.mapEmpty span {
+  color: #a8b4c1;
+}
+
+.mapError {
+  bottom: 12px;
+  width: min(580px, calc(100% - 28px));
+  padding: 9px 12px;
+  color: #ffd17c;
+  text-align: center;
+}
+
+.mapPanel > footer {
+  min-height: 44px;
+  padding: 10px 14px;
+  color: #9ba8b6;
+  font-size: 8px;
+  letter-spacing: .7px;
+}
+
+.mapPanel footer b {
+  margin-left: 6px;
+  color: #68ddba;
+}
+
+.liveRail {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.liveRail > section {
+  overflow: hidden;
+}
+
+.liveRail header {
+  min-height: 43px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #27313e;
+  font: 8px Consolas, monospace;
+  letter-spacing: 1px;
+}
+
+.liveRail header b {
+  color: #78dafa;
+}
+
+.online {
+  color: #5de1b8 !important;
+}
+
+.stale {
+  color: #f3ca72 !important;
+}
+
+.offline {
+  color: #ff8f96 !important;
+}
+
+.linkReadout {
+  min-height: 118px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 18px;
+  background:
+    linear-gradient(#13212eaa, #101720ee),
+    repeating-linear-gradient(90deg, #1a2835 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(0deg, #1a2835 0 1px, transparent 1px 34px);
+}
+
+.linkReadout strong {
+  color: #75ddfd;
+  font: 700 22px Consolas, monospace;
+}
+
+.linkReadout span {
+  margin-top: 8px;
+  color: #a6b2bf;
+  font: 9px Consolas, monospace;
+}
+
+.linkPanel dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+}
+
+.linkPanel dl div {
+  min-width: 0;
+  padding: 11px;
+  border-top: 1px solid #26303d;
+}
+
+.linkPanel dl div:nth-child(odd) {
+  border-right: 1px solid #26303d;
+}
+
+.linkPanel dt,
+.linkPanel dd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linkPanel dt {
+  color: #8997a6;
+  font: 7px Consolas, monospace;
+  letter-spacing: 1px;
+}
+
+.linkPanel dd {
+  margin: 6px 0 0;
+  color: #dfe8ef;
+  font: 9px Consolas, monospace;
+  text-transform: uppercase;
+}
+
+.progressPanel {
+  padding-bottom: 13px;
+}
+
+.progressValue {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 15px 13px 8px;
+}
+
+.progressValue strong {
+  color: #72dcfc;
+  font: 700 24px Consolas, monospace;
+}
+
+.progressValue span {
+  color: #9ba8b6;
+  font: 8px Consolas, monospace;
+}
+
+.progressTrack {
+  height: 7px;
+  margin: 0 13px 13px;
+  background: #29323f;
+}
+
+.progressTrack i {
+  display: block;
+  height: 100%;
+  background: #28bbea;
+  transition: width .4s ease;
+}
+
+.progressMeta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 13px;
+}
+
+.progressMeta span {
+  padding: 10px;
+  background: #1c232e;
+  color: #919eac;
+  font: 7px Consolas, monospace;
+  letter-spacing: .8px;
+}
+
+.progressMeta b {
+  display: block;
+  margin-top: 7px;
+  overflow: hidden;
+  color: #e4edf4;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.incidentPanel {
+  max-height: 330px;
+}
+
+.incidentList {
+  max-height: 285px;
+  overflow-y: auto;
+}
+
+.incidentList article {
+  padding: 11px 12px;
+  border-bottom: 1px solid #26303c;
+}
+
+.incidentList article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.incidentList article b,
+.incidentList article time,
+.incidentList article small {
+  font: 7px Consolas, monospace;
+  letter-spacing: .8px;
+}
+
+.incidentList article b {
+  color: #ff9ba0;
+}
+
+.incidentList article time,
+.incidentList article small {
+  color: #8997a5;
+}
+
+.incidentList h3 {
+  margin: 7px 0 5px;
+  font-size: 11px;
+}
+
+.incidentList p {
+  margin: 0 0 7px;
+  overflow: hidden;
+  color: #a8b3c0;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.severitycritical,
+.severityhigh {
+  color: #ff8d94 !important;
+}
+
+.severitymedium {
+  color: #f3ca76 !important;
+}
+
+.severitylow {
+  color: #71dcfc !important;
+}
+
+.incidentEmpty {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 30px 16px;
+  color: #95a3b2;
+  font: 8px Consolas, monospace;
+  text-align: center;
+}
+
+.incidentEmpty b {
+  color: #60dfb6;
+  letter-spacing: 1px;
+}
+
+.telemetrySection {
+  display: grid;
+  gap: 10px;
+}
+
+.telemetrySection > header {
+  padding: 2px 2px 0;
+}
+
+.telemetrySection h2 {
+  display: inline;
+  margin: 0 0 0 8px;
+  font-size: 20px;
+}
+
+.telemetrySection > header > b {
+  color: #75dfbd;
+  font: 8px Consolas, monospace;
+  letter-spacing: 1px;
+}
+
+.telemetryGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.telemetryCard {
+  min-width: 0;
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  padding: 13px;
+}
+
+.telemetryCard > span {
+  min-height: 28px;
+  color: #a9b5c2;
+  font-size: 8px;
+  letter-spacing: .9px;
+}
+
+.telemetryCard > strong {
+  display: block;
+  margin: 24px 0 18px;
+  overflow-wrap: anywhere;
+  color: #e8eef5;
+  font-size: 21px;
+  line-height: 1.15;
+}
+
+.telemetryCard > div {
+  display: grid;
+  gap: 5px;
+  margin-top: auto;
+  padding: 10px;
+  background: #0e151e;
+}
+
+.telemetryCard small {
+  overflow: hidden;
+  color: #aeb9c5;
+  font-size: 8px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rawPanel {
+  overflow: hidden;
+}
+
+.rawPanel > header {
+  min-height: 40px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #26303c;
+}
+
+.rawPanel header b {
+  color: #61dfb7;
+  font: 8px Consolas, monospace;
+  letter-spacing: .8px;
+}
+
+.rawPanel > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 11px;
+}
+
+.rawPanel code {
+  overflow: hidden;
+  padding: 9px;
+  background: #222a35;
+  color: #aeb9c4;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state,
+.emptyState {
+  min-height: 520px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 30px;
+  background: #171d27;
+  border: 1px solid #242e3a;
+  text-align: center;
+}
+
+.state p,
+.emptyState span {
+  color: #72dafa;
+  font: 8px Consolas, monospace;
+  letter-spacing: 1.4px;
+}
+
+.emptyState h2 {
+  margin: 0;
+  font-size: 25px;
+}
+
+.emptyState p {
+  margin: 0;
+  color: #9eabb9;
+}
+
+.emptyState button {
+  margin-top: 8px;
+  padding: 10px 15px;
+  border: 1px solid #3c7890;
+  background: #142834;
+  color: #7bddfb;
+  font: 8px Consolas, monospace;
+  letter-spacing: 1px;
+}
+
+.spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid #2b3644;
+  border-top-color: #36c7ef;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  50% { opacity: .32; }
+}
+
+@keyframes aircraftPulse {
+  from { transform: scale(.75); opacity: .9; }
+  to { transform: scale(1.8); opacity: 0; }
+}
+
+@media (max-width: 1320px) {
+  .telemetryGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .telemetryCard {
+    min-height: 155px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .commandHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .commandTools {
+    justify-content: stretch;
+  }
+
+  .operationsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .liveRail {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .incidentPanel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .commandTools,
+  .signalStrip,
+  .liveRail,
+  .telemetryGrid,
+  .rawPanel > div {
+    grid-template-columns: 1fr;
+  }
+
+  .signalStrip > div {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .missionIdentity select {
+    font-size: 14px;
+  }
+
+  .mapStage {
+    height: 420px;
+  }
+
+  .mapTopRight {
+    top: 54px;
+    left: 14px;
+    right: auto;
+  }
+
+  .mapPanel > footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .telemetrySection > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .telemetrySection h2 {
+    display: block;
+    margin: 4px 0 0;
+  }
+}
