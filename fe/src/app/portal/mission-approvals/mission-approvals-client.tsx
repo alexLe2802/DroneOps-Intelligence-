@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Account } from "@/lib/auth/types";
-import { approveMission, getPendingMissionApprovals, rejectMission } from "@/lib/portal/client";
+import { approveMission, getPendingMissionApprovals, rejectMission, validateMission } from "@/lib/portal/client";
 import type { PendingMissionApproval } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
+
+import MissionPlanComparison from "../missions/mission-plan-comparison";
+import MissionEvidencePanel from "../missions/mission-evidence-panel";
 
 type Decision = "approve" | "reject";
 
@@ -30,7 +33,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   const load = useCallback(async (showLoading = false) => {
     if (showLoading) setItems(null);
     else setRefreshing(true);
-    setError(null);
+    setError(null); setConfirmed(false);
     try {
       const result = await getPendingMissionApprovals();
       setItems(result.items);
@@ -74,8 +77,24 @@ export default function MissionApprovalsClient({ account }: { account: Account }
     setSelectedId(id); setDecision("approve"); setComment(""); setConfirmed(false); setNotice(""); setError(null);
   }
 
+  async function revalidate() {
+    if (!selected || busy) return;
+    const missionId = selected.missionId;
+    setBusy(true); setError(null); setConfirmed(false);
+    try {
+      const result = await validateMission({ id: missionId }, selected.updateRequestId);
+      setNotice(result.message);
+      await load();
+    } catch (reason) { setError(reason); }
+    finally { setBusy(false); }
+  }
+
   async function submitDecision(action: Decision) {
     if (!selected || busy || !confirmed) return;
+    if (action === "approve" && !selected.validation?.isValid) {
+      setError(new Error("Mandatory validation has not passed. Revalidate this mission first."));
+      return;
+    }
     if (action === "reject" && !comment.trim()) {
       setError(new Error("Enter rejection findings before rejecting this mission."));
       return;
@@ -83,12 +102,14 @@ export default function MissionApprovalsClient({ account }: { account: Account }
     setBusy(true); setError(null); setNotice("");
     try {
       const result = action === "approve"
-        ? await approveMission(selected.missionId, comment)
-        : await rejectMission(selected.missionId, comment);
+        ? await approveMission(selected.missionId, comment, selected.validation?.id, selected.updateRequestId)
+        : await rejectMission(selected.missionId, comment, selected.updateRequestId);
       setNotice(`${missionCode(result.missionId)} was ${result.decision.toLowerCase()} successfully.`);
       setComment(""); setConfirmed(false);
       await load();
     } catch (reason) {
+      setConfirmed(false);
+      await load();
       setError(reason);
     } finally {
       setBusy(false);
@@ -120,23 +141,25 @@ export default function MissionApprovalsClient({ account }: { account: Account }
         <article className="clearance-airspace"><header><span>AIRSPACE CLEARANCE</span><i>AS</i></header><strong>{selected.validationStatus || "Unavailable"}</strong><p>Backend validation summary</p><div><i /></div></article>
         <article><header><span>ASSIGNED AIRFRAME</span><i>UA</i></header><strong>{selected.uavCode || "UNASSIGNED"}</strong><p>{selected.uavName || "No aircraft record"}</p><div><i /></div></article>
         <article className="clearance-unavailable"><header><span>PILOT COMPLIANCE</span><i>PC</i></header><strong>Unavailable</strong><p>Certification data not returned</p><div><i /></div></article>
-        <article className="clearance-unavailable"><header><span>WEATHER &amp; METAR</span><i>WX</i></header><strong>Unavailable</strong><p>No mission weather contract</p><div><i /></div></article>
+        <article><header><span>WEATHER ADVISORY</span><i>WX</i></header><strong>{selected.validation?.weather?.available ? "Forecast loaded" : "Incomplete"}</strong><p>Advisory only; does not block approval. <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p><div><i /></div></article>
       </section>
 
+      <MissionPlanComparison key={selected.updateRequestId} current={selected.currentPlan} proposed={selected.proposedPlan} validation={selected.validation} />
+      <MissionEvidencePanel key={`evidence-${selected.updateRequestId}`} id={selected.missionId} requestId={selected.updateRequestId} />
       <div className="approval-review-layout">
         <div className="approval-spatial-column">
-          <section className="approval-spatial-panel">
-            <header><div><span className="approval-panel-code">SV</span><h2>Spatial Verification Map</h2></div><div><b>UTM SECTOR 04</b><em>EPSG:4326</em></div></header>
-            <div className="approval-map-unavailable"><div className="approval-map-crosshair" /><span>ROUTE COORDINATES UNAVAILABLE</span><strong>{selected.waypointCount} WAYPOINT{selected.waypointCount === 1 ? "" : "S"} REPORTED</strong><p>The pending approval response does not include waypoint latitude, longitude or altitude.</p></div>
-            <footer><div><b>GEOSPATIAL AUDIT</b><span>{selected.validationStatus || "Unavailable"}</span></div><div><small>RULE ENGINE</small><b>BACKEND SUMMARY</b></div><div><small>MISSION ID</small><b>{selected.missionId.slice(0, 8).toUpperCase()}</b></div></footer>
-          </section>
-          <section className="approval-waypoint-strip"><header><span>WAYPOINT CLEARANCE INSPECTION</span><b>{selected.waypointCount} NODES</b></header><div>{selected.waypointCount ? Array.from({ length: Math.min(selected.waypointCount, 12) }, (_, index) => <span key={index}><b>WP{String(index + 1).padStart(2, "0")}</b><small>DATA PENDING</small></span>) : <p>No waypoint records were reported.</p>}</div></section>
+          <p>Review request: {selected.updateRequestId}. Current mission status: {selected.status}. Approval applies only the selected proposal.</p>
         </div>
 
         <aside className="approval-decision-column">
           <section className="approval-summary-panel">
             <header><div><span className="approval-panel-code">VS</span><h2>Validation Summary</h2></div><b>BACKEND</b></header>
             <dl><div><dt>PLAN STATUS</dt><dd>{selected.status}</dd></div><div><dt>VALIDATION</dt><dd>{selected.validationStatus || "Unavailable"}</dd></div><div><dt>FLIGHT WINDOW</dt><dd>{formatDate(selected.startTime)}<small>to {formatDate(selected.endTime)}</small></dd></div><div><dt>WAYPOINTS</dt><dd>{selected.waypointCount}</dd></div></dl>
+            <button type="button" className="module-secondary" disabled={busy} onClick={() => void revalidate()}>{busy ? "CHECKING..." : "REVALIDATE CURRENT CONDITIONS"}</button>
+            {selected.validation?.checkedAt && <p>Checked {formatDate(selected.validation.checkedAt)}</p>}
+            {selected.validation?.issues?.map((issue, index) => <p role="alert" key={`issue-${index}`}>{issue}</p>)}
+            {selected.validation?.warnings?.map((warning, index) => <p role="status" key={`warning-${index}`}>{warning}</p>)}
+            {selected.validation?.weather && <p>Forecast: {selected.validation.weather.provider}; wind {selected.validation.weather.maxWindMetersPerSecond ?? "unavailable"} m/s; gust {selected.validation.weather.maxGustMetersPerSecond ?? "unavailable"} m/s; rain {selected.validation.weather.maxRainMillimetersPerHour ?? "unavailable"} mm/h. Weather is advisory.</p>}
             <article><span>MISSION BRIEF</span><p>{selected.description || "No mission description was submitted."}</p></article>
           </section>
 
@@ -144,10 +167,10 @@ export default function MissionApprovalsClient({ account }: { account: Account }
             <header><div><span className="approval-panel-code">DA</span><h2>Decision Authorization</h2></div><b>MANAGER</b></header>
             <div className="approval-authorizer"><span>{account.displayName.slice(0, 1).toUpperCase()}</span><div><b>{account.displayName}</b><small>{account.email}</small></div><em>SESSION ACTIVE</em></div>
             <fieldset disabled={busy}><legend>DECISION DIRECTIVE</legend><div className="approval-choice"><label><input type="radio" name="decision" checked={decision === "approve"} onChange={() => setDecision("approve")} /> Authorize Flight</label><label><input type="radio" name="decision" checked={decision === "reject"} onChange={() => setDecision("reject")} /> Reject with Findings</label></div><label className="approval-comment">{decision === "reject" ? "REJECTION FINDINGS" : "REVIEW COMMENT"}<textarea value={comment} onChange={event => setComment(event.target.value)} maxLength={1000} rows={4} placeholder={decision === "reject" ? "Required: explain why the mission cannot be authorized" : "Optional manager comment"} /></label><label className="approval-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I confirm that I reviewed the mission information currently provided by the backend.</label></fieldset>
-            <div className="approval-decision-actions"><button type="button" className="reject" disabled={busy || !confirmed || decision !== "reject" || !comment.trim()} onClick={() => void submitDecision("reject")}>{busy && decision === "reject" ? "REJECTING..." : "REJECT PLAN"}</button><button type="button" className="approve" disabled={busy || !confirmed || decision !== "approve"} onClick={() => void submitDecision("approve")}>{busy && decision === "approve" ? "APPROVING..." : "APPROVE & AUTHORIZE"}</button></div>
+            <div className="approval-decision-actions"><button type="button" className="reject" disabled={busy || !confirmed || decision !== "reject" || !comment.trim()} onClick={() => void submitDecision("reject")}>{busy && decision === "reject" ? "REJECTING..." : "REJECT PLAN"}</button><button type="button" className="approve" disabled={busy || !confirmed || decision !== "approve" || !selected.validation?.isValid} onClick={() => void submitDecision("approve")}>{busy && decision === "approve" ? "APPROVING..." : "APPROVE & AUTHORIZE"}</button></div>
           </section>
 
-          <section className="approval-history-panel"><header><span>PRIOR DECISIONS LOG</span><b>NOT AVAILABLE</b></header><p>No approval-history endpoint is available for this mission.</p></section>
+
         </aside>
       </div>
     </>}

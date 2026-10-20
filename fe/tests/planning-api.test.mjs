@@ -40,8 +40,8 @@ test("mission update sends the complete draft to the mission PUT endpoint", asyn
   } finally { mock.mock.restore(); }
 });
 
-test("mission lifecycle calls validation, submit and cancel contracts", async () => {
-  const mission = { id: "mission-id", name: "Survey", status: "Draft", description: null, uavId: "uav-id", uavCode: "UAV-01", startTime: null, endTime: null, createdAt: "", latestVersion: 1, waypoints: [{ sequenceOrder: 1, latitude: 10, longitude: 106, altitude: 50, actionType: "TakeOff" }] };
+test("mission lifecycle calls saved-plan validation, start and cancel contracts", async () => {
+  const mission = { id: "mission-id", name: "Survey", status: "Draft", description: null, uavId: "uav-id", uavCode: "UAV-01", startTime: null, endTime: null, createdAt: "", waypoints: [{ sequenceOrder: 1, latitude: 10, longitude: 106, altitude: 50, actionType: "TakeOff" }] };
   const calls = [];
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
     calls.push([url, options.method, options.body ? JSON.parse(options.body) : null]);
@@ -50,11 +50,11 @@ test("mission lifecycle calls validation, submit and cancel contracts", async ()
   });
   try {
     assert.equal((await client.validateMission(mission)).isValid, true);
-    await client.submitMission(mission.id);
+    await client.startMission(mission.id);
     await client.cancelMission(mission.id, "Weather changed");
     assert.deepEqual(calls, [
-      ["/api/missions/validate", "POST", { missionId: "mission-id", waypoints: [{ latitude: 10, longitude: 106, altitude: 50 }] }],
-      ["/api/missions/mission-id/submit", "PUT", null],
+      ["/api/missions/validate", "POST", { missionId: "mission-id" }],
+      ["/api/missions/mission-id/start", "POST", null],
       ["/api/missions/mission-id/cancel", "PUT", { reason: "Weather changed" }],
     ]);
   } finally { mock.mock.restore(); }
@@ -85,4 +85,43 @@ test("server conflicts and authorization errors remain failures", async () => {
     try { await assert.rejects(client.createGeofence({ name: "Area", coordinates: [] }), error => error.status === status && error.message === "Backend rejected request"); }
     finally { mock.mock.restore(); }
   }
+});
+
+
+test("review and evidence contracts preserve request identity without mission versions", async () => {
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    calls.push([url, options.method ?? "GET", options.body ? JSON.parse(options.body) : null]);
+    return Response.json({ status: "Partial", waypoints: [{ temperatureCelsius: null }] });
+  });
+  try {
+    await client.validateMission({ id: "mission" }, "request");
+    await client.approveMission("mission", "Reviewed", "run", "request");
+    await client.rejectMission("mission", "Findings", "request");
+    await client.getMissionHistory("mission");
+    await client.getMissionValidation("mission", "request");
+    assert.equal((await client.getMissionWeather("mission", "request")).waypoints[0].temperatureCelsius, null);
+    await client.getMissionWeather("mission", "request", true);
+    assert.deepEqual(calls, [
+      ["/api/missions/validate", "POST", { missionId: "mission", updateRequestId: "request" }],
+      ["/api/missions/mission/approve", "POST", { comment: "Reviewed", updateRequestId: "request", validationRunId: "run" }],
+      ["/api/missions/mission/reject", "POST", { reason: "Findings", updateRequestId: "request" }],
+      ["/api/missions/mission/history", "GET", null],
+      ["/api/missions/mission/validation?updateRequestId=request", "GET", null],
+      ["/api/missions/mission/weather?updateRequestId=request", "GET", null],
+      ["/api/missions/mission/weather/refresh?updateRequestId=request", "POST", null],
+    ]);
+  } finally { mock.mock.restore(); }
+});
+
+test("mission detail preserves pending proposal, altitude datum and unknown altitude", async () => {
+  const data = { id: "mission", name: "Current", status: "Approved", altitudeReference: "MSL", pendingUpdate: { id: "request", status: "Pending", proposedPlan: { name: "Proposed" } }, waypoints: [{ sequenceOrder: 1, latitude: 10, longitude: 106, altitude: null }] };
+  const mock = test.mock.method(globalThis, "fetch", async () => Response.json(data));
+  try {
+    const result = await client.getMission("mission");
+    assert.equal(result.pendingUpdate.proposedPlan.name, "Proposed");
+    assert.equal(result.altitudeReference, "MSL");
+    assert.equal(result.waypoints[0].altitude, null);
+    assert.equal("latestVersion" in result, false);
+  } finally { mock.mock.restore(); }
 });

@@ -2,6 +2,11 @@
 
 public class CreateGeofenceRequest
 {
+    public string VerticalRule { get; set; } = "Unspecified";
+    public string? AltitudeReference { get; set; }
+    public decimal? MinAltitudeMeters { get; set; }
+    public decimal? MaxAltitudeMeters { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     public string? Description { get; set; }

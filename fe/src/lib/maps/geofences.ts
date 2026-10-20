@@ -12,7 +12,7 @@ export function describeGeofence(zone: Geofence) {
     prohibited: "#ef3340", restricted: "#facc15",
   };
   const limits = zone.description?.match(/Vertical limits:\s*(.*?)\s+to\s+(.*?)\./i);
-  const limitLabel = limits && !/^unspecified$/i.test(limits[1]) && !/^unspecified$/i.test(limits[2])
+  const limitLabel = zone.minAltitudeMeters != null || zone.maxAltitudeMeters != null ? `Altitude: ${zone.minAltitudeMeters ?? "unbounded"} → ${zone.maxAltitudeMeters ?? "unbounded"} m ${zone.altitudeReference ?? "reference unspecified"} · restriction revision ${zone.revision ?? "unknown"}` : limits && !/^unspecified$/i.test(limits[1]) && !/^unspecified$/i.test(limits[2])
     ? `Altitude limits: ${limits[1]} → ${limits[2]}`
     : category === "restricted"
       ? "Boundary restrictions apply; altitude limits are not specified by the source."

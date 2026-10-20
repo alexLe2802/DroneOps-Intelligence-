@@ -123,7 +123,7 @@ export default function MissionsClient() {
       <header><div><b>MISSION REGISTRY</b><span>OWNED SCOPE</span></div><div><strong>{filtered.length}</strong> MATCHING / {missions.length} TOTAL</div></header>
       <div className="pilot-mission-table-wrap">
         <table>
-          <thead><tr><th>MISSION PLAN</th><th>ASSIGNED UAV</th><th>SCHEDULE</th><th>STATUS</th><th>VERSION</th><th>ACTIONS</th></tr></thead>
+          <thead><tr><th>MISSION PLAN</th><th>ASSIGNED UAV</th><th>SCHEDULE</th><th>STATUS</th><th>REVIEW STATE</th><th>ACTIONS</th></tr></thead>
           <tbody>{visible.length ? visible.map(mission => {
             const editable = ["draft", "rejected"].includes(normalizedStatus(mission.status));
             const missionState = missionBucket(mission.status);
@@ -132,7 +132,7 @@ export default function MissionsClient() {
               <td><b>{mission.uavCode ?? "UNASSIGNED"}</b><small>{mission.uavId ? mission.uavId.slice(0, 8).toUpperCase() : "NO AIRCRAFT ID"}</small></td>
               <td><b>{formatDate(mission.startTime)}</b><small>{mission.endTime ? `Ends ${formatDate(mission.endTime)}` : "No end time"}</small></td>
               <td><span className={`status status-${statusClass(mission.status)}`}>{formatStatus(mission.status)}</span><small>{missionState === "draft" ? "Validation required" : missionState === "pending" ? "Manager review" : missionState === "active" ? "Flight active" : missionState === "rejected" ? "Revision required" : "Lifecycle recorded"}</small></td>
-              <td><b>V{String(mission.latestVersion).padStart(2, "0")}</b><small>Current plan</small></td>
+              <td><b>Current plan</b><small>{mission.status}</small></td>
               <td><div className="pilot-mission-actions"><Link href={`/portal/missions/${mission.id}`}>OPEN</Link>{editable && <Link className="edit" href={`/portal/missions/${mission.id}/edit`}>EDIT</Link>}</div></td>
             </tr>;
           }) : <tr><td className="pilot-mission-empty" colSpan={6}><strong>{missions.length ? "No missions match these filters" : "No missions in your registry"}</strong><span>{missions.length ? "Adjust the current status, date or search filters." : "Create a draft mission to begin planning a flight route."}</span>{hasFilters && <button type="button" onClick={clearFilters}>CLEAR FILTERS</button>}</td></tr>}</tbody>
