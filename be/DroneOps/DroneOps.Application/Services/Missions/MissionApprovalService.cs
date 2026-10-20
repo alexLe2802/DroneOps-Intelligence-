@@ -170,7 +170,23 @@ public class MissionApprovalService : IMissionApprovalService
         Guid? validationRunId,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            // Reload after a rolled-back attempt; do not reuse tracked status/audit changes.
+            _context.ChangeTracker.Clear();
+            return await DecideOnceAsync(missionId, managerId, decision, comment,
+                expectedStatus, expectedVersion, validationRunId, cancellationToken);
+        });
+    }
+
+    private async Task<MissionDecisionResponse> DecideOnceAsync(
+        Guid missionId, Guid managerId, string decision, string? comment,
+        string? expectedStatus, int? expectedVersion, Guid? validationRunId,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable, cancellationToken);
 
         var mission = await _context.Missions
             .Include(m => m.Waypoints)
@@ -194,13 +210,6 @@ public class MissionApprovalService : IMissionApprovalService
                 $"Stale plan version. Expected version {expectedVersion.Value} but current version is {CurrentPlanVersion}.");
         }
 
-        if (!string.IsNullOrWhiteSpace(expectedStatus) &&
-            !StatusesMatch(expectedStatus, mission.Status))
-        {
-            throw new InvalidOperationException(
-                $"Stale decision: expected status '{expectedStatus}' but current status is '{mission.Status}'.");
-        }
-
         // Retry/idempotency: cùng manager, cùng quyết định đã ghi nhận -> trả kết quả cũ, không nhân bản audit.
         var existingLog = await _context.MissionApprovals
             .AsNoTracking()
@@ -220,6 +229,13 @@ public class MissionApprovalService : IMissionApprovalService
 
             throw new InvalidOperationException(
                 $"Cannot {decision.ToLowerInvariant()} mission with status '{mission.Status}'. Mission must be in 'Pending Review' state.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(expectedStatus) &&
+            !StatusesMatch(expectedStatus, mission.Status))
+        {
+            throw new InvalidOperationException(
+                $"Stale decision: expected status '{expectedStatus}' but current status is '{mission.Status}'.");
         }
 
         if (string.Equals(decision, "Approved", StringComparison.OrdinalIgnoreCase))
