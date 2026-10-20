@@ -18,8 +18,13 @@ public interface IPilotRepository
     Task AddUpdateRequestAsync(
         PilotUpdateRequest request,
         CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<PilotUpdateRequest>> GetPendingUpdateRequestsAsync(
-          CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<PilotUpdateRequest> Items,int TotalCount)>GetAllPilotRequestsAsync(
+    int pageNumber,
+    int pageSize,
+    string? search,
+    string? status,
+    CancellationToken cancellationToken = default);
+
     Task<PilotUpdateRequest?>GetUpdateRequestForReviewAsync(
             Guid requestId,
             CancellationToken cancellationToken = default);

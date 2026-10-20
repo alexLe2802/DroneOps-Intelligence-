@@ -422,17 +422,71 @@ public sealed class UserService : IUserService
             request.LicenseImageUrls is { Count: > 0 };
     }
 
-    public async Task<IReadOnlyList<PilotUpdateRequestResponse>>GetPendingPilotUpdateRequestsAsync(
-        CancellationToken cancellationToken = default)
+    public async Task< PagedResponse<PilotUpdateRequestResponse>>
+  GetAllPilotRequestsAsync(PilotUpdateRequestFilterRequest request,CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<PilotUpdateRequest> requests =
-            await _pilotRepository
-                .GetPendingUpdateRequestsAsync(
-                    cancellationToken);
+        int pageNumber =
+            request.PageNumber < 1
+                ? 1
+                : request.PageNumber;
 
-        return requests
-            .Select(MapPilotUpdateRequestResponse)
-            .ToList();
+        int pageSize = request.PageSize switch
+        {
+            < 1 => 10,
+            > 100 => 100,
+            _ => request.PageSize
+        };
+
+        string? search =
+            string.IsNullOrWhiteSpace(request.Search)
+                ? null
+                : request.Search.Trim();
+
+        string? status =
+            string.IsNullOrWhiteSpace(request.Status)
+                ? null
+                : request.Status.Trim();
+
+        (
+            IReadOnlyList<PilotUpdateRequest> Items,
+            int TotalCount
+        )
+            result =
+                await _pilotRepository
+                    .GetAllPilotRequestsAsync(
+                        pageNumber,
+                        pageSize,
+                        search,
+                        status,
+                        cancellationToken);
+
+        IReadOnlyList<PilotUpdateRequestResponse>
+            items =
+                result.Items
+                    .Select(
+                        MapPilotUpdateRequestResponse)
+                    .ToList();
+
+        int totalPages =
+            result.TotalCount == 0
+                ? 0
+                : (int)Math.Ceiling(
+                    result.TotalCount /
+                    (double)pageSize);
+
+        return new PagedResponse<
+            PilotUpdateRequestResponse>
+        {
+            Items = items,
+
+            PageNumber = pageNumber,
+
+            PageSize = pageSize,
+
+            TotalItems = result.TotalCount,
+
+            TotalPages = totalPages
+        };
     }
 
     public async Task<PilotUpdateRequestResponse?>GetPilotUpdateRequestAsync(

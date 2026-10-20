@@ -28,8 +28,9 @@ public interface IUserService
         UpdatePilotProfileRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<PilotUpdateRequestResponse>>GetPendingPilotUpdateRequestsAsync(
-        CancellationToken cancellationToken = default);
+    Task<PagedResponse<PilotUpdateRequestResponse>>GetAllPilotRequestsAsync(
+    PilotUpdateRequestFilterRequest request,
+    CancellationToken cancellationToken = default);
 
     Task<PilotUpdateRequestResponse?>GetPilotUpdateRequestAsync(
             Guid requestId,
