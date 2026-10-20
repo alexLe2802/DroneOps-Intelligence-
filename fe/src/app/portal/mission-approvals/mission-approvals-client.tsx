@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Account } from "@/lib/auth/types";
-import { approveMission, getGeofences, getMission, getPendingMissionApprovals, rejectMission, validateMission } from "@/lib/portal/client";
-import type { Geofence, MissionDetail, MissionValidationResult, PendingMissionApproval } from "@/lib/portal/types";
+import { approveMission, getGeofences, getMission, getPendingMissionApprovals, rejectMission } from "@/lib/portal/client";
+import type { Geofence, MissionDetail, PendingMissionApproval } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
 import MissionMap from "../missions/mission-map";
 
@@ -24,9 +24,6 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   const [comment, setComment] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [validating, setValidating] = useState(false);
-  const [validation, setValidation] = useState<MissionValidationResult | null>(null);
-  const [validationMissionId, setValidationMissionId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
@@ -68,9 +65,9 @@ export default function MissionApprovalsClient({ account }: { account: Account }
 
   const selected = filtered.find(item => item.missionId === selectedId) ?? filtered[0] ?? null;
   const selectedIndex = selected ? filtered.findIndex(item => item.missionId === selected.missionId) : -1;
-  const currentValidation = selected?.missionId === validationMissionId ? validation : null;
   const summaryPassed = selected?.validationStatus?.toLowerCase() === "passed";
-  const validationPassed = currentValidation?.isValid === true && summaryPassed;
+  const validationPassed = summaryPassed && selected?.validationIssues?.length === 0;
+  const validationLabel = selected?.validationStatus || "Unavailable";
   const selectedMissionId = selected?.missionId ?? null;
   const selectedRoute = routeData?.missionId === selectedMissionId ? routeData : null;
   const selectedRouteFailure = routeFailure?.missionId === selectedMissionId ? routeFailure.message : "";
@@ -94,39 +91,17 @@ export default function MissionApprovalsClient({ account }: { account: Account }
     if (!filtered.length) return;
     const next = Math.min(filtered.length - 1, Math.max(0, selectedIndex + direction));
     setSelectedId(filtered[next].missionId);
-    setDecision("approve"); setComment(""); setConfirmed(false); setValidation(null); setValidationMissionId(null); setNotice(""); setError(null);
+    setDecision("approve"); setComment(""); setConfirmed(false); setNotice(""); setError(null);
   }
 
   function selectMission(id: string) {
-    setSelectedId(id); setDecision("approve"); setComment(""); setConfirmed(false); setValidation(null); setValidationMissionId(null); setNotice(""); setError(null);
-  }
-
-  async function runManagerValidation() {
-    if (!selected || busy || validating) return;
-    setValidating(true); setError(null); setNotice(""); setConfirmed(false);
-    try {
-      const detail = selectedRoute?.mission ?? await getMission(selected.missionId);
-      const result = await validateMission(detail);
-      setValidation(result);
-      setValidationMissionId(selected.missionId);
-      if (result.isValid && summaryPassed) {
-        setNotice(`${missionCode(selected.missionId)} passed manager validation and is ready for a decision.`);
-      } else {
-        setError(new Error(`${missionCode(selected.missionId)} has validation findings and cannot be approved.`));
-      }
-    } catch (reason) {
-      setValidation(null);
-      setValidationMissionId(null);
-      setError(reason);
-    } finally {
-      setValidating(false);
-    }
+    setSelectedId(id); setDecision("approve"); setComment(""); setConfirmed(false); setNotice(""); setError(null);
   }
 
   async function submitDecision(action: Decision) {
-    if (!selected || busy || validating || !confirmed || !currentValidation) return;
+    if (!selected || busy || refreshing || !confirmed) return;
     if (action === "approve" && !validationPassed) {
-      setError(new Error("Run manager validation and resolve all findings before approval."));
+      setError(new Error("Approval is blocked until backend validation passes with no findings."));
       return;
     }
     if (action === "reject" && !comment.trim()) {
@@ -170,7 +145,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
       </header>
 
       <section className="approval-clearance-grid" aria-label="Mission clearance summary">
-        <article className="clearance-airspace"><header><span>AIRSPACE CLEARANCE</span><i>AS</i></header><strong>{validating ? "Running" : currentValidation ? validationPassed ? "Passed" : "Failed" : "Awaiting check"}</strong><p>{currentValidation?.message ?? "Manager validation has not been run"}</p><div><i /></div></article>
+        <article className="clearance-airspace"><header><span>AIRSPACE CLEARANCE</span><i>AS</i></header><strong>{validationLabel}</strong><p>{validationPassed ? "Backend validation summary passed." : "Review validation findings. Failed or unavailable validation blocks approval."}</p><div><i /></div></article>
         <article><header><span>ASSIGNED AIRFRAME</span><i>UA</i></header><strong>{selected.uavCode || "UNASSIGNED"}</strong><p>{selected.uavName || "No aircraft record"}</p><div><i /></div></article>
         <article className="clearance-unavailable"><header><span>PILOT COMPLIANCE</span><i>PC</i></header><strong>Unavailable</strong><p>Certification data not returned</p><div><i /></div></article>
         <article className="clearance-unavailable"><header><span>WEATHER &amp; METAR</span><i>WX</i></header><strong>Unavailable</strong><p>No mission weather contract</p><div><i /></div></article>
@@ -189,8 +164,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
         <aside className="approval-decision-column">
           <section className="approval-summary-panel">
             <header><div><span className="approval-panel-code">VS</span><h2>Validation Summary</h2></div><b>MANAGER GATE</b></header>
-            <dl><div><dt>PLAN STATUS</dt><dd>{selected.status}</dd></div><div><dt>VALIDATION</dt><dd>{validating ? "Running" : currentValidation ? validationPassed ? "Passed" : "Failed" : "Not run"}</dd></div><div><dt>FLIGHT WINDOW</dt><dd>{formatDate(selected.startTime)}<small>to {formatDate(selected.endTime)}</small></dd></div><div><dt>WAYPOINTS</dt><dd>{selected.waypointCount}</dd></div></dl>
-            <button type="button" className="approval-validation-action" disabled={busy || validating} onClick={() => void runManagerValidation()}>{validating ? "RUNNING VALIDATION..." : currentValidation ? "RUN VALIDATION AGAIN" : "RUN MANAGER VALIDATION"}</button>
+            <dl><div><dt>PLAN STATUS</dt><dd>{selected.status}</dd></div><div><dt>VALIDATION</dt><dd>{validationLabel}</dd></div><div><dt>FLIGHT WINDOW</dt><dd>{formatDate(selected.startTime)}<small>to {formatDate(selected.endTime)}</small></dd></div><div><dt>WAYPOINTS</dt><dd>{selected.waypointCount}</dd></div></dl>
             {selected.validationIssues?.length ? <ul className="approval-validation-issues">{selected.validationIssues.map(issue => <li key={issue}>{issue}</li>)}</ul> : null}
             <article><span>MISSION BRIEF</span><p>{selected.description || "No mission description was submitted."}</p></article>
           </section>
@@ -198,9 +172,9 @@ export default function MissionApprovalsClient({ account }: { account: Account }
           <section className="approval-authorization-panel">
             <header><div><span className="approval-panel-code">DA</span><h2>Decision Authorization</h2></div><b>MANAGER</b></header>
             <div className="approval-authorizer"><span>{account.displayName.slice(0, 1).toUpperCase()}</span><div><b>{account.displayName}</b><small>{account.email}</small></div><em>SESSION ACTIVE</em></div>
-            <fieldset disabled={busy || validating || !currentValidation}><legend>DECISION DIRECTIVE</legend><div className="approval-choice"><label><input type="radio" name="decision" checked={decision === "approve"} onChange={() => setDecision("approve")} /> Authorize Flight</label><label><input type="radio" name="decision" checked={decision === "reject"} onChange={() => setDecision("reject")} /> Reject with Findings</label></div><label className="approval-comment">{decision === "reject" ? "REJECTION FINDINGS" : "REVIEW COMMENT"}<textarea value={comment} onChange={event => setComment(event.target.value)} maxLength={1000} rows={4} placeholder={decision === "reject" ? "Required: explain why the mission cannot be authorized" : "Optional manager comment"} /></label><label className="approval-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I confirm that I reviewed the manager validation result and mission information.</label></fieldset>
-            {!currentValidation && <p className="approval-validation-hint">Run manager validation to unlock the approval decision.</p>}
-            <div className="approval-decision-actions"><button type="button" className="reject" disabled={busy || validating || !currentValidation || !confirmed || decision !== "reject" || !comment.trim()} onClick={() => void submitDecision("reject")}>{busy && decision === "reject" ? "REJECTING..." : "REJECT PLAN"}</button><button type="button" className="approve" disabled={busy || validating || !validationPassed || !confirmed || decision !== "approve"} onClick={() => void submitDecision("approve")}>{busy && decision === "approve" ? "APPROVING..." : "APPROVE & AUTHORIZE"}</button></div>
+            <fieldset disabled={busy || refreshing}><legend>DECISION DIRECTIVE</legend><div className="approval-choice"><label><input type="radio" name="decision" checked={decision === "approve"} onChange={() => setDecision("approve")} /> Authorize Flight</label><label><input type="radio" name="decision" checked={decision === "reject"} onChange={() => setDecision("reject")} /> Reject with Findings</label></div><label className="approval-comment">{decision === "reject" ? "REJECTION FINDINGS" : "REVIEW COMMENT"}<textarea value={comment} onChange={event => setComment(event.target.value)} maxLength={1000} rows={4} placeholder={decision === "reject" ? "Required: explain why the mission cannot be authorized" : "Optional manager comment"} /></label><label className="approval-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I confirm that I reviewed the system validation result and mission information.</label></fieldset>
+            {!validationPassed && <p className="approval-validation-hint">Approval is blocked until system validation passes. You may reject with findings.</p>}
+            <div className="approval-decision-actions"><button type="button" className="reject" disabled={busy || refreshing || !confirmed || decision !== "reject" || !comment.trim()} onClick={() => void submitDecision("reject")}>{busy && decision === "reject" ? "REJECTING..." : "REJECT PLAN"}</button><button type="button" className="approve" disabled={busy || refreshing || !validationPassed || !confirmed || decision !== "approve"} onClick={() => void submitDecision("approve")}>{busy && decision === "approve" ? "APPROVING..." : "APPROVE & AUTHORIZE"}</button></div>
           </section>
 
           <section className="approval-history-panel"><header><span>PRIOR DECISIONS LOG</span><b>NOT AVAILABLE</b></header><p>No approval-history endpoint is available for this mission.</p></section>
