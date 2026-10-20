@@ -234,3 +234,6 @@
 /* Coordinate editing remains available when basemap tiles cannot load. */
 .geofence-coordinate-inputs{display:grid!important;grid-template-columns:22px minmax(0,1fr) minmax(0,1fr) 28px;gap:8px;align-items:center}.geofence-coordinate-inputs label{min-width:0;font-size:9px;color:#a9bbce}.geofence-coordinate-inputs input{width:100%;min-width:0;padding:8px 5px!important;font-size:11px}.mission-create-builder .waypoint-list article{grid-template-columns:30px repeat(4,minmax(0,1fr)) 26px 26px 26px}
 @media(max-width:760px){.mission-create-builder .waypoint-list article{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Review evidence and manager decision stay adjacent without an empty map column. */
+.approval-request-context{padding:18px 20px;border:1px solid #2b3544;border-radius:10px;background:#131c28}.approval-request-context>span{display:block;color:#87a3bd;font:10px Consolas,monospace;letter-spacing:1.4px}.approval-request-context>strong{display:block;margin-top:9px;color:#dceafa;font-size:15px}.approval-request-context>p{margin:8px 0 0;color:#9caec3;font-size:13px;line-height:1.65}
