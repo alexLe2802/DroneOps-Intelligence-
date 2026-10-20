@@ -78,7 +78,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   }
 
   async function revalidate() {
-    if (!selected || busy) return;
+    if (!selected || busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan) return;
     const missionId = selected.missionId;
     setBusy(true); setError(null); setConfirmed(false);
     try {
@@ -90,7 +90,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   }
 
   async function submitDecision(action: Decision) {
-    if (!selected || busy || !confirmed) return;
+    if (!selected || busy || !confirmed || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan) return;
     if (action === "approve" && !selected.validation?.isValid) {
       setError(new Error("Mandatory validation has not passed. Revalidate this mission first."));
       return;
@@ -144,18 +144,18 @@ export default function MissionApprovalsClient({ account }: { account: Account }
         <article><header><span>WEATHER ADVISORY</span><i>WX</i></header><strong>{selected.validation?.weather?.available ? "Forecast loaded" : "Incomplete"}</strong><p>Advisory only; does not block approval. <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p><div><i /></div></article>
       </section>
 
-      <MissionPlanComparison key={selected.updateRequestId} current={selected.currentPlan} proposed={selected.proposedPlan} validation={selected.validation} />
-      <MissionEvidencePanel key={`evidence-${selected.updateRequestId}`} id={selected.missionId} requestId={selected.updateRequestId} />
       <div className="approval-review-layout">
         <div className="approval-spatial-column">
-          <p>Review request: {selected.updateRequestId}. Current mission status: {selected.status}. Approval applies only the selected proposal.</p>
+          <div className="approval-request-context"><span>SELECTED REVIEW</span><strong>{selected.updateRequestId ? `Request ${selected.updateRequestId.slice(0, 8).toUpperCase()}` : "Review details unavailable"}</strong><p>{selected.updateRequestId ? "Review the proposal and its evidence before recording your decision." : "Refresh to retrieve the review details. Decisions remain disabled until the plans are available."}</p></div>
+          <MissionPlanComparison key={selected.updateRequestId} current={selected.currentPlan} proposed={selected.proposedPlan} validation={selected.validation} />
+          <MissionEvidencePanel key={`evidence-${selected.updateRequestId}`} id={selected.missionId} requestId={selected.updateRequestId} />
         </div>
 
         <aside className="approval-decision-column">
           <section className="approval-summary-panel">
             <header><div><span className="approval-panel-code">VS</span><h2>Validation Summary</h2></div><b>BACKEND</b></header>
             <dl><div><dt>PLAN STATUS</dt><dd>{selected.status}</dd></div><div><dt>VALIDATION</dt><dd>{selected.validationStatus || "Unavailable"}</dd></div><div><dt>FLIGHT WINDOW</dt><dd>{formatDate(selected.startTime)}<small>to {formatDate(selected.endTime)}</small></dd></div><div><dt>WAYPOINTS</dt><dd>{selected.waypointCount}</dd></div></dl>
-            <button type="button" className="module-secondary" disabled={busy} onClick={() => void revalidate()}>{busy ? "CHECKING..." : "REVALIDATE CURRENT CONDITIONS"}</button>
+            <button type="button" className="module-secondary" disabled={busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan} onClick={() => void revalidate()}>{busy ? "CHECKING..." : "REVALIDATE CURRENT CONDITIONS"}</button>
             {selected.validation?.checkedAt && <p>Checked {formatDate(selected.validation.checkedAt)}</p>}
             {selected.validation?.issues?.map((issue, index) => <p role="alert" key={`issue-${index}`}>{issue}</p>)}
             {selected.validation?.warnings?.map((warning, index) => <p role="status" key={`warning-${index}`}>{warning}</p>)}
@@ -166,8 +166,8 @@ export default function MissionApprovalsClient({ account }: { account: Account }
           <section className="approval-authorization-panel">
             <header><div><span className="approval-panel-code">DA</span><h2>Decision Authorization</h2></div><b>MANAGER</b></header>
             <div className="approval-authorizer"><span>{account.displayName.slice(0, 1).toUpperCase()}</span><div><b>{account.displayName}</b><small>{account.email}</small></div><em>SESSION ACTIVE</em></div>
-            <fieldset disabled={busy}><legend>DECISION DIRECTIVE</legend><div className="approval-choice"><label><input type="radio" name="decision" checked={decision === "approve"} onChange={() => setDecision("approve")} /> Authorize Flight</label><label><input type="radio" name="decision" checked={decision === "reject"} onChange={() => setDecision("reject")} /> Reject with Findings</label></div><label className="approval-comment">{decision === "reject" ? "REJECTION FINDINGS" : "REVIEW COMMENT"}<textarea value={comment} onChange={event => setComment(event.target.value)} maxLength={1000} rows={4} placeholder={decision === "reject" ? "Required: explain why the mission cannot be authorized" : "Optional manager comment"} /></label><label className="approval-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I confirm that I reviewed the mission information currently provided by the backend.</label></fieldset>
-            <div className="approval-decision-actions"><button type="button" className="reject" disabled={busy || !confirmed || decision !== "reject" || !comment.trim()} onClick={() => void submitDecision("reject")}>{busy && decision === "reject" ? "REJECTING..." : "REJECT PLAN"}</button><button type="button" className="approve" disabled={busy || !confirmed || decision !== "approve" || !selected.validation?.isValid} onClick={() => void submitDecision("approve")}>{busy && decision === "approve" ? "APPROVING..." : "APPROVE & AUTHORIZE"}</button></div>
+            <fieldset disabled={busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan}><legend>DECISION DIRECTIVE</legend><div className="approval-choice"><label><input type="radio" name="decision" checked={decision === "approve"} onChange={() => setDecision("approve")} /> Authorize Flight</label><label><input type="radio" name="decision" checked={decision === "reject"} onChange={() => setDecision("reject")} /> Reject with Findings</label></div><label className="approval-comment">{decision === "reject" ? "REJECTION FINDINGS" : "REVIEW COMMENT"}<textarea value={comment} onChange={event => setComment(event.target.value)} maxLength={1000} rows={4} placeholder={decision === "reject" ? "Required: explain why the mission cannot be authorized" : "Optional manager comment"} /></label><label className="approval-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I confirm that I reviewed the mission information currently provided by the backend.</label></fieldset>
+            <div className="approval-decision-actions"><button type="button" className="reject" disabled={busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan || !confirmed || decision !== "reject" || !comment.trim()} onClick={() => void submitDecision("reject")}>{busy && decision === "reject" ? "REJECTING..." : "REJECT PLAN"}</button><button type="button" className="approve" disabled={busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan || !confirmed || decision !== "approve" || !selected.validation?.isValid} onClick={() => void submitDecision("approve")}>{busy && decision === "approve" ? "APPROVING..." : "APPROVE & AUTHORIZE"}</button></div>
           </section>
 
 

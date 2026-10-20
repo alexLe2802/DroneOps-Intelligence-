@@ -3,12 +3,16 @@ import { useEffect, useState } from "react";
 import type { CreateMissionRequest, Geofence, MissionValidationResult } from "@/lib/portal/types";
 import { getGeofences } from "@/lib/portal/client";
 import MissionMap from "./mission-map";
+import styles from "./mission-evidence.module.css";
 
-export default function MissionPlanComparison({ current, proposed, validation }: { current: CreateMissionRequest; proposed: CreateMissionRequest; validation?: MissionValidationResult | null }) {
+export default function MissionPlanComparison({ current, proposed, validation }: { current?: CreateMissionRequest | null; proposed?: CreateMissionRequest | null; validation?: MissionValidationResult | null }) {
   const [zones, setZones] = useState<Geofence[]>([]);
   useEffect(() => { let active = true; void getGeofences().then(value => { if (active) setZones(value); }).catch(() => {}); return () => { active = false; }; }, []);
-  return <section className="mission-waypoint-panel">
-    <h2>Current mission / Proposed changes</h2><p>The saved mission remains unchanged until this request is approved.</p>
+  if (!current || !proposed || !Array.isArray(current.waypoints) || !Array.isArray(proposed.waypoints)) {
+    return <section className={`${styles.panel} ${styles.empty}`} role="status"><span className={styles.kicker}>PLAN COMPARISON</span><div className={styles.emptyIcon} aria-hidden="true">⇄</div><h2>Plans are not available yet</h2><p>We need both the saved plan and the submitted proposal to show the changes.</p><small>Refresh the review queue to try again. Approval remains disabled until the review details are available.</small></section>;
+  }
+  return <section className={`${styles.panel} ${styles.comparison}`}>
+    <header className={styles.heading}><div><span className={styles.kicker}>PLAN COMPARISON</span><h2>Review proposed changes</h2><p>The saved plan stays active until this proposal is approved.</p></div></header>
     <div className="mission-waypoint-table-wrap"><table className="mission-waypoint-table"><thead><tr><th>Field</th><th>Current</th><th>Proposed</th></tr></thead><tbody>
       {([['Name', current.name, proposed.name], ['Description', current.description, proposed.description], ['UAV', current.uavId, proposed.uavId], ['Start', current.startTime, proposed.startTime], ['End', current.endTime, proposed.endTime], ['Altitude reference', current.altitudeReference, proposed.altitudeReference]]).map(([label, old, next]) => <tr key={label}><th>{label}</th><td>{old || "Not specified"}</td><td>{next || "Not specified"}</td></tr>)}
     </tbody></table></div>
