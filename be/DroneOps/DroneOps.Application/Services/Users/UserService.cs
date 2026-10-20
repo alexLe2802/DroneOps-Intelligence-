@@ -118,8 +118,7 @@ public sealed class UserService : IUserService
         };
     }
 
-    public async Task<PilotProfileResponse?>
-     GetPilotProfileAsync(
+    public async Task<PilotProfileResponse?>GetPilotProfileAsync(
           Guid userId,
           CancellationToken cancellationToken = default)
     {
@@ -157,8 +156,7 @@ public sealed class UserService : IUserService
         };
     }
 
-    public async Task<PagedResponse<UserProfileResponse>>
-     GetAllUsersAsync(
+    public async Task<PagedResponse<UserProfileResponse>>GetAllUsersAsync(
           UserFilterRequest request,
           CancellationToken cancellationToken = default)
     {
@@ -218,8 +216,7 @@ public sealed class UserService : IUserService
         };
     }
 
-    public async Task<UpdatePilotProfileResponse?>
-    UpdatePilotProfileAsync(
+    public async Task<UpdatePilotProfileResponse?>UpdatePilotProfileAsync(
         Guid userId,
         UpdatePilotProfileRequest request,
         CancellationToken cancellationToken = default)
@@ -423,6 +420,214 @@ public sealed class UserService : IUserService
             request.LicenseIssuedDate.HasValue ||
             request.LicenseExpiredDate.HasValue ||
             request.LicenseImageUrls is { Count: > 0 };
+    }
+
+    public async Task<IReadOnlyList<PilotUpdateRequestResponse>>GetPendingPilotUpdateRequestsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<PilotUpdateRequest> requests =
+            await _pilotRepository
+                .GetPendingUpdateRequestsAsync(
+                    cancellationToken);
+
+        return requests
+            .Select(MapPilotUpdateRequestResponse)
+            .ToList();
+    }
+
+    public async Task<PilotUpdateRequestResponse?>GetPilotUpdateRequestAsync(
+        Guid requestId,
+        CancellationToken cancellationToken = default)
+    {
+        PilotUpdateRequest? updateRequest =
+            await _pilotRepository
+                .GetUpdateRequestForReviewAsync(
+                    requestId,
+                    cancellationToken);
+
+        if (updateRequest is null)
+        {
+            return null;
+        }
+
+        return MapPilotUpdateRequestResponse(
+            updateRequest);
+    }
+
+    public async Task<PilotUpdateRequestResponse?> ApprovePilotUpdateRequestAsync(
+        Guid requestId,
+        Guid reviewerId,
+        CancellationToken cancellationToken = default)
+    {
+        PilotUpdateRequest? updateRequest =
+            await _pilotRepository
+                .GetUpdateRequestForReviewAsync(
+                    requestId,
+                    cancellationToken);
+
+        if (updateRequest is null)
+        {
+            return null;
+        }
+
+        if (!string.Equals(
+                updateRequest.Status,
+                "Pending",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Only pending pilot update requests can be approved.");
+        }
+
+        Pilot pilot =
+            updateRequest.Pilot;
+
+        // Chính thức cập nhật thông tin giấy phép vào Pilot
+        pilot.PilotLicenseNo =
+            updateRequest.PilotLicenseNo;
+
+        pilot.LicenseIssuedDate =
+            updateRequest.LicenseIssuedDate;
+
+        pilot.LicenseExpiredDate =
+            updateRequest.LicenseExpiredDate;
+
+       
+        // Lấy bộ ảnh license hiện tại của Pilot
+        List<LicenseImage> oldImages =
+            await _pilotRepository
+                .GetCurrentPilotLicenseImagesAsync(
+                    pilot.Id,
+                    cancellationToken);
+
+        // Gỡ liên kết các ảnh license cũ khỏi Pilot
+        foreach (LicenseImage oldImage in oldImages)
+        {
+            oldImage.PilotId = null;
+        }
+
+        // Gắn bộ ảnh license mới đã được duyệt vào Pilot
+        foreach (LicenseImage newImage
+                 in updateRequest.LicenseImages)
+        {
+            newImage.PilotId = pilot.Id;
+        }
+
+        updateRequest.Status =
+            "Approved";
+
+        updateRequest.RejectReason =
+            null;
+
+        updateRequest.ReviewedBy =
+            reviewerId;
+
+        updateRequest.ReviewedAt =
+            DateTime.UtcNow;
+
+        await _pilotRepository.SaveChangesAsync(
+            cancellationToken);
+
+        return MapPilotUpdateRequestResponse(
+            updateRequest);
+    }
+    public async Task<PilotUpdateRequestResponse?>RejectPilotUpdateRequestAsync(
+        Guid requestId,
+        Guid reviewerId,
+        RejectPilotUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        PilotUpdateRequest? updateRequest =
+            await _pilotRepository
+                .GetUpdateRequestForReviewAsync(
+                    requestId,
+                    cancellationToken);
+
+        if (updateRequest is null)
+        {
+            return null;
+        }
+
+        if (!string.Equals(
+                updateRequest.Status,
+                "Pending",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Only pending pilot update requests can be rejected.");
+        }
+
+        updateRequest.Status =
+            "Rejected";
+
+        updateRequest.RejectReason =
+            request.RejectReason.Trim();
+
+        updateRequest.ReviewedBy =
+            reviewerId;
+
+        updateRequest.ReviewedAt =
+            DateTime.UtcNow;
+
+        // Reject không update Pilot
+        // Reject không set LicenseImage.PilotId
+
+        await _pilotRepository.SaveChangesAsync(
+            cancellationToken);
+
+        return MapPilotUpdateRequestResponse(
+            updateRequest);
+    }
+    private static PilotUpdateRequestResponse
+    MapPilotUpdateRequestResponse(
+        PilotUpdateRequest request)
+    {
+        return new PilotUpdateRequestResponse
+        {
+            Id =
+                request.Id,
+
+            PilotId =
+                request.PilotId,
+
+            UserId =
+                request.Pilot.UserId,
+
+            FullName =
+                request.Pilot.User.FullName,
+
+            Email =
+                request.Pilot.User.Email,
+
+            PilotLicenseNo =
+                request.PilotLicenseNo,
+
+            LicenseIssuedDate =
+                request.LicenseIssuedDate,
+
+            LicenseExpiredDate =
+                request.LicenseExpiredDate,
+
+            Status =
+                request.Status,
+
+            RejectReason =
+                request.RejectReason,
+
+            ReviewedBy =
+                request.ReviewedBy,
+
+            ReviewedAt =
+                request.ReviewedAt,
+
+            CreatedAt =
+                request.CreatedAt,
+
+            LicenseImageUrls =
+                request.LicenseImages
+                    .Select(x => x.ImageUrl)
+                    .ToList()
+        };
     }
 
     // =========================================================================

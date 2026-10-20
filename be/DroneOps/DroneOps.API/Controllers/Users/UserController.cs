@@ -264,6 +264,161 @@ public sealed class UserController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "operation_manager")]
+    [HttpGet("pilot-update-requests")]
+    [ProducesResponseType(
+    typeof(IReadOnlyList<PilotUpdateRequestResponse>),
+    StatusCodes.Status200OK)]
+    public async Task<IActionResult>
+    GetPendingPilotUpdateRequests(
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<PilotUpdateRequestResponse> result =
+            await _userService
+                .GetPendingPilotUpdateRequestsAsync(
+                    cancellationToken);
+
+        return Ok(result);
+    }
+    [Authorize(Roles = "operation_manager")]
+    [HttpGet("pilot-update-requests/{requestId:guid}")]
+    [ProducesResponseType(
+    typeof(PilotUpdateRequestResponse),
+    StatusCodes.Status200OK)]
+    [ProducesResponseType(
+    StatusCodes.Status404NotFound)]
+    public async Task<IActionResult>
+    GetPilotUpdateRequest(
+        Guid requestId,
+        CancellationToken cancellationToken)
+    {
+        PilotUpdateRequestResponse? result =
+            await _userService
+                .GetPilotUpdateRequestAsync(
+                    requestId,
+                    cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound(new
+            {
+                message =
+                    "Pilot update request not found."
+            });
+        }
+
+        return Ok(result);
+    }
+
+    [Authorize(Roles = "operation_manager")]
+    [HttpPut("pilot-update-requests/{requestId:guid}/approve")]
+    [ProducesResponseType(
+    typeof(PilotUpdateRequestResponse),
+    StatusCodes.Status200OK)]
+    [ProducesResponseType(
+    StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+    StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+    StatusCodes.Status409Conflict)]
+    public async Task<IActionResult>
+    ApprovePilotUpdateRequest(
+        Guid requestId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out Guid reviewerId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid access token."
+            });
+        }
+
+        try
+        {
+            PilotUpdateRequestResponse? result =
+                await _userService
+                    .ApprovePilotUpdateRequestAsync(
+                        requestId,
+                        reviewerId,
+                        cancellationToken);
+
+            if (result is null)
+            {
+                return NotFound(new
+                {
+                    message =
+                        "Pilot update request not found."
+                });
+            }
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    [Authorize(Roles = "operation_manager")]
+    [HttpPut("pilot-update-requests/{requestId:guid}/reject")]
+    [ProducesResponseType(
+    typeof(PilotUpdateRequestResponse),
+    StatusCodes.Status200OK)]
+    [ProducesResponseType(
+    StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(
+    StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(
+    StatusCodes.Status404NotFound)]
+    [ProducesResponseType(
+    StatusCodes.Status409Conflict)]
+    public async Task<IActionResult>
+    RejectPilotUpdateRequest(
+        Guid requestId,
+        [FromBody] RejectPilotUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCurrentUserId(out Guid reviewerId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid access token."
+            });
+        }
+
+        try
+        {
+            PilotUpdateRequestResponse? result =
+                await _userService
+                    .RejectPilotUpdateRequestAsync(
+                        requestId,
+                        reviewerId,
+                        request,
+                        cancellationToken);
+
+            if (result is null)
+            {
+                return NotFound(new
+                {
+                    message =
+                        "Pilot update request not found."
+                });
+            }
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new
+            {
+                message = ex.Message
+            });
+        }
+    }
     // =========================================================================
     // CÁC ENDPOINT MỚI: ĐỔI EMAIL & ĐỔI MẬT KHẨU CÓ XÁC THỰC
     // =========================================================================
