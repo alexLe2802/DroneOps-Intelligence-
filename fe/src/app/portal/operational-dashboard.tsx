@@ -47,7 +47,10 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     setWarnings(nextWarnings);
   }, [manager]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const activeMissions = useMemo(() => missions?.filter(item => isActive(item.status)) ?? [], [missions]);
   const filteredActive = useMemo(() => activeMissions.filter(item =>

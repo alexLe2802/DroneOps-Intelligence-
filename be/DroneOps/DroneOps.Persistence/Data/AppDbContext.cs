@@ -25,6 +25,7 @@ public class AppDbContext : DbContext
     public DbSet<LicenseImage> LicenseImages { get; set; }
     public DbSet<MissionSuggestion> MissionSuggestions { get; set; }
     public DbSet<PostFlightReport> PostFlightReports { get; set; }
+    public DbSet<PilotUpdateRequest> PilotUpdateRequests { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

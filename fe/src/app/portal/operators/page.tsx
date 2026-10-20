@@ -1,12 +1,14 @@
 import { requirePortalSession } from "@/lib/portal/server";
-import PortalControls from "../portal-controls";
+import LicenseChanges from "../profile/license-changes";
+import PilotRoster from "./pilot-roster";
 import PortalShell from "../portal-shell";
 
-export const metadata = { title: "Operator Registration | DroneOps Intelligence" };
+export const metadata = { title: "Operators | DroneOps Intelligence" };
 
 export default async function OperatorsPage() {
   const session = await requirePortalSession(["operation_manager"]);
   return <PortalShell account={session.account}>
-    <PortalControls account={session.account} registerOnly />
+    <PilotRoster />
+    <LicenseChanges manager />
   </PortalShell>;
 }

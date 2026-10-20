@@ -27,10 +27,12 @@ public class IngestTelemetrySampleRequestValidator : AbstractValidator<IngestTel
 
         RuleFor(x => x.Latitude)
             .InclusiveBetween(-90.0m, 90.0m)
+            .When(x => x.Latitude.HasValue)
             .WithMessage("Latitude must be between -90 and 90 degrees.");
 
         RuleFor(x => x.Longitude)
             .InclusiveBetween(-180.0m, 180.0m)
+            .When(x => x.Longitude.HasValue)
             .WithMessage("Longitude must be between -180 and 180 degrees.");
 
         RuleFor(x => x.BatteryPercent)
@@ -42,6 +44,22 @@ public class IngestTelemetrySampleRequestValidator : AbstractValidator<IngestTel
             .GreaterThanOrEqualTo(0m)
             .When(x => x.GroundSpeedMetersPerSecond.HasValue)
             .WithMessage("GroundSpeed must be non-negative.");
+
+        RuleFor(x => x.HeadingDegrees)
+            .GreaterThanOrEqualTo(0m)
+            .LessThan(360m)
+            .When(x => x.HeadingDegrees.HasValue)
+            .WithMessage("HeadingDegrees must be between 0 (inclusive) and 360 (exclusive).");
+
+        RuleFor(x => x.BatteryVoltageVolts)
+            .GreaterThanOrEqualTo(0m)
+            .When(x => x.BatteryVoltageVolts.HasValue)
+            .WithMessage("BatteryVoltageVolts must be non-negative.");
+
+        RuleFor(x => x.BoardTemperatureCelsius)
+            .InclusiveBetween(-100m, 200m)
+            .When(x => x.BoardTemperatureCelsius.HasValue)
+            .WithMessage("BoardTemperatureCelsius must be between -100 and 200.");
 
         RuleFor(x => x.AltitudeReference)
             .Must(x => AllowedAltitudeReferences.Contains(x))

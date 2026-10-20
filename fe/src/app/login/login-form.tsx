@@ -5,7 +5,6 @@ import { useRef, useState, type FormEvent } from "react";
 import { api } from "@/lib/auth/client";
 import type { AccountRole, AuthSession } from "@/lib/auth/types";
 import { createPilotRegistration } from "@/lib/pilot-registration";
-import { saveLicenseFiles } from "@/lib/license-image-store";
 import LicenseFilePicker from "@/app/license-file-picker";
 
 type Action = "password" | "reset" | "register";
@@ -108,8 +107,7 @@ export default function LoginForm() {
         experienceYears: Number(read("experienceYears") || 0),
         droneType: "Not specified", usagePurpose: "Not specified",
         description: read("description") || null,
-      });
-      await saveLicenseFiles(read("email"), licenseFiles).catch(() => undefined);
+      }, licenseFiles);
       form.reset();
       setRegisterOpen(false);
       setNotice(result.message || "Registration submitted. An Operations Manager will review your request.");
@@ -156,7 +154,6 @@ export default function LoginForm() {
     {notice && <p className="auth-feedback" role="status">{notice}</p>}
     {error && !registerOpen && <p className="auth-error" role="alert">{error}</p>}
 
-    <div className="login-directive"><b>NOTICE BR-01:</b> Strict role-based access control applies. Pilot registrations require Operations Manager approval before portal access is enabled.</div>
 
     {registerOpen && <div className="pilot-register-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) { setRegisterOpen(false); setError(""); } }}>
       <form className="pilot-register-modal" aria-label="Pilot registration request" onSubmit={submitRegistration}>
@@ -173,7 +170,7 @@ export default function LoginForm() {
           <label>License issued date<input required name="licenseIssuedDate" type="date" /></label>
           <label>License expired date<input required name="licenseExpiredDate" type="date" /></label>
           <LicenseFilePicker />
-          <label className="pilot-register-wide">Description<textarea name="description" rows={4} maxLength={500} placeholder="Briefly describe your operating scope or manager contact." /></label>
+          <label className="pilot-register-wide">Briefly describe your experience<textarea name="description" rows={4} maxLength={500} placeholder="Briefly describe your flight experience." /></label>
         </div>
         {error && <p className="pilot-register-error" role="alert">{error}</p>}
         <footer><p>Your application will remain pending until an Operations Manager reviews it.</p><button type="submit" className="button primary" disabled={busy !== null}>{busy === "register" ? "Sending..." : "Submit Registration Request"}</button></footer>

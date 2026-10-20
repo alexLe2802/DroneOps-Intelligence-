@@ -11,7 +11,7 @@ namespace DroneOps.API.Controllers;
 
 [ApiController]
 [Route("api/missions")]
-[Authorize(Roles = "Pilot,operation_manager,uav_operator,operations_manager")]
+[Authorize(Roles = "operation_manager,uav_operator")]
 public sealed class MissionsController : ControllerBase
 {
     private readonly IMissionService _missionService;
@@ -26,7 +26,7 @@ public sealed class MissionsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "operation_manager,operations_manager")]
+    [Authorize(Roles = "operation_manager")]
     public async Task<IActionResult> GetAll(
      CancellationToken cancellationToken)
     {
@@ -38,7 +38,7 @@ public sealed class MissionsController : ControllerBase
     }
 
     [HttpGet("my")]
-    [Authorize(Roles = "Pilot,uav_operator")]
+    [Authorize(Roles = "uav_operator")]
     public async Task<IActionResult> GetMy(
     CancellationToken cancellationToken)
     {
@@ -63,7 +63,7 @@ public sealed class MissionsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Pilot,uav_operator")]
+    [Authorize(Roles = "uav_operator")]
     [ProducesResponseType(typeof(MissionResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -96,7 +96,7 @@ public sealed class MissionsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = "operation_manager,operations_manager,Pilot,uav_operator")]
+    [Authorize(Roles = "operation_manager,uav_operator")]
     public async Task<ActionResult<MissionResponse>> GetByIdAsync(
      Guid id,
      CancellationToken cancellationToken)
@@ -150,7 +150,7 @@ public sealed class MissionsController : ControllerBase
     /// Gửi duyệt nhiệm vụ bay (Submit Mission)
     /// </summary>
     [HttpPut("{id:guid}/submit")]
-    [Authorize(Roles = "Pilot,operation_manager")]
+    [Authorize(Roles = "uav_operator")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -175,7 +175,7 @@ public sealed class MissionsController : ControllerBase
     /// Kiểm tra tính hợp lệ của tham số / waypoints nhiệm vụ bay (Validate Mission)
     /// </summary>
     [HttpPost("validate")]
-    [Authorize(Roles = "Pilot,operation_manager")]
+    [Authorize(Roles = "uav_operator,operation_manager")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ValidateMission([FromBody] MissionValidateDto request, CancellationToken cancellationToken)

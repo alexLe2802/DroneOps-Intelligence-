@@ -27,9 +27,14 @@ public class IncidentService : IIncidentService
             .AsQueryable();
 
         // Pilot / UAV Operator chỉ được xem các sự cố thuộc mission do chính mình quản lý
-        if (!isManager && currentUserId.HasValue)
+        if (!isManager && !currentUserId.HasValue)
         {
-            query = query.Where(i => i.Mission != null && i.Mission.CreatedBy == currentUserId.Value);
+            throw new UnauthorizedAccessException("Unable to verify pilot identity.");
+        }
+
+        if (!isManager)
+        {
+            query = query.Where(i => i.Mission != null && i.Mission.CreatedBy == currentUserId!.Value);
         }
 
         // Lọc theo Mission cụ thể
@@ -141,7 +146,7 @@ public class IncidentService : IIncidentService
         if (incident == null) return null;
 
         // Kiểm tra phân quyền truy cập
-        if (!isManager && currentUserId.HasValue && incident.Mission.CreatedBy != currentUserId.Value)
+        if (!isManager && (!currentUserId.HasValue || incident.Mission.CreatedBy != currentUserId.Value))
         {
             throw new UnauthorizedAccessException("You do not have permission to view this incident.");
         }
@@ -190,9 +195,14 @@ public class IncidentService : IIncidentService
             .AsNoTracking()
             .Where(i => i.MissionId == missionId);
 
-        if (!isManager && currentUserId.HasValue)
+        if (!isManager && !currentUserId.HasValue)
         {
-            query = query.Where(i => i.Mission.CreatedBy == currentUserId.Value);
+            throw new UnauthorizedAccessException("Unable to verify pilot identity.");
+        }
+
+        if (!isManager)
+        {
+            query = query.Where(i => i.Mission.CreatedBy == currentUserId!.Value);
         }
 
         if (changedAfter.HasValue)

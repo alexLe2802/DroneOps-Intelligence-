@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/auth/client";
 import {
@@ -11,7 +13,6 @@ import {
   type PilotRegistrationStatus,
   type PilotRegistrationSummary,
 } from "@/lib/pilot-registration";
-import { getLicenseFiles, type StoredLicenseEvidence } from "@/lib/license-image-store";
 
 const dateValue = (value: string | null | undefined) => value
   ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value))
@@ -33,8 +34,6 @@ export default function PilotRegistrationRequests() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [totalItems, setTotalItems] = useState(0);
-  const [licenseEvidence, setLicenseEvidence] = useState<StoredLicenseEvidence | null>(null);
-  const [licenseFileUrls, setLicenseFileUrls] = useState<string[]>([]);
 
   const describeError = useCallback((value: unknown) => {
     if (value instanceof ApiError && value.status === 403) {
@@ -46,12 +45,10 @@ export default function PilotRegistrationRequests() {
   const loadDetail = useCallback(async (id: string) => {
     setSelectedId(id);
     setDetailLoading(true);
-    setLicenseEvidence(null);
     setError("");
     try {
       const detail = await getPilotRegistration(id);
       setSelected(detail);
-      setLicenseEvidence(await getLicenseFiles(detail.email));
       setRejectReason("");
     } catch (value) {
       setSelected(null);
@@ -60,13 +57,6 @@ export default function PilotRegistrationRequests() {
       setDetailLoading(false);
     }
   }, [describeError]);
-
-  useEffect(() => {
-    if (!licenseEvidence) { setLicenseFileUrls([]); return; }
-    const urls = licenseEvidence.files.map(file => URL.createObjectURL(file.blob));
-    setLicenseFileUrls(urls);
-    return () => urls.forEach(url => URL.revokeObjectURL(url));
-  }, [licenseEvidence]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -161,8 +151,8 @@ export default function PilotRegistrationRequests() {
           <div><span>License issued</span><b>{dateValue(selected.licenseIssuedDate)}</b></div>
           <div><span>License expires</span><b>{dateValue(selected.licenseExpiredDate)}</b></div>
         </div>
-        <div className="request-license-evidence"><span>Flight license documents</span>{licenseEvidence?.files.length ? <div className="request-license-files">{licenseEvidence.files.map((file, index) => <article key={`${file.fileName}-${index}`}>{file.contentType === "application/pdf" ? <a className="request-license-pdf" href={licenseFileUrls[index]} target="_blank" rel="noreferrer"><b>PDF</b><span>{file.fileName}</span><small>Open document</small></a> : <a href={licenseFileUrls[index]} target="_blank" rel="noreferrer"><img src={licenseFileUrls[index]} alt={`Flight license page ${index + 1} submitted by ${selected.fullName}`} /></a>}<small>{file.fileName}</small></article>)}</div> : <div><b>Documents unavailable</b><p>This request has no files in this browser. The backend will provide Supabase bucket URLs later.</p></div>}</div>
-        <div className="request-description"><span>Applicant description</span><p>{selected.description || "No additional description was submitted."}</p></div>
+        <div className="request-license-evidence"><span>Flight license documents</span>{selected.licenseImageUrls?.length ? <div className="request-license-files">{selected.licenseImageUrls.map((url, index) => <article key={url}><a href={url} target="_blank" rel="noreferrer">{new URL(url).pathname.endsWith(".pdf") ? <b>Open license PDF {index + 1}</b> : <Image unoptimized width={800} height={800} style={{ width: "100%", height: "auto" }} src={url} alt={`Flight license page ${index + 1} submitted by ${selected.fullName}`} />}</a><small>License document {index + 1}</small></article>)}</div> : <div><b>Documents unavailable</b><p>No documents were uploaded with this application.</p></div>}<button type="button" onClick={() => void loadDetail(selected.id)}>Refresh document links</button></div>
+        <div className="request-description"><span>Flight experience</span><p>{selected.description || "No additional description was submitted."}</p></div>
         {selected.rejectReason && <div className="request-rejection"><span>Rejection reason</span><p>{selected.rejectReason}</p></div>}
         {selected.status === "Pending" && <div className="request-review-controls">
           <label>Rejection reason<textarea value={rejectReason} onChange={event => setRejectReason(event.target.value)} maxLength={500} rows={3} placeholder="Required only when rejecting this request" /></label>
