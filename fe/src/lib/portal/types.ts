@@ -136,6 +136,8 @@ export type PendingMissionApproval = {
   uavName: string | null;
   waypointCount: number;
   validationStatus: string;
+  validationIssues?: string[];
+  currentVersion?: number;
 };
 
 export type PagedPendingMissionApprovals = {
