@@ -34,8 +34,8 @@ internal static class LicenseWorkflowChecks
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var count = 0;
         void Check(bool ok,string name) { if(!ok) throw new Exception("FAIL: "+name); Console.WriteLine("PASS: "+name); count++; }
-        LicenseChangesController Controller(Guid userId, bool manager = false) {
-         var c = new LicenseChangesController(db, service, storage, new UpdatePilotProfileValidator(), NullLogger<LicenseChangesController>.Instance);
+        PilotUpdateRequestsController Controller(Guid userId, bool manager = false) {
+         var c = new PilotUpdateRequestsController(db, service, storage, new UpdatePilotProfileValidator(), NullLogger<PilotUpdateRequestsController>.Instance);
          c.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier,userId.ToString()), new Claim(ClaimTypes.Role, manager ? "operation_manager" : "uav_operator") },"test")) } };
          return c;
         }
@@ -68,15 +68,24 @@ internal static class LicenseWorkflowChecks
          var request=await db.PilotUpdateRequests.AsNoTracking().SingleAsync(x=>x.PilotId==pid);
          Check(request.Status=="Pending" && (await db.Pilots.AsNoTracking().SingleAsync(x=>x.Id==pid)).PilotLicenseNo=="ORIGINAL","pending request preserves official license");
          Check(await Controller(uid).Submit(Data("DUPLICATE"),Files(),default) is ConflictObjectResult,"second pending request rejected"); db.ChangeTracker.Clear();
+         JsonElement Json(IActionResult value) => JsonSerializer.SerializeToElement(((OkObjectResult)value).Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+         var ownList = Json(await Controller(uid).List(new() { PageSize = 100 }, default));
+         Check(ownList.GetProperty("items").EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == request.Id), "operator list contains own request");
+         var otherList = Json(await Controller(mid).List(new(), default));
+         Check(otherList.GetProperty("totalItems").GetInt32() == 0, "operator list excludes other users' requests");
+         var managerList = Json(await Controller(mid,true).List(new() { Search = "Temporary Workflow Check", Status = "Pending" }, default));
+         Check(managerList.GetProperty("items").EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == request.Id), "manager can filter pending requests across operators");
+         var ownDetail = Json(await Controller(uid).Detail(request.Id, default));
+         Check(ownDetail.GetProperty("licenseImageUrls").GetArrayLength() == 1, "operator can view signed evidence for own request");
          Check(await Controller(mid).Detail(request.Id,default) is NotFoundResult,"other operator cannot open private license evidence");
          Check(await Controller(mid,true).Detail(request.Id,default) is OkObjectResult,"manager can obtain signed evidence links");
-         Check(await Controller(mid,true).Review(request.Id,new(true,null),default) is OkObjectResult,"manager approves request"); db.ChangeTracker.Clear();
+         Check(await Controller(mid,true).Approve(request.Id,default) is OkObjectResult,"manager approves request"); db.ChangeTracker.Clear();
          Check((await db.Pilots.AsNoTracking().SingleAsync(x=>x.Id==pid)).PilotLicenseNo=="UPDATED-1" && await db.LicenseImages.AnyAsync(x=>x.PilotId==pid),"approval atomically updates license and associates evidence");
-         Check(await Controller(mid,true).Review(request.Id,new(false,"late review"),default) is ConflictObjectResult,"already reviewed request cannot be changed"); db.ChangeTracker.Clear();
+         Check(await Controller(mid,true).Reject(request.Id,new() { RejectReason = "late review" },default) is ConflictObjectResult,"already reviewed request cannot be changed"); db.ChangeTracker.Clear();
          Check(await Controller(uid).Submit(Data("UPDATED-2"),Files(),default) is OkObjectResult,"new request allowed after previous review"); db.ChangeTracker.Clear();
          var second=await db.PilotUpdateRequests.AsNoTracking().SingleAsync(x=>x.PilotId==pid && x.Status=="Pending");
-         Check(await Controller(mid,true).Review(second.Id,new(false,""),default) is BadRequestObjectResult,"rejection requires reason");
-         Check(await Controller(mid,true).Review(second.Id,new(false,"Test rejection"),default) is OkObjectResult,"manager rejects with reason"); db.ChangeTracker.Clear();
+         Check(await Controller(mid,true).Reject(second.Id,new() { RejectReason = "" },default) is BadRequestObjectResult,"rejection requires reason");
+         Check(await Controller(mid,true).Reject(second.Id,new() { RejectReason = "Test rejection" },default) is OkObjectResult,"manager rejects with reason"); db.ChangeTracker.Clear();
          Check((await db.Pilots.AsNoTracking().SingleAsync(x=>x.Id==pid)).PilotLicenseNo=="UPDATED-1","rejection preserves previously approved license");
         var credentialResult = await new OperatorCredentialsController(db, storage).Credentials(uid, default);
         var credentials = JsonSerializer.SerializeToElement(((OkObjectResult)credentialResult).Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -84,6 +93,15 @@ internal static class LicenseWorkflowChecks
             && credentials.GetProperty("experienceYears").GetInt32() == 4
             && credentials.GetProperty("licenseImageUrls").GetArrayLength() == 1,
             "manager roster receives current approved credentials and signed document links");
+         Check(await Controller(mid,true).Approve(Guid.NewGuid(),default) is NotFoundResult, "unknown review request returns not found");
+         Check(await Controller(uid).Submit(Data("EXPIRED"),Files(),default) is OkObjectResult, "additional request created for expired-license check");
+         db.ChangeTracker.Clear();
+         var expired = await db.PilotUpdateRequests.SingleAsync(x => x.PilotId == pid && x.Status == "Pending");
+         expired.LicenseExpiredDate = today.AddDays(-1);
+         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+         Check(await Controller(mid,true).Approve(expired.Id,default) is BadRequestObjectResult, "expired license cannot be approved");
+         db.ChangeTracker.Clear();
+         Check((await db.PilotUpdateRequests.AsNoTracking().SingleAsync(x => x.Id == expired.Id)).Status == "Pending", "failed approval leaves request pending");
          Console.WriteLine($"{count} workflow integration checks passed. SMTP delivery was simulated; no email was sent.");
         } finally {
          db.ChangeTracker.Clear();

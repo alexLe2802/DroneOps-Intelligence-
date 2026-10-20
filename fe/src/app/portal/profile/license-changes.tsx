@@ -27,7 +27,7 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
   const pendingAction = useRef(false);
   const load = useCallback(async () => {
     setLoading(true); setListError("");
-    try { setItems(await api<Change[]>("/license-changes")); }
+    try { setItems((await api<{ items: Change[] }>("/users/pilot-update-requests?pageSize=100")).items); }
     catch (e) {
       const message = e instanceof ApiError && e.status === 404
         ? "License review is unavailable. Restart the backend with the latest code, then try again."
@@ -42,7 +42,7 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
   useEffect(() => { const requestSelection = selection; const timer = window.setTimeout(() => void load(), 0); return () => { window.clearTimeout(timer); requestSelection.current++; }; }, [load]);
   async function inspect(id: string) {
     const current = ++selection.current; setDetail(null); setError(""); setReason("");
-    try { const value = await api<Detail>(`/license-changes/${id}`); if (current === selection.current) setDetail(value); }
+    try { const value = await api<Detail>(`/users/pilot-update-requests/${id}`); if (current === selection.current) setDetail(value); }
     catch (e) { if (current === selection.current) setError(e instanceof Error ? e.message : "Unable to open documents."); }
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -58,7 +58,7 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
     try {
       const body = new FormData(); body.set("data", JSON.stringify({ pilotLicenseNo: String(values.get("pilotLicenseNo")).trim(), licenseIssuedDate: issued, licenseExpiredDate: expires }));
       files.forEach(file => body.append("files", file));
-      await api("/license-changes", { method: "POST", body });
+      await api("/users/pilot-update-requests", { method: "POST", body });
       setFormVersion(v => v + 1); setMessage("License change submitted. Your current license remains active until a manager approves it."); await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to submit license change."); }
     finally { pendingAction.current = false; setBusy(false); }
@@ -68,8 +68,8 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
     if (!approve && !reason.trim()) { setError("Enter a rejection reason."); return; }
     pendingAction.current = true; setBusy(true); setError(""); setMessage("");
     try {
-      const result = await api<{ message: string }>(`/license-changes/${detail.id}/review`, { method: "POST", body: JSON.stringify({ approve, reason: reason.trim() || null }) });
-      setMessage(result.message); setDetail(null); selection.current++; await load();
+      await api(`/users/pilot-update-requests/${detail.id}/${approve ? "approve" : "reject"}`, { method: "PUT", ...(approve ? {} : { body: JSON.stringify({ rejectReason: reason.trim() }) }) });
+      setMessage(approve ? "License change approved." : "License change rejected."); setDetail(null); selection.current++; await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to review request."); }
     finally { pendingAction.current = false; setBusy(false); }
   }
@@ -91,7 +91,7 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
       <div className="request-license-files">{detail.licenseImageUrls.map((url, i) => <a key={url} href={url} target="_blank" rel="noreferrer">{new URL(url).pathname.endsWith(".pdf") ? `Open license PDF ${i + 1}` : <Image unoptimized src={url} alt={`License page ${i + 1}`} width={600} height={400} style={{ width: "100%", height: "auto" }} />}</a>)}</div>
       <button type="button" className="module-secondary" disabled={busy} onClick={() => void inspect(detail.id)}>Refresh document links</button>
       {detail.rejectReason && <p>Rejection reason: {detail.rejectReason}</p>}
-      {manager && detail.status === "Pending" && <div className="request-review-controls"><label>Rejection reason<textarea value={reason} maxLength={500} onChange={e => setReason(e.target.value)} disabled={busy} /></label><button className="module-primary" type="button" disabled={busy} onClick={() => void review(true)}>Approve license change</button><button className="module-danger" type="button" disabled={busy} onClick={() => void review(false)}>Reject</button></div>}
+      {manager && detail.status === "Pending" && <div className="request-review-controls"><label>Rejection reason<textarea value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} disabled={busy} /></label><button className="module-primary" type="button" disabled={busy} onClick={() => void review(true)}>Approve license change</button><button className="module-danger" type="button" disabled={busy} onClick={() => void review(false)}>Reject</button></div>}
     </article>}
   </section>;
 }
