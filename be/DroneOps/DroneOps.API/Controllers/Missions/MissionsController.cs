@@ -150,7 +150,7 @@ public sealed class MissionsController : ControllerBase
     /// Gửi duyệt nhiệm vụ bay (Submit Mission)
     /// </summary>
     [HttpPut("{id:guid}/submit")]
-    [Authorize(Roles = "Pilot,operation_manager")]
+    [Authorize(Roles = "Pilot,uav_operator")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

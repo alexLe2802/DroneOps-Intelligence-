@@ -30,7 +30,7 @@ The connected GitHub App does not have repository Administration permission (bra
 dotnet restore be/DroneOps/DroneOps.sln
 dotnet build be/DroneOps/DroneOps.sln -c Release --no-restore -warnaserror
 dotnet format analyzers be/DroneOps/DroneOps.sln --no-restore --verify-no-changes --severity warn
-dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build --no-restore
+dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release
 cd fe
 npm ci
 npm run lint -- --max-warnings=0
