@@ -7,7 +7,7 @@ export function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'", // Existing drone uses style attributes; scripts still require nonces.
-    "img-src 'self' data: blob: https://server.arcgisonline.com", "font-src 'self'",
+    "img-src 'self' data: blob: https://server.arcgisonline.com https://diaswbzjhvzwxcadlias.supabase.co", "font-src 'self'",
     `connect-src 'self' https://server.arcgisonline.com${dev ? " ws://localhost:* ws://127.0.0.1:*" : ""}`,
     "worker-src 'self' blob:",
     "frame-src 'none'",

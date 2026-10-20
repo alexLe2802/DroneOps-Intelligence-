@@ -79,8 +79,6 @@ button:disabled { cursor:wait; opacity:.55; }
 .email-login-submit { width:100%; margin-top:10px; justify-content:space-between; }
 .pilot-register-link { width:100%; margin-top:12px; padding:12px; border:1px solid #244058; border-radius:5px; background:#0b1420; color:var(--cyan); font:700 11px var(--font-mono); letter-spacing:.8px; }
 .pilot-register-link:hover { border-color:var(--cyan); box-shadow:0 0 0 3px #22d3ee1c; }
-.login-directive { margin-top:24px; padding-top:18px; border-top:1px solid var(--border); color:#94a6bb; font:11px/1.65 var(--font-mono); }
-.login-directive b { color:#ffd166; }
 .pilot-register-backdrop { position:fixed; inset:0; z-index:80; display:grid; place-items:center; padding:24px; background:rgba(4,10,18,.78); backdrop-filter:blur(8px); }
 .pilot-register-modal { width:min(900px,100%); max-height:92svh; overflow:auto; background:#0b111b; border:1px solid #2e5269; border-radius:8px; box-shadow:0 28px 90px #000c; }
 .pilot-register-modal header { position:sticky; top:0; z-index:1; display:flex; justify-content:space-between; gap:20px; padding:22px; background:#0b111b; border-bottom:1px solid var(--border); }

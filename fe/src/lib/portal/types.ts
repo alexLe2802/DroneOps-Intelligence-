@@ -1,6 +1,6 @@
 import type { AccountRole } from "@/lib/auth/types";
 
-export type MissionStatus = "Draft" | "PendingApproval" | "Approved" | "InProgress" | "Completed" | "Rejected";
+export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
 
 export type PilotMission = {
   id: string;
@@ -40,6 +40,123 @@ export type CreateMissionRequest = {
   waypoints: MissionWaypoint[];
 };
 export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[]; detailAvailable?: boolean };
+export type MissionValidationResult = { isValid: boolean; message: string };
+
+export type LiveMission = {
+  missionId: string;
+  missionName: string;
+  missionStatus: string;
+  startTime: string | null;
+  uavId: string | null;
+  uavCode: string | null;
+  uavName: string | null;
+  pilotId: string;
+  pilotName: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  altitudeMeters: number | null;
+  groundSpeedMetersPerSecond: number | null;
+  batteryPercent: number | null;
+  flightMode: string | null;
+  armed: boolean;
+  missionSequence: number | null;
+  lastSeen: string | null;
+  connectivityStatus: string;
+  dataAgeSeconds: number | null;
+  waypointTotal: number;
+  progressPercent: number | null;
+};
+
+export type MissionTelemetry = {
+  missionId: string;
+  uavId: string | null;
+  uavCode: string | null;
+  uavName: string | null;
+  sourceId: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  altitudeMeters: number | null;
+  altitudeReference: string | null;
+  groundSpeedMetersPerSecond: number | null;
+  batteryPercent: number | null;
+  flightMode: string | null;
+  armed: boolean;
+  missionSequence: number | null;
+  sourceTimestamp: string | null;
+  receivedAt: string | null;
+  connectivityStatus: string;
+  dataAgeSeconds: number | null;
+  isStale: boolean;
+  isValid: boolean;
+  snapshotKind: string;
+  waypointTotal: number;
+  progressPercent: number | null;
+};
+
+export type IncidentItem = {
+  id: string;
+  missionId: string;
+  missionName: string;
+  uavId: string | null;
+  uavCode: string | null;
+  uavName: string | null;
+  title: string;
+  description: string | null;
+  type: string;
+  severity: string;
+  status: string;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  acknowledgedAt: string | null;
+  resolvedAt: string | null;
+};
+
+export type PagedIncidents = {
+  items: IncidentItem[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export type PendingMissionApproval = {
+  missionId: string;
+  missionName: string;
+  description: string | null;
+  status: string;
+  createdAt: string;
+  startTime: string | null;
+  endTime: string | null;
+  pilotId: string;
+  pilotName: string | null;
+  pilotEmail: string | null;
+  uavId: string | null;
+  uavCode: string | null;
+  uavName: string | null;
+  waypointCount: number;
+  validationStatus: string;
+  validationIssues?: string[];
+  currentVersion?: number;
+};
+
+export type PagedPendingMissionApprovals = {
+  items: PendingMissionApproval[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export type MissionDecision = {
+  missionId: string;
+  decision: "Approved" | "Rejected" | string;
+  previousStatus: string;
+  newStatus: string;
+  comment: string | null;
+  decidedAt: string;
+  decidedBy: string;
+};
 
 export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
@@ -79,6 +196,7 @@ export type SaveGeofenceRequest = { name: string; description: string | null; co
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {
+  avatarUrl: string | null;
   id: string;
   fullName: string;
   email: string;

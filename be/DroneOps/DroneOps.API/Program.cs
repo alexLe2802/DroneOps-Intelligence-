@@ -30,6 +30,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 //builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddControllers();
+builder.Services.AddHttpClient<DroneOps.API.Storage.UserMediaStorage>();
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 106 * 1024 * 1024);
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 106 * 1024 * 1024);
 builder.Services.AddEndpointsApiExplorer();
 
 // 1. Cấu hình "Cái Khóa" (Authorize button) trên giao diện Swagger UI
@@ -72,8 +75,9 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
+builder.Services.AddHostedService<CommunicationLossMonitor>();
 
 // 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
 // Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container

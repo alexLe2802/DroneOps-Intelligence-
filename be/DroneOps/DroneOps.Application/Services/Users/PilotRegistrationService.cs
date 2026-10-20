@@ -112,6 +112,7 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         return new PilotRegistrationDetailResponse
         {
+            LicenseImageUrls = registration.LicenseImages.Select(x => x.ImageUrl).ToList(),
             Id = registration.Id,
             FullName = registration.FullName,
             Email = registration.Email,
@@ -260,6 +261,8 @@ public class PilotRegistrationService : IPilotRegistrationService
             pilot.ExperienceYears = registration.ExperienceYears ?? 0;
             _context.Set<Pilot>().Update(pilot);
         }
+
+        foreach (var image in registration.LicenseImages) image.PilotId = pilot.Id;
 
         // Cập nhật trạng thái đơn thành Approved
         registration.Status = "Approved";

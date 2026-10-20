@@ -2,22 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
+import { validCoordinate } from "@/lib/maps/planning-validation";
 import { describeGeofence } from "@/lib/maps/geofences";
 import type { Geofence, GeofenceCoordinate } from "@/lib/portal/types";
 
 type Props = {
+  disabled?: boolean;
   coordinates: GeofenceCoordinate[];
   zones: Geofence[];
   editingId?: string;
   onChange: (coordinates: GeofenceCoordinate[]) => void;
 };
 
-export default function GeofenceEditorMap({ coordinates, zones, editingId, onChange }: Props) {
+export default function GeofenceEditorMap({ coordinates, zones, editingId, onChange, disabled = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Leaflet.Map | undefined>(undefined);
   const editLayerRef = useRef<Leaflet.LayerGroup | undefined>(undefined);
   const coordinatesRef = useRef(coordinates);
   const onChangeRef = useRef(onChange);
+  const disabledRef = useRef(disabled);
+  const [ready, setReady] = useState<Leaflet.Map | null>(null);
+  useEffect(() => { disabledRef.current = disabled; }, [disabled]);
   const [error, setError] = useState("");
 
   useEffect(() => { coordinatesRef.current = coordinates; }, [coordinates]);
@@ -31,8 +36,9 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
 
     void import("leaflet").then(({ default: L }) => {
       if (cancelled) return;
+      // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
       const map = L.map(container, {
-        center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: true,
+        center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: false,
       });
       mapRef.current = map;
       L.control.zoom({ position: "bottomright" }).addTo(map);
@@ -50,24 +56,8 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
       });
 
       editLayerRef.current = L.layerGroup().addTo(map);
-      const initialCoordinates = coordinatesRef.current;
-      if (initialCoordinates.length >= 2) {
-        L.polyline(initialCoordinates.map(point => [point.latitude, point.longitude]), {
-          color: "#22d3ee", weight: 2, dashArray: initialCoordinates.length < 3 ? "5 5" : undefined,
-        }).addTo(editLayerRef.current);
-      }
-      if (initialCoordinates.length >= 3) {
-        L.polygon(initialCoordinates.map(point => [point.latitude, point.longitude]), {
-          color: "#22d3ee", fillColor: "#22d3ee", weight: 2, fillOpacity: .22,
-        }).addTo(editLayerRef.current);
-      }
-      initialCoordinates.forEach((point, index) => {
-        const marker = L.circleMarker([point.latitude, point.longitude], {
-          radius: 8, color: "#07101a", weight: 2, fillColor: "#67e8f9", fillOpacity: 1,
-        }).addTo(editLayerRef.current!);
-        marker.bindTooltip(String(index + 1), { permanent: true, direction: "center", className: "geofence-point-label" });
-      });
       map.on("click", event => {
+        if (disabledRef.current) return;
         const next = [...coordinatesRef.current, {
           latitude: Number(event.latlng.lat.toFixed(6)), longitude: Number(event.latlng.lng.toFixed(6)),
         }];
@@ -75,10 +65,11 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
         onChangeRef.current(next);
       });
 
-      if (coordinatesRef.current.length >= 2) {
+      if (coordinatesRef.current.length >= 2 && coordinatesRef.current.every(validCoordinate)) {
         map.fitBounds(L.latLngBounds(coordinatesRef.current.map(point => [point.latitude, point.longitude])), { padding: [32, 32], maxZoom: 15 });
       }
       resizeFrame = requestAnimationFrame(() => map.invalidateSize({ animate: false, pan: false }));
+      setReady(map);
       setError("");
     }).catch(reason => setError(reason instanceof Error ? reason.message : "Unable to open the map."));
 
@@ -95,32 +86,44 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
   useEffect(() => {
     const map = mapRef.current;
     const group = editLayerRef.current;
-    if (!map || !group) return;
+    if (!map || !group || ready !== map) return;
+    let cancelled = false;
     void import("leaflet").then(({ default: L }) => {
-      if (mapRef.current !== map || editLayerRef.current !== group) return;
+      if (cancelled || mapRef.current !== map || editLayerRef.current !== group) return;
       group.clearLayers();
-      if (coordinates.length >= 2) {
+      if (coordinates.length >= 2 && coordinates.every(validCoordinate)) {
         L.polyline(coordinates.map(point => [point.latitude, point.longitude]), {
           color: "#22d3ee", weight: 2, dashArray: coordinates.length < 3 ? "5 5" : undefined,
         }).addTo(group);
       }
-      if (coordinates.length >= 3) {
+      if (coordinates.length >= 3 && coordinates.every(validCoordinate)) {
         L.polygon(coordinates.map(point => [point.latitude, point.longitude]), {
           color: "#22d3ee", fillColor: "#22d3ee", weight: 2, fillOpacity: .22,
         }).addTo(group);
       }
       coordinates.forEach((point, index) => {
-        const marker = L.circleMarker([point.latitude, point.longitude], {
-          radius: 8, color: "#07101a", weight: 2, fillColor: "#67e8f9", fillOpacity: 1,
+        if (!validCoordinate(point)) return;
+        const marker = L.marker([point.latitude, point.longitude], {
+          draggable: !disabled,
+          icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker"><b>${index + 1}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }),
         }).addTo(group);
-        marker.bindTooltip(String(index + 1), { permanent: true, direction: "center", className: "geofence-point-label" });
+        marker.on("dragend", () => {
+          if (disabledRef.current) return;
+          const location = marker.getLatLng();
+          const next = coordinatesRef.current.map((current, i) => i === index ? {
+            latitude: Number(location.lat.toFixed(6)), longitude: Number(location.lng.toFixed(6)),
+          } : current);
+          coordinatesRef.current = next;
+          onChangeRef.current(next);
+        });
       });
     });
-  }, [coordinates]);
+    return () => { cancelled = true; };
+  }, [coordinates, ready, disabled]);
 
   return <div className="geofence-editor-map-shell">
     <div ref={containerRef} className="geofence-editor-map" />
-    <div className="geofence-map-instruction">Click the map to add vertices in order · At least 3 vertices</div>
+    <div className="geofence-map-instruction">Click to add · Drag to adjust · At least 3 vertices</div>
     {error && <div className="dashboard-map-error" role="alert">{error}</div>}
   </div>;
 }

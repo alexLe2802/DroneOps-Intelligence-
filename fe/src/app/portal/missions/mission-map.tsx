@@ -17,10 +17,12 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
   const mapRef = useRef<Leaflet.Map | null>(null);
   const routeRef = useRef<Leaflet.Polyline | null>(null);
   const markersRef = useRef<Leaflet.Marker[]>([]);
+  const readOnlyRef = useRef(readOnly);
   const onAddRef = useRef(onAdd);
   const onUpdateRef = useRef(onUpdate);
   const [error, setError] = useState("");
-  const [mapReady, setMapReady] = useState(false);
+  const [mapReady, setMapReady] = useState<Leaflet.Map | null>(null);
+  useEffect(() => { readOnlyRef.current = readOnly; }, [readOnly]);
   useEffect(() => { onAddRef.current = onAdd; }, [onAdd]);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
@@ -30,7 +32,8 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
     let resizeFrame: number | undefined;
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || !containerRef.current) return;
-      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, preferCanvas: true });
+      // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
+      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
       mapRef.current = map;
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
@@ -50,43 +53,48 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
         popup.append(title, category, limits);
         polygon.bindPopup(popup).addTo(map);
       });
-      if (!readOnly) map.on("click", event => onAddRef.current?.(event.latlng.lng, event.latlng.lat));
+      map.on("click", event => { if (!readOnlyRef.current) onAddRef.current?.(event.latlng.lng, event.latlng.lat); });
       resizeFrame = requestAnimationFrame(() => {
         if (!cancelled) map.invalidateSize({ animate: false, pan: false });
       });
-      setMapReady(true);
+      setMapReady(map);
       setError("");
-    }).catch(reason => setError(reason instanceof Error ? reason.message : "Map could not be loaded."));
+    }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Map could not be loaded."); });
     return () => {
       cancelled = true;
       if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
       markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
+      routeRef.current = null;
       mapRef.current?.stop();
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [geofences, readOnly]);
+  }, [geofences]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || mapReady !== map) return;
     let cancelled = false;
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || mapRef.current !== map) return;
       markersRef.current.forEach(marker => marker.remove());
-      routeRef.current?.remove();
+      markersRef.current = [];
+      if (routeRef.current && map.hasLayer(routeRef.current)) routeRef.current.remove();
+      routeRef.current = null;
+      if (waypoints.some(point => !Number.isFinite(point.latitude) || Math.abs(point.latitude) > 90 || !Number.isFinite(point.longitude) || Math.abs(point.longitude) > 180)) return;
       markersRef.current = waypoints.map((point, index) => {
         const marker = L.marker([point.latitude, point.longitude], {
           draggable: !readOnly,
           icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker"><b>${index + 1}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }),
         }).addTo(map);
-        if (!readOnly) marker.on("dragend", () => { const value = marker.getLatLng(); onUpdateRef.current?.(index, { latitude: Number(value.lat.toFixed(6)), longitude: Number(value.lng.toFixed(6)) }); });
+        if (!readOnly) marker.on("dragend", () => { if (readOnlyRef.current) return; const value = marker.getLatLng(); onUpdateRef.current?.(index, { latitude: Number(value.lat.toFixed(6)), longitude: Number(value.lng.toFixed(6)) }); });
         return marker;
       });
       if (waypoints.length > 1) routeRef.current = L.polyline(waypoints.map(point => [point.latitude, point.longitude]), { color: "#25d6ff", weight: 4, opacity: .95 }).addTo(map);
       if (waypoints.length > 0) {
         const bounds = L.latLngBounds(waypoints.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple));
-        map.fitBounds(bounds, { padding: [44, 44], maxZoom: 16 });
+        map.fitBounds(bounds, { padding: [44, 44], maxZoom: 16, animate: false });
       }
     });
     return () => { cancelled = true; };

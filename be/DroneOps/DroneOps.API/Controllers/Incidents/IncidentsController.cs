@@ -34,6 +34,10 @@ public class IncidentsController : ControllerBase
             var result = await _incidentService.GetIncidentsAsync(request, currentUserId, isManager, cancellationToken);
             return Ok(result);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });

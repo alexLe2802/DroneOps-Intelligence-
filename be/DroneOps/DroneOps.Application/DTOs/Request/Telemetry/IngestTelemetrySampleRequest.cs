@@ -16,9 +16,9 @@ public class IngestTelemetrySampleRequest
 
     public DateTimeOffset SourceTimestamp { get; set; }
 
-    public decimal Latitude { get; set; }
+    public decimal? Latitude { get; set; }
 
-    public decimal Longitude { get; set; }
+    public decimal? Longitude { get; set; }
 
     public decimal? AltitudeMeters { get; set; }
 
@@ -26,11 +26,18 @@ public class IngestTelemetrySampleRequest
 
     public decimal? GroundSpeedMetersPerSecond { get; set; }
 
+    public decimal? HeadingDegrees { get; set; }
+
     public int? BatteryPercent { get; set; }
+
+    public decimal? BatteryVoltageVolts { get; set; }
+
+    /// <summary>PX4/autopilot board temperature, not ambient weather.</summary>
+    public decimal? BoardTemperatureCelsius { get; set; }
 
     public string? FlightMode { get; set; }
 
-    public bool Armed { get; set; }
+    public bool? Armed { get; set; }
 
     public int? MissionSequence { get; set; }
 }

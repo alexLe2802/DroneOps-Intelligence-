@@ -72,17 +72,31 @@ public class AdminUavController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result =
-            await _uavService.RejectAsync(
-                id,
-                cancellationToken);
-
-        if (result is null)
+        try
         {
-            return NotFound();
+            var result = await _uavService.RejectAsync(id, cancellationToken);
+            return result is null ? NotFound() : Ok(result);
         }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
 
-        return Ok(result);
+    [HttpPut("{id:guid}/approve")]
+    public async Task<IActionResult> Approve(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _uavService.ApproveAsync(id, cancellationToken);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
     }
 
     [HttpPut("{id:guid}/activate")]
@@ -90,17 +104,15 @@ public class AdminUavController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result =
-            await _uavService.ActivateAsync(
-                id,
-                cancellationToken);
-
-        if (result is null)
+        try
         {
-            return NotFound();
+            var result = await _uavService.ActivateAsync(id, cancellationToken);
+            return result is null ? NotFound() : Ok(result);
         }
-
-        return Ok(result);
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
     }
 
     [HttpPut("{id:guid}/deactivate")]
@@ -108,16 +120,14 @@ public class AdminUavController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result =
-            await _uavService.DeactivateAsync(
-                id,
-                cancellationToken);
-
-        if (result is null)
+        try
         {
-            return NotFound();
+            var result = await _uavService.DeactivateAsync(id, cancellationToken);
+            return result is null ? NotFound() : Ok(result);
         }
-
-        return Ok(result);
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
     }
 }
