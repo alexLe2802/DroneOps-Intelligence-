@@ -63,4 +63,43 @@ public sealed class PilotRepository
                 cancellationToken);
     }
 
+    public async Task<IReadOnlyList<PilotUpdateRequest>> GetPendingUpdateRequestsAsync(
+            CancellationToken cancellationToken = default)
+    {
+        return await DbContext
+            .Set<PilotUpdateRequest>()
+            .AsNoTracking()
+            .Include(x => x.Pilot)
+                .ThenInclude(x => x.User)
+            .Include(x => x.LicenseImages)
+            .Where(x => x.Status == "Pending")
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<PilotUpdateRequest?> GetUpdateRequestForReviewAsync(
+            Guid requestId,
+            CancellationToken cancellationToken = default)
+    {
+        return await DbContext
+            .Set<PilotUpdateRequest>()
+            .Include(x => x.Pilot)
+                .ThenInclude(x => x.User)
+            .Include(x => x.LicenseImages)
+            .FirstOrDefaultAsync(
+                x => x.Id == requestId,
+                cancellationToken);
+    }
+
+    public async Task<List<LicenseImage>>GetCurrentPilotLicenseImagesAsync(
+        Guid pilotId,
+        CancellationToken cancellationToken = default)
+    {
+        return await DbContext
+            .Set<LicenseImage>()
+            .Where(x => x.PilotId == pilotId)
+            .ToListAsync(cancellationToken);
+    }
+
+
 }
