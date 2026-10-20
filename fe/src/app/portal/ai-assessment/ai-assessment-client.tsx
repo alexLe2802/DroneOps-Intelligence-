@@ -43,12 +43,18 @@ export default function AiAssessmentClient() {
       setMissionId(current => current || page.items[0]?.missionId || "");
     } catch (reason) { setError(reason); }
   }, []);
-  useEffect(() => { void loadHistory(); }, [loadHistory]);
   useEffect(() => {
-    if (!missionId) { setItems([]); return; }
-    let active = true; setItems(null); setError(null);
-    void getAiAssessments(missionId).then(value => { if (active) setItems(value); }).catch(reason => { if (active) setError(reason); });
-    return () => { active = false; };
+    const timer = window.setTimeout(() => void loadHistory(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadHistory]);
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (!missionId) { setItems([]); return; }
+      setItems(null); setError(null);
+      void getAiAssessments(missionId).then(value => { if (active) setItems(value); }).catch(reason => { if (active) setError(reason); });
+    }, 0);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [missionId]);
   async function generate() {
     if (!selected || generating.current) return;

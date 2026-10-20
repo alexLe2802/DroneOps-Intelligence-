@@ -31,6 +31,7 @@ export type PilotRegistrationSummary = {
 };
 
 export type PilotRegistrationDetail = PilotRegistrationSummary & {
+  licenseImageUrls: string[];
   dateOfBirth: string | null;
   licenseIssuedDate: string | null;
   licenseExpiredDate: string | null;
@@ -49,10 +50,13 @@ export type PagedPilotRegistrations = {
   totalPages: number;
 };
 
-export function createPilotRegistration(request: CreatePilotRegistrationRequest) {
-  return api<{ id?: string; status?: PilotRegistrationStatus; message: string }>("/pilot-registrations", {
+export function createPilotRegistration(request: CreatePilotRegistrationRequest, files: File[]) {
+  const body = new FormData();
+  body.set("data", JSON.stringify(request));
+  files.forEach(file => body.append("files", file));
+  return api<{ id?: string; status?: PilotRegistrationStatus; message: string }>("/pilot-registrations/with-files", {
     method: "POST",
-    body: JSON.stringify(request),
+    body,
   });
 }
 
