@@ -267,19 +267,24 @@ public sealed class UserController : ControllerBase
     [Authorize(Roles = "operation_manager")]
     [HttpGet("pilot-update-requests")]
     [ProducesResponseType(
-    typeof(IReadOnlyList<PilotUpdateRequestResponse>),
-    StatusCodes.Status200OK)]
+     typeof(PagedResponse<PilotUpdateRequestResponse>),
+     StatusCodes.Status200OK)]
     public async Task<IActionResult>
-    GetPendingPilotUpdateRequests(
-        CancellationToken cancellationToken)
+     GetAllPilotRequests(
+         [FromQuery]
+        PilotUpdateRequestFilterRequest request,
+         CancellationToken cancellationToken)
     {
-        IReadOnlyList<PilotUpdateRequestResponse> result =
-            await _userService
-                .GetPendingPilotUpdateRequestsAsync(
-                    cancellationToken);
+        PagedResponse<PilotUpdateRequestResponse>
+            result =
+                await _userService
+                    .GetAllPilotRequestsAsync(
+                        request,
+                        cancellationToken);
 
         return Ok(result);
     }
+
     [Authorize(Roles = "operation_manager")]
     [HttpGet("pilot-update-requests/{requestId:guid}")]
     [ProducesResponseType(
