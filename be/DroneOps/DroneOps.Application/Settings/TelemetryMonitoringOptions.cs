@@ -13,4 +13,10 @@ public sealed class TelemetryMonitoringOptions
     public int CommunicationLossSeconds { get; set; } = 30;
 
     public int ScanIntervalSeconds { get; set; } = 5;
+
+    /// <summary>Tuổi tối đa của sample vẫn được coi là Online.</summary>
+    public int StaleAfterSeconds { get; set; } = 10;
+
+    /// <summary>Tuổi sample bắt đầu được coi là Offline; phải lớn hơn StaleAfterSeconds.</summary>
+    public int OfflineAfterSeconds { get; set; } = 30;
 }

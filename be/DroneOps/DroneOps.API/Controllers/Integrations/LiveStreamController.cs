@@ -80,6 +80,7 @@ public class LiveStreamController : ControllerBase
 
         long eventSequence = 1;
         DateTimeOffset? lastSentTelemetryTime = null;
+        string? lastSentSnapshotKind = null;
         var knownIncidentStatus = new Dictionary<Guid, string>();
         DateTimeOffset incidentWatermark = DateTimeOffset.UtcNow.AddHours(-24);
 
@@ -92,6 +93,7 @@ public class LiveStreamController : ControllerBase
             {
                 await WriteSseEventAsync("telemetryUpdated", eventSequence++, initialSnapshot, cancellationToken);
                 lastSentTelemetryTime = initialSnapshot.SourceTimestamp;
+                lastSentSnapshotKind = initialSnapshot.SnapshotKind;
             }
 
             var openIncidents = await _incidentService.GetMissionIncidentFeedAsync(
@@ -115,10 +117,15 @@ public class LiveStreamController : ControllerBase
                 var currentTelemetry = await _telemetryService.GetLatestMissionTelemetryAsync(
                     missionId, currentUserId, isManager, cancellationToken);
 
-                if (currentTelemetry != null && currentTelemetry.SourceTimestamp != lastSentTelemetryTime)
+                // Freshness is time-dependent. Emit on both a new packet and an Online→Stale→Offline
+                // transition so an idle stream never leaves the browser showing cached data as fresh.
+                if (currentTelemetry != null &&
+                    (currentTelemetry.SourceTimestamp != lastSentTelemetryTime ||
+                     currentTelemetry.SnapshotKind != lastSentSnapshotKind))
                 {
                     await WriteSseEventAsync("telemetryUpdated", eventSequence++, currentTelemetry, cancellationToken);
                     lastSentTelemetryTime = currentTelemetry.SourceTimestamp;
+                    lastSentSnapshotKind = currentTelemetry.SnapshotKind;
                 }
                 else
                 {

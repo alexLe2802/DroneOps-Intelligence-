@@ -27,9 +27,15 @@ public class LiveMissionItemResponse
     public decimal? Longitude { get; set; }
     public decimal? AltitudeMeters { get; set; }
     public decimal? GroundSpeedMetersPerSecond { get; set; }
+    public decimal? HeadingDegrees { get; set; }
     public int? BatteryPercent { get; set; }
+    public decimal? BatteryVoltageVolts { get; set; }
+    public decimal? BoardTemperatureCelsius { get; set; }
+    public decimal? EnvironmentalTemperatureCelsius { get; set; }
+    public decimal? RelativeHumidityPercent { get; set; }
+    public string EnvironmentalSensorStatus { get; set; } = "Unavailable";
     public string? FlightMode { get; set; }
-    public bool Armed { get; set; }
+    public bool? Armed { get; set; }
     public int? MissionSequence { get; set; }
 
     // Tình trạng kết nối

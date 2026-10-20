@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DroneOps.Domain", "DroneOps
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DroneOps.Persistence", "DroneOps.Persistence\DroneOps.Persistence.csproj", "{EA4B0240-B13B-4E52-A540-B848C8457F06}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DroneOps.TelemetryChecks", "DroneOps.TelemetryChecks\DroneOps.TelemetryChecks.csproj", "{9A7B48E3-879F-49AF-B67A-47D0CFC5DA44}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{EA4B0240-B13B-4E52-A540-B848C8457F06}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EA4B0240-B13B-4E52-A540-B848C8457F06}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EA4B0240-B13B-4E52-A540-B848C8457F06}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9A7B48E3-879F-49AF-B67A-47D0CFC5DA44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9A7B48E3-879F-49AF-B67A-47D0CFC5DA44}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9A7B48E3-879F-49AF-B67A-47D0CFC5DA44}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9A7B48E3-879F-49AF-B67A-47D0CFC5DA44}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

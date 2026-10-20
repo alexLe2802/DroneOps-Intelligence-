@@ -31,11 +31,17 @@ public class TelemetryRecord
 
     public decimal? Speed { get; set; }
 
+    public decimal? HeadingDegrees { get; set; }
+
     public int? BatteryLevel { get; set; }
+
+    public decimal? BatteryVoltageVolts { get; set; }
+
+    public decimal? BoardTemperatureCelsius { get; set; }
 
     public string? FlightMode { get; set; }
 
-    public bool Armed { get; set; }
+    public bool? Armed { get; set; }
 
     public int? MissionSequence { get; set; }
 
