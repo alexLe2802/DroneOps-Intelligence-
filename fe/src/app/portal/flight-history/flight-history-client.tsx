@@ -22,7 +22,10 @@ export default function FlightHistoryClient() {
       setAnalytics(summary);
     } catch (reason) { setError(reason); }
   }, [search, status]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
   if (error) return <ModuleError error={error} retry={() => void load()} />;
   if (!items || !analytics) return <ModuleLoading label="Loading flight archive" />;
   return <>

@@ -6,6 +6,7 @@ __pycache__/
 *.py[cod]
 
 # Local document backups and development environments
+docs/draft review 2/
 docs/archive/
 .venv/
 venv/

@@ -1,4 +1,4 @@
-﻿using DroneOps.Domain.Entities;
+using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -63,6 +63,7 @@ public class PilotRegistrationRepository : IPilotRegistrationRepository
     public async Task<PilotRegistration?> GetByIdAsync(Guid id)
     {
         return await _context.PilotRegistrations
+            .Include(x => x.LicenseImages)
             .FirstOrDefaultAsync(x => x.Id == id);
     }
 

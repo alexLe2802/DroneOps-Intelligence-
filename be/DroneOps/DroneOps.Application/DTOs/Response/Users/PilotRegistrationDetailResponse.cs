@@ -1,7 +1,9 @@
-﻿namespace DroneOps.Application.DTOs.Response.Users;
+namespace DroneOps.Application.DTOs.Response.Users;
 
 public class PilotRegistrationDetailResponse
 {
+    public List<string> LicenseImageUrls { get; set; } = [];
+
     public Guid Id { get; set; }
 
     public string FullName { get; set; } = string.Empty;

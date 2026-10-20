@@ -32,7 +32,7 @@ export async function sessionFromToken(token: string): Promise<AuthSession | nul
   try {
     const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
     if (!Number.isFinite(claims.exp) || claims.exp * 1000 <= Date.now()) return null;
-    return { account: { id: profile.id, email: profile.email, displayName: profile.fullName, role, isActive: true }, expiresAt: new Date(claims.exp * 1000).toISOString() };
+    return { account: { id: profile.id, avatarUrl: profile.avatarUrl, email: profile.email, displayName: profile.fullName, role, isActive: true }, expiresAt: new Date(claims.exp * 1000).toISOString() };
   } catch { return null; }
 }
 export async function readSession(): Promise<AuthSession | null> {
