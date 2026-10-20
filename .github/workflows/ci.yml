@@ -39,7 +39,7 @@ jobs:
       - name: Check .NET analyzer diagnostics
         run: dotnet format analyzers be/DroneOps/DroneOps.sln --no-restore --verify-no-changes --severity warn
       - name: Run offline authorization and validation checks
-        run: dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-restore
+        run: dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release
 
   frontend:
     name: Frontend checks
