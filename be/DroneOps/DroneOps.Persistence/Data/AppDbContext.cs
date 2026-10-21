@@ -27,9 +27,15 @@ public class AppDbContext : DbContext
     public DbSet<PostFlightReport> PostFlightReports { get; set; }
     public DbSet<PilotUpdateRequest> PilotUpdateRequests { get; set; }
 
+    public DbSet<MissionUpdateRequest> MissionUpdateRequests { get; set; }
+    public DbSet<GeofenceRevision> GeofenceRevisions { get; set; }
+    public DbSet<MissionWeatherCache> MissionWeatherCaches { get; set; }
+    public DbSet<MissionValidationRun> MissionValidationRuns { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<MissionWeatherCache>().HasKey(x => x.Key);
 
         // Đảm bảo Email người dùng là duy nhất
         modelBuilder.Entity<User>()

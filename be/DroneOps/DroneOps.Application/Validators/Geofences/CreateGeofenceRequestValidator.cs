@@ -8,6 +8,11 @@ public class CreateGeofenceRequestValidator
 {
     public CreateGeofenceRequestValidator()
     {
+        RuleFor(x=>x.VerticalRule).Must(x=>x is "Unspecified" or "AllAltitudes" or "Band");
+        RuleFor(x=>x).Must(x=>x.VerticalRule!="Band"||x.MinAltitudeMeters.HasValue||x.MaxAltitudeMeters.HasValue).WithMessage("Band requires at least one altitude bound.");
+        RuleFor(x=>x.AltitudeReference).Must(x=>x is null or "AGL" or "MSL" or "Relative");
+        RuleFor(x=>x).Must(x=>!x.MinAltitudeMeters.HasValue||!x.MaxAltitudeMeters.HasValue||x.MinAltitudeMeters<=x.MaxAltitudeMeters).WithMessage("Minimum altitude must not exceed maximum altitude.");
+        RuleFor(x=>x.AltitudeReference).NotEmpty().When(x=>x.MinAltitudeMeters.HasValue||x.MaxAltitudeMeters.HasValue).WithMessage("Bounded airspace requires an altitude reference.");
         RuleFor(x => x.Name)
             .NotEmpty()
             .WithMessage("Geofence name is required.")
