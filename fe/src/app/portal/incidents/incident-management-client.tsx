@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import type { Account } from "@/lib/auth/types";
 import { getIncident, getIncidents } from "@/lib/portal/client";
 import type { IncidentDetail, IncidentItem, PagedIncidents } from "@/lib/portal/types";
@@ -281,7 +282,7 @@ function IncidentRow({ item, selected, onSelect }: { item: IncidentItem; selecte
     <div className={styles.triggerCell}><b>{displayLabel(item.type)}</b><span>{item.description ?? "No description supplied"}</span><small>{item.latitude !== null && item.longitude !== null ? `${item.latitude.toFixed(4)}, ${item.longitude.toFixed(4)}` : "POSITION UNAVAILABLE"}</small></div>
     <div className={styles.timeCell}><strong>{formatDate(item.createdAt)}</strong><span>{relativeAge(item.createdAt)}</span></div>
     <div className={styles.statusCell}><StatusBadge value={item.status} /><small>{item.resolvedAt ? `CLOSED ${formatDate(item.resolvedAt, false)}` : item.acknowledgedAt ? `ACK ${formatDate(item.acknowledgedAt, false)}` : "UNACKNOWLEDGED"}</small></div>
-    <div className={styles.rowAction}><button type="button" onClick={event => { event.stopPropagation(); onSelect(); }}>{selected ? "VIEWING" : "VIEW DETAILS"}</button></div>
+    <div className={styles.rowAction}><Link href={`/portal/incidents/${item.id}`} onClick={event => event.stopPropagation()}>VIEW DETAILS</Link></div>
   </article>;
 }
 
