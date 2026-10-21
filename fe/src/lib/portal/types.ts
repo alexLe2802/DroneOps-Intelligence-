@@ -112,6 +112,19 @@ export type IncidentItem = {
   resolvedAt: string | null;
 };
 
+export type IncidentDetail = IncidentItem & {
+  evidence: unknown;
+  acknowledgedBy: string | null;
+  acknowledgedByName: string | null;
+  resolvedBy: string | null;
+  resolvedByName: string | null;
+  resolutionNotes: string | null;
+  sourceTimestamp: string | null;
+  receivedAt: string | null;
+  appliedRule: string | null;
+  threshold: number | null;
+};
+
 export type PagedIncidents = {
   items: IncidentItem[];
   totalCount: number;

@@ -37,3 +37,31 @@ test("live monitoring clients use scoped mission, telemetry and incident endpoin
 test("live stream URL is same-origin and encodes the mission identifier", () => {
   assert.equal(client.liveMissionStreamUrl("mission/id"), "/api/live/stream?missionId=mission%2Fid");
 });
+
+test("incident registry and detail clients preserve the backend filter contract", async () => {
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async url => {
+    calls.push(url);
+    if (url.includes("/incidents/")) return Response.json({ id: "incident-id", title: "Link loss", status: "Open" });
+    return Response.json({ items: [], totalCount: 0, pageNumber: 2, pageSize: 6, totalPages: 0 });
+  });
+  try {
+    await client.getIncidents({
+      pageNumber: 2,
+      pageSize: 6,
+      search: "link loss",
+      type: "CommunicationLoss",
+      severity: "Critical",
+      status: "Open",
+      fromDate: "2026-10-01T00:00:00.000Z",
+      toDate: "2026-10-21T23:59:59.999Z",
+    });
+    assert.equal((await client.getIncident("incident-id")).id, "incident-id");
+    assert.deepEqual(calls, [
+      "/api/incidents?pageNumber=2&pageSize=6&search=link+loss&type=CommunicationLoss&severity=Critical&status=Open&fromDate=2026-10-01T00%3A00%3A00.000Z&toDate=2026-10-21T23%3A59%3A59.999Z",
+      "/api/incidents/incident-id",
+    ]);
+  } finally {
+    mock.mock.restore();
+  }
+});
