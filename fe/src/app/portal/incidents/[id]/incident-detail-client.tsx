@@ -10,6 +10,13 @@ import styles from "./incident-detail.module.css";
 
 type EvidenceRecord = Record<string, unknown>;
 
+const NOTE_LIMIT = 500;
+const NOTE_TEMPLATES = [
+  "MAVLink connection restored and telemetry confirmed stable.",
+  "Return-to-home procedure activated and aircraft recovery monitored.",
+  "Manual override established by the assigned operator.",
+] as const;
+
 const keyOf = (value: string | null | undefined) => (value ?? "unknown").replace(/\s+/g, "").toLowerCase();
 const labelOf = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ");
 
@@ -75,6 +82,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
   const [error, setError] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
+  const [resolutionDraft, setResolutionDraft] = useState("");
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
@@ -87,7 +95,10 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
       setLoading(true);
       setError("");
       void getIncident(id).then(result => {
-        if (active) setIncident(result);
+        if (active) {
+          setIncident(result);
+          setResolutionDraft(result.resolutionNotes ?? "");
+        }
       }).catch(reason => {
         if (!active) return;
         setIncident(null);
@@ -117,28 +128,41 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
   const sourceId = textOf(evidence, "sourceId");
   const sourceTimestamp = incident.sourceTimestamp ?? textOf(evidence, "sourceTimestamp");
   const receivedAt = incident.receivedAt ?? textOf(evidence, "receivedAt");
-  const actionLabel = status === "open" ? "ACKNOWLEDGE INCIDENT" : "RESOLVE & CLOSE INCIDENT";
+  const handlingState = status === "open" ? "Awaiting operator or manager acknowledgement" : status === "acknowledged" ? "Acknowledged and under operational review" : "Resolution recorded; incident history is read-only";
+  const canDraftResolution = account.role === "operation_manager" && status !== "resolved";
+  const trimmedDraft = resolutionDraft.trim();
+
+  function applyNoteTemplate(template: string) {
+    if (!canDraftResolution) return;
+    setResolutionDraft(current => {
+      const lines = current.split(/\r?\n/);
+      const templateApplied = lines.some(line => line.trim() === template);
+      if (templateApplied) return lines.filter(line => line.trim() !== template).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+      const normalized = current.trim();
+      const next = normalized ? `${normalized}\n${template}` : template;
+      return next.slice(0, NOTE_LIMIT);
+    });
+  }
 
   return <div className={styles.detailPage}>
-    <div className={styles.breadcrumb}><Link className={styles.backButton} href="/portal/incidents" aria-label="Back to incident list"><span aria-hidden="true">&larr;</span> BACK TO INCIDENT LIST</Link><span>/</span><b>{incident.id.toUpperCase()}</b></div>
-
     <section className={`${styles.alertBand} ${styles[`alert${severity}`] ?? ""}`}>
-      <div className={styles.alertIdentity}><i /><div><span>{incident.severity.toUpperCase()} ALERT</span><b>{labelOf(incident.type).toUpperCase()}</b></div></div>
-      <div className={styles.alertState}><span>STATE</span><b>{incident.status.toUpperCase()}</b></div>
-      <p>{incident.description ?? "No incident description was supplied."}</p>
+      <div className={styles.alertIdentity}><i /><strong>{incident.severity.toUpperCase()} ALERT <em>{"//"}</em></strong></div>
+      <div className={styles.alertState}><span>STATE:</span><b>{incident.status.toUpperCase()}</b></div>
+      <p>{handlingState}</p>
       <div className={styles.elapsed}><span>ELAPSED</span><b>{elapsedSince(incident.createdAt, clock)}</b></div>
+      <div className={styles.severityTier}>{incident.severity.toUpperCase()} TIER</div>
     </section>
 
     <header className={styles.titleBlock}>
       <div>
-        <span>INCIDENT / {incident.id.slice(0, 8).toUpperCase()}</span>
+        <div className={styles.breadcrumb}><Link className={styles.backButton} href="/portal/incidents" aria-label="Back to incident list"><span aria-hidden="true">&larr;</span> INCIDENTS</Link><span>/</span><b>{incident.id.toUpperCase()}</b></div>
         <h1>{incident.title}</h1>
-        <p>Immutable telemetry evidence and operational handling record.</p>
+        <p>{incident.description ?? "Immutable telemetry evidence and operational handling record."}</p>
       </div>
       <div className={styles.identityChips}>
-        <span>MISSION <b>{incident.missionName || incident.missionId}</b></span>
-        <span>AIRFRAME <b>{incident.uavCode ?? "UNASSIGNED"}</b></span>
-        <span>TYPE <b>{labelOf(incident.type)}</b></span>
+        <span><i aria-hidden="true">MS</i>MISSION <b>{incident.missionName || incident.missionId}</b></span>
+        <span><i aria-hidden="true">UA</i>AIRFRAME <b>{incident.uavCode ?? "UNASSIGNED"}</b></span>
+        <span><i aria-hidden="true">EV</i>TYPE <b>{labelOf(incident.type)}</b></span>
         <button type="button" onClick={() => setRefreshToken(value => value + 1)}>REFRESH RECORD</button>
       </div>
     </header>
@@ -146,7 +170,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
     <div className={styles.investigationGrid}>
       <section className={styles.telemetryPanel}>
         <PanelHeader label="TELEMETRY FREEZE-FRAME" value="TRIGGER SNAPSHOT" />
-        <div className={styles.triggerTime}><span>EXACT TRIGGER TIMESTAMP</span><b>{formatDate(sourceTimestamp ?? incident.createdAt)}</b></div>
+        <div className={styles.triggerTime}><span>EXACT TRIGGER TIMESTAMP <small>FR-16.1</small></span><b>{formatDate(sourceTimestamp ?? incident.createdAt)}</b></div>
         <div className={styles.metricGrid}>
           <MetricCard label="ALTITUDE" value={metric(altitude, " m AGL")} tone="cyan" />
           <MetricCard label="GROUND SPEED" value={metric(speed, " m/s")} tone="green" />
@@ -166,6 +190,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
       <section className={styles.spatialPanel}>
         <PanelHeader label="SPATIAL INCIDENT CONTEXT" value={latitude !== null && longitude !== null ? "GPS FIX AVAILABLE" : "NO GPS FIX"} />
         <IncidentMap latitude={latitude} longitude={longitude} uavCode={incident.uavCode} />
+        <div className={styles.mapLegend}><span><i />LAST KNOWN FIX</span><span>WGS84 / INCIDENT SNAPSHOT</span></div>
         <div className={styles.spatialFacts}>
           <div><span>LATITUDE</span><b>{latitude?.toFixed(6) ?? "Unavailable"}</b></div>
           <div><span>LONGITUDE</span><b>{longitude?.toFixed(6) ?? "Unavailable"}</b></div>
@@ -183,17 +208,28 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
           <TimelineItem time={incident.acknowledgedAt} label="ACK" title={incident.acknowledgedAt ? `Acknowledged by ${incident.acknowledgedByName ?? "authorized operator"}` : "Awaiting acknowledgement"} text={incident.acknowledgedAt ? "The incident was accepted for operational handling." : "No acknowledgement has been recorded."} done={Boolean(incident.acknowledgedAt)} />
           <TimelineItem time={incident.resolvedAt} label="RESOLUTION" title={incident.resolvedAt ? `Resolved by ${incident.resolvedByName ?? "authorized operator"}` : "Resolution pending"} text={incident.resolutionNotes ?? "No resolution notes have been recorded."} done={Boolean(incident.resolvedAt)} />
         </div>
-        <div className={styles.notesPanel}><span>OPERATIONAL NOTES / RESOLUTION REASON</span><div>{incident.resolutionNotes ?? "No operational resolution notes are available."}</div></div>
+        <div className={styles.notesPanel}>
+          <label htmlFor="incident-resolution-notes">OPERATIONAL NOTES / RESOLUTION REASON {canDraftResolution && <b>*</b>}</label>
+          <textarea id="incident-resolution-notes" value={resolutionDraft} maxLength={NOTE_LIMIT} readOnly={!canDraftResolution} aria-describedby="incident-resolution-guidance incident-resolution-count" placeholder={canDraftResolution ? "Enter the operational mitigation and resolution reason..." : "No operational resolution notes are available."} onChange={event => setResolutionDraft(event.target.value)} />
+          <div className={styles.noteMeta}><small id="incident-resolution-guidance">{canDraftResolution && !trimmedDraft ? "A resolution reason will be required before this incident can be closed." : canDraftResolution ? "Draft stored on this page only until the resolution API is available." : "This incident record is read-only for your current access state."}</small><b id="incident-resolution-count">{resolutionDraft.length}/{NOTE_LIMIT}</b></div>
+          <div className={styles.noteTemplates} aria-label="Resolution note templates">
+            <span>PRE-FILL NOTE TEMPLATES</span>
+            <div>{NOTE_TEMPLATES.map((template, index) => {
+              const applied = resolutionDraft.split(/\r?\n/).some(line => line.trim() === template);
+              return <button key={template} type="button" className={applied ? styles.noteTemplateActive : ""} aria-pressed={applied} disabled={!canDraftResolution} onClick={() => applyNoteTemplate(template)}>{index === 0 ? "MAVLINK RESTORED" : index === 1 ? "RTH ACTIVATED" : "MANUAL OVERRIDE"}</button>;
+            })}</div>
+          </div>
+        </div>
         {account.role === "operation_manager" && status !== "resolved" ? <div className={styles.actionUnavailable}>
-          <button type="button" disabled>{actionLabel}</button>
+          <div><button type="button" disabled>ACKNOWLEDGE INCIDENT</button><button type="button" className={styles.primaryAction} disabled>RESOLVE &amp; CLOSE INCIDENT</button></div>
           <p>Backend acknowledge/resolve endpoints are not available yet. This page will not report a false mutation success.</p>
         </div> : <div className={styles.readOnlyNotice}>{status === "resolved" ? "INCIDENT CLOSED / HISTORY IS READ-ONLY" : "PILOT ACCESS / DECISION CONTROLS ARE MANAGER-ONLY"}</div>}
       </aside>
     </div>
 
     <section className={styles.recordFooter}>
-      <RecordCard label="MISSION RECORD" value={incident.missionName || incident.missionId} detail={`Mission ID: ${incident.missionId}`} />
-      <RecordCard label="AIRFRAME RECORD" value={incident.uavCode ?? "Unassigned UAV"} detail={incident.uavName ?? "Airframe name unavailable"} />
+      <RecordCard label="DUTY AUTHORITY" value={account.displayName} detail={account.role === "operation_manager" ? "Operations Manager / Incident Authority" : "UAV Operator / Read-only Access"} />
+      <RecordCard label="MISSION & AIRFRAME" value={incident.missionName || incident.missionId} detail={`${incident.uavCode ?? "Unassigned UAV"} / ${incident.uavName ?? "Airframe unavailable"}`} />
       <RecordCard label="AUDIT INTEGRITY" value="READ-ONLY INCIDENT LEDGER" detail={`Record created ${formatDate(incident.createdAt)}`} />
     </section>
   </div>;
