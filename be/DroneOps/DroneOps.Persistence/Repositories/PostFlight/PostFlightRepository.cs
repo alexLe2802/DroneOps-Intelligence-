@@ -103,8 +103,34 @@ public class PostFlightRepository : IPostFlightRepository
     {
         return await _context.TelemetryRecords
             .AsNoTracking()
-            .Where(t => t.MissionId == missionId)
-            .OrderBy(t => t.RecordedAt)
+            .Where(t => t.MissionId == missionId && t.IsValid)
+            .OrderBy(t => t.SourceTimestamp)
+            .ThenBy(t => t.ReceivedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Tìm mission đang bay có gói mới nhất disarmed và đã từng có gói armed trước đó.
+    /// Điều kiện cạnh true -> false giúp tránh kết thúc nhầm khi drone chưa cất cánh.
+    /// </summary>
+    public async Task<List<Guid>> GetAutomaticCompletionCandidatesAsync(CancellationToken cancellationToken = default)
+    {
+        // Approved vẫn được xét vì một số phiên bản Flow 3 chưa kịp đổi trạng thái sang Active;
+        // cạnh armed -> disarmed bên dưới vẫn chứng minh mission đã thực sự cất/hạ cánh.
+        var activeStatuses = new[] { "Approved", "In Progress", "InProgress", "Active", "Flying", "Executing" };
+
+        return await _context.Missions
+            .AsNoTracking()
+            .Where(m => activeStatuses.Contains(m.Status))
+            .Where(m => _context.TelemetryRecords.Any(t =>
+                t.MissionId == m.Id && t.IsValid && t.Armed == true))
+            .Where(m => _context.TelemetryRecords
+                .Where(t => t.MissionId == m.Id && t.IsValid)
+                .OrderByDescending(t => t.SourceTimestamp)
+                .ThenByDescending(t => t.ReceivedAt)
+                .Select(t => t.Armed)
+                .FirstOrDefault() == false)
+            .Select(m => m.Id)
             .ToListAsync(cancellationToken);
     }
 
