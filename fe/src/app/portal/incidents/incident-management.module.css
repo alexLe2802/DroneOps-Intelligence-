@@ -686,7 +686,8 @@
   color: #82dcff;
 }
 
-.rowAction button {
+.rowAction button,
+.rowAction a {
   width: 100%;
   min-height: 34px;
   display: inline-flex;
@@ -701,7 +702,8 @@
   cursor: pointer;
 }
 
-.selected .rowAction button {
+.selected .rowAction button,
+.selected .rowAction a {
   border-color: #3f9abb;
   background: #153b4c;
   color: #86ddfb;
