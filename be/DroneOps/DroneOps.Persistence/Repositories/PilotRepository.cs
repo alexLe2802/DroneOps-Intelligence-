@@ -14,6 +14,37 @@ public sealed class PilotRepository
         : base(dbContext)
     {
     }
+    public async Task<Pilot?> GetByUserIdWithRoleAsync(
+    Guid userId,
+    CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .AsNoTracking()
+            .Include(x => x.User)
+                .ThenInclude(x => x.Role)
+            .FirstOrDefaultAsync(
+                x => x.UserId == userId,
+                cancellationToken);
+    }
+
+    public async Task<List<LicenseImage>> GetLegacyPilotLicenseImagesAsync(
+        string email,
+        string pilotLicenseNo,
+        CancellationToken cancellationToken = default)
+    {
+        string normalizedEmail =
+            email.Trim().ToLower();
+
+        return await DbContext
+            .Set<LicenseImage>()
+            .AsNoTracking()
+            .Where(x =>
+                x.PilotRegistration != null &&
+                x.PilotRegistration.Status == "Approved" &&
+                x.PilotRegistration.Email.ToLower() == normalizedEmail &&
+                x.PilotRegistration.PilotLicenseNo == pilotLicenseNo)
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<Pilot?> GetByUserIdAsync(
          Guid userId,

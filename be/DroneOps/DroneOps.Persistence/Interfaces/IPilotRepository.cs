@@ -6,6 +6,15 @@ namespace DroneOps.Persistence.Interfaces;
 public interface IPilotRepository
     : IGenericRepository<Pilot>
 {
+    Task<Pilot?> GetByUserIdWithRoleAsync(
+    Guid userId,
+    CancellationToken cancellationToken = default);
+
+    Task<List<LicenseImage>> GetLegacyPilotLicenseImagesAsync(
+        string email,
+        string pilotLicenseNo,
+        CancellationToken cancellationToken = default);
+
     Task<Pilot?> GetByUserIdAsync(
         Guid userId,
         CancellationToken cancellationToken = default);

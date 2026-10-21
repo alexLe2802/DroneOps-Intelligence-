@@ -55,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<IMissionSuggestionRepository, MissionSuggestionRepository>();
         services.AddScoped<IPostFlightRepository, PostFlightRepository>();
 
+
         return services;
     }
 }
