@@ -6,9 +6,7 @@ using DroneOps.Application.DTOs.Response.Users;
 using DroneOps.Application.Interfaces.Auth;
 using DroneOps.Application.Interfaces.Users;
 using DroneOps.Domain.Entities;
-using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using BC = BCrypt.Net.BCrypt;
 
@@ -28,20 +26,17 @@ public sealed class UserService : IUserService
 
     private readonly IUserRepository _userRepository;
     private readonly IPilotRepository _pilotRepository;
-    private readonly AppDbContext _context;
     private readonly IEmailService _emailService;
     private readonly IMemoryCache _cache;
 
     public UserService(
         IUserRepository userRepository,
         IPilotRepository pilotRepository,
-        AppDbContext context,
         IEmailService emailService,
         IMemoryCache cache)
     {
         _userRepository = userRepository;
         _pilotRepository = pilotRepository;
-        _context = context;
         _emailService = emailService;
         _cache = cache;
     }
@@ -88,8 +83,8 @@ public sealed class UserService : IUserService
 
         user.FullName = fullName;
 
-        await _pilotRepository.SaveChangesAsync(
-      cancellationToken);
+        await _userRepository.SaveChangesAsync(
+            cancellationToken);
 
         User? updatedUser =
             await _userRepository.GetByIdWithRoleAsync(
@@ -701,7 +696,7 @@ public sealed class UserService : IUserService
             throw new Exception("Invalid new email address format.");
         }
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
         {
             throw new Exception("User not found.");
@@ -712,9 +707,9 @@ public sealed class UserService : IUserService
             throw new Exception("Current password is incorrect.");
         }
 
-        var emailExists = await _context.Users
-            .AsNoTracking()
-            .AnyAsync(u => u.Email.ToLower() == cleanNewEmail, cancellationToken);
+        var emailExists = await _userRepository.EmailExistsAsync(
+            cleanNewEmail,
+            cancellationToken: cancellationToken);
 
         if (emailExists)
         {
@@ -790,17 +785,17 @@ public sealed class UserService : IUserService
             throw new Exception($"Invalid verification code. You have {5 - pending.FailedAttempts} attempt(s) remaining.");
         }
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
         {
             throw new Exception("User not found.");
         }
 
-        if (await _context.Users.AnyAsync(u => u.Id != userId && u.Email.ToLower() == pending.NewEmail, cancellationToken))
+        if (await _userRepository.EmailExistsAsync(pending.NewEmail, userId, cancellationToken))
             throw new Exception("This email address is already registered by another account.");
         user.Email = pending.NewEmail;
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        _userRepository.Update(user);
+        await _userRepository.SaveChangesAsync(cancellationToken);
 
         _cache.Remove(cacheKey);
         return true;
@@ -822,7 +817,7 @@ public sealed class UserService : IUserService
             throw new Exception("Password confirmation does not match the new password.");
         }
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
         {
             throw new Exception("User not found.");
@@ -834,8 +829,8 @@ public sealed class UserService : IUserService
         }
 
         user.PasswordHash = BC.HashPassword(request.NewPassword);
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        _userRepository.Update(user);
+        await _userRepository.SaveChangesAsync(cancellationToken);
 
         return true;
     }
