@@ -8,7 +8,7 @@ namespace DroneOps.API.Controllers.PostFlight;
 
 [ApiController]
 [Route("api/flight-history")]
-[Authorize]
+[Authorize(Roles = "Pilot,uav_operator,operation_manager,operations_manager")]
 public class PostFlightController : ControllerBase
 {
     private readonly IPostFlightService _service;
@@ -26,16 +26,13 @@ public class PostFlightController : ControllerBase
     {
         try
         {
-            var isPilotOnly = User.IsInRole("uav_operator") && !User.IsInRole("operation_manager");
-            Guid? pilotUserId = isPilotOnly && TryGetUserId(out var userId) ? userId : null;
+            var isManager = IsManager();
+            Guid? pilotUserId = isManager ? null : GetRequiredUserId();
 
             var result = await _service.GetFlightHistoryAsync(request, pilotUserId, cancellationToken);
             return Ok(result);
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        catch (Exception ex) { return ToErrorResult(ex); }
     }
 
     /// <summary>
@@ -46,7 +43,9 @@ public class PostFlightController : ControllerBase
     {
         try
         {
-            var result = await _service.FinalizeAndGenerateReportAsync(missionId, request, cancellationToken);
+            var currentUserId = TryGetUserId(out var userId) ? userId : (Guid?)null;
+            var result = await _service.FinalizeAndGenerateReportAsync(
+                missionId, request, currentUserId, IsManager(), cancellationToken);
             return Ok(new
             {
                 Success = true,
@@ -54,10 +53,7 @@ public class PostFlightController : ControllerBase
                 Data = result
             });
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        catch (Exception ex) { return ToErrorResult(ex); }
     }
 
     /// <summary>
@@ -68,13 +64,12 @@ public class PostFlightController : ControllerBase
     {
         try
         {
-            var result = await _service.GetReportByMissionIdAsync(missionId, cancellationToken);
+            var currentUserId = TryGetUserId(out var userId) ? userId : (Guid?)null;
+            var result = await _service.GetReportByMissionIdAsync(
+                missionId, currentUserId, IsManager(), cancellationToken);
             return Ok(result);
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        catch (Exception ex) { return ToErrorResult(ex); }
     }
 
     /// <summary>
@@ -85,13 +80,12 @@ public class PostFlightController : ControllerBase
     {
         try
         {
-            var result = await _service.GetTelemetryPlaybackAsync(missionId, cancellationToken);
+            var currentUserId = TryGetUserId(out var userId) ? userId : (Guid?)null;
+            var result = await _service.GetTelemetryPlaybackAsync(
+                missionId, currentUserId, IsManager(), cancellationToken);
             return Ok(result);
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        catch (Exception ex) { return ToErrorResult(ex); }
     }
 
     /// <summary>
@@ -102,13 +96,12 @@ public class PostFlightController : ControllerBase
     {
         try
         {
-            var result = await _service.GetIncidentsAsync(missionId, cancellationToken);
+            var currentUserId = TryGetUserId(out var userId) ? userId : (Guid?)null;
+            var result = await _service.GetIncidentsAsync(
+                missionId, currentUserId, IsManager(), cancellationToken);
             return Ok(result);
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        catch (Exception ex) { return ToErrorResult(ex); }
     }
 
     /// <summary>
@@ -119,16 +112,13 @@ public class PostFlightController : ControllerBase
     {
         try
         {
-            var isPilotOnly = User.IsInRole("uav_operator") && !User.IsInRole("operation_manager");
-            Guid? pilotUserId = isPilotOnly && TryGetUserId(out var userId) ? userId : null;
+            var isManager = IsManager();
+            Guid? pilotUserId = isManager ? null : GetRequiredUserId();
 
             var result = await _service.GetOperationalAnalyticsAsync(pilotUserId, cancellationToken);
             return Ok(result);
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Message = ex.Message });
-        }
+        catch (Exception ex) { return ToErrorResult(ex); }
     }
 
     private bool TryGetUserId(out Guid userId)
@@ -137,4 +127,26 @@ public class PostFlightController : ControllerBase
         var value = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
         return Guid.TryParse(value, out userId);
     }
+
+    private bool IsManager() =>
+        User.IsInRole("operation_manager") || User.IsInRole("operations_manager");
+
+    private Guid GetRequiredUserId()
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            throw new UnauthorizedAccessException("The authenticated user identifier is missing or invalid.");
+        }
+        return userId;
+    }
+
+    // Chuyển exception nghiệp vụ thành HTTP status rõ nghĩa để client xử lý đúng.
+    private IActionResult ToErrorResult(Exception exception) => exception switch
+    {
+        KeyNotFoundException => NotFound(new { Message = exception.Message }),
+        UnauthorizedAccessException => StatusCode(StatusCodes.Status403Forbidden, new { Message = exception.Message }),
+        InvalidOperationException => Conflict(new { Message = exception.Message }),
+        ArgumentException => BadRequest(new { Message = exception.Message }),
+        _ => StatusCode(StatusCodes.Status500InternalServerError, new { Message = "Post-flight processing failed." })
+    };
 }

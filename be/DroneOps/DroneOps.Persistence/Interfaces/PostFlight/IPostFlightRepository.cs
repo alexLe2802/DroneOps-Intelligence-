@@ -20,6 +20,8 @@ public interface IPostFlightRepository
 
     Task<List<TelemetryRecord>> GetTelemetryByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);
 
+    Task<List<Guid>> GetAutomaticCompletionCandidatesAsync(CancellationToken cancellationToken = default);
+
     Task<List<Incident>> GetIncidentsByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);
 
     Task<PostFlightReport?> GetReportByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);

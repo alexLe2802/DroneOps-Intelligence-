@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager" and not "--migrate-telemetry" and not "--check-telemetry-schema").ToArray();
+var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager" and not "--migrate-telemetry" and not "--check-telemetry-schema" and not "--migrate-postflight" and not "--check-postflight-schema").ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
@@ -33,6 +33,15 @@ if (args.Contains("--migrate-telemetry") || args.Contains("--check-telemetry-sch
     if (args.Contains("--migrate-telemetry")) await TelemetrySchema.MigrateAsync(source);
     else await TelemetrySchema.CheckAsync(source);
     Console.WriteLine("Telemetry schema verified.");
+    return;
+}
+
+if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-schema"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    if (args.Contains("--migrate-postflight")) await PostFlightSchema.MigrateAsync(source);
+    else await PostFlightSchema.CheckAsync(source);
+    Console.WriteLine("Post-flight schema verified.");
     return;
 }
 
@@ -87,6 +96,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
 builder.Services.AddHostedService<CommunicationLossMonitor>();
+builder.Services.AddHostedService<PostFlightCompletionMonitor>();
 
 // 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
 // Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container

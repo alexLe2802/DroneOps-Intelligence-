@@ -37,6 +37,8 @@ public static class DependencyInjection
     {
         services.Configure<TelemetryMonitoringOptions>(
             configuration.GetSection(TelemetryMonitoringOptions.SectionName));
+        services.Configure<PostFlightOptions>(
+            configuration.GetSection(PostFlightOptions.SectionName));
         services.AddMemoryCache();
 
         services.AddFluentValidationAutoValidation();

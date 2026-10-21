@@ -38,5 +38,11 @@ public class AppDbContext : DbContext
 
         // Ánh xạ chuẩn vào bảng Waypoint (dạng số ít) trong PostgreSQL
         modelBuilder.Entity<Waypoint>().ToTable("Waypoint");
+
+        // Mỗi mission chỉ có đúng một báo cáo sau bay; đây là lớp bảo vệ cuối cùng
+        // khi nhiều request finalize đến đồng thời.
+        modelBuilder.Entity<PostFlightReport>()
+            .HasIndex(x => x.MissionId)
+            .IsUnique();
     }
 }
