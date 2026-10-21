@@ -1,5 +1,5 @@
 import { api, ApiError } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, LiveMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "latestVersion" | "detailAvailable">;
 
@@ -73,6 +73,39 @@ export function getLatestMissionTelemetry(id: string): Promise<MissionTelemetry>
 export function getMissionIncidents(missionId: string, pageSize = 8): Promise<PagedIncidents> {
   const params = new URLSearchParams({ missionId, pageNumber: "1", pageSize: String(pageSize) });
   return api<PagedIncidents>(`/incidents?${params}`);
+}
+
+export type IncidentFilters = {
+  pageNumber?: number;
+  pageSize?: number;
+  search?: string;
+  missionId?: string;
+  uavId?: string;
+  type?: string;
+  severity?: string;
+  status?: string;
+  fromDate?: string;
+  toDate?: string;
+};
+
+export function getIncidents(filters: IncidentFilters = {}): Promise<PagedIncidents> {
+  const params = new URLSearchParams({
+    pageNumber: String(filters.pageNumber ?? 1),
+    pageSize: String(filters.pageSize ?? 10),
+  });
+  if (filters.search?.trim()) params.set("search", filters.search.trim());
+  if (filters.missionId) params.set("missionId", filters.missionId);
+  if (filters.uavId) params.set("uavId", filters.uavId);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.severity) params.set("severity", filters.severity);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.fromDate) params.set("fromDate", filters.fromDate);
+  if (filters.toDate) params.set("toDate", filters.toDate);
+  return api<PagedIncidents>(`/incidents?${params}`);
+}
+
+export function getIncident(id: string): Promise<IncidentDetail> {
+  return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
 }
 
 export function liveMissionStreamUrl(missionId: string): string {
