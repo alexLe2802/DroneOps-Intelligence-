@@ -906,3 +906,5 @@
     margin: 4px 0 0;
   }
 }
+
+.airspaceLegend{position:absolute;bottom:20px;left:16px;z-index:450;display:flex;flex-wrap:wrap;gap:10px 16px;max-width:calc(100% - 90px);padding:10px 14px;border:1px solid #3c566d;border-radius:5px;background:rgba(13,23,34,.93);color:#d0dce9;pointer-events:none;font:11px Consolas,monospace}.airspaceLegend>span{display:flex;align-items:center;gap:7px}.airspaceLegend i{display:inline-block;width:11px;height:11px;border-radius:2px}.airspaceLegend small{flex-basis:100%;color:#e0c791;line-height:1.5}
