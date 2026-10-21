@@ -64,6 +64,14 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   }, [items, query]);
 
   const selected = filtered.find(item => item.missionId === selectedId) ?? filtered[0] ?? null;
+  const groupedWarnings = Array.from((selected?.validation?.warnings ?? []).reduce((groups, warning) => {
+    const match = /^WP(\d+):\s*(.*)$/.exec(warning);
+    const message = match ? match[2] : warning;
+    const points = groups.get(message) ?? [];
+    if (match) points.push(match[1]);
+    groups.set(message, points);
+    return groups;
+  }, new Map<string, string[]>()));
   const missingReview = !selected?.updateRequestId;
   const missingPlans = !selected?.currentPlan || !selected?.proposedPlan;
   const validationPassed = selected?.validation?.isValid === true && !selected.validation.stale && !selected.validation.incomplete;
@@ -166,11 +174,11 @@ export default function MissionApprovalsClient({ account }: { account: Account }
         <aside className="approval-decision-column">
           <section className="approval-summary-panel">
             <header><div><span className="approval-panel-code">VS</span><h2>Validation Summary</h2></div><b>BACKEND</b></header>
-            <dl><div><dt>PLAN STATUS</dt><dd>{selected.status}</dd></div><div><dt>VALIDATION</dt><dd>{selected.validationStatus || "Unavailable"}</dd></div><div><dt>FLIGHT WINDOW</dt><dd>{formatDate(selected.startTime)}<small>to {formatDate(selected.endTime)}</small></dd></div><div><dt>WAYPOINTS</dt><dd>{selected.waypointCount}</dd></div></dl>
+            <dl><div><dt>PLAN STATUS</dt><dd>{selected.status}</dd></div><div><dt>VALIDATION</dt><dd className={validationPassed ? "validation-passed" : "validation-attention"}>{selected.validationStatus || "Unavailable"}</dd></div><div><dt>FLIGHT WINDOW</dt><dd>{formatDate(selected.startTime)}<small>to {formatDate(selected.endTime)}</small></dd></div><div><dt>WAYPOINTS</dt><dd>{selected.waypointCount}</dd></div></dl>
             <button type="button" className="module-secondary" disabled={busy || !selected.updateRequestId || !selected.currentPlan || !selected.proposedPlan} onClick={() => void revalidate()}>{busy ? "CHECKING..." : "REVALIDATE CURRENT CONDITIONS"}</button>
             {selected.validation?.checkedAt && <p>Checked {formatDate(selected.validation.checkedAt)}</p>}
-            {selected.validation?.issues?.map((issue, index) => <p role="alert" key={`issue-${index}`}>{issue}</p>)}
-            {selected.validation?.warnings?.map((warning, index) => <p role="status" key={`warning-${index}`}>{warning}</p>)}
+            {!!selected.validation?.issues?.length && <div className="approval-findings blocking"><h3>Blocking findings · {selected.validation.issues.length}</h3><ul>{selected.validation.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul><p>Resolve these findings and revalidate before approving.</p></div>}
+            {groupedWarnings.length > 0 && <details className="approval-findings advisory"><summary>Advisory warnings · {groupedWarnings.length} groups <small>Does not block approval</small></summary><ul>{groupedWarnings.map(([message, points]) => <li key={message}>{message}{points.length > 0 && <small>Applies to {points.length} waypoint{points.length === 1 ? "" : "s"} · {points.map(point => `WP${point}`).join(", ")}</small>}</li>)}</ul></details>}
             {selected.validation?.weather && <p>Forecast: {selected.validation.weather.provider}; wind {selected.validation.weather.maxWindMetersPerSecond ?? "unavailable"} m/s; gust {selected.validation.weather.maxGustMetersPerSecond ?? "unavailable"} m/s; rain {selected.validation.weather.maxRainMillimetersPerHour ?? "unavailable"} mm/h. Weather is advisory.</p>}
             <article><span>MISSION BRIEF</span><p>{selected.description || "No mission description was submitted."}</p></article>
           </section>
