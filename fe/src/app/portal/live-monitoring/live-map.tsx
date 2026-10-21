@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import type { MissionTelemetry, MissionWaypoint } from "@/lib/portal/types";
+import { getGeofences } from "@/lib/portal/client";
+import { describeGeofence } from "@/lib/maps/geofences";
 import styles from "./live-monitoring.module.css";
 
 const hasPosition = (value: { latitude: number | null; longitude: number | null } | null): value is { latitude: number; longitude: number } =>
@@ -22,6 +24,7 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
   const waypointLayersRef = useRef<Leaflet.CircleMarker[]>([]);
   const centeredViewRef = useRef("");
   const [ready, setReady] = useState(false);
+  const [airspaceState, setAirspaceState] = useState<"loading" | "loaded" | "empty" | "error">("loading");
   const [mapError, setMapError] = useState("");
 
   useEffect(() => {
@@ -66,6 +69,37 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
       mapRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    let cancelled = false;
+    let layer: Leaflet.LayerGroup | undefined;
+    void Promise.all([import("leaflet"), getGeofences()]).then(([{ default: L }, zones]) => {
+      if (cancelled || mapRef.current !== map) return;
+      const pane = map.getPane("airspace") ?? map.createPane("airspace");
+      pane.style.zIndex = "350";
+      layer = L.layerGroup().addTo(map);
+      let drawn = 0;
+      for (const zone of zones) {
+        const points = zone.coordinates;
+        if (points.length < 3 || points.some(point => !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) || Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180)) continue;
+        const info = describeGeofence(zone);
+        const popup = document.createElement("div");
+        const title = document.createElement("strong"); title.textContent = zone.name;
+        const detail = document.createElement("p"); detail.textContent = `${info.label} · ${info.limitLabel}`;
+        popup.append(title, detail);
+        L.polygon(points.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple), {
+          pane: "airspace", color: info.color, fillColor: info.color,
+          weight: 1.2, fillOpacity: info.category === "prohibited" ? .34 : .25,
+          fillRule: "evenodd", bubblingMouseEvents: false,
+        }).bindPopup(popup).addTo(layer);
+        drawn++;
+      }
+      setAirspaceState(drawn ? "loaded" : zones.length ? "error" : "empty");
+    }).catch(() => { if (!cancelled) setAirspaceState("error"); });
+    return () => { cancelled = true; layer?.remove(); };
+  }, [ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -131,7 +165,9 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const centerKey = `${missionId}:${recenterToken}`;
+    // A position snapshot can arrive before the route. Fit again once the
+    // selected mission's route arrives, without resetting manual zoom on packets.
+    const centerKey = `${missionId}:${recenterToken}:${waypoints.length ? "route" : "position"}`;
     if (centeredViewRef.current === centerKey) return;
     const points: Leaflet.LatLngTuple[] = waypoints
       .filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
@@ -151,6 +187,7 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
     <div ref={containerRef} className={styles.mapCanvas} />
     <div className={styles.mapTopLeft}>SECTOR GRID / LIVE POSITION</div>
     <div className={styles.mapTopRight}><i /> ROUTE LINK {telemetry?.connectivityStatus?.toUpperCase() || "OFFLINE"}</div>
+    <div className={styles.airspaceLegend} aria-label="Airspace restrictions"><span><i style={{ background: "#ff3344" }} /> Vùng cấm bay</span><span><i style={{ background: "#facc15" }} /> Vùng hạn chế bay</span>{airspaceState !== "loaded" && <small role="status">{airspaceState === "loading" ? "Loading airspace…" : airspaceState === "empty" ? "No restriction data available" : "Airspace could not be loaded. Reload the page to retry."}</small>}</div>
     {noSpatialData && <div className={styles.mapEmpty}><b>NO SPATIAL TELEMETRY</b><span>The mission has no route or current UAV position.</span></div>}
     {mapError && <div className={styles.mapError} role="alert">{mapError}</div>}
   </div>;
