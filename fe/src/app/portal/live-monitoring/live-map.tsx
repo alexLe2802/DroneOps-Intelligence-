@@ -33,6 +33,10 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
       const map = L.map(containerRef.current, {
         center: [10.7769, 106.7009],
         zoom: 12,
+        // Slow wheel/trackpad zoom and allow small, controlled zoom steps.
+        wheelPxPerZoomLevel: 240,
+        wheelDebounceTime: 80,
+        zoomSnap: 0.25,
         zoomControl: false,
         preferCanvas: false,
         zoomAnimation: false,

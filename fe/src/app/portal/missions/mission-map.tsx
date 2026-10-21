@@ -35,7 +35,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || !containerRef.current) return;
       // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
-      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
+      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, wheelPxPerZoomLevel: 240, wheelDebounceTime: 80, zoomSnap: 0.25, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
       mapRef.current = map;
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
