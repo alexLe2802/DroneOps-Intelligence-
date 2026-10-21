@@ -1,4 +1,4 @@
-﻿using DroneOps.Domain.Entities;
+using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +13,8 @@ public sealed class UavRepository
         : base(dbContext)
     {
     }
+
+    public Task<bool> HasHardwareIdentityAsync(Guid id,CancellationToken ct=default) => DbContext.DroneHardwareIdentities.AnyAsync(h=>h.UavId==id,ct);
 
     public async Task<bool> CodeExistsAsync(
         string code,

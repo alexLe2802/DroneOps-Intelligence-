@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager" and not "--migrate-mission-workflow").ToArray();
+var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager" and not "--migrate-mission-workflow" and not "--migrate-drone-connections").ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
@@ -25,6 +25,14 @@ if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(
         "Configure ConnectionStrings__DefaultConnection or development appsettings.Local.json.");
+}
+
+if (args.Contains("--migrate-drone-connections"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await DroneConnectionSchema.ApplyAsync(source);
+    Console.WriteLine("Drone connection schema verified.");
+    return;
 }
 
 if (args.Contains("--migrate-mission-workflow"))
@@ -127,6 +135,13 @@ builder.Services.AddAuthentication(options =>
     // Bắt sự kiện lỗi xác thực và in ra Console để dễ theo dõi
     options.Events = new JwtBearerEvents
     {
+        OnMessageReceived = context =>
+        {
+            // Gateway routes validate a separate scoped opaque token in the service.
+            // Do not attempt to parse it as a pilot JWT or log false JWT failures.
+            if (context.Request.Path.StartsWithSegments("/api/drone-gateway")) context.NoResult();
+            return Task.CompletedTask;
+        },
         OnAuthenticationFailed = context =>
         {
             Console.WriteLine($"\n>>> [JWT AUTHENTICATION ERROR]: {context.Exception.Message}\n");
@@ -136,11 +151,22 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddPolicy("gateway-pairing", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    options.AddPolicy("gateway-ingest", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        { PermitLimit = 240, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 
 #endregion
 
 var app = builder.Build();
 await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.
@@ -156,6 +182,7 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 

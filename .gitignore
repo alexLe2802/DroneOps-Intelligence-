@@ -121,3 +121,10 @@ next-env.d.ts
 *.dmp
 be/DroneOps/DroneOps.API/appsettings.json
 
+
+# Local drone gateway credentials and Python environments
+gateway/session.private.json
+gateway/session.private.tmp
+gateway/.venv/
+__pycache__/
+*.pyc
