@@ -10,6 +10,9 @@ public class MissionApproval
 
     public Guid MissionId { get; set; }
 
+    public Guid? UpdateRequestId { get; set; }
+    public Guid? ValidationRunId { get; set; }
+
     public Guid UserId { get; set; }
 
     public string Status { get; set; } = "Pending";

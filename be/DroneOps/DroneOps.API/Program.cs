@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager").ToArray();
+var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager" and not "--migrate-mission-workflow").ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
@@ -27,9 +27,19 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "Configure ConnectionStrings__DefaultConnection or development appsettings.Local.json.");
 }
 
+if (args.Contains("--migrate-mission-workflow"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await MissionWorkflowSchema.ApplyAsync(source);
+    Console.WriteLine("Mission workflow schema verified.");
+    return;
+}
+
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 //builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.Filters.Add<MissionValidationExceptionFilter>());
+builder.Services.Configure<DroneOps.Application.Services.Missions.MissionWeatherOptions>(builder.Configuration.GetSection("MissionWeather"));
+builder.Services.AddHostedService<MissionPreflightMonitor>();
 builder.Services.AddHttpClient<DroneOps.API.Storage.UserMediaStorage>();
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 106 * 1024 * 1024);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 106 * 1024 * 1024);
@@ -130,6 +140,7 @@ builder.Services.AddAuthorization();
 #endregion
 
 var app = builder.Build();
+await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.

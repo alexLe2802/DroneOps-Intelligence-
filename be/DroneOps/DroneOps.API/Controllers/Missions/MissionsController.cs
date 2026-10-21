@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using DroneOps.Application.Services.Missions;
 using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.DTOs.Response.Telemetry;
@@ -15,13 +16,17 @@ namespace DroneOps.API.Controllers;
 public sealed class MissionsController : ControllerBase
 {
     private readonly IMissionService _missionService;
+    private readonly MissionValidationService _validation;
+    private readonly MissionWorkflowService _workflow;
     private readonly ITelemetryIngestionService _telemetryService;
 
     public MissionsController(
         IMissionService missionService,
-        ITelemetryIngestionService telemetryService)
+        ITelemetryIngestionService telemetryService, MissionValidationService validation, MissionWorkflowService workflow)
     {
         _missionService = missionService;
+        _validation = validation;
+        _workflow = workflow;
         _telemetryService = telemetryService;
     }
 
@@ -101,6 +106,8 @@ public sealed class MissionsController : ControllerBase
      Guid id,
      CancellationToken cancellationToken)
     {
+        if (!TryGetUserId(out var actor)) return Unauthorized();
+        await _validation.ReadAsync(id,actor,User.IsInRole("operation_manager"),null,cancellationToken);
         var result =
             await _missionService.GetByIdAsync(
                 id,
@@ -151,25 +158,8 @@ public sealed class MissionsController : ControllerBase
     /// </summary>
     [HttpPut("{id:guid}/submit")]
     [Authorize(Roles = "uav_operator")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> SubmitMission(Guid id, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _missionService.SubmitMissionAsync(id, cancellationToken);
-            if (!result)
-            {
-                return BadRequest(new { message = "Cannot submit mission. Invalid status or mission not found." });
-            }
-            return Ok(new { message = "Mission submitted successfully." });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
+    public IActionResult SubmitMission(Guid id)
+        => Conflict(new { message = "Mission creation and edits now validate and submit automatically. Save the plan to send it for review." });
 
     /// <summary>
     /// Kiểm tra tính hợp lệ của tham số / waypoints nhiệm vụ bay (Validate Mission)
@@ -180,22 +170,33 @@ public sealed class MissionsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ValidateMission([FromBody] MissionValidateDto request, CancellationToken cancellationToken)
     {
+        if (!TryGetUserId(out var actor)) return Unauthorized();
         try
         {
-            var validationResult = await _missionService.ValidateMissionParamsAsync(request, cancellationToken);
-            return Ok(validationResult);
+            // Always load the saved plan; ignore client-supplied waypoint replacements.
+            return Ok(await _validation.RevalidateAsync(request.MissionId, actor, User.IsInRole("operation_manager"), "Manager", cancellationToken, request.UpdateRequestId));
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        catch (UnauthorizedAccessException e) { return StatusCode(403, new { message = e.Message }); }
+        catch (KeyNotFoundException e) { return NotFound(new { message = e.Message }); }
+    }
+
+    [HttpPost("{id:guid}/start")]
+    [Authorize(Roles = "uav_operator,operation_manager")]
+    public async Task<IActionResult> StartMission(Guid id, CancellationToken ct)
+    {
+        if (!TryGetUserId(out var actor)) return Unauthorized();
+        try { return Ok(await _workflow.StartAsync(id, actor, User.IsInRole("operation_manager"), ct)); }
+        catch (UnauthorizedAccessException e) { return StatusCode(403, new { message = e.Message }); }
+        catch (KeyNotFoundException e) { return NotFound(new { message = e.Message }); }
+        catch (MissionValidationException) { throw; }
+        catch (InvalidOperationException e) { return Conflict(new { message = e.Message }); }
     }
 
     /// <summary>
     /// Hủy chuyến bay / nhiệm vụ (Cancel Mission)
     /// </summary>
     [HttpPut("{id:guid}/cancel")]
-    [Authorize(Roles = "Pilot,operation_manager,operations_manager")]
+    [Authorize(Roles = "uav_operator,operation_manager")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -203,17 +204,14 @@ public sealed class MissionsController : ControllerBase
     {
         try
         {
-            var result = await _missionService.CancelMissionAsync(id, request?.Reason, cancellationToken);
-            if (!result)
-            {
-                return BadRequest(new { message = "Cannot cancel mission." });
-            }
+            if(!TryGetUserId(out var actor))return Unauthorized();
+            await _workflow.CancelAsync(id,actor,User.IsInRole("operation_manager"),request?.Reason??"",cancellationToken);
             return Ok(new { message = "Mission cancelled successfully." });
         }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+        catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     /// <summary>

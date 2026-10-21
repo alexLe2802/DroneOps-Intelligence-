@@ -72,6 +72,8 @@ public class GeofenceService : IGeofenceService
         var geofence = new Geofence
         {
             Id = Guid.NewGuid(),
+            VerticalRule=request.MinAltitudeMeters.HasValue||request.MaxAltitudeMeters.HasValue?"Band":request.VerticalRule,
+            AltitudeReference=request.AltitudeReference,MinAltitudeMeters=request.MinAltitudeMeters,MaxAltitudeMeters=request.MaxAltitudeMeters,
             Name = request.Name.Trim(),
             Description = string.IsNullOrWhiteSpace(
                 request.Description)
@@ -123,6 +125,8 @@ public class GeofenceService : IGeofenceService
                 "Geofence name already exists.");
         }
 
+        geofence.VerticalRule=request.MinAltitudeMeters.HasValue||request.MaxAltitudeMeters.HasValue?"Band":request.VerticalRule;
+        geofence.AltitudeReference=request.AltitudeReference;geofence.MinAltitudeMeters=request.MinAltitudeMeters;geofence.MaxAltitudeMeters=request.MaxAltitudeMeters;
         geofence.Name = request.Name.Trim();
 
         geofence.Description = string.IsNullOrWhiteSpace(
@@ -176,6 +180,8 @@ public class GeofenceService : IGeofenceService
         return new GeofenceResponse
         {
             Id = geofence.Id,
+            VerticalRule=geofence.VerticalRule,
+            AltitudeReference=geofence.AltitudeReference,MinAltitudeMeters=geofence.MinAltitudeMeters,MaxAltitudeMeters=geofence.MaxAltitudeMeters,Revision=geofence.Revision,
             Name = geofence.Name,
             Description = geofence.Description,
             Coordinates = coordinates,
