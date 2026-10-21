@@ -1,5 +1,6 @@
 using System.Reflection;
 using DroneOps.API.Controllers;
+using DroneOps.API.Controllers.Users;
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
@@ -33,11 +34,12 @@ Check(typeof(AvatarController).GetCustomAttribute<AuthorizeAttribute>() is not n
     "Avatar controller requires authentication");
 Check(!typeof(AvatarController).GetMethods().Any(m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null),
     "No anonymous avatar actions");
-Check(typeof(LicenseChangesController).GetCustomAttribute<AuthorizeAttribute>() is not null,
-    "License history and evidence require authentication");
-Check(typeof(LicenseChangesController).GetMethod("Submit")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "uav_operator",
+Check(typeof(UserController).GetCustomAttribute<AuthorizeAttribute>() is not null,
+    "User and license workflows require authentication");
+Check(typeof(UserController).GetMethod("UpdatePilotProfile")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "uav_operator",
     "Only operators can submit license changes");
-Check(typeof(LicenseChangesController).GetMethod("Review")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
+Check(typeof(UserController).GetMethod("ApprovePilotUpdateRequest")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager" &&
+      typeof(UserController).GetMethod("RejectPilotUpdateRequest")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
     "Only managers can review license changes");
 Check(typeof(OperatorCredentialsController).GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
     "Other operators' credentials and avatars require manager authorization");
