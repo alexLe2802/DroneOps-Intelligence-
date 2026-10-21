@@ -92,11 +92,13 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
                     r.Issues.Add($"Airspace restriction '{zone.Name}' has invalid coordinates and cannot be checked.");
                     continue;
                 }
-                // An unrelated remote polygon cannot affect this route. Validate topology
-                // only when bounding boxes overlap, including route segments between nodes.
-                if (!MissionRouteGeometry.BoundsOverlap(route,polygon)) continue;
+                // A bounding-box overlap is only a broad-phase candidate. Check the
+                // actual boundary and even-odd filled area (the map's fill rule) before
+                // allowing unrelated topology defects to block this route. Both nodes
+                // and intervening segments, including boundary touches, are checked.
+                if (!MissionRouteGeometry.Intersects(route,polygon)) continue;
                 if (!MissionRouteGeometry.ValidPolygon(polygon))
-                { r.Incomplete=true; r.Issues.Add($"Airspace restriction '{zone.Name}' overlaps the route area but its geometry is invalid. Review the restriction data."); }
+                { r.Incomplete=true; r.Issues.Add($"Airspace restriction '{zone.Name}' intersects the submitted route but its geometry is invalid. Clearance is incomplete; review the restriction data."); }
                 else
                 {
                     var bounded=zone.MinAltitudeMeters.HasValue||zone.MaxAltitudeMeters.HasValue;

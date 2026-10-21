@@ -23,6 +23,12 @@ if (args.Length == 1 && args[0] == "--mission-weather")
     return;
 }
 
+if (args.Length >= 1 && args[0] == "--mission-geometry")
+{
+    MissionGeometryChecks.Run(args.Length > 1 ? args[1] : null);
+    return;
+}
+
 // Offline checks for the current JWT API. No database or external identity provider is used.
 var passed = 0;
 void Check(bool condition, string name)

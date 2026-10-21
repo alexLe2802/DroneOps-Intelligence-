@@ -41,8 +41,11 @@ scheduled flight, and conflicts with an approved or executing UAV/operator booki
 All route nodes **and segments** are checked for intersections with configured
 prohibited/restricted airspace, matching the airspace registry and frontend labels.
 Entering or touching a restricted boundary blocks validation. Missing/malformed
-restriction data blocks validation; invalid topology blocks routes whose bounding
-box overlaps the affected zone. Remote polygons do not affect unrelated routes.
+restriction data blocks validation; bounding-box overlap alone never establishes a restriction hit. Nodes and segments
+are checked against polygon boundaries and even-odd filled areas, matching the map.
+Invalid topology still produces Incomplete when the submitted route intersects that
+area or touches its boundary. Defects elsewhere in a large polygon do not block
+a disjoint route. This does not repair or certify the restriction source.
 This corrects the older telemetry convention that treated these polygons as allowed
 operating areas; telemetry monitoring is not changed by this workflow patch.
 Restrictions have immutable revisions and explicit vertical rules: AllAltitudes,
