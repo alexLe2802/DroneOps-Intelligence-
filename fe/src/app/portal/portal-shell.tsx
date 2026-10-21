@@ -36,6 +36,7 @@ export default function PortalShell({ account, children, dashboard = false, acti
           label === "Flight History & Reports" || label === "Flight History" ? "/portal/flight-history" :
           label === "Fleet & Restrictions" || label === "Validation Results" ? "/portal/geofences" :
           !manager && label === "My Missions" ? "/portal/missions" :
+          !manager && label === "Connect Drone" ? "/portal/drone-connection" :
           !manager && label === "Assigned UAV" ? "/portal/uav" :
           null;
         const content = <><span className="dash-icon" aria-hidden="true">{icon}</span><span>{label}</span><small className={badge.includes("ALERT") ? "red-badge" : badge.includes("PENDING") ? "green-badge" : badge === "EVAL" ? "purple-badge" : ""}>{badge}</small></>;

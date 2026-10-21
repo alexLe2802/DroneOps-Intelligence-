@@ -18,6 +18,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<EmbeddedResource Include="../../../database/migrations/20261021115253_drone_hardware_identity.sql" LogicalName="DroneOps.Persistence.DroneHardware.sql" />
+		<EmbeddedResource Include="../../../database/migrations/20261021112520_drone_gateway_sessions.sql" LogicalName="DroneOps.Persistence.DroneConnections.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261020170309_mission_validation.sql" LogicalName="DroneOps.Persistence.MissionWorkflow.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261020173401_mission_requests_weather_restrictions.sql" LogicalName="DroneOps.Persistence.MissionRequests.sql" />
 		<ProjectReference Include="..\DroneOps.Domain\DroneOps.Domain.csproj" />
