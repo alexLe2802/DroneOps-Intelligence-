@@ -15,5 +15,6 @@ public interface IPilotRegistrationRepository
 
     Task<PilotRegistration?> GetByIdAsync(Guid id);
 
+
     Task SaveChangesAsync();
 }
