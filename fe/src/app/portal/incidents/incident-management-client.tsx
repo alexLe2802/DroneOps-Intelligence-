@@ -50,6 +50,22 @@ function evidenceEntries(value: unknown): Array<[string, string]> {
   });
 }
 
+function evidenceRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function evidenceNumber(evidence: Record<string, unknown>, key: string): number | null {
+  const value = evidence[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
+function evidenceText(evidence: Record<string, unknown>, key: string): string | null {
+  const value = evidence[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
 export default function IncidentManagementClient({ account }: { account: Account }) {
   const [data, setData] = useState<PagedIncidents>(EMPTY_PAGE);
   const [summary, setSummary] = useState<Summary>({ total: 0, open: 0, acknowledged: 0, resolved: 0 });
@@ -140,6 +156,12 @@ export default function IncidentManagementClient({ account }: { account: Account
   const selectedItem = useMemo(() => data.items.find(item => item.id === selectedId) ?? null, [data.items, selectedId]);
   const selected = detail ?? selectedItem;
   const evidence = evidenceEntries(detail?.evidence);
+  const snapshot = evidenceRecord(detail?.evidence);
+  const altitude = evidenceNumber(snapshot, "altitude");
+  const speed = evidenceNumber(snapshot, "speed");
+  const battery = evidenceNumber(snapshot, "batteryPercent");
+  const heading = evidenceNumber(snapshot, "headingDegrees");
+  const flightMode = evidenceText(snapshot, "flightMode");
   const roleTitle = account.role === "operation_manager" ? "MANAGER SCOPE / ALL MISSION INCIDENTS" : "PILOT SCOPE / OWN MISSIONS";
   const priorityIncident = data.items.find(item => keyOf(item.status) === "open" && ["critical", "high"].includes(keyOf(item.severity))) ?? null;
   const activeFilterCount = [search, severity, status, type, fromDate, toDate].filter(Boolean).length;
@@ -170,8 +192,8 @@ export default function IncidentManagementClient({ account }: { account: Account
     <header className={styles.heading}>
       <div>
         <span className={styles.eyebrow}>BR-09 TELEMETRY WATCHDOG / SCR-11 / UC-15</span>
-        <h1>Real-Time Anomaly &amp; Incident Log</h1>
-        <p>Review mission anomalies, frozen telemetry evidence, spatial fixes, and handling history.</p>
+        <h1>Tactical Incidents &amp; Operational Anomaly Log</h1>
+        <p>Real-time anomaly detection, spatial evidence, and operational incident handling.</p>
       </div>
       <div className={styles.headingTools}>
         <span><i /> API LINK ACTIVE</span>
@@ -191,10 +213,36 @@ export default function IncidentManagementClient({ account }: { account: Account
     {error && <div className={styles.errorBanner} role="alert"><span>{error}</span><button type="button" onClick={() => setRefreshToken(value => value + 1)}>RETRY</button></div>}
 
     <section className={styles.summaryGrid} aria-label="Incident summary">
-      <SummaryCard label="TOTAL RECORDED" value={summary.total} tone="cyan" note="Visible in your access scope" active={!status} onSelect={() => selectStatus("")} />
-      <SummaryCard label="ACTIVE / UNRESOLVED" value={summary.open} tone="danger" note="Requires operational review" active={status === "Open"} onSelect={() => selectStatus("Open")} />
-      <SummaryCard label="ACKNOWLEDGED" value={summary.acknowledged} tone="violet" note="Handling in progress" active={status === "Acknowledged"} onSelect={() => selectStatus("Acknowledged")} />
-      <SummaryCard label="RESOLVED / CLOSED" value={summary.resolved} tone="green" note="Mitigation recorded" active={status === "Resolved"} onSelect={() => selectStatus("Resolved")} />
+      <SummaryCard eyebrow="REGISTRY VOLUME" label="Total Recorded" value={summary.total} tone="cyan" icon="registry" note="ACCESS SCOPE" active={!status} onSelect={() => selectStatus("")} />
+      <SummaryCard eyebrow="REQUIRES ACTION" label="Active / Unresolved" value={summary.open} tone="danger" icon="alert" note="ACTION REQUIRED" active={status === "Open"} onSelect={() => selectStatus("Open")} />
+      <SummaryCard eyebrow="OPERATOR HANDLED" label="Acknowledged" value={summary.acknowledged} tone="violet" icon="acknowledged" note="TRIAGE ACTIVE" active={status === "Acknowledged"} onSelect={() => selectStatus("Acknowledged")} />
+      <SummaryCard eyebrow="MISSION SAFE" label="Resolved / Closed" value={summary.resolved} tone="green" icon="resolved" note="MITIGATION RECORDED" active={status === "Resolved"} onSelect={() => selectStatus("Resolved")} />
+    </section>
+
+    <section className={styles.focusGrid} aria-label="Selected incident telemetry overview">
+      <article className={styles.telemetryFocus}>
+        <header>
+          <div><span>ACTIVE TELEMETRY SNAPSHOT</span><b>{selected ? `// ${selected.id.slice(0, 8).toUpperCase()}` : "// NO RECORD"}</b></div>
+          {selected && <Link href={`/portal/incidents/${selected.id}`}>OPEN INVESTIGATION</Link>}
+        </header>
+        {detailLoading ? <RegistryState title="READING TELEMETRY SNAPSHOT" description="Retrieving immutable evidence for the selected incident." compact /> : detailError ? <div className={styles.focusError}>{detailError}</div> : selected ? <>
+          <div className={styles.focusIncidentTitle}><div><StatusBadge value={selected.severity} /><h2>{selected.title}</h2></div><span>{displayLabel(selected.type).toUpperCase()}</span></div>
+          <div className={styles.focusMetrics}>
+            <FocusMetric label="ALTITUDE (AGL)" value={altitude === null ? "NOT CAPTURED" : `${altitude.toFixed(1)} m`} tone="cyan" />
+            <FocusMetric label="GROUND SPEED" value={speed === null ? "NOT CAPTURED" : `${speed.toFixed(1)} m/s`} tone="green" />
+            <FocusMetric label="BATTERY" value={battery === null ? "NOT CAPTURED" : `${battery.toFixed(0)}%`} tone={battery !== null && battery <= 20 ? "danger" : "violet"} />
+            <FocusMetric label="HEADING" value={heading === null ? "NOT CAPTURED" : `${heading.toFixed(0)} deg`} tone="amber" />
+          </div>
+          <div className={styles.focusEvidence}>{evidence.length ? evidence.slice(0, 4).map(([label, value]) => <div key={label}><span>{label}</span><code>{value}</code></div>) : <p>No structured telemetry evidence was returned.</p>}</div>
+          <footer><span>MISSION <b>{selected.missionName || selected.missionId}</b></span><span>UAV <b>{selected.uavCode ?? "UNASSIGNED"}</b></span><span>MODE <b>{flightMode ?? "UNAVAILABLE"}</b></span><span>DETECTED <b>{formatDate(selected.createdAt)}</b></span></footer>
+        </> : <RegistryState title="NO ACTIVE INCIDENT VECTOR" description="Select an incident record to inspect its telemetry snapshot." compact />}
+      </article>
+
+      <article className={styles.lastFixPanel}>
+        <header><div><span>LAST KNOWN FIX</span><b>{selected?.uavCode ?? "NO UAV"}</b></div><small>{selected && selected.latitude !== null && selected.longitude !== null ? "POSITION RECORDED" : "POSITION UNAVAILABLE"}</small></header>
+        <IncidentMap latitude={selected?.latitude ?? null} longitude={selected?.longitude ?? null} uavCode={selected?.uavCode ?? null} compact />
+        <footer><span>AIRFRAME <b>{selected?.uavName ?? "Unavailable"}</b></span><span>STATUS <b>{selected?.status ?? "No record"}</b></span></footer>
+      </article>
     </section>
 
     <section className={styles.filterPanel} aria-label="Incident filters">
@@ -231,39 +279,19 @@ export default function IncidentManagementClient({ account }: { account: Account
       </footer>
     </section>
 
-    <section className={styles.detailGrid}>
-      <div className={styles.mapPanel}>
-        <header><div><span>INCIDENT SPATIAL GROUND TRUTH</span><h2>{selected?.uavCode ?? "No asset selected"}</h2></div><b>{selected ? displayLabel(selected.type).toUpperCase() : "NO RECORD"}</b></header>
-        <IncidentMap latitude={selected?.latitude ?? null} longitude={selected?.longitude ?? null} uavCode={selected?.uavCode ?? null} />
-      </div>
-      <aside className={styles.evidencePanel}>
-        <header><div><span>FROZEN TELEMETRY EVIDENCE</span><h2>{selected?.title ?? "Select an incident"}</h2></div>{selected && <StatusBadge value={selected.status} />}</header>
-        {detailLoading ? <RegistryState title="READING EVIDENCE" description="Loading the immutable incident snapshot." compact /> : detailError ? <div className={styles.detailError} role="alert">{detailError}</div> : selected ? <>
-          <dl className={styles.detailFacts}>
-            <div><dt>INCIDENT ID</dt><dd>{selected.id}</dd></div>
-            <div><dt>MISSION</dt><dd>{selected.missionName || selected.missionId}</dd></div>
-            <div><dt>UAV PLATFORM</dt><dd>{[selected.uavCode, selected.uavName].filter(Boolean).join(" / ") || "Unassigned"}</dd></div>
-            <div><dt>DETECTED</dt><dd>{formatDate(selected.createdAt)}</dd></div>
-            <div><dt>APPLIED RULE</dt><dd>{detail?.appliedRule ?? "Unavailable"}</dd></div>
-            <div><dt>THRESHOLD</dt><dd>{detail?.threshold ?? "Unavailable"}</dd></div>
-          </dl>
-          <p className={styles.description}>{selected.description ?? "No incident description was supplied."}</p>
-          <div className={styles.evidenceList}>{evidence.length ? evidence.map(([label, value]) => <div key={label}><span>{label}</span><code>{value}</code></div>) : <div className={styles.noEvidence}>No structured telemetry evidence was returned.</div>}</div>
-          <div className={styles.auditTrail}>
-            <h3>HANDLING AUDIT</h3>
-            <div><i className={styles.auditCreated} /><span><b>Incident created</b><small>{formatDate(selected.createdAt)}</small></span></div>
-            <div><i className={selected.acknowledgedAt ? styles.auditDone : undefined} /><span><b>{selected.acknowledgedAt ? `Acknowledged by ${detail?.acknowledgedByName ?? "authorized operator"}` : "Awaiting acknowledgement"}</b><small>{selected.acknowledgedAt ? formatDate(selected.acknowledgedAt) : "No backend action recorded"}</small></span></div>
-            <div><i className={selected.resolvedAt ? styles.auditDone : undefined} /><span><b>{selected.resolvedAt ? `Resolved by ${detail?.resolvedByName ?? "authorized operator"}` : "Resolution pending"}</b><small>{selected.resolvedAt ? formatDate(selected.resolvedAt) : "No backend action recorded"}</small></span></div>
-          </div>
-          {account.role === "operation_manager" && keyOf(selected.status) !== "resolved" && <div className={styles.pendingActions}><button type="button" disabled>{keyOf(selected.status) === "open" ? "ACKNOWLEDGE INCIDENT" : "RESOLVE INCIDENT"}</button><span>Action endpoint is not available from the backend yet.</span></div>}
-        </> : <RegistryState title="NO INCIDENT SELECTED" description="Choose a registry row to inspect its evidence." compact />}
-      </aside>
-    </section>
   </div>;
 }
 
-function SummaryCard({ label, value, tone, note, active, onSelect }: { label: string; value: number; tone: "cyan" | "danger" | "violet" | "green"; note: string; active: boolean; onSelect: () => void }) {
-  return <button type="button" className={`${styles.summaryCard} ${styles[tone]} ${active ? styles.summaryActive : ""}`} aria-pressed={active} onClick={onSelect}><span>{label}</span><div><strong>{String(value).padStart(2, "0")}</strong><i /></div><small>{note}</small></button>;
+function SummaryCard({ eyebrow, label, value, tone, icon, note, active, onSelect }: { eyebrow: string; label: string; value: number; tone: "cyan" | "danger" | "violet" | "green"; icon: "registry" | "alert" | "acknowledged" | "resolved"; note: string; active: boolean; onSelect: () => void }) {
+  const iconLabel = icon === "registry" ? "Incident registry" : icon === "alert" ? "Requires action" : icon === "acknowledged" ? "Acknowledged incidents" : "Resolved incidents";
+  return <button type="button" className={`${styles.summaryCard} ${styles[tone]} ${active ? styles.summaryActive : ""}`} aria-pressed={active} onClick={onSelect}>
+    <span className={styles.summaryTop}>
+      <span className={styles.summaryHeading}><small>{eyebrow}</small><b>{label}</b></span>
+      <span className={`${styles.summaryIcon} ${styles[`summaryIcon${icon}`]}`} role="img" aria-label={iconLabel}><i /></span>
+    </span>
+    <span className={styles.summaryValue}><strong>{String(value).padStart(2, "0")}</strong><small>{note}</small></span>
+    <span className={styles.summaryRail} aria-hidden="true"><i /></span>
+  </button>;
 }
 
 function FilterGroup({ label, value, options, allLabel, onChange }: { label: string; value: string; options: string[]; allLabel: string; onChange: (value: string) => void }) {
@@ -272,6 +300,10 @@ function FilterGroup({ label, value, options, allLabel, onChange }: { label: str
 
 function StatusBadge({ value }: { value: string }) {
   return <span className={`${styles.statusBadge} ${styles[`status${keyOf(value)}`] ?? ""}`}>{value.toUpperCase()}</span>;
+}
+
+function FocusMetric({ label, value, tone }: { label: string; value: string; tone: "cyan" | "green" | "danger" | "violet" | "amber" }) {
+  return <div className={styles.focusMetric}><span>{label}</span><b className={styles[tone]}>{value}</b><i /></div>;
 }
 
 function IncidentRow({ item, selected, onSelect }: { item: IncidentItem; selected: boolean; onSelect: () => void }) {

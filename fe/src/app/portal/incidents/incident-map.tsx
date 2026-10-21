@@ -10,7 +10,7 @@ function hasCoordinates(latitude: number | null, longitude: number | null): lati
   return latitude !== null && longitude !== null && Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
 }
 
-export default function IncidentMap({ latitude, longitude, uavCode }: { latitude: number | null; longitude: number | null; uavCode: string | null }) {
+export default function IncidentMap({ latitude, longitude, uavCode, compact = false }: { latitude: number | null; longitude: number | null; uavCode: string | null; compact?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
   const markerRef = useRef<Leaflet.Marker | null>(null);
@@ -88,7 +88,7 @@ export default function IncidentMap({ latitude, longitude, uavCode }: { latitude
   }, [latitude, longitude, ready, uavCode]);
 
   const positioned = hasCoordinates(latitude, longitude);
-  return <div className={styles.mapStage}>
+  return <div className={`${styles.mapStage} ${compact ? styles.mapStageCompact : ""}`}>
     <div ref={containerRef} className={styles.mapCanvas} />
     <div className={styles.mapBanner}>{positioned ? `${uavCode ?? "UAV"} / RECORDED INCIDENT FIX` : "POSITION DATA UNAVAILABLE"}</div>
     <div className={styles.mapCoordinates}>{positioned ? `${latitude.toFixed(5)} N / ${longitude!.toFixed(5)} E` : "NO LATITUDE / LONGITUDE RETURNED"}</div>
