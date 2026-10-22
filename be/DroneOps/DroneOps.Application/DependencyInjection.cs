@@ -71,6 +71,7 @@ public static class DependencyInjection
         services.AddScoped<IAvatarService, AvatarService>();
         services.AddScoped<IUserMediaStorage, UserMediaStorage>();
         services.AddScoped<IOperatorCredentialsService,OperatorCredentialsService>();
+        services.AddScoped<IPilotUpdateRequestService, PilotUpdateRequestService>();
 
         services.AddHttpClient<
 IAIService,

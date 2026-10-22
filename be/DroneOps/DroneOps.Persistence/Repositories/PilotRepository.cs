@@ -93,13 +93,12 @@ public sealed class PilotRepository
                 request,
                 cancellationToken);
     }
-
-    public async Task<(IReadOnlyList<PilotUpdateRequest> Items,int TotalCount)>GetAllPilotRequestsAsync(
-      int pageNumber,
-      int pageSize,
-      string? search,
-      string? status,
-      CancellationToken cancellationToken = default)
+    public async Task<(IReadOnlyList<PilotUpdateRequest> Items, int TotalCount)> GetAllPilotRequestsAsync(
+        int pageNumber,
+        int pageSize,
+        string? search,
+        string? status,
+        CancellationToken cancellationToken = default)
     {
         IQueryable<PilotUpdateRequest> query =
             DbContext
@@ -118,15 +117,11 @@ public sealed class PilotRepository
                 x.Pilot.User.FullName
                     .ToLower()
                     .Contains(keyword)
-
                 ||
-
                 x.Pilot.User.Email
                     .ToLower()
                     .Contains(keyword)
-
                 ||
-
                 x.PilotLicenseNo
                     .ToLower()
                     .Contains(keyword));
@@ -134,8 +129,11 @@ public sealed class PilotRepository
 
         if (!string.IsNullOrWhiteSpace(status))
         {
+            string normalizedStatus =
+                status.Trim();
+
             query = query.Where(
-                x => x.Status == status);
+                x => x.Status == normalizedStatus);
         }
 
         int totalCount =
@@ -144,13 +142,76 @@ public sealed class PilotRepository
 
         List<PilotUpdateRequest> items =
             await query
-                .OrderByDescending(
-                    x => x.CreatedAt)
-                .Skip(
-                    (pageNumber - 1) * pageSize)
+                .OrderByDescending(x => x.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
-                .ToListAsync(
-                    cancellationToken);
+                .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
+    public async Task<(IReadOnlyList<PilotUpdateRequest> Items,int TotalCount)> GetAllPilotRequestsAsync(
+         Guid userId,
+         bool isManager,
+         int pageNumber,
+         int pageSize,
+         string? search,
+         string? status,
+         CancellationToken cancellationToken = default)
+    {
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        IQueryable<PilotUpdateRequest> query =
+            DbContext
+                .Set<PilotUpdateRequest>()
+                .AsNoTracking()
+                .Include(x => x.Pilot)
+                    .ThenInclude(x => x.User)
+                .Include(x => x.LicenseImages);
+
+        // Operation manager được xem tất cả.
+        // UAV operator chỉ được xem request của chính mình.
+        if (!isManager)
+        {
+            query = query.Where(
+                x => x.Pilot.UserId == userId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            string keyword = search.Trim().ToLower();
+
+            query = query.Where(x =>
+                x.Pilot.User.FullName
+                    .ToLower()
+                    .Contains(keyword)
+                ||
+                x.Pilot.User.Email
+                    .ToLower()
+                    .Contains(keyword)
+                ||
+                x.PilotLicenseNo
+                    .ToLower()
+                    .Contains(keyword));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            string normalizedStatus = status.Trim();
+
+            query = query.Where(
+                x => x.Status == normalizedStatus);
+        }
+
+        int totalCount = await query.CountAsync(
+            cancellationToken);
+
+        List<PilotUpdateRequest> items = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
 
         return (items, totalCount);
     }
@@ -168,6 +229,31 @@ public sealed class PilotRepository
                 x => x.Id == requestId,
                 cancellationToken);
     }
+    public async Task<PilotUpdateRequest?>
+    GetUpdateRequestDetailAsync(
+        Guid requestId,
+        Guid userId,
+        bool isManager,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<PilotUpdateRequest> query =
+            DbContext
+                .Set<PilotUpdateRequest>()
+                .AsNoTracking()
+                .Include(x => x.Pilot)
+                    .ThenInclude(x => x.User)
+                .Include(x => x.LicenseImages);
+
+        if (!isManager)
+        {
+            query = query.Where(
+                x => x.Pilot.UserId == userId);
+        }
+
+        return await query.FirstOrDefaultAsync(
+            x => x.Id == requestId,
+            cancellationToken);
+    }
 
     public async Task<List<LicenseImage>>GetCurrentPilotLicenseImagesAsync(
         Guid pilotId,
@@ -178,6 +264,6 @@ public sealed class PilotRepository
             .Where(x => x.PilotId == pilotId)
             .ToListAsync(cancellationToken);
     }
-
+    
 
 }

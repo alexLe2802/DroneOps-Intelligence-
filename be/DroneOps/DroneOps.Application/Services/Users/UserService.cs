@@ -211,10 +211,10 @@ public sealed class UserService : IUserService
         };
     }
 
-    public async Task<UpdatePilotProfileResponse?>UpdatePilotProfileAsync(
-        Guid userId,
-        UpdatePilotProfileRequest request,
-        CancellationToken cancellationToken = default)
+    public async Task<UpdatePilotProfileResponse?> UpdatePilotProfileAsync(
+    Guid userId,
+    UpdatePilotProfileRequest request,
+    CancellationToken cancellationToken = default)
     {
         Pilot? pilot =
             await _pilotRepository.GetByUserIdForUpdateAsync(
@@ -248,7 +248,8 @@ public sealed class UserService : IUserService
         // Theo dõi xem thông tin thường có thực sự thay đổi không
         bool profileChanged = false;
 
-        // Update PhoneNumber nếu FE có gửi
+        // Có gửi PhoneNumber thì mới cập nhật.
+        // Chuỗi rỗng được hiểu là xóa số điện thoại.
         if (request.PhoneNumber is not null)
         {
             string? newPhoneNumber =
@@ -263,7 +264,7 @@ public sealed class UserService : IUserService
             }
         }
 
-        // Update DateOfBirth nếu FE có gửi và khác giá trị cũ
+        // Không gửi thì giữ nguyên.
         if (request.DateOfBirth.HasValue &&
             pilot.DateOfBirth != request.DateOfBirth.Value)
         {
@@ -273,7 +274,7 @@ public sealed class UserService : IUserService
             profileChanged = true;
         }
 
-        // Update ExperienceYears nếu FE có gửi và khác giá trị cũ
+        // Không gửi thì giữ nguyên.
         if (request.ExperienceYears.HasValue &&
             pilot.ExperienceYears != request.ExperienceYears.Value)
         {
@@ -373,19 +374,16 @@ public sealed class UserService : IUserService
         return new UpdatePilotProfileResponse
         {
             UserId = pilot.UserId,
-
             PilotId = pilot.Id,
 
             FullName = pilot.User.FullName,
-
             Email = pilot.User.Email,
 
             PhoneNumber = pilot.PhoneNumber,
-
             DateOfBirth = pilot.DateOfBirth,
+            ExperienceYears = pilot.ExperienceYears,
 
-            ExperienceYears =
-                pilot.ExperienceYears,
+            
 
             // License chính thức vẫn giữ nguyên
             // cho đến khi Admin approve
@@ -416,6 +414,7 @@ public sealed class UserService : IUserService
             request.LicenseExpiredDate.HasValue ||
             request.LicenseImageUrls is { Count: > 0 };
     }
+    
 
     public async Task< PagedResponse<PilotUpdateRequestResponse>>
   GetAllPilotRequestsAsync(PilotUpdateRequestFilterRequest request,CancellationToken cancellationToken = default)

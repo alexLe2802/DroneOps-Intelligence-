@@ -27,12 +27,22 @@ public interface IPilotRepository
     Task AddUpdateRequestAsync(
         PilotUpdateRequest request,
         CancellationToken cancellationToken = default);
-    Task<(IReadOnlyList<PilotUpdateRequest> Items,int TotalCount)>GetAllPilotRequestsAsync(
-    int pageNumber,
-    int pageSize,
-    string? search,
-    string? status,
-    CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyList<PilotUpdateRequest> Items, int TotalCount)>GetAllPilotRequestsAsync(
+        int pageNumber,
+        int pageSize,
+        string? search,
+        string? status,
+        CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyList<PilotUpdateRequest> Items, int TotalCount)>GetAllPilotRequestsAsync(
+        Guid userId,
+        bool isManager,
+        int pageNumber,
+        int pageSize,
+        string? search,
+        string? status,
+        CancellationToken cancellationToken = default);
 
     Task<PilotUpdateRequest?>GetUpdateRequestForReviewAsync(
             Guid requestId,
@@ -40,4 +50,10 @@ public interface IPilotRepository
     Task<List<LicenseImage>>GetCurrentPilotLicenseImagesAsync(
         Guid pilotId,
         CancellationToken cancellationToken = default);
+    Task<PilotUpdateRequest?> GetUpdateRequestDetailAsync(
+    Guid requestId,
+    Guid userId,
+    bool isManager,
+    CancellationToken cancellationToken = default);
+
 }
