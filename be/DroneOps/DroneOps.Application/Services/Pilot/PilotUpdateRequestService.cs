@@ -269,7 +269,8 @@ public sealed class PilotUpdateRequestService
                 .UpdatePilotProfileAsync(
                     userId,
                     request,
-                    cancellationToken);
+                    cancellationToken)
+                ?? throw new InvalidOperationException("Pilot update request could not be created.");
         }
         catch
         {
@@ -344,7 +345,8 @@ public sealed class PilotUpdateRequestService
             .ApprovePilotUpdateRequestAsync(
                 requestId,
                 reviewedBy,
-                cancellationToken);
+                cancellationToken)
+            ?? throw new InvalidOperationException("Pilot update request could not be approved.");
     }
 
     public async Task<object> RejectAsync(
@@ -401,7 +403,8 @@ public sealed class PilotUpdateRequestService
                 requestId,
                 reviewedBy,
                 request,
-                cancellationToken);
+                cancellationToken)
+            ?? throw new InvalidOperationException("Pilot update request could not be rejected.");
     }
 
     private static string GetFileExtension(

@@ -10,6 +10,17 @@ public class PostFlightReport
 
     public Guid MissionId { get; set; }
 
+    public int Revision { get; set; } = 1;
+    public bool IsCurrent { get; set; } = true;
+    public string GenerationStatus { get; set; } = "Queued";
+    public DateTimeOffset? CoveredTelemetryThrough { get; set; }
+    public DateTimeOffset? GenerationStartedAt { get; set; }
+    public DateTimeOffset? GeneratedAt { get; set; }
+    public DateTimeOffset? FailedAt { get; set; }
+    public string? FailureReason { get; set; }
+    public Guid? RequestedBy { get; set; }
+    public string? GenerationReason { get; set; }
+
     // Thống kê thời gian bay (phút)
     public double TotalFlightDurationMinutes { get; set; }
 
@@ -34,7 +45,7 @@ public class PostFlightReport
     public int TotalIncidents { get; set; }
 
     // Đánh giá trạng thái & chất lượng chuyến bay
-    public string Status { get; set; } = "Completed"; // Completed, Failed, Aborted
+    public string Status { get; set; } = "Completed"; // Flight outcome, separate from GenerationStatus.
     public string? Summary { get; set; }
     public string? SafetyEvaluation { get; set; }
     public string? Notes { get; set; }

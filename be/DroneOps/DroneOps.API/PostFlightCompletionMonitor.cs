@@ -1,6 +1,5 @@
 using DroneOps.Application.Interfaces.PostFlight;
 using DroneOps.Application.Settings;
-using DroneOps.Persistence.Interfaces;
 using Microsoft.Extensions.Options;
 
 /// <summary>
@@ -29,7 +28,7 @@ public sealed class PostFlightCompletionMonitor : BackgroundService
         {
             try
             {
-                await FinalizeCompletedFlightsAsync(stoppingToken);
+                await ProcessPostFlightReportsAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -46,29 +45,12 @@ public sealed class PostFlightCompletionMonitor : BackgroundService
         }
     }
 
-    private async Task FinalizeCompletedFlightsAsync(CancellationToken cancellationToken)
+    private async Task ProcessPostFlightReportsAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IPostFlightRepository>();
         var service = scope.ServiceProvider.GetRequiredService<IPostFlightService>();
-        var candidates = await repository.GetAutomaticCompletionCandidatesAsync(cancellationToken);
-
-        foreach (var missionId in candidates)
-        {
-            try
-            {
-                if (await service.TryAutoFinalizeAsync(missionId, cancellationToken))
-                {
-                    _logger.LogInformation(
-                        "Mission {MissionId} was automatically finalized after an armed-to-disarmed transition.",
-                        missionId);
-                }
-            }
-            catch (Exception exception)
-            {
-                // Mission lỗi được cô lập để những mission khác trong cùng chu kỳ vẫn được xử lý.
-                _logger.LogError(exception, "Automatic finalization failed for mission {MissionId}.", missionId);
-            }
-        }
+        var processed = await service.ProcessQueuedReportsAsync(10, cancellationToken);
+        if (processed > 0)
+            _logger.LogInformation("Processed {ReportCount} queued post-flight report(s).", processed);
     }
 }

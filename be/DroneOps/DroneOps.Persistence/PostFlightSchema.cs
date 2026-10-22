@@ -12,6 +12,12 @@ public static class PostFlightSchema
         using var reader = new StreamReader(stream);
         await using var command = source.CreateCommand(await reader.ReadToEndAsync());
         await command.ExecuteNonQueryAsync();
+        using var lifecycleStream = typeof(PostFlightSchema).Assembly.GetManifestResourceStream(
+            "DroneOps.Persistence.Migrations.007_post_flight_lifecycle.sql")
+            ?? throw new InvalidOperationException("Embedded post-flight lifecycle migration is missing.");
+        using var lifecycleReader = new StreamReader(lifecycleStream);
+        await using var lifecycleCommand = source.CreateCommand(await lifecycleReader.ReadToEndAsync());
+        await lifecycleCommand.ExecuteNonQueryAsync();
         await CheckAsync(source);
     }
 
@@ -23,7 +29,12 @@ public static class PostFlightSchema
                 SELECT 1 FROM pg_indexes
                 WHERE schemaname = current_schema()
                   AND tablename = 'PostFlightReport'
-                  AND indexname = 'UX_PostFlightReport_MissionId'
+                  AND indexname = 'UX_PostFlightReport_Current'
+            )
+            AND EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = current_schema()
+                  AND table_name = 'FlightCompletionEvent'
             )
             """);
         var exists = (bool)(await command.ExecuteScalarAsync() ?? false);

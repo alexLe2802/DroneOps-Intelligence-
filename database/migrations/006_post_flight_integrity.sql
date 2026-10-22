@@ -4,7 +4,9 @@ BEGIN;
 -- Migration cố ý dừng nếu dữ liệu cũ đã có report trùng để tránh tự ý xóa lịch sử.
 DO $$
 BEGIN
-    IF EXISTS (
+    -- Sau migration 007, nhiều revision trên cùng mission là dữ liệu hợp lệ.
+    -- Chỉ áp dụng ràng buộc legacy khi lifecycle table chưa tồn tại.
+    IF to_regclass('"FlightCompletionEvent"') IS NULL AND EXISTS (
         SELECT 1
         FROM "PostFlightReport"
         GROUP BY "MissionId"
@@ -14,8 +16,13 @@ BEGIN
     END IF;
 END $$;
 
-CREATE UNIQUE INDEX IF NOT EXISTS "UX_PostFlightReport_MissionId"
-    ON "PostFlightReport" ("MissionId");
+DO $$
+BEGIN
+    IF to_regclass('"FlightCompletionEvent"') IS NULL THEN
+        CREATE UNIQUE INDEX IF NOT EXISTS "UX_PostFlightReport_MissionId"
+            ON "PostFlightReport" ("MissionId");
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS "IX_Incident_Mission_CreatedAt"
     ON "Incident" ("MissionId", "CreatedAt" DESC);
