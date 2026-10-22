@@ -152,6 +152,7 @@ await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.Np
 
 // Detect a missing deployment migration before background monitoring starts.
 await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.
