@@ -133,6 +133,11 @@ try
     var missingGps = await client.SendAsync(Ingest("missing-gps", Sample(now.AddSeconds(-2), latitude: null, longitude: null)));
     Check(missingGps.StatusCode == HttpStatusCode.Created, $"missing GPS packet is accepted without inventing zero coordinates ({missingGps.StatusCode}: {await missingGps.Content.ReadAsStringAsync()})");
 
+    var localOffsetTimestamp = now.AddSeconds(-3).ToOffset(TimeSpan.FromHours(7));
+    var localOffset = await client.SendAsync(Ingest("utc-normalization", Sample(localOffsetTimestamp)));
+    Check(localOffset.StatusCode == HttpStatusCode.Created,
+        "local +07:00 timestamp is normalized to UTC before PostgreSQL persistence");
+
     var firstKey = "sim-uav-001:100:" + now.ToUnixTimeMilliseconds();
     var first = await client.SendAsync(Ingest(firstKey, Sample(now)));
     Check(first.StatusCode == HttpStatusCode.Created, "valid simulator sample reaches HTTP ingest and DB");
@@ -164,7 +169,9 @@ try
     await using (var scope = app.Services.CreateAsyncScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Check(await db.TelemetryRecords.CountAsync() == 5, "duplicate retry creates exactly one stored sample");
+        Check(await db.TelemetryRecords.CountAsync() == 6, "duplicate retry creates exactly one stored sample");
+        Check((await db.TelemetryRecords.SingleAsync(x => x.IdempotencyKey == "utc-normalization")).SourceTimestamp.Offset == TimeSpan.Zero,
+            "stored telemetry timestamp uses UTC offset");
         Check(await db.TelemetryRecords.AnyAsync(x => x.IdempotencyKey == "missing-gps" && x.Latitude == null && x.Longitude == null), "missing sensor values persist as null");
         var newest = await db.TelemetryRecords.SingleAsync(x => x.MissionSequence == 3);
         newest.ReceivedAt = DateTimeOffset.UtcNow.AddSeconds(-31);
