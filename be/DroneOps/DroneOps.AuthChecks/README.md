@@ -11,3 +11,15 @@ dotnet run --project be/DroneOps/DroneOps.AuthChecks -- --license-workflow /abso
 The integration check creates temporary users and a pilot, persists phone/birth/experience changes, verifies email-change OTP logic, uploads license evidence, tests ownership, pending-request rejection and manager approval/rejection. It uses a captured email transport: no actual email is sent. It deletes its temporary users, pilot, requests and Storage objects in `finally`. Existing operator and manager roles must exist. This check makes real temporary database/Storage writes; use a development project.
 
 These controller/service checks do not cover browser interactions or actual SMTP delivery. The original Firebase session checks are archived in `FirebaseSessionChecks.legacy.txt` because those endpoints no longer exist.
+
+For mission approval regression checks against PostgreSQL with Npgsql retries enabled:
+
+```sh
+dotnet run --project be/DroneOps/DroneOps.AuthChecks -- --mission-approval /absolute/path/to/SEP490
+```
+
+This uses the local API database configuration and existing users/UAVs as foreign-key
+references. It creates and removes only temporary missions, waypoints and approval
+records. Checks cover approve/reject transactions, replay without duplicate audits,
+self-approval rollback, and concurrent identical decisions. Existing missions are
+not changed. Use a development database.

@@ -1,6 +1,5 @@
 using System.Reflection;
 using DroneOps.API.Controllers;
-using DroneOps.API.Controllers.Users;
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
@@ -9,6 +8,24 @@ using Microsoft.AspNetCore.Authorization;
 if (args.Length == 2 && args[0] == "--license-workflow")
 {
     await LicenseWorkflowChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length == 2 && args[0] == "--mission-approval")
+{
+    await MissionApprovalChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length == 1 && args[0] == "--mission-weather")
+{
+    await MissionWeatherChecks.RunAsync();
+    return;
+}
+
+if (args.Length >= 1 && args[0] == "--mission-geometry")
+{
+    MissionGeometryChecks.Run(args.Length > 1 ? args[1] : null);
     return;
 }
 
@@ -34,13 +51,18 @@ Check(typeof(AvatarController).GetCustomAttribute<AuthorizeAttribute>() is not n
     "Avatar controller requires authentication");
 Check(!typeof(AvatarController).GetMethods().Any(m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null),
     "No anonymous avatar actions");
-Check(typeof(UserController).GetCustomAttribute<AuthorizeAttribute>() is not null,
-    "User and license workflows require authentication");
-Check(typeof(UserController).GetMethod("UpdatePilotProfile")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "uav_operator",
+Check(typeof(PilotUpdateRequestsController).GetCustomAttribute<AuthorizeAttribute>() is not null,
+    "License history and evidence require authentication");
+Check(typeof(PilotUpdateRequestsController).GetMethod("Submit")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "uav_operator",
     "Only operators can submit license changes");
-Check(typeof(UserController).GetMethod("ApprovePilotUpdateRequest")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager" &&
-      typeof(UserController).GetMethod("RejectPilotUpdateRequest")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
+Check(typeof(PilotUpdateRequestsController).GetMethod("Approve")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
     "Only managers can review license changes");
+Check(typeof(PilotUpdateRequestsController).GetMethod("Reject")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
+    "Only managers can reject license changes");
+Check(typeof(PilotUpdateRequestsController).GetCustomAttribute<Microsoft.AspNetCore.Mvc.RouteAttribute>()?.Template == "api/users/pilot-update-requests",
+    "License requests use the canonical users route");
+Check(!typeof(PilotUpdateRequestsController).Assembly.GetTypes().Any(t => t.GetCustomAttribute<Microsoft.AspNetCore.Mvc.RouteAttribute>()?.Template == "api/license-changes"),
+    "Duplicate license-changes API has been removed");
 Check(typeof(OperatorCredentialsController).GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
     "Other operators' credentials and avatars require manager authorization");
 var validator = new CreatePilotRegistrationValidator();

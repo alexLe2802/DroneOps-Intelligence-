@@ -3,18 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import { describeGeofence } from "@/lib/maps/geofences";
-import type { Geofence, MissionWaypoint } from "@/lib/portal/types";
+import type { Geofence, MissionWaypoint, MissionValidationResult } from "@/lib/portal/types";
 
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
-export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false }: {
+export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings }: {
   waypoints: MissionWaypoint[]; geofences: Geofence[];
   onAdd?: (longitude: number, latitude: number) => void;
   onUpdate?: (index: number, patch: Partial<MissionWaypoint>) => void;
   readOnly?: boolean;
+  findings?: MissionValidationResult["findings"];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
+  const highlightRef = useRef<Leaflet.Polyline[]>([]);
   const routeRef = useRef<Leaflet.Polyline | null>(null);
   const markersRef = useRef<Leaflet.Marker[]>([]);
   const readOnlyRef = useRef(readOnly);
@@ -33,7 +35,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || !containerRef.current) return;
       // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
-      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
+      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, wheelPxPerZoomLevel: 240, wheelDebounceTime: 80, zoomSnap: 0.25, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
       mapRef.current = map;
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
@@ -63,6 +65,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
     return () => {
       cancelled = true;
       if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
+      highlightRef.current.forEach(line => line.remove()); highlightRef.current = [];
       markersRef.current.forEach(marker => marker.remove());
       markersRef.current = [];
       routeRef.current = null;
@@ -78,6 +81,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
     let cancelled = false;
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || mapRef.current !== map) return;
+      highlightRef.current.forEach(line => line.remove()); highlightRef.current = [];
       markersRef.current.forEach(marker => marker.remove());
       markersRef.current = [];
       if (routeRef.current && map.hasLayer(routeRef.current)) routeRef.current.remove();
@@ -86,19 +90,24 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
       markersRef.current = waypoints.map((point, index) => {
         const marker = L.marker([point.latitude, point.longitude], {
           draggable: !readOnly,
-          icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker"><b>${index + 1}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }),
+          icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker" ${findings?.some(f => f.waypointSequence === point.sequenceOrder) ? 'style="background:#ef3340;border-color:#ef3340"' : ""}><b>${index + 1}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }),
         }).addTo(map);
         if (!readOnly) marker.on("dragend", () => { if (readOnlyRef.current) return; const value = marker.getLatLng(); onUpdateRef.current?.(index, { latitude: Number(value.lat.toFixed(6)), longitude: Number(value.lng.toFixed(6)) }); });
         return marker;
       });
       if (waypoints.length > 1) routeRef.current = L.polyline(waypoints.map(point => [point.latitude, point.longitude]), { color: "#25d6ff", weight: 4, opacity: .95 }).addTo(map);
+      for (const finding of findings ?? []) {
+        if (finding.segmentFrom == null || finding.segmentTo == null) continue;
+        const first = waypoints.find(point => point.sequenceOrder === finding.segmentFrom), last = waypoints.find(point => point.sequenceOrder === finding.segmentTo);
+        if (first && last) { const note = document.createElement("span"); note.textContent = finding.reason; highlightRef.current.push(L.polyline([[first.latitude, first.longitude], [last.latitude, last.longitude]], { color: "#ef3340", weight: 6 }).bindTooltip(note).addTo(map)); }
+      }
       if (waypoints.length > 0) {
         const bounds = L.latLngBounds(waypoints.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple));
         map.fitBounds(bounds, { padding: [44, 44], maxZoom: 16, animate: false });
       }
     });
     return () => { cancelled = true; };
-  }, [waypoints, mapReady, readOnly]);
+  }, [waypoints, mapReady, readOnly, findings]);
 
   return <div className="mission-map-wrap">
     <div ref={containerRef} className="mission-map" />

@@ -148,6 +148,7 @@ builder.Services.AddAuthorization();
 #endregion
 
 var app = builder.Build();
+await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 // Detect a missing deployment migration before background monitoring starts.
 await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());

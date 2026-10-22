@@ -17,6 +17,7 @@ public sealed class CreateMissionRequestValidator
 
     public CreateMissionRequestValidator()
     {
+        RuleFor(x=>x.AltitudeReference).Must(x=>x is null or "AGL" or "MSL" or "Relative").WithMessage("Altitude reference must be AGL, MSL or Relative.");
         RuleFor(x => x.UavId)
             .NotEmpty()
             .WithMessage("UAV is required.");
