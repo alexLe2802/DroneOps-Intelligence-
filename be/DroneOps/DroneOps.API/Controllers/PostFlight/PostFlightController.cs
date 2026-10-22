@@ -38,6 +38,7 @@ public class PostFlightController : ControllerBase
     /// <summary>
     /// Chốt hoàn tất chuyến bay và tự động lập Post-Flight Report (UC-17)
     /// </summary>
+    [Authorize(Roles = "operation_manager,operations_manager")]
     [HttpPost("{missionId:guid}/finalize")]
     public async Task<IActionResult> FinalizeFlight(Guid missionId, [FromBody] FinalizeFlightRequest? request, CancellationToken cancellationToken)
     {
@@ -52,6 +53,34 @@ public class PostFlightController : ControllerBase
                 Message = "Flight mission finalized and post-flight report generated successfully.",
                 Data = result
             });
+        }
+        catch (Exception ex) { return ToErrorResult(ex); }
+    }
+
+    [Authorize(Roles = "operation_manager,operations_manager")]
+    [HttpPost("{missionId:guid}/regenerate")]
+    public async Task<IActionResult> RegenerateReport(
+        Guid missionId,
+        [FromBody] RegeneratePostFlightReportRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _service.RegenerateReportAsync(
+                missionId, request, GetRequiredUserId(), cancellationToken);
+            return Accepted(new { Success = true, Message = "Report regeneration queued.", Data = result });
+        }
+        catch (Exception ex) { return ToErrorResult(ex); }
+    }
+
+    [HttpGet("{missionId:guid}/report/revisions")]
+    public async Task<IActionResult> GetReportRevisions(Guid missionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var currentUserId = TryGetUserId(out var userId) ? userId : (Guid?)null;
+            return Ok(await _service.GetReportRevisionsAsync(
+                missionId, currentUserId, IsManager(), cancellationToken));
         }
         catch (Exception ex) { return ToErrorResult(ex); }
     }
@@ -108,14 +137,16 @@ public class PostFlightController : ControllerBase
     /// Bảng phân tích thống kê vận hành tổng thể (SCR-16 / UC-22)
     /// </summary>
     [HttpGet("analytics")]
-    public async Task<IActionResult> GetAnalytics(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAnalytics(
+        [FromQuery] GetOperationalAnalyticsRequest request,
+        CancellationToken cancellationToken)
     {
         try
         {
             var isManager = IsManager();
             Guid? pilotUserId = isManager ? null : GetRequiredUserId();
 
-            var result = await _service.GetOperationalAnalyticsAsync(pilotUserId, cancellationToken);
+            var result = await _service.GetOperationalAnalyticsAsync(request, pilotUserId, cancellationToken);
             return Ok(result);
         }
         catch (Exception ex) { return ToErrorResult(ex); }

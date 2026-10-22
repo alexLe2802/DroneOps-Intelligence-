@@ -109,30 +109,21 @@ public class PostFlightRepository : IPostFlightRepository
             .ToListAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Tìm mission đang bay có gói mới nhất disarmed và đã từng có gói armed trước đó.
-    /// Điều kiện cạnh true -> false giúp tránh kết thúc nhầm khi drone chưa cất cánh.
-    /// </summary>
-    public async Task<List<Guid>> GetAutomaticCompletionCandidatesAsync(CancellationToken cancellationToken = default)
-    {
-        // Approved vẫn được xét vì một số phiên bản Flow 3 chưa kịp đổi trạng thái sang Active;
-        // cạnh armed -> disarmed bên dưới vẫn chứng minh mission đã thực sự cất/hạ cánh.
-        var activeStatuses = new[] { "Approved", "In Progress", "InProgress", "Active", "Flying", "Executing" };
+    public Task<FlightCompletionEvent?> GetCompletionEventByKeyAsync(
+        string idempotencyKey, CancellationToken cancellationToken = default) =>
+        _context.FlightCompletionEvents.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, cancellationToken);
 
-        return await _context.Missions
-            .AsNoTracking()
-            .Where(m => activeStatuses.Contains(m.Status))
-            .Where(m => _context.TelemetryRecords.Any(t =>
-                t.MissionId == m.Id && t.IsValid && t.Armed == true))
-            .Where(m => _context.TelemetryRecords
-                .Where(t => t.MissionId == m.Id && t.IsValid)
-                .OrderByDescending(t => t.SourceTimestamp)
-                .ThenByDescending(t => t.ReceivedAt)
-                .Select(t => t.Armed)
-                .FirstOrDefault() == false)
-            .Select(m => m.Id)
-            .ToListAsync(cancellationToken);
-    }
+    public Task<FlightCompletionEvent?> GetTrustedCompletionEventAsync(
+        Guid missionId, CancellationToken cancellationToken = default) =>
+        _context.FlightCompletionEvents.AsNoTracking()
+            .Where(x => x.MissionId == missionId && x.IsTrusted)
+            .OrderByDescending(x => x.CompletedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task AddCompletionEventAsync(
+        FlightCompletionEvent completionEvent, CancellationToken cancellationToken = default) =>
+        await _context.FlightCompletionEvents.AddAsync(completionEvent, cancellationToken);
 
     /// <summary>
     /// Lấy danh sách các sự cố ghi nhận trong chuyến bay
@@ -156,12 +147,55 @@ public class PostFlightRepository : IPostFlightRepository
                 .ThenInclude(m => m.UAV)
             .Include(r => r.Mission)
                 .ThenInclude(m => m.Creator)
-            .FirstOrDefaultAsync(r => r.MissionId == missionId, cancellationToken);
+            .FirstOrDefaultAsync(r => r.MissionId == missionId && r.IsCurrent, cancellationToken);
+    }
+
+    public Task<List<PostFlightReport>> GetReportRevisionsAsync(
+        Guid missionId, CancellationToken cancellationToken = default) =>
+        _context.PostFlightReports.AsNoTracking()
+            .Where(x => x.MissionId == missionId)
+            .OrderByDescending(x => x.Revision)
+            .ToListAsync(cancellationToken);
+
+    public Task<List<PostFlightReport>> GetReportsAwaitingGenerationAsync(
+        int batchSize, CancellationToken cancellationToken = default)
+    {
+        var abandonedBefore = DateTimeOffset.UtcNow.AddMinutes(-5);
+        return _context.PostFlightReports
+            .Include(x => x.Mission).ThenInclude(x => x.UAV)
+            .Include(x => x.Mission).ThenInclude(x => x.Creator)
+            .Where(x => x.IsCurrent &&
+                (x.GenerationStatus == "Queued" ||
+                 (x.GenerationStatus == "Generating" && x.GenerationStartedAt < abandonedBefore)))
+            .OrderBy(x => x.CreatedAt)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task AddReportAsync(PostFlightReport report, CancellationToken cancellationToken = default)
     {
         await _context.PostFlightReports.AddAsync(report, cancellationToken);
+    }
+
+    public async Task ReplaceCurrentReportAsync(
+        PostFlightReport currentReport,
+        PostFlightReport nextReport,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_context.Database.IsRelational())
+        {
+            currentReport.IsCurrent = false;
+            await _context.PostFlightReports.AddAsync(nextReport, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        currentReport.IsCurrent = false;
+        await _context.SaveChangesAsync(cancellationToken);
+        await _context.PostFlightReports.AddAsync(nextReport, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public Task UpdateMissionAsync(Mission mission, CancellationToken cancellationToken = default)
@@ -170,19 +204,46 @@ public class PostFlightRepository : IPostFlightRepository
         return Task.CompletedTask;
     }
 
-    public async Task<List<PostFlightReport>> GetAllCompletedReportsAsync(Guid? pilotUserId = null, CancellationToken cancellationToken = default)
+    public async Task<List<Mission>> GetTerminalMissionsAsync(
+        DateTime? fromDate, DateTime? toDate, Guid? uavId, Guid? missionId,
+        Guid? pilotUserId, CancellationToken cancellationToken = default)
     {
-        var query = _context.PostFlightReports
-            .Include(r => r.Mission)
+        var terminalStatuses = new[] { "Completed", "Failed", "Aborted", "Cancelled" };
+        var query = _context.Missions
+            .Include(x => x.UAV)
             .AsNoTracking()
-            .AsQueryable();
+            .Where(x => terminalStatuses.Contains(x.Status));
 
         if (pilotUserId.HasValue)
-        {
-            query = query.Where(r => r.Mission.CreatedBy == pilotUserId.Value);
-        }
+            query = query.Where(x => x.CreatedBy == pilotUserId.Value);
+        if (fromDate.HasValue)
+            query = query.Where(x => (x.EndTime ?? x.StartTime ?? x.CreatedAt) >= fromDate.Value);
+        if (toDate.HasValue)
+            query = query.Where(x => (x.EndTime ?? x.StartTime ?? x.CreatedAt) <= toDate.Value);
+        if (uavId.HasValue)
+            query = query.Where(x => x.UAVId == uavId.Value);
+        if (missionId.HasValue)
+            query = query.Where(x => x.Id == missionId.Value);
 
         return await query.ToListAsync(cancellationToken);
+    }
+
+    public async Task MarkReportsOutdatedForLateTelemetryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var candidates = await _context.PostFlightReports
+            .Where(report => report.IsCurrent && report.GenerationStatus == "Available" && report.GeneratedAt != null)
+            .Where(report => _context.TelemetryRecords.Any(record =>
+                record.MissionId == report.MissionId && record.IsValid &&
+                record.ReceivedAt > report.GeneratedAt &&
+                (!report.CoveredTelemetryThrough.HasValue || record.SourceTimestamp <= report.CoveredTelemetryThrough)))
+            .ToListAsync(cancellationToken);
+
+        foreach (var report in candidates)
+            report.GenerationStatus = "Outdated";
+
+        if (candidates.Count > 0)
+            await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)

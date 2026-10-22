@@ -27,8 +27,24 @@ public interface IPostFlightService
         bool isManager = false,
         CancellationToken cancellationToken = default);
 
-    // Được background worker gọi để tự động chốt chuyến bay khi phát hiện cạnh Armed true -> false.
-    Task<bool> TryAutoFinalizeAsync(Guid missionId, CancellationToken cancellationToken = default);
+    Task<PostFlightReportResponse> RecordTrustedCompletionAsync(
+        string idempotencyKey,
+        RecordFlightCompletionRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<int> ProcessQueuedReportsAsync(int batchSize = 10, CancellationToken cancellationToken = default);
+
+    Task<PostFlightReportResponse> RegenerateReportAsync(
+        Guid missionId,
+        RegeneratePostFlightReportRequest request,
+        Guid managerUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<List<PostFlightReportResponse>> GetReportRevisionsAsync(
+        Guid missionId,
+        Guid? currentUserId,
+        bool isManager,
+        CancellationToken cancellationToken = default);
 
     // Xem chi tiết báo cáo sau bay (SCR-14 / UC-18)
     Task<PostFlightReportResponse> GetReportByMissionIdAsync(
@@ -52,5 +68,8 @@ public interface IPostFlightService
         CancellationToken cancellationToken = default);
 
     // Thống kê phân tích vận hành (SCR-16 / UC-22)
-    Task<OperationalAnalyticsResponse> GetOperationalAnalyticsAsync(Guid? pilotUserId = null, CancellationToken cancellationToken = default);
+    Task<OperationalAnalyticsResponse> GetOperationalAnalyticsAsync(
+        GetOperationalAnalyticsRequest request,
+        Guid? pilotUserId = null,
+        CancellationToken cancellationToken = default);
 }

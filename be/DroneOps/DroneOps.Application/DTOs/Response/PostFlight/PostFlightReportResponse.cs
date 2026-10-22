@@ -13,6 +13,13 @@ public class PostFlightReportResponse
     public string MissionName { get; set; } = string.Empty;
     public string? MissionDescription { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string GenerationStatus { get; set; } = string.Empty;
+    public int Revision { get; set; }
+    public bool IsCurrent { get; set; }
+    public DateTimeOffset? CoveredTelemetryThrough { get; set; }
+    public DateTimeOffset? GeneratedAt { get; set; }
+    public string? FailureReason { get; set; }
+    public string? GenerationReason { get; set; }
 
     public string UavName { get; set; } = string.Empty;
     public string UavCode { get; set; } = string.Empty;
