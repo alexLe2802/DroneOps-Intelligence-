@@ -25,11 +25,8 @@ public class ApproveMissionRequest
     /// </summary>
     public string? ExpectedStatus { get; set; }
 
-    /// <summary>
-    /// Phiên bản kế hoạch FE đang review; hiện tại mỗi mission = 1 revision đang chờ duyệt.
-    /// </summary>
-    public int? ExpectedVersion { get; set; }
 
+    public Guid? UpdateRequestId { get; set; }
     public Guid? ValidationRunId { get; set; }
 }
 
@@ -39,5 +36,5 @@ public class RejectMissionRequest
 
     public string? ExpectedStatus { get; set; }
 
-    public int? ExpectedVersion { get; set; }
+    public Guid? UpdateRequestId { get; set; }
 }

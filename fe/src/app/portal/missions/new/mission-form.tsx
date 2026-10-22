@@ -20,6 +20,8 @@ export default function MissionForm() {
   const [geofenceWarning, setGeofenceWarning] = useState("");
   const [loadError, setLoadError] = useState<unknown>(null);
   const [uavId, setUavId] = useState("");
+  const [altitudeReference, setAltitudeReference] = useState<"AGL" | "MSL" | "Relative" | "">("");
+  const operation = useRef<{ signature: string; id: string } | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -78,9 +80,12 @@ export default function MissionForm() {
     pending.current = true;
     setSaving(true);
     try {
-      await createMission({ uavId, name: name.trim(), description: description.trim() || null, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints });
+      const payload = { altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints };
+      const signature = JSON.stringify(payload);
+      if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
+      const created = await createMission({ ...payload, operationId: operation.current.id });
       setSaved(true);
-      router.push("/portal/missions");
+      router.push(`/portal/missions/${created.id}`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to create the mission."); }
     finally { pending.current = false; setSaving(false); }
   }
@@ -107,11 +112,12 @@ export default function MissionForm() {
         {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
         <MissionMap waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
         <button type="button" className="module-secondary" onClick={() => addWaypoint(106.6297, 10.8231)}>ADD WAYPOINT MANUALLY</button>
-        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" step="any" value={Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></article>)}</div>
+        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></article>)}</div>
       </section>
       </fieldset>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mission will be saved as a draft.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "CREATING…" : "CREATE MISSION"}</button></div></footer>
+      <label>Altitude reference<select value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option value="AGL">AGL — above ground</option><option value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select></label>
+      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mandatory checks must pass before the mission is sent for manager review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "VALIDATING…" : "CREATE & VALIDATE MISSION"}</button></div></footer>
     </form>
   </>;
 }

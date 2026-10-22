@@ -5,6 +5,8 @@ namespace DroneOps.Domain.Entities;
 [Table("Mission")]
 public sealed class Mission
 {
+    public string? AltitudeReference { get; set; }
+
     public Guid Id { get; set; }
 
     public Guid CreatedBy { get; set; }

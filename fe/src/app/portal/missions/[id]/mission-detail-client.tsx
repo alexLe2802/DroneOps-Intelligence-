@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { cancelMission, getGeofences, getMission, submitMission, validateMission } from "@/lib/portal/client";
+import { cancelMission, getGeofences, getMission, startMission, validateMission } from "@/lib/portal/client";
 import type { Geofence, MissionDetail, MissionValidationResult } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 
+import MissionPlanComparison from "../mission-plan-comparison";
+import MissionEvidencePanel from "../mission-evidence-panel";
+
 const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
 const formatStatus = (value: string) => value.replace(/([A-Z])/g, " $1").trim();
 const statusKey = (value: string) => value.toLowerCase().replaceAll(" ", "");
-type MissionDialog = "submit" | "cancel" | null;
-type BusyAction = "submit" | "cancel" | null;
+type MissionDialog = "cancel" | null;
+type BusyAction = "validate" | "start" | "cancel" | null;
 
 export default function MissionDetailClient({ id }: { id: string }) {
   const [mission, setMission] = useState<MissionDetail | null>(null);
@@ -19,23 +22,28 @@ export default function MissionDetailClient({ id }: { id: string }) {
   const [error, setError] = useState<unknown>(null);
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
+  const [validation, setValidation] = useState<MissionValidationResult | null>(null);
+  const [validatedAt, setValidatedAt] = useState<Date | null>(null);
   const [dialog, setDialog] = useState<MissionDialog>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [busy, setBusy] = useState<BusyAction>(null);
   const actionPending = useRef(false);
-  const [validation, setValidation] = useState<MissionValidationResult | null>(null);
 
   const load = useCallback(() => {
     setMission(null);
     setError(null);
     setActionError("");
     setNotice("");
+    setValidation(null);
+    setValidatedAt(null);
     void Promise.allSettled([getMission(id), getGeofences()]).then(([missionResult, geofenceResult]) => {
       if (missionResult.status === "rejected") {
         setError(missionResult.reason);
         return;
       }
       setMission(missionResult.value);
+      setValidation(missionResult.value.validation ?? null);
+      setValidatedAt(missionResult.value.validation?.checkedAt ? new Date(missionResult.value.validation.checkedAt) : null);
       setGeofences(geofenceResult.status === "fulfilled" ? geofenceResult.value : []);
     });
   }, [id]);
@@ -49,6 +57,8 @@ export default function MissionDetailClient({ id }: { id: string }) {
         return;
       }
       setMission(missionResult.value);
+      setValidation(missionResult.value.validation ?? null);
+      setValidatedAt(missionResult.value.validation?.checkedAt ? new Date(missionResult.value.validation.checkedAt) : null);
       setGeofences(geofenceResult.status === "fulfilled" ? geofenceResult.value : []);
     });
     return () => { active = false; };
@@ -69,27 +79,40 @@ export default function MissionDetailClient({ id }: { id: string }) {
     return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes} min`;
   }, [mission]);
 
-  async function confirmSubmit() {
-    if (!mission || statusKey(mission.status) !== "draft" || actionPending.current) return;
+  async function runValidation() {
+    if (!mission || actionPending.current) return;
     actionPending.current = true;
-    setBusy("submit");
+    setBusy("validate");
     setActionError("");
     setNotice("");
     try {
-      const result = await validateMission(mission);
+      const result = await validateMission(mission, mission.pendingUpdate?.id);
       setValidation(result);
-      await submitMission(mission.id);
-      const refreshed = await getMission(mission.id);
-      setMission(refreshed);
-      setDialog(null);
-      setNotice("Mission submitted for manager review. System parameter checks have completed.");
+      setValidatedAt(result.checkedAt ? new Date(result.checkedAt) : new Date());
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "Unable to submit this mission.");
-      setDialog(null);
+      setValidation(null);
+      setValidatedAt(null);
+      setActionError(reason instanceof Error ? reason.message : "Unable to validate this mission.");
     } finally {
       actionPending.current = false;
       setBusy(null);
     }
+  }
+
+  async function beginMission() {
+    if (!mission || actionPending.current) return;
+    actionPending.current = true; setBusy("start"); setActionError("");
+    try {
+      const result = await startMission(mission.id);
+      setValidation(result);
+      setValidatedAt(result.checkedAt ? new Date(result.checkedAt) : new Date());
+      setMission(await getMission(mission.id));
+      setNotice("Mission marked In Progress after fresh mandatory checks. No aircraft control command was sent.");
+    } catch (reason) {
+      try { const refreshed = await getMission(mission.id); setMission(refreshed); setValidation(refreshed.validation ?? null); } catch { /* Preserve the original action error. */ }
+      setActionError(reason instanceof Error ? reason.message : "Unable to start mission.");
+    }
+    finally { actionPending.current = false; setBusy(null); }
   }
 
   async function confirmCancel() {
@@ -102,6 +125,8 @@ export default function MissionDetailClient({ id }: { id: string }) {
       await cancelMission(mission.id, cancelReason);
       const refreshed = await getMission(mission.id);
       setMission(refreshed);
+      setValidation(null);
+      setValidatedAt(null);
       setCancelReason("");
       setDialog(null);
       setNotice("Mission cancelled. The displayed status was refreshed from the backend.");
@@ -117,12 +142,12 @@ export default function MissionDetailClient({ id }: { id: string }) {
   if (error) return <ModuleError error={error} retry={load} />;
   if (!mission) return <ModuleLoading label="Loading mission details" />;
   const currentStatus = statusKey(mission.status);
-  const canEdit = ["draft", "rejected"].includes(currentStatus);
-  const canSubmit = currentStatus === "draft";
+  const canEdit = ["draft", "rejected", "pending", "pendingreview", "submitted", "approved"].includes(currentStatus);
+  const canValidate = !["completed", "cancelled", "inprogress"].includes(currentStatus);
   const canCancel = !["inprogress", "completed", "cancelled"].includes(currentStatus);
   const awaitingApproval = ["submitted", "pending", "pendingapproval", "pendingreview"].includes(currentStatus);
   const approvalTitle = currentStatus === "approved" ? "Flight authorized" : currentStatus === "rejected" ? "Changes requested" : currentStatus === "cancelled" ? "Mission cancelled" : awaitingApproval ? "Awaiting manager review" : "No decision recorded";
-  const approvalCopy = currentStatus === "approved" ? "The backend reports that this mission has manager approval." : currentStatus === "rejected" ? "Update the findings requested by the manager before submitting a new draft." : currentStatus === "cancelled" ? "No further approval action is available for this mission." : awaitingApproval ? "The mission is locked while a manager reviews the submitted plan and system validation results." : "Submit this draft for system validation and manager review.";
+  const approvalCopy = currentStatus === "approved" ? "The backend reports that this mission has manager approval." : currentStatus === "rejected" ? "Edit and save the plan to run validation and send it for review again." : currentStatus === "cancelled" ? "No further approval action is available for this mission." : currentStatus === "submitted" ? "The backend accepted the submission. Manager queue visibility depends on pending-status mapping." : awaitingApproval ? "The mission is waiting for manager review. Saving changes submits a separate proposal." : "Approval evidence will appear after the plan is submitted and reviewed.";
 
   return <>
     <header className="module-heading mission-detail-heading">
@@ -137,20 +162,37 @@ export default function MissionDetailClient({ id }: { id: string }) {
     {actionError && <div className="mission-action-feedback error" role="alert"><span>{actionError}</span><button type="button" onClick={() => setActionError("")}>DISMISS</button></div>}
     {notice && <div className="mission-action-feedback success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")}>DISMISS</button></div>}
 
+    <section className="mission-action-feedback" aria-label="Persisted mission validation">
+      <div><b>FLIGHT READINESS: {mission.flightReadiness ?? "AwaitingPreflight"}</b>
+      <p>Mandatory checks run when saving, approving, and within 15 minutes before departure. Weather is advisory.</p>
+      {mission.preflightValidation?.issues?.map((issue, index) => <p role="alert" key={`preflight-${index}`}>{issue}</p>)}
+      {mission.preflightValidation?.warnings?.map((warning, index) => <p role="status" key={`preflight-warning-${index}`}>{warning}</p>)}
+      {validation?.issues?.map((issue, index) => <p role="alert" key={`issue-${index}`}>{issue}</p>)}
+      {validation?.warnings?.map((warning, index) => <p role="status" key={`warning-${index}`}>{warning}</p>)}
+      {validation?.weather && <p><a href="https://open-meteo.com/" target="_blank" rel="noreferrer">{validation.weather.provider}</a> forecast: wind {validation.weather.maxWindMetersPerSecond ?? "unavailable"} m/s; gust {validation.weather.maxGustMetersPerSecond ?? "unavailable"} m/s; rain {validation.weather.maxRainMillimetersPerHour ?? "unavailable"} mm/h.</p>}
+      </div>
+    </section>
+
+    {mission.pendingUpdate && <>
+      <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
+      <MissionPlanComparison current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
+    </>}
+    <MissionEvidencePanel key={id} id={id} />
     <section className="mission-command-panel" aria-label="Mission lifecycle actions">
       <div className="mission-command-state">
         <span>PRE-FLIGHT CONTROL</span>
-        <strong>{canSubmit ? "READY FOR MANAGER REVIEW" : formatStatus(mission.status).toUpperCase()}</strong>
-        <small>{canSubmit ? "Submitting runs system parameter checks and sends the saved draft for manager review." : "Lifecycle actions are restricted by the current mission status."}</small>
+        <strong>{validation ? validation.isValid ? "VALIDATION PASSED" : "VALIDATION FAILED" : canValidate ? "VALIDATION REQUIRED" : formatStatus(mission.status).toUpperCase()}</strong>
+        <small>{validation ? validation.message : canValidate ? "Saving the plan automatically validates and sends it for review." : "Lifecycle actions are restricted by the current mission status."}</small>
       </div>
       <div className="mission-command-actions">
-        <button type="button" className="mission-submit-button" disabled={!canSubmit || busy !== null} onClick={() => setDialog("submit")}>SUBMIT FOR VALIDATION</button>
+        {currentStatus === "approved" && <button type="button" className="mission-submit-button" disabled={busy !== null} onClick={() => void beginMission()}>{busy === "start" ? "CHECKING..." : "START MISSION WITH PREFLIGHT CHECK"}</button>}
+        <button type="button" className="mission-validate-button" disabled={!canValidate || busy !== null} onClick={() => void runValidation()}>{busy === "validate" ? "VALIDATING..." : "RUN VALIDATION"}</button>
         {canCancel && <button type="button" className="mission-cancel-button" disabled={busy !== null} onClick={() => setDialog("cancel")}>CANCEL MISSION</button>}
       </div>
     </section>
 
     <section className="mission-detail-stats" aria-label="Mission summary">
-      <article><span>MISSION VERSION</span><strong>V{mission.latestVersion.toString().padStart(2, "0")}</strong><small>{mission.id.slice(0, 8).toUpperCase()}</small></article>
+      <article><span>UPDATE REQUEST</span><strong>{mission.pendingUpdate?.status ?? "No pending update"}</strong><small>{mission.id.slice(0, 8).toUpperCase()}</small></article>
       <article><span>ASSIGNED UAV</span><strong>{mission.uavCode ?? "UNASSIGNED"}</strong><small>{mission.uavId ? mission.uavId.slice(0, 8).toUpperCase() : "NO AIRCRAFT ID"}</small></article>
       <article><span>WAYPOINTS</span><strong>{mission.waypoints.length.toString().padStart(2, "0")}</strong><small>ROUTE NODES</small></article>
       <article><span>EST. DURATION</span><strong>{duration}</strong><small>PLANNED WINDOW</small></article>
@@ -184,15 +226,17 @@ export default function MissionDetailClient({ id }: { id: string }) {
     </section>
 
     <section className="mission-review-grid">
-      <article><span className={`review-state ${validation ? validation.isValid ? "passed" : "failed" : "pending"}`}>{validation ? validation.isValid ? "OK" : "!" : "--"}</span><div><p className="module-kicker">SYSTEM VALIDATION</p><h2>{validation ? validation.isValid ? "Parameter checks passed" : "Validation findings" : "No validation result loaded"}</h2><p>{validation?.message ?? "System checks run when you submit. A saved validation report is not currently available on this screen."}</p><p>Parameter checks do not provide a complete geofence or route clearance report.</p></div></article>
+      <article><span className={`review-state ${busy === "validate" ? "running" : validation?.isValid ? "passed" : validation ? "failed" : "pending"}`}>{busy === "validate" ? "..." : validation?.isValid ? "OK" : validation ? "!" : "--"}</span><div><p className="module-kicker">BACKEND VALIDATION</p><h2>{busy === "validate" ? "Validation in progress" : validation?.isValid ? "Pre-flight check passed" : validation ? "Pre-flight check failed" : "Not validated"}</h2><p>{validation?.message ?? "No persisted validation result is available for this mission."}</p>{validatedAt && <time>Checked {validatedAt.toLocaleString()}</time>}</div></article>
       <article><span className={`review-state ${currentStatus === "approved" ? "passed" : currentStatus === "rejected" || currentStatus === "cancelled" ? "failed" : awaitingApproval ? "running" : ""}`}>{currentStatus === "approved" ? "OK" : currentStatus === "rejected" || currentStatus === "cancelled" ? "!" : awaitingApproval ? "..." : "--"}</span><div><p className="module-kicker">MANAGER APPROVAL</p><h2>{approvalTitle}</h2><p>{approvalCopy}</p></div></article>
     </section>
 
-    {dialog && <div className="mission-dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && busy === null) setDialog(null); }}>
+    {dialog && <div className="mission-dialog-backdrop" role="presentation">
       <section className="mission-dialog" role="dialog" aria-modal="true" aria-labelledby="mission-dialog-title">
-        <header><div><p className="module-kicker">MISSION CONTROL / CONFIRMATION</p><h2 id="mission-dialog-title">{dialog === "submit" ? "Submit mission for review?" : "Cancel this mission?"}</h2></div><button type="button" aria-label="Close dialog" disabled={busy !== null} onClick={() => setDialog(null)}>x</button></header>
-        {dialog === "submit" ? <div className="mission-dialog-body"><p>The system will check the saved mission parameters and send the plan for manager review. Validation findings must be resolved before approval. Editing remains locked until the plan is approved or rejected.</p><dl><div><dt>Mission</dt><dd>{mission.name}</dd></div><div><dt>Next step</dt><dd>System validation, then manager review</dd></div><div><dt>Waypoints</dt><dd>{mission.waypoints.length}</dd></div></dl></div> : <div className="mission-dialog-body"><p>Cancellation preserves the mission record. It does not send a command to stop an aircraft.</p><label>CANCELLATION REASON<textarea rows={4} maxLength={1000} value={cancelReason} onChange={event => setCancelReason(event.target.value)} placeholder="Explain why this mission is being cancelled" autoFocus /></label></div>}
-        <footer><button type="button" className="module-secondary" disabled={busy !== null} onClick={() => setDialog(null)}>BACK</button>{dialog === "submit" ? <button type="button" className="module-primary" disabled={busy !== null || !canSubmit} onClick={() => void confirmSubmit()} autoFocus>{busy === "submit" ? "SUBMITTING..." : "CONFIRM SUBMISSION"}</button> : <button type="button" className="module-danger" disabled={busy !== null || !cancelReason.trim()} onClick={() => void confirmCancel()}>{busy === "cancel" ? "CANCELLING..." : "CONFIRM CANCELLATION"}</button>}</footer>
+        <h2 id="mission-dialog-title">Cancel this mission?</h2>
+        <p>Cancellation preserves the record and does not issue an aircraft stop command.</p>
+        <label>Reason<textarea rows={4} maxLength={1000} value={cancelReason} onChange={event => setCancelReason(event.target.value)} /></label>
+        <button type="button" disabled={busy !== null} onClick={() => setDialog(null)}>BACK</button>
+        <button type="button" disabled={busy !== null || !cancelReason.trim()} onClick={() => void confirmCancel()}>CONFIRM CANCELLATION</button>
       </section>
     </div>}
   </>;

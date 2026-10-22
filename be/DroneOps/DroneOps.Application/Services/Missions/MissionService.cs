@@ -1,77 +1,32 @@
 ﻿using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
-using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Entities;
+using DroneOps.Application.Services.Missions;
 
 namespace DroneOps.Application.Services;
 
 public sealed class MissionService : IMissionService
 {
     private readonly IMissionRepository _missionRepository;
-    private readonly MissionBusinessValidator _businessValidator;
+    private readonly MissionWorkflowService _workflow;
+    private readonly MissionValidationService _validation;
 
     public MissionService(
        IMissionRepository missionRepository,
-       MissionBusinessValidator businessValidator)
+       MissionWorkflowService workflow, MissionValidationService validation)
     {
         _missionRepository = missionRepository;
-        _businessValidator = businessValidator;
+        _workflow = workflow;
+        _validation = validation;
     }
     public async Task<MissionResponse> CreateAsync(
         Guid pilotId,
         CreateMissionRequest request,
         CancellationToken cancellationToken = default)
     {
-        await _businessValidator.ValidateUavAsync(
-     request.UavId,
-     pilotId,
-     cancellationToken);
-
-        var now = DateTime.UtcNow;
-
-        var mission = new Mission
-        {
-            Id = Guid.NewGuid(),
-            CreatedBy = pilotId,
-            UAVId = request.UavId,
-            Name = request.Name.Trim(),
-            Description = string.IsNullOrWhiteSpace(request.Description)
-                ? null
-                : request.Description.Trim(),
-            Status = "Pending",
-            StartTime = request.StartTime.ToUniversalTime(),
-            EndTime = request.EndTime.ToUniversalTime(),
-            CreatedAt = now
-        };
-
-        foreach (var waypointRequest in request.Waypoints
-                     .OrderBy(x => x.SequenceOrder))
-        {
-            mission.Waypoints.Add(new Waypoint
-            {
-                Id = Guid.NewGuid(),
-                MissionId = mission.Id,
-                SequenceOrder = waypointRequest.SequenceOrder,
-                Latitude = waypointRequest.Latitude,
-                Longitude = waypointRequest.Longitude,
-                Altitude = waypointRequest.Altitude,
-                ActionType = string.IsNullOrWhiteSpace(
-                    waypointRequest.ActionType)
-                    ? null
-                    : waypointRequest.ActionType.Trim(),
-                CreatedAt = now
-            });
-        }
-
-        await _missionRepository.AddAsync(
-            mission,
-            cancellationToken);
-
-        await _missionRepository.SaveChangesAsync(
-            cancellationToken);
-
-        return MapToResponse(mission);
+        var mission = await _workflow.SavePlanAsync(pilotId, request, null, cancellationToken);
+        return await MapWithValidationAsync(mission, cancellationToken);
     }
 
     public async Task<MissionResponse?> GetByIdAsync(
@@ -88,7 +43,7 @@ public sealed class MissionService : IMissionService
             return null;
         }
 
-        return MapToResponse(mission);
+        return await MapWithValidationAsync(mission, cancellationToken);
     }
 
     public async Task<List<MissionResponse>> GetAllAsync(
@@ -98,9 +53,9 @@ public sealed class MissionService : IMissionService
             await _missionRepository.GetAllAsync(
                 cancellationToken);
 
-        return missions
-            .Select(MapToResponse)
-            .ToList();
+        var results = new List<MissionResponse>();
+        foreach (var mission in missions) results.Add(await MapWithValidationAsync(mission, cancellationToken));
+        return results;
     }
 
     public async Task<List<MissionResponse>> GetMyAsync(
@@ -112,48 +67,9 @@ public sealed class MissionService : IMissionService
                 userId,
                 cancellationToken);
 
-        return missions
-            .Select(MapToResponse)
-            .ToList();
-    }
-
-    public async Task<bool> SubmitMissionAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
-    {
-        var mission = await _missionRepository.GetByIdForUpdateAsync(id, cancellationToken);
-        if (mission == null || mission.Status != "Draft") return false;
-
-        mission.Status = "Pending Review";
-
-        await _missionRepository.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-
-    public async Task<object> ValidateMissionParamsAsync(
-        MissionValidateDto request,
-        CancellationToken cancellationToken = default)
-    {
-        bool isValid = request.Waypoints != null && request.Waypoints.Count > 0;
-        return await Task.FromResult(new
-        {
-            isValid = isValid,
-            message = isValid ? "Mission parameters are valid." : "Waypoints cannot be empty."
-        });
-    }
-
-    public async Task<bool> CancelMissionAsync(
-        Guid id,
-        string? reason,
-        CancellationToken cancellationToken = default)
-    {
-        var mission = await _missionRepository.GetByIdAsync(id, cancellationToken);
-        if (mission == null) return false;
-
-        mission.Status = "Cancelled";
-
-        await _missionRepository.SaveChangesAsync(cancellationToken);
-        return true;
+        var results = new List<MissionResponse>();
+        foreach (var mission in missions) results.Add(await MapWithValidationAsync(mission, cancellationToken));
+        return results;
     }
 
     private static MissionResponse MapToResponse(
@@ -165,6 +81,7 @@ public sealed class MissionService : IMissionService
             CreatedBy = mission.CreatedBy,
             UavId = mission.UAVId,
             Name = mission.Name,
+            AltitudeReference=mission.AltitudeReference,
             Description = mission.Description,
             Status = mission.Status,
             StartTime = mission.StartTime,
@@ -186,79 +103,20 @@ public sealed class MissionService : IMissionService
         };
     }
 
-    public async Task<MissionResponse?> UpdateAsync(
- Guid missionId,
- Guid userId,
- CreateMissionRequest request,
- CancellationToken cancellationToken = default)
+    private async Task<MissionResponse> MapWithValidationAsync(Mission mission, CancellationToken ct)
     {
-        Mission? mission =
-            await _missionRepository.GetByIdForUpdateAsync(
-                missionId,
-                cancellationToken);
+        var response = MapToResponse(mission);
+        response.Validation = await _validation.ReadAsync(mission.Id,mission.CreatedBy,false,null,ct);
+        response.PendingUpdate = await _validation.PendingAsync(mission.Id, ct);
+        var preflight = await _validation.LatestPreflightAsync(mission.Id, ct);
+        response.PreflightValidation = preflight;
+        response.FlightReadiness = preflight?.Status ?? "AwaitingPreflight";
+        return response;
+    }
 
-        if (mission is null)
-        {
-            return null;
-        }
-
-        MissionBusinessValidator.ValidateMissionOwnership(
-    mission,
-    userId);
-
-        await _businessValidator.ValidateUavAsync(
-            request.UavId,
-            userId,
-            cancellationToken);
-
-        mission.UAVId = request.UavId;
-        mission.Name = request.Name.Trim();
-
-        mission.Description =
-            string.IsNullOrWhiteSpace(request.Description)
-                ? null
-                : request.Description.Trim();
-
-        mission.StartTime =
-            request.StartTime.ToUniversalTime();
-
-        mission.EndTime =
-            request.EndTime.ToUniversalTime();
-
-        await _missionRepository.DeleteWaypointsByMissionIdAsync(
-            mission.Id,
-            cancellationToken);
-
-        DateTime now = DateTime.UtcNow;
-
-        List<Waypoint> newWaypoints =
-            request.Waypoints
-                .OrderBy(x => x.SequenceOrder)
-                .Select(waypointRequest => new Waypoint
-                {
-                    Id = Guid.NewGuid(),
-                    MissionId = mission.Id,
-                    SequenceOrder = waypointRequest.SequenceOrder,
-                    Latitude = waypointRequest.Latitude,
-                    Longitude = waypointRequest.Longitude,
-                    Altitude = waypointRequest.Altitude,
-                    ActionType = string.IsNullOrWhiteSpace(
-                        waypointRequest.ActionType)
-                            ? null
-                            : waypointRequest.ActionType.Trim(),
-                    CreatedAt = now
-                })
-                .ToList();
-
-        await _missionRepository.AddWaypointsAsync(
-            newWaypoints,
-            cancellationToken);
-
-        await _missionRepository.SaveChangesAsync(
-            cancellationToken);
-
-        mission.Waypoints = newWaypoints;
-
-        return MapToResponse(mission);
+    public async Task<MissionResponse?> UpdateAsync(Guid id, Guid userId, CreateMissionRequest request, CancellationToken cancellationToken = default)
+    {
+        var mission = await _workflow.SavePlanAsync(userId, request, id, cancellationToken);
+        return await MapWithValidationAsync(mission, cancellationToken);
     }
 }

@@ -8,6 +8,10 @@ namespace DroneOps.Application.DTOs.Response.Missions;
 
 public class PendingApprovalItemResponse
 {
+    public DroneOps.Application.DTOs.Request.Missions.CreateMissionRequest? CurrentPlan { get; set; }
+    public DroneOps.Application.DTOs.Request.Missions.CreateMissionRequest? ProposedPlan { get; set; }
+    public MissionValidationResult? Validation { get; set; }
+    public Guid? UpdateRequestId { get; set; }
     public Guid MissionId { get; set; }
     public string MissionName { get; set; } = string.Empty;
     public string? Description { get; set; }
@@ -27,16 +31,13 @@ public class PendingApprovalItemResponse
     public int WaypointCount { get; set; }
 
     /// <summary>
-    /// Tóm tắt kiểm tra kế hoạch: Passed / Incomplete / Failed (không hard-code Passed).
+    /// Tóm tắt kiểm tra kế hoạch: Passed / Incomplete / Blocked (không hard-code Passed).
     /// </summary>
     public string ValidationStatus { get; set; } = "Incomplete";
 
     public List<string> ValidationIssues { get; set; } = new();
 
-    /// <summary>
-    /// Phiên bản kế hoạch hiện tại dùng làm expectedVersion khi approve/reject.
-    /// </summary>
-    public int CurrentVersion { get; set; } = 1;
+
 }
 
 public class PagedPendingApprovalsResponse
@@ -50,6 +51,7 @@ public class PagedPendingApprovalsResponse
 
 public class MissionDecisionResponse
 {
+    public Guid? UpdateRequestId { get; set; }
     public Guid MissionId { get; set; }
     public string Decision { get; set; } = string.Empty; // Approved hoặc Rejected
     public string PreviousStatus { get; set; } = string.Empty;

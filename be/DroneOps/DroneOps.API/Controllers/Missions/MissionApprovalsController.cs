@@ -74,6 +74,7 @@ public class MissionApprovalsController : ControllerBase
         {
             return Conflict(new { message = ex.Message });
         }
+        catch (MissionValidationException) { throw; }
         catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -114,6 +115,7 @@ public class MissionApprovalsController : ControllerBase
         {
             return Conflict(new { message = ex.Message });
         }
+        catch (MissionValidationException) { throw; }
         catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });

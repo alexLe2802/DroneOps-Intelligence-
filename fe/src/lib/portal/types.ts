@@ -12,7 +12,6 @@ export type PilotMission = {
   startTime: string | null;
   endTime: string | null;
   createdAt: string;
-  latestVersion: number;
 };
 
 export type PagedResponse<T> = {
@@ -28,10 +27,12 @@ export type MissionWaypoint = {
   sequenceOrder: number;
   latitude: number;
   longitude: number;
-  altitude: number;
+  altitude: number | null;
   actionType: WaypointAction;
 };
 export type CreateMissionRequest = {
+  operationId?: string;
+  altitudeReference?: "AGL" | "MSL" | "Relative" | null;
   uavId: string;
   name: string;
   description: string | null;
@@ -39,8 +40,19 @@ export type CreateMissionRequest = {
   endTime: string;
   waypoints: MissionWaypoint[];
 };
-export type MissionDetail = PilotMission & { waypoints: MissionWaypoint[]; detailAvailable?: boolean };
-export type MissionValidationResult = { isValid: boolean; message: string };
+export type MissionUpdateSummary = { id: string; status: string; isInitial: boolean; createdAt: string; actorId: string; reviewedBy?: string | null; reviewedAt?: string | null; reason?: string | null; basePlan?: CreateMissionRequest | null; proposedPlan: CreateMissionRequest; validation?: MissionValidationResult | null };
+export type MissionDetail = PilotMission & { altitudeReference?: string | null; pendingUpdate?: MissionUpdateSummary | null; waypoints: MissionWaypoint[]; detailAvailable?: boolean; validation?: MissionValidationResult | null; flightReadiness?: string; preflightValidation?: MissionValidationResult | null };
+export type MissionValidationResult = {
+  id?: string; updateRequestId?: string | null; restrictionRevision?: string; stale?: boolean; incomplete?: boolean; findings?: { geofenceId: string; revision: number; rule: string; waypointSequence?: number; segmentFrom?: number; segmentTo?: number; reason: string }[]; missionId?: string | null; stage?: string; checkedAt?: string;
+  isValid: boolean; message: string; status?: string; issues?: string[]; warnings?: string[];
+  weather?: MissionWeather | null;
+};
+
+export type MissionWeather = {
+  missionId?: string; updateRequestId?: string | null; status: "Available" | "Partial" | "Unavailable" | "Stale"; provider: string; available: boolean; fetchedAt: string; generatedAt: string; expiresAt: string; flightStartTime?: string | null; flightEndTime?: string | null; overallRisk: string; warnings: string[];
+  maxWindMetersPerSecond: number | null; maxGustMetersPerSecond: number | null; maxRainMillimetersPerHour: number | null; thunderstormForecast: boolean;
+  waypoints: { sequenceOrder: number; latitude: number; longitude: number; altitudeMeters: number | null; estimatedArrivalTime: string | null; arrivalTimeReason: string | null; forecastTime: string | null; sourceFetchedAt: string | null; temperatureCelsius: number | null; relativeHumidityPercent: number | null; windSpeedMetersPerSecond: number | null; windDirectionDegrees: number | null; windGustMetersPerSecond: number | null; windReferenceHeightMeters: number; precipitationProbabilityPercent: number | null; precipitationMillimeters: number | null; visibilityMeters: number | null; cloudCoverPercent: number | null; weatherCode: number | null; status: string; riskLevel: string; warnings: string[] }[];
+};
 
 export type LiveMission = {
   missionId: string;
@@ -112,6 +124,19 @@ export type IncidentItem = {
   resolvedAt: string | null;
 };
 
+export type IncidentDetail = IncidentItem & {
+  evidence: unknown;
+  acknowledgedBy: string | null;
+  acknowledgedByName: string | null;
+  resolvedBy: string | null;
+  resolvedByName: string | null;
+  resolutionNotes: string | null;
+  sourceTimestamp: string | null;
+  receivedAt: string | null;
+  appliedRule: string | null;
+  threshold: number | null;
+};
+
 export type PagedIncidents = {
   items: IncidentItem[];
   totalCount: number;
@@ -121,6 +146,9 @@ export type PagedIncidents = {
 };
 
 export type PendingMissionApproval = {
+  updateRequestId: string;
+  currentPlan: CreateMissionRequest;
+  proposedPlan: CreateMissionRequest;
   missionId: string;
   missionName: string;
   description: string | null;
@@ -136,8 +164,8 @@ export type PendingMissionApproval = {
   uavName: string | null;
   waypointCount: number;
   validationStatus: string;
+  validation?: MissionValidationResult | null;
   validationIssues?: string[];
-  currentVersion?: number;
 };
 
 export type PagedPendingMissionApprovals = {
@@ -190,9 +218,12 @@ export type FlightTelemetryPoint = {
   speed: number | null; batteryLevel: number | null; recordedAt: string;
 };
 export type GeofenceCoordinate = { latitude: number; longitude: number };
-export type GeofenceRequest = { name: string; description: string | null; coordinates: GeofenceCoordinate[] };
-export type Geofence = { id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
-export type SaveGeofenceRequest = { name: string; description: string | null; coordinates: GeofenceCoordinate[] };
+export type GeofenceRequest = {
+  altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[] };
+export type Geofence = {
+  verticalRule?: "Unspecified" | "AllAltitudes" | "Band";
+  altitudeReference?: string | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; revision?: number; id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
+export type SaveGeofenceRequest = { verticalRule?: "Unspecified" | "AllAltitudes" | "Band"; altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[] };
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {

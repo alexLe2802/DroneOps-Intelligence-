@@ -37,6 +37,6 @@ export function polygonError(points: GeofenceCoordinate[]): string | null {
 export function routeError(waypoints: MissionWaypoint[]): string | null {
   if (waypoints.length < 2) return "Add at least two waypoints to define a flight route.";
   if (waypoints.some(point => !validCoordinate(point))) return "Waypoint coordinates are outside the valid latitude or longitude range.";
-  if (waypoints.some(point => !Number.isFinite(point.altitude) || point.altitude < 0)) return "Waypoint altitude must be a finite, non-negative number.";
+  if (waypoints.some(point => point.altitude == null || !Number.isFinite(point.altitude) || point.altitude < 0)) return "Waypoint altitude must be a finite, non-negative number.";
   return null;
 }
