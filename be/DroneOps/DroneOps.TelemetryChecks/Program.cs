@@ -16,6 +16,8 @@ using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Persistence.Repositories;
+using DroneOps.Persistence.Interfaces.Notifications;
+using DroneOps.Persistence.Repositories.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -49,6 +51,7 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 builder.Services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(databaseName));
 builder.Services.AddScoped<IMissionRepository, MissionRepository>();
 builder.Services.AddScoped<IPostFlightRepository, PostFlightRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddSingleton<IDroneConnectionRepository,FixtureDroneConnectionRepository>();
 builder.Services.AddRateLimiter(o=>{o.AddFixedWindowLimiter("gateway-pairing",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-ingest",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});});
