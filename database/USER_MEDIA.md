@@ -14,7 +14,7 @@ Merge this section with existing configuration; do not replace other sections. R
 
 Apply `migrations/005_user_media.sql` for another environment. It has already been applied to the connected DroneOps project. Configure `SupabaseStorage:Url` if using another project (and update the avatar redirect host allowlist in the FE API route).
 
-Registration uses multipart `POST /api/pilot-registrations/with-files`: `data` is registration JSON and repeated `files` parts contain 1–10 JPEG/PNG/WebP/PDF documents (10 MB each). Files are validated before uploading. Object paths are saved in LicenseImage; failed submissions clean up uploaded files. The existing JSON registration API remains available for compatibility.
+Registration uses multipart `POST /api/pilot-registrations/with-files`: `data` is registration JSON and `files` contains exactly one PDF or Word (.doc/.docx) document (10 MB maximum). Files are validated before uploading. Object paths are saved in LicenseImage; failed submissions clean up uploaded files. The existing JSON registration API remains available for compatibility.
 
 Authenticated users update their own avatar with multipart `POST /api/users/avatar`, field `file` (JPEG/PNG/WebP, 5 MB max). The unique object path is persisted in User.AvatarPath. Replacing an avatar deletes the old object after saving the new path. GET requires the current user's login cookie through the FE proxy.
 
@@ -46,3 +46,7 @@ Only pending requests can be reviewed. Approval of expired licenses is blocked.
 `PUT /api/users/pilot-profile` remains for phone, birth date and experience;
 license changes must use the multipart submission endpoint. `GET` on that profile
 still returns the official license. Pending/rejected requests do not replace it.
+
+License uploads now accept exactly one PDF or Word (.doc/.docx), up to 10 MB. Apply `migrations/20261023000100_license_word_documents.sql` to allow Word MIME types in the existing private bucket. Existing images and avatar uploads remain supported.
+
+The Word MIME allowlist update has also been applied to the connected DroneOps bucket; the bucket remains private with a 10 MB limit.

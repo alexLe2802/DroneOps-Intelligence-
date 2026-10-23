@@ -76,10 +76,10 @@ public class PilotRegistrationService : IPilotRegistrationService
                 validation.Errors[0].ErrorMessage);
         }
 
-        if (files.Count is < 1 or > 10)
+        if (files.Count != 1)
         {
             throw new ArgumentException(
-                "Attach between 1 and 10 license files.");
+                "Attach exactly one PDF or Word license document.");
         }
 
         var uploaded = new List<string>();
@@ -99,13 +99,7 @@ public class PilotRegistrationService : IPilotRegistrationService
 
             foreach (var file in files)
             {
-                string extension = file.ContentType switch
-                {
-                    "application/pdf" => ".pdf",
-                    "image/png" => ".png",
-                    "image/webp" => ".webp",
-                    _ => ".jpg"
-                };
+                string extension = Path.GetExtension(file.FileName).ToLowerInvariant();
 
                 string path =
                     $"licenses/{folder}/{Guid.NewGuid():N}{extension}";
