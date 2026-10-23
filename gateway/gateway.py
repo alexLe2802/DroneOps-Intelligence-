@@ -101,6 +101,7 @@ class TelemetryState:
         self.system_id, self.component_id, self.clock = system_id, component_id, clock
         self.values = {}
         self.heartbeat_at = None
+        self.gps = None
         self.revision = 0
 
     def accept(self, message, mode):
@@ -118,11 +119,19 @@ class TelemetryState:
         elif kind == 'GLOBAL_POSITION_INT':
             lat, lon = message.lat / 1e7, message.lon / 1e7
             fields = {'altitudeMeters': message.relative_alt / 1000, 'altitudeReference': 'Relative'}
-            if -90 <= lat <= 90 and -180 <= lon <= 180:
+            # Treat the all-zero startup position as unavailable, not a live fix.
+            if -90 <= lat <= 90 and -180 <= lon <= 180 and (lat != 0 or lon != 0):
                 fields.update(latitude=lat, longitude=lon)
+            else:
+                fields.update(latitude=None, longitude=None)
             if abs(message.vx) != 32767 and abs(message.vy) != 32767:
                 fields['groundSpeedMetersPerSecond'] = math.hypot(message.vx, message.vy) / 100
             fields['headingDegrees'] = None if message.hdg == 65535 else message.hdg / 100
+        elif kind == 'GPS_RAW_INT':
+            lat, lon = message.lat / 1e7, message.lon / 1e7
+            valid = 3 <= message.fix_type <= 8 and -90 <= lat <= 90 and -180 <= lon <= 180 and (lat != 0 or lon != 0)
+            self.gps = (lat if valid else None, lon if valid else None,
+                        message.fix_type, message.satellites_visible, now)
         elif kind == 'SYS_STATUS':
             fields = {'batteryPercent': message.battery_remaining if 0 <= message.battery_remaining <= 100 else None,
                       'batteryVoltageVolts': None if message.voltage_battery == 65535 else message.voltage_battery / 1000}
@@ -141,6 +150,12 @@ class TelemetryState:
         if self.heartbeat_at is None or now - self.heartbeat_at > 5:
             return None
         value = {key: (item if now - seen <= 5 else None) for key, (item, seen) in self.values.items()}
+        # Prefer the fused global estimate; use fresh raw GPS only with a 3D fix.
+        # Raw GPS altitude is MSL and must not replace relative altitude.
+        if (value.get('latitude') is None or value.get('longitude') is None) and self.gps:
+            lat, lon, fix, satellites, seen = self.gps
+            if now - seen <= 5 and lat is not None and lon is not None:
+                value.update(latitude=lat, longitude=lon)
         value.update(sourceId=session['sourceId'], uavId=session['uavId'], missionId=session['missionId'],
                      sourceTimestamp=dt.datetime.now(dt.timezone.utc).isoformat(), altitudeReference='Relative')
         return value
@@ -233,6 +248,7 @@ def main():
     worker.start()
     streams_requested = False
     state, last_sent, sent_revision, link = TelemetryState(args.system_id, args.component_id), 0.0, -1, link
+    last_gps_report = time.monotonic()
     version_requested = float('-inf')
     identity_seen = time.monotonic()
     try:
@@ -261,6 +277,16 @@ def main():
                         link.mav.request_data_stream_send(args.system_id, args.component_id,
                                                           mavutil.mavlink.MAV_DATA_STREAM_ALL, 2, 1)
                         streams_requested = True
+                if time.monotonic() - last_gps_report >= 10:
+                    if state.gps is None:
+                        print('GPS: no GPS_RAW_INT received; waiting for receiver telemetry.', flush=True)
+                    else:
+                        lat, lon, fix, satellites, seen = state.gps
+                        satellite_text = 'unknown' if satellites == 255 else str(satellites)
+                        print('GPS: fix_type=%s satellites=%s age=%.1fs coordinates=%s' %
+                              (fix, satellite_text, time.monotonic() - seen,
+                               'available' if lat is not None else 'unavailable'), flush=True)
+                    last_gps_report = time.monotonic()
                 if time.monotonic() - last_sent >= 1 and state.revision != sent_revision and time.monotonic() - identity_seen <= 15:
                     sample = state.sample(session)
                     if sample is not None:

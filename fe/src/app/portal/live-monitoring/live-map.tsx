@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import type { MissionTelemetry, MissionWaypoint } from "@/lib/portal/types";
+import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
 import { getGeofences } from "@/lib/portal/client";
 import { describeGeofence } from "@/lib/maps/geofences";
 import styles from "./live-monitoring.module.css";
 
-const hasPosition = (value: { latitude: number | null; longitude: number | null } | null): value is { latitude: number; longitude: number } =>
-  Boolean(value && Number.isFinite(value.latitude) && Number.isFinite(value.longitude) && Math.abs(value.latitude!) <= 90 && Math.abs(value.longitude!) <= 180);
+const hasPosition = hasTelemetryPosition;
 
 export default function LiveMap({ missionId, telemetry, waypoints, sequence, recenterToken }: {
   missionId: string;
@@ -188,7 +188,8 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
     <div className={styles.mapTopLeft}>SECTOR GRID / LIVE POSITION</div>
     <div className={styles.mapTopRight}><i /> ROUTE LINK {telemetry?.connectivityStatus?.toUpperCase() || "OFFLINE"}</div>
     <div className={styles.airspaceLegend} aria-label="Airspace restrictions"><span><i style={{ background: "#ff3344" }} /> Vùng cấm bay</span><span><i style={{ background: "#facc15" }} /> Vùng hạn chế bay</span>{airspaceState !== "loaded" && <small role="status">{airspaceState === "loading" ? "Loading airspace…" : airspaceState === "empty" ? "No restriction data available" : "Airspace could not be loaded. Reload the page to retry."}</small>}</div>
-    {noSpatialData && <div className={styles.mapEmpty}><b>NO SPATIAL TELEMETRY</b><span>The mission has no route or current UAV position.</span></div>}
+    {!hasPosition(telemetry) && !noSpatialData && <div className={styles.mapError} role="status">UAV position unavailable / Chưa có vị trí UAV hợp lệ</div>}
+    {noSpatialData && <div className={styles.mapEmpty}><b>NO SPATIAL TELEMETRY</b><span>Waiting for a valid UAV position / Đang chờ vị trí UAV hợp lệ.</span></div>}
     {mapError && <div className={styles.mapError} role="alert">{mapError}</div>}
   </div>;
 }

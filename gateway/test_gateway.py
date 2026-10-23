@@ -32,6 +32,31 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(value['headingDegrees'],123.45)
         self.assertEqual(value['missionId'],'mission')
         self.assertTrue(value['armed'])
+    def test_zero_or_invalid_position_clears_previous_fix_but_keeps_other_telemetry(self):
+        self.heartbeat()
+        for lat, lon in [(0, 0), (910000000, 10000000)]:
+            self.state.accept(message('GLOBAL_POSITION_INT',lat=113500000,lon=1063400000,relative_alt=1000,vx=0,vy=0,hdg=0),None)
+            self.state.accept(message('GLOBAL_POSITION_INT',lat=lat,lon=lon,relative_alt=3800,vx=0,vy=0,hdg=0),None)
+            value=self.state.sample(SESSION)
+            self.assertIsNone(value['latitude'])
+            self.assertIsNone(value['longitude'])
+            self.assertEqual(value['altitudeMeters'],3.8)
+
+    def test_raw_gps_fallback_requires_fresh_3d_fix_and_preserves_relative_altitude(self):
+        self.heartbeat()
+        self.state.accept(message('GLOBAL_POSITION_INT',lat=0,lon=0,relative_alt=3800,vx=0,vy=0,hdg=0),None)
+        for fix in (0, 1, 2):
+            self.state.accept(message('GPS_RAW_INT',lat=107700000,lon=1067000000,fix_type=fix,satellites_visible=5),None)
+            self.assertIsNone(self.state.sample(SESSION)['latitude'])
+        self.state.accept(message('GPS_RAW_INT',lat=107700000,lon=1067000000,fix_type=3,satellites_visible=9),None)
+        value=self.state.sample(SESSION)
+        self.assertEqual((value['latitude'],value['longitude'],value['altitudeMeters']),(10.77,106.7,3.8))
+        self.state.accept(message('GLOBAL_POSITION_INT',lat=107800000,lon=1067100000,relative_alt=3800,vx=0,vy=0,hdg=0),None)
+        self.assertEqual(self.state.sample(SESSION)['latitude'],10.78)
+        self.now=6
+        self.heartbeat()
+        self.assertIsNone(self.state.sample(SESSION)['latitude'])
+
     def test_missing_fields_and_sentinels_remain_unknown(self):
         self.heartbeat()
         self.state.accept(message('SYS_STATUS',battery_remaining=-1,voltage_battery=65535),None)
