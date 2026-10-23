@@ -220,6 +220,56 @@ try
         freshnessEvents.Add(await ReadEventAsync());
     Check(freshnessEvents.Any(x => x.Contains("\"snapshotKind\":\"Stale\"")) && freshnessEvents.Any(x => x.Contains("\"snapshotKind\":\"Offline\"")), "idle SSE emits Online-to-Stale-to-Offline transitions without a new packet");
 
+    // Incident detector: một mẫu nhiễu không mở incident; mẫu vi phạm thứ hai mới mở.
+    client.DefaultRequestHeaders.Authorization = null;
+    var detectorAt = DateTimeOffset.UtcNow;
+    await client.SendAsync(Ingest("low-battery-1", Sample(detectorAt, battery: 20, sequence: 10)));
+    await using (var scope = app.Services.CreateAsyncScope())
+        Check(!await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "LowBattery"), "one violating sample does not raise a noisy incident");
+    var lowBatterySecond = await Json(await client.SendAsync(Ingest("low-battery-2", Sample(detectorAt.AddSeconds(1), battery: 19, sequence: 11))));
+    Check(lowBatterySecond.GetProperty("raisedIncidentId").ValueKind == JsonValueKind.String, "second consecutive violating sample raises an incident");
+    var lowBatteryIncidentId = lowBatterySecond.GetProperty("raisedIncidentId").GetGuid();
+
+    // Pilot nhận alert bền vững, acknowledge/resolve và lịch sử append-only qua HTTP.
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));
+    var unread = await Json(await client.GetAsync("/api/incidents/alerts/unread"));
+    Check(unread.GetArrayLength() >= 1, "raised incident creates a durable unread alert for the mission owner");
+    var acknowledge = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/acknowledge", new { notes = "Pilot is handling the event." });
+    Check(acknowledge.StatusCode == HttpStatusCode.OK && (await Json(acknowledge)).GetProperty("status").GetString() == "Acknowledged", "pilot acknowledges an incident through HTTP API");
+    var resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced." });
+    Check(resolve.StatusCode == HttpStatusCode.OK && (await Json(resolve)).GetProperty("status").GetString() == "Resolved", "pilot resolves an incident with mandatory notes");
+    var history = await Json(await client.GetAsync($"/api/incidents/{lowBatteryIncidentId}/history"));
+    Check(history.GetArrayLength() == 3 && history[0].GetProperty("eventType").GetString() == "Raised", "incident history preserves raised, acknowledged and resolved transitions");
+    var alertId = unread[0].GetProperty("id").GetGuid();
+    Check((await client.PostAsync($"/api/incidents/alerts/{alertId}/read", null)).StatusCode == HttpStatusCode.OK, "recipient can mark a durable alert as read");
+
+    // Hysteresis/recovery: vùng giữa ngưỡng không đóng incident; hai mẫu khỏe liên tiếp mới đóng.
+    client.DefaultRequestHeaders.Authorization = null;
+    var highSpeed1 = new IngestTelemetrySampleRequest
+    {
+        SourceId = "sim-uav-001", UavId = fixtureUavId, MissionId = missionId,
+        SourceTimestamp = detectorAt.AddSeconds(3), Latitude = 10.849m, Longitude = 106.772m,
+        GroundSpeedMetersPerSecond = 30, BatteryPercent = 70, Armed = true, MissionSequence = 13
+    };
+    var highSpeed2 = new IngestTelemetrySampleRequest
+    {
+        SourceId = "sim-uav-001", UavId = fixtureUavId, MissionId = missionId,
+        SourceTimestamp = detectorAt.AddSeconds(4), Latitude = 10.849m, Longitude = 106.772m,
+        GroundSpeedMetersPerSecond = 31, BatteryPercent = 70, Armed = true, MissionSequence = 14
+    };
+    await client.SendAsync(Ingest("speed-high-real-1", highSpeed1));
+    await client.SendAsync(Ingest("speed-high-real-2", highSpeed2));
+    var middle = highSpeed2; middle.SourceTimestamp = detectorAt.AddSeconds(5); middle.GroundSpeedMetersPerSecond = 23; middle.MissionSequence = 15;
+    await client.SendAsync(Ingest("speed-middle", middle));
+    await using (var scope = app.Services.CreateAsyncScope())
+        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.Status != "Resolved"), "hysteresis band keeps the speed incident open");
+    middle.SourceTimestamp = detectorAt.AddSeconds(6); middle.GroundSpeedMetersPerSecond = 20; middle.MissionSequence = 16;
+    await client.SendAsync(Ingest("speed-recovery-1", middle));
+    middle.SourceTimestamp = detectorAt.AddSeconds(7); middle.MissionSequence = 17;
+    await client.SendAsync(Ingest("speed-recovery-2", middle));
+    await using (var scope = app.Services.CreateAsyncScope())
+        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.Status == "Resolved"), "two healthy samples automatically resolve the incident");
+
     if (args.Length == 2 && args[0] == "--gateway")
     {
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId,"uav_operator"));
