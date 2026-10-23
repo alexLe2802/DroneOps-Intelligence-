@@ -153,6 +153,7 @@ export type PagedIncidents = {
 };
 
 export type PendingMissionApproval = {
+  isInitial: boolean;
   updateRequestId: string;
   currentPlan: CreateMissionRequest;
   proposedPlan: CreateMissionRequest;
