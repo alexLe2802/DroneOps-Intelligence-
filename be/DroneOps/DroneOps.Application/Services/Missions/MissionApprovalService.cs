@@ -1,12 +1,18 @@
 using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
+using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 namespace DroneOps.Application.Services.Missions;
 
-public class MissionApprovalService(AppDbContext db,MissionValidationService validation) : IMissionApprovalService
+public class MissionApprovalService(
+    AppDbContext db,
+    MissionValidationService validation,
+    INotificationService? notificationService = null,
+    ILogger<MissionApprovalService>? logger = null) : IMissionApprovalService
 {
     public async Task<PagedPendingApprovalsResponse> GetPendingApprovalsAsync(GetPendingApprovalsRequest filter,Guid managerId,CancellationToken ct=default)
     {
@@ -30,11 +36,18 @@ public class MissionApprovalService(AppDbContext db,MissionValidationService val
         }
         return new(){Items=items,TotalCount=total,PageNumber=page,PageSize=size};
     }
-    public Task<MissionDecisionResponse> ApproveMissionAsync(Guid id,ApproveMissionRequest request,Guid manager,CancellationToken ct=default)=>DecideAsync(id,request.UpdateRequestId,request.ValidationRunId,manager,"Approved",request.Comment,ct);
-    public Task<MissionDecisionResponse> RejectMissionAsync(Guid id,RejectMissionRequest request,Guid manager,CancellationToken ct=default)
+    public async Task<MissionDecisionResponse> ApproveMissionAsync(Guid id,ApproveMissionRequest request,Guid manager,CancellationToken ct=default)
+    {
+        var response=await DecideAsync(id,request.UpdateRequestId,request.ValidationRunId,manager,"Approved",request.Comment,ct);
+        await TryPublishDecisionNotificationAsync(response,manager,true,ct);
+        return response;
+    }
+    public async Task<MissionDecisionResponse> RejectMissionAsync(Guid id,RejectMissionRequest request,Guid manager,CancellationToken ct=default)
     {
         if(string.IsNullOrWhiteSpace(request.Reason))throw new ArgumentException("Rejection reason is mandatory.");
-        return DecideAsync(id,request.UpdateRequestId,null,manager,"Rejected",request.Reason.Trim(),ct);
+        var response=await DecideAsync(id,request.UpdateRequestId,null,manager,"Rejected",request.Reason.Trim(),ct);
+        await TryPublishDecisionNotificationAsync(response,manager,false,ct);
+        return response;
     }
     private async Task<MissionDecisionResponse> DecideAsync(Guid id,Guid? requestId,Guid? runId,Guid manager,string decision,string? comment,CancellationToken ct)
     {
@@ -77,4 +90,14 @@ public class MissionApprovalService(AppDbContext db,MissionValidationService val
         });
     }
     private static MissionDecisionResponse Response(MissionApproval log,string state,bool replay)=>new(){MissionId=log.MissionId,UpdateRequestId=log.UpdateRequestId,Decision=log.Status,PreviousStatus=state,NewStatus=state,Comment=log.Comment,DecidedAt=log.ApprovedAt??DateTimeOffset.UtcNow,DecidedBy=log.UserId,IdempotentReplay=replay,ValidationRunId=log.ValidationRunId};
+
+    private async Task TryPublishDecisionNotificationAsync(MissionDecisionResponse response,Guid actorUserId,bool approved,CancellationToken ct)
+    {
+        if(response.IdempotentReplay || notificationService is null)return;
+        try { await notificationService.PublishMissionDecisionAsync(response.MissionId,actorUserId,approved,ct); }
+        catch(Exception ex) when(!ct.IsCancellationRequested)
+        {
+            logger?.LogWarning(ex,"Could not publish mission-decision notification for {MissionId}.",response.MissionId);
+        }
+    }
 }

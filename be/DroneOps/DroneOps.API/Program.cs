@@ -199,6 +199,8 @@ await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.Np
 // Detect a missing deployment migration before background monitoring starts.
 await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+// Notification DDL is idempotent so existing deployments become ready without a separate flag.
+await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.
