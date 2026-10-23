@@ -49,7 +49,10 @@ public sealed class PostFlightCompletionMonitor : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IPostFlightService>();
+        var synchronized = await service.SynchronizeOverdueMissionsAsync(cancellationToken);
         var processed = await service.ProcessQueuedReportsAsync(10, cancellationToken);
+        if (synchronized > 0)
+            _logger.LogInformation("Synchronized {MissionCount} overdue mission(s).", synchronized);
         if (processed > 0)
             _logger.LogInformation("Processed {ReportCount} queued post-flight report(s).", processed);
     }

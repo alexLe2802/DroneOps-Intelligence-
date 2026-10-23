@@ -19,11 +19,22 @@ public sealed class PostFlightService : IPostFlightService
 
     public PostFlightService(IPostFlightRepository repository) => _repository = repository;
 
+    public async Task<int> SynchronizeOverdueMissionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var synchronized = await _repository.SynchronizeOverdueMissionsAsync(
+            DateTimeOffset.UtcNow, cancellationToken);
+        if (synchronized.CompletedMissions > 0)
+            await ProcessQueuedReportsAsync(100, cancellationToken);
+        return synchronized.CompletedMissions + synchronized.CancelledMissions;
+    }
+
     public async Task<PagedResponse<FlightHistoryItemResponse>> GetFlightHistoryAsync(
         GetFlightHistoryRequest request,
         Guid? pilotUserId = null,
         CancellationToken cancellationToken = default)
     {
+        await SynchronizeOverdueMissionsAsync(cancellationToken);
         ValidateDateRange(request.FromDate, request.ToDate);
         var inclusiveToDate = NormalizeInclusiveToDate(request.ToDate);
         var pageNumber = Math.Max(1, request.PageNumber);
@@ -242,16 +253,23 @@ public sealed class PostFlightService : IPostFlightService
 
         try
         {
-            var completion = await _repository.GetTrustedCompletionEventAsync(mission.Id, cancellationToken)
-                ?? throw new InvalidOperationException("Trusted completion evidence is missing.");
+            var completion = await _repository.GetTrustedCompletionEventAsync(mission.Id, cancellationToken);
+            var scheduledCompletion = report.GenerationReason == "Scheduled mission end time elapsed";
+            if (completion == null && !scheduledCompletion)
+                throw new InvalidOperationException("Trusted completion evidence is missing.");
+            var coveredThrough = completion?.CompletedAt ?? report.CoveredTelemetryThrough
+                ?? throw new InvalidOperationException("The completed flight window is missing.");
             var telemetry = (await _repository.GetTelemetryByMissionIdAsync(mission.Id, cancellationToken))
-                .Where(x => x.SourceTimestamp <= completion.CompletedAt)
+                .Where(x => x.SourceTimestamp <= coveredThrough)
                 .ToList();
-            if (telemetry.Count == 0)
-                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
             var incidents = await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken);
-            PopulateReport(report, mission, telemetry, incidents);
-            report.CoveredTelemetryThrough = completion.CompletedAt;
+            if (telemetry.Count == 0 && !scheduledCompletion)
+                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
+            if (telemetry.Count == 0)
+                PopulateScheduledReport(report, mission, incidents);
+            else
+                PopulateReport(report, mission, telemetry, incidents);
+            report.CoveredTelemetryThrough = coveredThrough;
             report.GenerationStatus = "Available";
             report.GeneratedAt = DateTimeOffset.UtcNow;
             report.FailedAt = null;
@@ -311,6 +329,7 @@ public sealed class PostFlightService : IPostFlightService
         Guid? pilotUserId = null,
         CancellationToken cancellationToken = default)
     {
+        await SynchronizeOverdueMissionsAsync(cancellationToken);
         ValidateDateRange(request.FromDate, request.ToDate);
         var inclusiveToDate = NormalizeInclusiveToDate(request.ToDate);
         var missions = await _repository.GetTerminalMissionsAsync(
@@ -445,6 +464,21 @@ public sealed class PostFlightService : IPostFlightService
         report.SafetyEvaluation = BuildSafetyEvaluation(incidents);
         report.Summary ??= $"Flight '{mission.Name}' completed with {telemetry.Count} valid telemetry records and {incidents.Count} incident(s).";
         report.Status = "Completed";
+    }
+
+    private static void PopulateScheduledReport(
+        PostFlightReport report,
+        Mission mission,
+        IReadOnlyList<Incident> incidents)
+    {
+        report.TotalFlightDurationMinutes = CalculateScheduledDuration(mission);
+        report.TotalTelemetryRecords = 0;
+        report.TotalIncidents = incidents.Count;
+        report.Status = "Completed";
+        report.SafetyEvaluation = BuildSafetyEvaluation(incidents);
+        report.Summary ??= incidents.Count == 0
+            ? $"Flight '{mission.Name}' completed safely at its scheduled end time; no incidents were recorded."
+            : $"Flight '{mission.Name}' completed at its scheduled end time with {incidents.Count} recorded incident(s).";
     }
 
     private static string BuildSafetyEvaluation(IReadOnlyList<Incident> incidents)
