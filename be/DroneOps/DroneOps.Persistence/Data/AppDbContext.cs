@@ -21,6 +21,8 @@ public class AppDbContext : DbContext
     public DbSet<Waypoint> Waypoints { get; set; }
     public DbSet<Geofence> Geofences { get; set; }
     public DbSet<Incident> Incidents { get; set; }
+    public DbSet<IncidentTransition> IncidentTransitions { get; set; }
+    public DbSet<IncidentAlertDelivery> IncidentAlertDeliveries { get; set; }
     public DbSet<MissionApproval> MissionApprovals { get; set; }
     public DbSet<TelemetryRecord> TelemetryRecords { get; set; }
     public DbSet<PilotRegistration> PilotRegistrations { get; set; }
@@ -60,5 +62,20 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<FlightCompletionEvent>()
             .HasIndex(x => x.IdempotencyKey)
             .IsUnique();
+
+        modelBuilder.Entity<IncidentTransition>()
+            .HasOne(x => x.Actor)
+            .WithMany()
+            .HasForeignKey(x => x.ChangedBy)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<IncidentAlertDelivery>()
+            .HasIndex(x => new { x.TransitionId, x.RecipientUserId })
+            .IsUnique();
+        modelBuilder.Entity<IncidentAlertDelivery>()
+            .HasOne(x => x.Recipient)
+            .WithMany()
+            .HasForeignKey(x => x.RecipientUserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

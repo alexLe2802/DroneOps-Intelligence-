@@ -2,6 +2,7 @@
 using DroneOps.Application.DTOs.Request.Incidents;
 using DroneOps.Application.DTOs.Response.Incidents;
 using DroneOps.Application.Interfaces.Incidents;
+using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,10 +11,12 @@ namespace DroneOps.Application.Services.Incidents;
 public class IncidentService : IIncidentService
 {
     private readonly AppDbContext _context;
+    private readonly IIncidentLifecycleService _lifecycle;
 
-    public IncidentService(AppDbContext context)
+    public IncidentService(AppDbContext context, IIncidentLifecycleService lifecycle)
     {
         _context = context;
+        _lifecycle = lifecycle;
     }
 
     public async Task<PagedIncidentsResponse> GetIncidentsAsync(
@@ -237,6 +240,141 @@ public class IncidentService : IIncidentService
             })
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IncidentDetailResponse> AcknowledgeAsync(
+        Guid incidentId,
+        Guid currentUserId,
+        bool isManager,
+        string? notes,
+        CancellationToken cancellationToken = default)
+    {
+        var incident = await GetForMutationAsync(incidentId, currentUserId, isManager, cancellationToken);
+        if (incident.Status == "Resolved")
+        {
+            throw new InvalidOperationException("A resolved incident cannot be acknowledged.");
+        }
+        if (incident.Status == "Acknowledged")
+        {
+            return await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        incident.Status = "Acknowledged";
+        incident.AcknowledgedAt = now;
+        incident.AcknowledgedBy = currentUserId;
+        await _lifecycle.AppendTransitionAndAlertsAsync(
+            incident, "Open", "Acknowledged", "Acknowledged", notes,
+            currentUserId, now, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+        return await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);
+    }
+
+    public async Task<IncidentDetailResponse> ResolveAsync(
+        Guid incidentId,
+        Guid currentUserId,
+        bool isManager,
+        string resolutionNotes,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(resolutionNotes))
+        {
+            throw new ArgumentException("Resolution notes are required.");
+        }
+
+        var incident = await GetForMutationAsync(incidentId, currentUserId, isManager, cancellationToken);
+        if (incident.Status == "Resolved")
+        {
+            return await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);
+        }
+
+        var previous = incident.Status;
+        var now = DateTimeOffset.UtcNow;
+        incident.Status = "Resolved";
+        incident.ResolvedAt = now;
+        incident.ResolvedBy = currentUserId;
+        incident.ResolutionNotes = resolutionNotes.Trim();
+        await _lifecycle.AppendTransitionAndAlertsAsync(
+            incident, previous, "Resolved", "Resolved", incident.ResolutionNotes,
+            currentUserId, now, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+        return await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);
+    }
+
+    public async Task<List<IncidentTransitionResponse>> GetHistoryAsync(
+        Guid incidentId,
+        Guid? currentUserId,
+        bool isManager,
+        CancellationToken cancellationToken = default)
+    {
+        _ = await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);
+        return await _context.IncidentTransitions
+            .AsNoTracking()
+            .Where(x => x.IncidentId == incidentId)
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => new IncidentTransitionResponse
+            {
+                Id = x.Id,
+                FromStatus = x.FromStatus,
+                ToStatus = x.ToStatus,
+                EventType = x.EventType,
+                Notes = x.Notes,
+                ChangedBy = x.ChangedBy,
+                ChangedByName = x.Actor == null ? null : x.Actor.FullName,
+                CreatedAt = x.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<List<IncidentAlertResponse>> GetUnreadAlertsAsync(
+        Guid currentUserId,
+        CancellationToken cancellationToken = default) =>
+        _context.IncidentAlertDeliveries
+            .AsNoTracking()
+            .Where(x => x.RecipientUserId == currentUserId && x.ReadAt == null)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new IncidentAlertResponse
+            {
+                Id = x.Id,
+                IncidentId = x.IncidentId,
+                MissionId = x.Incident.MissionId,
+                IncidentTitle = x.Incident.Title,
+                Severity = x.Incident.Severity ?? "Medium",
+                EventType = x.EventType,
+                CreatedAt = x.CreatedAt,
+                ReadAt = x.ReadAt
+            })
+            .ToListAsync(cancellationToken);
+
+    public async Task MarkAlertReadAsync(
+        Guid alertId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var alert = await _context.IncidentAlertDeliveries
+            .FirstOrDefaultAsync(x => x.Id == alertId && x.RecipientUserId == currentUserId, cancellationToken)
+            ?? throw new KeyNotFoundException("Alert delivery was not found.");
+        alert.ReadAt ??= DateTimeOffset.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<Incident> GetForMutationAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, CancellationToken cancellationToken)
+    {
+        var incident = await _context.Incidents
+            .Include(x => x.Mission)
+            .FirstOrDefaultAsync(x => x.Id == incidentId, cancellationToken)
+            ?? throw new KeyNotFoundException("Incident was not found.");
+        if (!isManager && incident.Mission.CreatedBy != currentUserId)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to update this incident.");
+        }
+        return incident;
+    }
+
+    private async Task<IncidentDetailResponse> GetRequiredDetailAsync(
+        Guid incidentId, Guid? currentUserId, bool isManager, CancellationToken cancellationToken) =>
+        await GetIncidentByIdAsync(incidentId, currentUserId, isManager, cancellationToken)
+        ?? throw new KeyNotFoundException("Incident was not found.");
 
     private static EvidenceParseResult ParseEvidence(string? raw)
     {

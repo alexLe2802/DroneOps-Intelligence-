@@ -4,6 +4,7 @@ using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using DroneOps.Application.Interfaces.Incidents;
 
 public sealed class CommunicationLossMonitor : BackgroundService
 {
@@ -50,6 +51,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var lifecycle = scope.ServiceProvider.GetRequiredService<IIncidentLifecycleService>();
         var options = _options.CurrentValue;
         var cutoff = DateTimeOffset.UtcNow.AddSeconds(-Math.Max(1, options.CommunicationLossSeconds));
 
@@ -80,7 +82,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
             }
 
             var latest = candidate.Latest!;
-            context.Incidents.Add(new Incident
+            await lifecycle.RaiseIfOpenMissingAsync(new Incident
             {
                 Id = Guid.NewGuid(),
                 MissionId = candidate.Mission.Id,
@@ -106,7 +108,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
                     threshold = options.CommunicationLossSeconds
                 }),
                 CreatedAt = DateTimeOffset.UtcNow
-            });
+            }, cancellationToken);
         }
 
         if (context.ChangeTracker.HasChanges())
