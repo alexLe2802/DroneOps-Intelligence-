@@ -1,5 +1,9 @@
 using System.Reflection;
 using DroneOps.API.Controllers;
+using DroneOps.API.Controllers.Users;
+using DroneOps.API.Controllers.Integrations;
+using DroneOps.API.Controllers.PostFlight;
+using DroneOps.API.Filters;
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
@@ -71,6 +75,11 @@ Check(!typeof(PilotUpdateRequestsController).Assembly.GetTypes().Any(t => t.GetC
     "Duplicate license-changes API has been removed");
 Check(typeof(OperatorCredentialsController).GetCustomAttribute<AuthorizeAttribute>()?.Roles == "operation_manager",
     "Other operators' credentials and avatars require manager authorization");
+Check(typeof(FlightCompletionIntegrationController).GetCustomAttribute<IntegrationAuthorizeAttribute>() is not null,
+    "Flight completion events require trusted integration credentials");
+Check(typeof(PostFlightController).GetMethod("FinalizeFlight")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("operation_manager") == true &&
+      typeof(PostFlightController).GetMethod("RegenerateReport")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("operation_manager") == true,
+    "Only managers can manually process or regenerate post-flight reports");
 var validator = new CreatePilotRegistrationValidator();
 var today = DateOnly.FromDateTime(DateTime.UtcNow);
 CreatePilotRegistrationRequest Valid() => new()
