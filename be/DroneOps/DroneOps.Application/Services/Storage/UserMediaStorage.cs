@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -67,73 +68,42 @@ public sealed class UserMediaStorage : IUserMediaStorage
         return request;
     }
 
-    public async Task ValidateAsync(
-        IFormFile file,
-        bool avatar,
-        CancellationToken cancellationToken = default)
+    public async Task ValidateAsync(IFormFile file, bool avatar, CancellationToken ct)
     {
-        long maximumSize =
-            (avatar ? 5L : 10L) * 1024 * 1024;
-
-        if (file.Length <= 0 ||
-            file.Length > maximumSize)
-        {
-            throw new ArgumentException(
-                avatar
-                    ? "Avatar must be 5 MB or smaller."
-                    : "Each license file must be 10 MB or smaller.");
-        }
-
-        await using Stream stream =
-            file.OpenReadStream();
-
+        if (file.Length <= 0 || file.Length > (avatar ? 5 : 10) * 1024 * 1024)
+            throw new ArgumentException(avatar ? "Avatar must be 5 MB or smaller." : "Each license file must be 10 MB or smaller.");
+        await using var stream = file.OpenReadStream();
         var bytes = new byte[12];
-
-        int count = await stream.ReadAtLeastAsync(
-            bytes,
-            12,
-            false,
-            cancellationToken);
-
-        bool valid = file.ContentType switch
+        var count = await stream.ReadAtLeastAsync(bytes, 12, false, ct);
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var valid = file.ContentType switch
         {
-            "image/jpeg" =>
-                count >= 3 &&
-                bytes[0] == 255 &&
-                bytes[1] == 216 &&
-                bytes[2] == 255,
-
-            "image/png" =>
-                count >= 8 &&
-                bytes.AsSpan(0, 8).SequenceEqual(
-                    new byte[]
-                    {
-                        137, 80, 78, 71,
-                        13, 10, 26, 10
-                    }),
-
-            "image/webp" =>
-                count >= 12 &&
-                bytes.AsSpan(0, 4)
-                    .SequenceEqual("RIFF"u8) &&
-                bytes.AsSpan(8, 4)
-                    .SequenceEqual("WEBP"u8),
-
-            "application/pdf" =>
-                !avatar &&
-                count >= 5 &&
-                bytes.AsSpan(0, 5)
-                    .SequenceEqual("%PDF-"u8),
-
+            "image/jpeg" => avatar && count >= 3 && bytes[0] == 255 && bytes[1] == 216 && bytes[2] == 255,
+            "image/png" => avatar && count >= 8 && bytes.AsSpan(0, 8).SequenceEqual(new byte[] {137,80,78,71,13,10,26,10}),
+            "image/webp" => avatar && count >= 12 && bytes.AsSpan(0,4).SequenceEqual("RIFF"u8) && bytes.AsSpan(8,4).SequenceEqual("WEBP"u8),
+            "application/pdf" => !avatar && extension == ".pdf" && count >= 5 && bytes.AsSpan(0,5).SequenceEqual("%PDF-"u8),
+            "application/msword" => !avatar && extension == ".doc" && count >= 8
+                && bytes.AsSpan(0,8).SequenceEqual(new byte[] {208,207,17,224,161,177,26,225}),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => !avatar && extension == ".docx"
+                && await IsWordArchiveAsync(file, ct),
             _ => false
         };
+        if (!valid) throw new ArgumentException(avatar ? "Choose a valid JPEG, PNG or WebP avatar." : "Choose one valid PDF or Word (.doc, .docx) license document.");
+    }
 
-        if (!valid)
+    private static async Task<bool> IsWordArchiveAsync(IFormFile file, CancellationToken ct)
+    {
+        try
         {
-            throw new ArgumentException(
-                "Unsupported file. Choose a valid JPEG, PNG, " +
-                "WebP image or a license PDF.");
+            await using var source = file.OpenReadStream();
+            using var buffer = new MemoryStream();
+            await source.CopyToAsync(buffer, ct);
+            buffer.Position = 0;
+            using var archive = new ZipArchive(buffer, ZipArchiveMode.Read);
+            return archive.GetEntry("[Content_Types].xml") is not null
+                && archive.GetEntry("word/document.xml") is not null;
         }
+        catch (InvalidDataException) { return false; }
     }
 
     public async Task UploadAsync(
@@ -177,7 +147,7 @@ public sealed class UserMediaStorage : IUserMediaStorage
             @"^(licenses|avatars)/" +
             @"[a-fA-F0-9-]+/" +
             @"[a-fA-F0-9]+" +
-            @"(\.(pdf|png|webp|jpg))?$");
+            @"(\.(pdf|doc|docx|png|webp|jpg))?$");
 
         if (!isValidPath)
         {
