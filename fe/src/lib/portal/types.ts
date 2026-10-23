@@ -211,7 +211,7 @@ export type FlightHistoryItem = {
 export type OperationalAnalytics = {
   totalFlights: number; completedFlights: number; abortedOrFailedFlights: number;
   totalFlightHours: number; totalDistanceKilometers: number; totalIncidentsRecorded: number;
-  successRatePercentage: number;
+  successRatePercentage: number | null;
 };
 export type FlightTelemetryPoint = {
   latitude: number | null; longitude: number | null; altitude: number | null;
