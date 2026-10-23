@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AccountRole } from "@/lib/auth/types";
 import { cancelMission, getGeofences, getMission, startMission, validateMission } from "@/lib/portal/client";
 import type { Geofence, MissionDetail, MissionValidationResult } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
@@ -16,7 +17,7 @@ const statusKey = (value: string) => value.toLowerCase().replaceAll(" ", "");
 type MissionDialog = "cancel" | null;
 type BusyAction = "validate" | "start" | "cancel" | null;
 
-export default function MissionDetailClient({ id }: { id: string }) {
+export default function MissionDetailClient({ id, role }: { id: string; role: AccountRole }) {
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [error, setError] = useState<unknown>(null);
@@ -141,8 +142,9 @@ export default function MissionDetailClient({ id }: { id: string }) {
 
   if (error) return <ModuleError error={error} retry={load} />;
   if (!mission) return <ModuleLoading label="Loading mission details" />;
+  const isManager = role === "operation_manager";
   const currentStatus = statusKey(mission.status);
-  const canEdit = ["draft", "rejected", "pending", "pendingreview", "submitted", "approved"].includes(currentStatus);
+  const canEdit = !isManager && ["draft", "rejected", "pending", "pendingreview", "submitted", "approved"].includes(currentStatus);
   const canValidate = !["completed", "cancelled", "inprogress"].includes(currentStatus);
   const canCancel = !["inprogress", "completed", "cancelled"].includes(currentStatus);
   const awaitingApproval = ["submitted", "pending", "pendingapproval", "pendingreview"].includes(currentStatus);
@@ -152,11 +154,11 @@ export default function MissionDetailClient({ id }: { id: string }) {
   return <>
     <header className="module-heading mission-detail-heading">
       <div>
-        <p className="module-kicker">PILOT / MY MISSIONS / MISSION DETAIL</p>
+        <p className="module-kicker">{isManager ? "OPERATIONS / MISSION PLANNING / MISSION DETAIL" : "PILOT / MY MISSIONS / MISSION DETAIL"}</p>
         <div className="mission-title-line"><h1>{mission.name}</h1><span className={`status status-${mission.status.toLowerCase()}`}>{formatStatus(mission.status)}</span></div>
         <p>{mission.description ?? "No mission description has been provided."}</p>
       </div>
-      <div className="heading-actions"><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}</div>
+      <div className="heading-actions"><Link className="module-secondary module-link" href={isManager ? "/portal/mission-planning" : "/portal/missions"}>&lt; {isManager ? "MISSION PLANNING" : "MY MISSIONS"}</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}{isManager && awaitingApproval && <Link className="module-primary module-link" href={`/portal/mission-approvals?missionId=${encodeURIComponent(mission.id)}`}>REVIEW REQUEST</Link>}</div>
     </header>
     {mission.detailAvailable === false && <p className="api-pending-banner" role="status"><b>MISSION DETAIL API PENDING</b> Showing the available mission summary. Route and waypoint data will appear when the backend returns a response from GET /api/missions/{mission.id}.</p>}
     {actionError && <div className="mission-action-feedback error" role="alert"><span>{actionError}</span><button type="button" onClick={() => setActionError("")}>DISMISS</button></div>}
