@@ -40,6 +40,18 @@ await db.SaveChangesAsync();
 Check((await db.Missions.FindAsync(missionId))!.Status == "Approved",
     "armed-to-disarmed telemetry alone does not complete a flight");
 
+await ExpectThrowsAsync<KeyNotFoundException>(
+    () => service.GetReportByMissionIdAsync(missionId, pilotId, false),
+    "reading a missing report does not create one");
+Check((await db.Missions.FindAsync(missionId))!.Status == "Approved",
+    "reading a missing report does not mutate mission status");
+await ExpectThrowsAsync<InvalidOperationException>(
+    () => service.FinalizeAndGenerateReportAsync(
+        missionId, new FinalizeFlightRequest(), managerId, true),
+    "manager finalize requires a trusted completion event");
+Check((await db.Missions.FindAsync(missionId))!.Status == "Approved",
+    "rejected finalize does not mutate mission status");
+
 var queued = await service.RecordTrustedCompletionAsync("completion-1", new RecordFlightCompletionRequest
 {
     MissionId = missionId, UavId = uavId, SourceId = "trusted-simulator",
