@@ -20,4 +20,7 @@ public class FlightHistoryItemResponse
     public double DurationMinutes { get; set; }
     public int TotalIncidents { get; set; }
     public bool HasReport { get; set; }
+    public string ReportStatus { get; set; } = "NotQueued";
+    public int? ReportRevision { get; set; }
+    public bool TelemetryCoverageComplete { get; set; }
 }

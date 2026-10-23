@@ -1,4 +1,5 @@
-﻿using DroneOps.Application.DTOs.Request.PostFlight;
+using System.Collections.Concurrent;
+using DroneOps.Application.DTOs.Request.PostFlight;
 using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.PostFlight;
 using DroneOps.Application.Interfaces.PostFlight;
@@ -7,314 +8,505 @@ using DroneOps.Persistence.Interfaces;
 
 namespace DroneOps.Application.Services.PostFlight;
 
-/// <summary>
-/// Service phụ trách toàn bộ luồng nghiệp vụ Phân tích sau bay & Lịch sử chuyến bay (MF3 / FE-08 / FE-10)
-/// Đóng vai trò là "Reporting & Analytics Service" trong sơ đồ Swimlane 04.
-/// </summary>
-public class PostFlightService : IPostFlightService
+public sealed class PostFlightService : IPostFlightService
 {
+    private static readonly string[] FinalizableStatuses =
+        ["Approved", "In Progress", "InProgress", "Active", "Flying", "Executing"];
+    private static readonly string[] TrustedCompletionEventTypes =
+        ["MISSION_COMPLETED", "FLIGHT_COMPLETED", "LANDED"];
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> MissionLocks = new();
     private readonly IPostFlightRepository _repository;
 
-    public PostFlightService(IPostFlightRepository repository)
-    {
-        _repository = repository;
-    }
+    public PostFlightService(IPostFlightRepository repository) => _repository = repository;
 
-    // =========================================================================
-    // 1. TRUY VẤN LỊCH SỬ CHUYẾN BAY (SCR-13 / UC-18)
-    // Nghiệp vụ: Phân quyền dữ liệu theo vai trò và hỗ trợ bộ lọc đa tiêu chí
-    // =========================================================================
     public async Task<PagedResponse<FlightHistoryItemResponse>> GetFlightHistoryAsync(
         GetFlightHistoryRequest request,
         Guid? pilotUserId = null,
         CancellationToken cancellationToken = default)
     {
+        ValidateDateRange(request.FromDate, request.ToDate);
+        var inclusiveToDate = NormalizeInclusiveToDate(request.ToDate);
+        var pageNumber = Math.Max(1, request.PageNumber);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var (missions, totalCount) = await _repository.GetFlightHistoryAsync(
-            request.PageNumber,
-            request.PageSize,
-            request.Search,
-            request.Status,
-            request.UavId,
-            request.FromDate,
-            request.ToDate,
-            pilotUserId,
-            cancellationToken);
+            pageNumber, pageSize, request.Search, request.Status, request.UavId,
+            request.FromDate, inclusiveToDate, pilotUserId, cancellationToken);
 
-        var items = new List<FlightHistoryItemResponse>();
-
-        foreach (var m in missions)
+        var items = new List<FlightHistoryItemResponse>(missions.Count);
+        foreach (var mission in missions)
         {
-            var report = await _repository.GetReportByMissionIdAsync(m.Id, cancellationToken);
-            var incidents = await _repository.GetIncidentsByMissionIdAsync(m.Id, cancellationToken);
-
-            double duration = 0;
-            if (m.StartTime.HasValue && m.EndTime.HasValue)
-            {
-                duration = Math.Round((m.EndTime.Value - m.StartTime.Value).TotalMinutes, 2);
-            }
-            else if (report != null)
-            {
-                duration = report.TotalFlightDurationMinutes;
-            }
-
+            var report = await _repository.GetReportByMissionIdAsync(mission.Id, cancellationToken);
+            var incidents = await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken);
             items.Add(new FlightHistoryItemResponse
             {
-                MissionId = m.Id,
-                MissionName = m.Name,
-                Status = m.Status,
-                UavId = m.UAVId,
-                UavName = m.UAV?.Name ?? "N/A",
-                UavCode = m.UAV?.Code ?? "N/A",
-                PilotName = m.Creator?.FullName ?? "N/A",
-                StartTime = m.StartTime,
-                EndTime = m.EndTime,
-                DurationMinutes = duration,
+                MissionId = mission.Id,
+                MissionName = mission.Name,
+                Status = mission.Status,
+                UavId = mission.UAVId,
+                UavName = mission.UAV?.Name ?? "N/A",
+                UavCode = mission.UAV?.Code ?? "N/A",
+                PilotName = mission.Creator?.FullName ?? "N/A",
+                StartTime = mission.StartTime,
+                EndTime = mission.EndTime,
+                DurationMinutes = report?.TotalFlightDurationMinutes ?? CalculateScheduledDuration(mission),
                 TotalIncidents = incidents.Count,
-                HasReport = report != null
+                HasReport = report?.GenerationStatus is "Available" or "Outdated",
+                ReportStatus = report?.GenerationStatus ?? "NotQueued",
+                ReportRevision = report?.Revision,
+                TelemetryCoverageComplete = report?.GenerationStatus == "Available"
             });
         }
 
         return new PagedResponse<FlightHistoryItemResponse>
         {
             Items = items,
-            PageNumber = request.PageNumber,
-            PageSize = request.PageSize,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
             TotalItems = totalCount,
-            TotalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize)
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
         };
     }
 
-    // =========================================================================
-    // 2. CHỐT KẾT THÚC CHUYẾN BAY & TỰ ĐỘNG LẬP BÁO CÁO PHÂN TÍCH (UC-17)
-    // Nghiệp vụ: Chuyển trạng thái sang Completed, quét dữ liệu viễn trắc (Telemetry)
-    // và sự cố (Incidents) để tính toán hiệu suất bay, tiêu hao pin, quãng đường bay.
-    // =========================================================================
+    public async Task<PostFlightReportResponse> RecordTrustedCompletionAsync(
+        string idempotencyKey,
+        RecordFlightCompletionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            throw new ArgumentException("Idempotency-Key is required.");
+        if (request.MissionId == Guid.Empty || request.UavId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(request.SourceId))
+            throw new ArgumentException("Mission, UAV and source identity are required.");
+        if (!TrustedCompletionEventTypes.Contains(request.EventType, StringComparer.OrdinalIgnoreCase))
+            throw new ArgumentException("Unsupported trusted completion event type.");
+        if (request.CompletedAt == default || request.CompletedAt > DateTimeOffset.UtcNow.AddMinutes(5))
+            throw new ArgumentException("Completion timestamp is invalid.");
+
+        var duplicate = await _repository.GetCompletionEventByKeyAsync(idempotencyKey.Trim(), cancellationToken);
+        if (duplicate != null)
+        {
+            if (duplicate.MissionId != request.MissionId || duplicate.UAVId != request.UavId ||
+                !string.Equals(duplicate.SourceId, request.SourceId.Trim(), StringComparison.Ordinal) ||
+                !string.Equals(duplicate.EventType, request.EventType.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                duplicate.CompletedAt != request.CompletedAt.ToUniversalTime())
+                throw new InvalidOperationException("Idempotency-Key was already used for a different completion event.");
+            var duplicateReport = await _repository.GetReportByMissionIdAsync(duplicate.MissionId, cancellationToken)
+                ?? throw new InvalidOperationException("Completion was recorded but its report queue entry is missing.");
+            var duplicateMission = await _repository.GetMissionWithDetailsAsync(duplicate.MissionId, cancellationToken)
+                ?? throw new KeyNotFoundException("Flight mission not found.");
+            return MapToReportResponse(duplicateReport, duplicateMission);
+        }
+
+        return await WithMissionLockAsync(request.MissionId, async () =>
+        {
+            var mission = await _repository.GetMissionWithDetailsAsync(request.MissionId, cancellationToken)
+                ?? throw new KeyNotFoundException("Flight mission not found.");
+            if (mission.UAVId != request.UavId)
+                throw new InvalidOperationException("Completion event UAV does not match the mission assignment.");
+            if (mission.Status == "Completed")
+            {
+                var current = await _repository.GetReportByMissionIdAsync(mission.Id, cancellationToken)
+                    ?? throw new InvalidOperationException("Mission is completed but no report record exists.");
+                return MapToReportResponse(current, mission);
+            }
+            if (!FinalizableStatuses.Contains(mission.Status, StringComparer.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Mission with status '{mission.Status}' cannot be completed.");
+
+            var completionEvent = new FlightCompletionEvent
+            {
+                Id = Guid.NewGuid(),
+                MissionId = mission.Id,
+                UAVId = request.UavId,
+                SourceId = request.SourceId.Trim(),
+                IdempotencyKey = idempotencyKey.Trim(),
+                EventType = request.EventType.Trim().ToUpperInvariant(),
+                CompletedAt = request.CompletedAt.ToUniversalTime(),
+                ReceivedAt = DateTimeOffset.UtcNow,
+                IsTrusted = true,
+                Evidence = request.Evidence
+            };
+            var report = new PostFlightReport
+            {
+                Id = Guid.NewGuid(),
+                MissionId = mission.Id,
+                Revision = 1,
+                IsCurrent = true,
+                GenerationStatus = "Queued",
+                Status = "Completed",
+                CoveredTelemetryThrough = completionEvent.CompletedAt,
+                CreatedAt = DateTimeOffset.UtcNow,
+                GenerationReason = "Trusted completion event"
+            };
+
+            mission.Status = "Completed";
+            mission.EndTime = completionEvent.CompletedAt.UtcDateTime;
+            await _repository.AddCompletionEventAsync(completionEvent, cancellationToken);
+            await _repository.AddReportAsync(report, cancellationToken);
+            await _repository.UpdateMissionAsync(mission, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
+            return MapToReportResponse(report, mission);
+        });
+    }
+
     public async Task<PostFlightReportResponse> FinalizeAndGenerateReportAsync(
         Guid missionId,
         FinalizeFlightRequest? request = null,
+        Guid? currentUserId = null,
+        bool isManager = false,
         CancellationToken cancellationToken = default)
     {
-        var mission = await _repository.GetMissionWithDetailsAsync(missionId, cancellationToken);
-        if (mission == null)
-        {
-            // Đã đổi sang tiếng Anh
-            throw new Exception("Flight mission not found.");
-        }
-
-        if (mission.Status != "Completed")
-        {
-            mission.Status = "Completed";
-            mission.EndTime ??= DateTime.UtcNow;
-            await _repository.UpdateMissionAsync(mission, cancellationToken);
-        }
-
-        var telemetry = await _repository.GetTelemetryByMissionIdAsync(missionId, cancellationToken);
-        var incidents = await _repository.GetIncidentsByMissionIdAsync(missionId, cancellationToken);
-
+        if (!isManager)
+            throw new UnauthorizedAccessException("Only an Operations Manager can manually process a post-flight report.");
+        var mission = await GetAuthorizedMissionAsync(missionId, currentUserId, isManager, cancellationToken);
+        var completion = await _repository.GetTrustedCompletionEventAsync(missionId, cancellationToken)
+            ?? throw new InvalidOperationException("A trusted completion event is required before report generation.");
         var report = await _repository.GetReportByMissionIdAsync(missionId, cancellationToken);
-        bool isNew = false;
         if (report == null)
         {
             report = new PostFlightReport
             {
-                Id = Guid.NewGuid(),
-                MissionId = missionId,
-                CreatedAt = DateTimeOffset.UtcNow
+                Id = Guid.NewGuid(), MissionId = missionId, Revision = 1, IsCurrent = true,
+                GenerationStatus = "Queued", Status = "Completed", CreatedAt = DateTimeOffset.UtcNow,
+                CoveredTelemetryThrough = completion.CompletedAt, RequestedBy = currentUserId,
+                Notes = request?.Notes, Summary = request?.Summary, GenerationReason = "Manager processing request"
             };
-            isNew = true;
-        }
-
-        double durationMinutes = 0;
-        if (mission.StartTime.HasValue && mission.EndTime.HasValue)
-        {
-            durationMinutes = Math.Max(0, (mission.EndTime.Value - mission.StartTime.Value).TotalMinutes);
-        }
-        else if (telemetry.Count > 1)
-        {
-            durationMinutes = (telemetry.Last().RecordedAt - telemetry.First().RecordedAt).TotalMinutes;
-        }
-        report.TotalFlightDurationMinutes = Math.Round(durationMinutes, 2);
-
-        if (telemetry.Any())
-        {
-            report.MaxAltitude = telemetry.Max(t => t.Altitude);
-            report.AvgAltitude = Math.Round(telemetry.Where(t => t.Altitude.HasValue).Average(t => t.Altitude) ?? 0, 2);
-
-            report.MaxSpeed = telemetry.Max(t => t.Speed);
-            report.AvgSpeed = Math.Round(telemetry.Where(t => t.Speed.HasValue).Average(t => t.Speed) ?? 0, 2);
-
-            report.InitialBatteryLevel = telemetry.First().BatteryLevel;
-            report.FinalBatteryLevel = telemetry.Last().BatteryLevel;
-            if (report.InitialBatteryLevel.HasValue && report.FinalBatteryLevel.HasValue)
-            {
-                report.BatteryConsumedPercentage = Math.Max(0, report.InitialBatteryLevel.Value - report.FinalBatteryLevel.Value);
-            }
-
-            double totalMeters = 0;
-            for (int i = 0; i < telemetry.Count - 1; i++)
-            {
-                if (telemetry[i].Latitude.HasValue && telemetry[i].Longitude.HasValue &&
-                    telemetry[i + 1].Latitude.HasValue && telemetry[i + 1].Longitude.HasValue)
-                {
-                    totalMeters += CalculateHaversineDistance(
-                        telemetry[i].Latitude!.Value, telemetry[i].Longitude!.Value,
-                        telemetry[i + 1].Latitude!.Value, telemetry[i + 1].Longitude!.Value);
-                }
-            }
-            report.TotalDistanceMeters = (decimal)Math.Round(totalMeters, 2);
-        }
-
-        report.TotalTelemetryRecords = telemetry.Count;
-        report.TotalIncidents = incidents.Count;
-
-        // Đánh giá an toàn tự động (Rule-based Safety Assessment) - Đã chuẩn hóa tiếng Anh
-        if (incidents.Any(i => i.Severity?.ToLower() == "critical" || i.Severity?.ToLower() == "high"))
-        {
-            report.SafetyEvaluation = "HIGH RISK: Critical or high-severity incidents detected during flight.";
-        }
-        else if (incidents.Any())
-        {
-            report.SafetyEvaluation = "MEDIUM RISK: Minor or medium-severity incidents reported.";
-        }
-        else if (report.FinalBatteryLevel.HasValue && report.FinalBatteryLevel.Value < 20)
-        {
-            report.SafetyEvaluation = "LOW BATTERY WARNING: Final battery level dropped below the safe 20% threshold.";
-        }
-        else
-        {
-            report.SafetyEvaluation = "SAFE: All operational telemetry parameters remained within normal limits with zero incidents.";
-        }
-
-        report.Summary = request?.Summary ?? $"Mission '{mission.Name}' completed with {report.TotalTelemetryRecords} telemetry samples and {report.TotalIncidents} recorded incidents.";
-        report.Notes = request?.Notes;
-        report.Status = "Completed";
-
-        if (isNew)
-        {
             await _repository.AddReportAsync(report, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
         }
-        await _repository.SaveChangesAsync(cancellationToken);
-
+        await GenerateReportAsync(report, mission, cancellationToken);
         return MapToReportResponse(report, mission);
     }
 
-    // =========================================================================
-    // 3. XEM CHI TIẾT BÁO CÁO SAU BAY (SCR-14 / UC-18)
-    // =========================================================================
-    public async Task<PostFlightReportResponse> GetReportByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default)
+    public async Task<int> ProcessQueuedReportsAsync(
+        int batchSize = 10,
+        CancellationToken cancellationToken = default)
     {
-        var report = await _repository.GetReportByMissionIdAsync(missionId, cancellationToken);
-        if (report == null)
+        await _repository.MarkReportsOutdatedForLateTelemetryAsync(cancellationToken);
+        var reports = await _repository.GetReportsAwaitingGenerationAsync(Math.Clamp(batchSize, 1, 100), cancellationToken);
+        var processed = 0;
+        foreach (var report in reports)
         {
-            return await FinalizeAndGenerateReportAsync(missionId, null, cancellationToken);
+            await WithMissionLockAsync(report.MissionId, async () =>
+            {
+                await GenerateReportAsync(report, report.Mission, cancellationToken);
+                return true;
+            });
+            processed++;
         }
-
-        var mission = await _repository.GetMissionWithDetailsAsync(missionId, cancellationToken);
-        return MapToReportResponse(report, mission ?? report.Mission);
+        return processed;
     }
 
-    // =========================================================================
-    // 4. LẤY DỮ LIỆU ĐƯỜNG BAY VIỄN TRẮC (TELEMETRY PLAYBACK)
-    // =========================================================================
-    public async Task<List<FlightTelemetryPointResponse>> GetTelemetryPlaybackAsync(Guid missionId, CancellationToken cancellationToken = default)
+    public async Task<PostFlightReportResponse> RegenerateReportAsync(
+        Guid missionId,
+        RegeneratePostFlightReportRequest request,
+        Guid managerUserId,
+        CancellationToken cancellationToken = default)
     {
-        var records = await _repository.GetTelemetryByMissionIdAsync(missionId, cancellationToken);
-        return records.Select(r => new FlightTelemetryPointResponse
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 500)
+            throw new ArgumentException("A regeneration reason of up to 500 characters is required.");
+
+        return await WithMissionLockAsync(missionId, async () =>
         {
-            Latitude = r.Latitude,
-            Longitude = r.Longitude,
-            Altitude = r.Altitude,
-            Speed = r.Speed,
-            BatteryLevel = r.BatteryLevel,
-            RecordedAt = r.RecordedAt
+            var mission = await _repository.GetMissionWithDetailsAsync(missionId, cancellationToken)
+                ?? throw new KeyNotFoundException("Flight mission not found.");
+            var completion = await _repository.GetTrustedCompletionEventAsync(missionId, cancellationToken)
+                ?? throw new InvalidOperationException("A trusted completion event is required before regeneration.");
+            var revisions = await _repository.GetReportRevisionsAsync(missionId, cancellationToken);
+            var current = await _repository.GetReportByMissionIdAsync(missionId, cancellationToken)
+                ?? throw new KeyNotFoundException("Post-flight report not found.");
+            var next = new PostFlightReport
+            {
+                Id = Guid.NewGuid(), MissionId = missionId,
+                Revision = revisions.Count == 0 ? 1 : revisions.Max(x => x.Revision) + 1,
+                IsCurrent = true, GenerationStatus = "Queued", Status = current.Status,
+                CoveredTelemetryThrough = completion.CompletedAt, CreatedAt = DateTimeOffset.UtcNow,
+                RequestedBy = managerUserId, GenerationReason = request.Reason.Trim(), Notes = current.Notes
+            };
+            await _repository.ReplaceCurrentReportAsync(current, next, cancellationToken);
+            return MapToReportResponse(next, mission);
+        });
+    }
+
+    private async Task GenerateReportAsync(
+        PostFlightReport report,
+        Mission mission,
+        CancellationToken cancellationToken)
+    {
+        if (report.GenerationStatus != "Queued" &&
+            !(report.GenerationStatus == "Generating" &&
+              report.GenerationStartedAt < DateTimeOffset.UtcNow.AddMinutes(-5))) return;
+        report.GenerationStatus = "Generating";
+        report.GenerationStartedAt = DateTimeOffset.UtcNow;
+        report.FailureReason = null;
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            var completion = await _repository.GetTrustedCompletionEventAsync(mission.Id, cancellationToken)
+                ?? throw new InvalidOperationException("Trusted completion evidence is missing.");
+            var telemetry = (await _repository.GetTelemetryByMissionIdAsync(mission.Id, cancellationToken))
+                .Where(x => x.SourceTimestamp <= completion.CompletedAt)
+                .ToList();
+            if (telemetry.Count == 0)
+                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
+            var incidents = await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken);
+            PopulateReport(report, mission, telemetry, incidents);
+            report.CoveredTelemetryThrough = completion.CompletedAt;
+            report.GenerationStatus = "Available";
+            report.GeneratedAt = DateTimeOffset.UtcNow;
+            report.FailedAt = null;
+            await _repository.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            report.GenerationStatus = "Failed";
+            report.FailedAt = DateTimeOffset.UtcNow;
+            report.FailureReason = exception.Message.Length <= 500 ? exception.Message : exception.Message[..500];
+            await _repository.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<PostFlightReportResponse> GetReportByMissionIdAsync(
+        Guid missionId, Guid? currentUserId, bool isManager,
+        CancellationToken cancellationToken = default)
+    {
+        var mission = await GetAuthorizedMissionAsync(missionId, currentUserId, isManager, cancellationToken);
+        var report = await _repository.GetReportByMissionIdAsync(missionId, cancellationToken)
+            ?? throw new KeyNotFoundException("Post-flight report has not been queued.");
+        return MapToReportResponse(report, mission);
+    }
+
+    public async Task<List<PostFlightReportResponse>> GetReportRevisionsAsync(
+        Guid missionId, Guid? currentUserId, bool isManager,
+        CancellationToken cancellationToken = default)
+    {
+        var mission = await GetAuthorizedMissionAsync(missionId, currentUserId, isManager, cancellationToken);
+        var reports = await _repository.GetReportRevisionsAsync(missionId, cancellationToken);
+        return reports.Select(report => MapToReportResponse(report, mission)).ToList();
+    }
+
+    public async Task<List<FlightTelemetryPointResponse>> GetTelemetryPlaybackAsync(
+        Guid missionId, Guid? currentUserId, bool isManager,
+        CancellationToken cancellationToken = default)
+    {
+        await GetAuthorizedMissionAsync(missionId, currentUserId, isManager, cancellationToken);
+        var records = await _repository.GetTelemetryByMissionIdAsync(missionId, cancellationToken);
+        return records.Select(record => new FlightTelemetryPointResponse
+        {
+            Latitude = record.Latitude, Longitude = record.Longitude, Altitude = record.Altitude,
+            Speed = record.Speed, BatteryLevel = record.BatteryLevel, RecordedAt = record.SourceTimestamp
         }).ToList();
     }
 
-    // =========================================================================
-    // 5. TRUY VẤN DANH SÁCH SỰ CỐ GẮN LIỀN VỚI CHUYẾN BAY (SCR-12 / UC-16)
-    // =========================================================================
-    public async Task<List<Incident>> GetIncidentsAsync(Guid missionId, CancellationToken cancellationToken = default)
+    public async Task<List<Incident>> GetIncidentsAsync(
+        Guid missionId, Guid? currentUserId, bool isManager,
+        CancellationToken cancellationToken = default)
     {
+        await GetAuthorizedMissionAsync(missionId, currentUserId, isManager, cancellationToken);
         return await _repository.GetIncidentsByMissionIdAsync(missionId, cancellationToken);
     }
 
-    // =========================================================================
-    // 6. TỔNG HỢP CHỈ SỐ THỐNG KÊ VẬN HÀNH CHO DASHBOARD (SCR-16 / UC-22)
-    // =========================================================================
-    public async Task<OperationalAnalyticsResponse> GetOperationalAnalyticsAsync(Guid? pilotUserId = null, CancellationToken cancellationToken = default)
+    public async Task<OperationalAnalyticsResponse> GetOperationalAnalyticsAsync(
+        GetOperationalAnalyticsRequest request,
+        Guid? pilotUserId = null,
+        CancellationToken cancellationToken = default)
     {
-        var reports = await _repository.GetAllCompletedReportsAsync(pilotUserId, cancellationToken);
+        ValidateDateRange(request.FromDate, request.ToDate);
+        var inclusiveToDate = NormalizeInclusiveToDate(request.ToDate);
+        var missions = await _repository.GetTerminalMissionsAsync(
+            request.FromDate, inclusiveToDate, request.UavId, request.MissionId,
+            pilotUserId, cancellationToken);
+        var reports = new List<PostFlightReport>();
+        var incidents = new List<Incident>();
+        foreach (var mission in missions)
+        {
+            var report = await _repository.GetReportByMissionIdAsync(mission.Id, cancellationToken);
+            if (report != null) reports.Add(report);
+            incidents.AddRange(await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken));
+        }
 
-        int total = reports.Count;
-        int completed = reports.Count(r => r.Status == "Completed");
-        int failed = total - completed;
-
-        double totalHours = Math.Round(reports.Sum(r => r.TotalFlightDurationMinutes) / 60.0, 2);
-        decimal totalKm = Math.Round(reports.Sum(r => r.TotalDistanceMeters ?? 0) / 1000m, 2);
-        int totalIncidents = reports.Sum(r => r.TotalIncidents);
-        double successRate = total > 0 ? Math.Round((completed / (double)total) * 100, 1) : 100.0;
+        var eligibleReports = reports.Where(x => x.GenerationStatus == "Available").ToList();
+        var completed = missions.Count(x => x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase));
+        var exclusions = missions
+            .Select(mission => reports.FirstOrDefault(report => report.MissionId == mission.Id)?.GenerationStatus ?? "NoReport")
+            .Where(status => status != "Available")
+            .GroupBy(status => status)
+            .ToDictionary(group => group.Key, group => group.Count());
 
         return new OperationalAnalyticsResponse
         {
-            TotalFlights = total,
+            TotalFlights = missions.Count,
             CompletedFlights = completed,
-            AbortedOrFailedFlights = failed,
-            TotalFlightHours = totalHours,
-            TotalDistanceKilometers = totalKm,
-            TotalIncidentsRecorded = totalIncidents,
-            SuccessRatePercentage = successRate
+            AbortedOrFailedFlights = missions.Count - completed,
+            TotalFlightHours = Math.Round(eligibleReports.Sum(x => x.TotalFlightDurationMinutes) / 60.0, 2),
+            TotalDistanceKilometers = Math.Round(eligibleReports.Sum(x => x.TotalDistanceMeters ?? 0) / 1000m, 2),
+            TotalIncidentsRecorded = incidents.Count,
+            SuccessRatePercentage = missions.Count == 0 ? null : Math.Round(completed * 100.0 / missions.Count, 1),
+            ReportsAvailable = eligibleReports.Count,
+            ReportsExcluded = missions.Count - eligibleReports.Count,
+            ReportCoveragePercentage = missions.Count == 0 ? null : Math.Round(eligibleReports.Count * 100.0 / missions.Count, 1),
+            FromDate = request.FromDate,
+            ToDate = request.ToDate,
+            UavId = request.UavId,
+            MissionId = request.MissionId,
+            CompletionTrend = missions
+                .GroupBy(x => DateOnly.FromDateTime(x.EndTime ?? x.StartTime ?? x.CreatedAt))
+                .OrderBy(x => x.Key)
+                .Select(group => new AnalyticsTrendPointResponse
+                {
+                    Date = group.Key,
+                    TotalFlights = group.Count(),
+                    CompletedFlights = group.Count(x => x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase)),
+                    FailedOrAbortedFlights = group.Count(x => !x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                }).ToList(),
+            IncidentSeverityBreakdown = incidents
+                .GroupBy(x => NormalizeSeverity(x.Severity))
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
+            ExcludedReportReasons = exclusions
         };
     }
 
-    // =========================================================================
-    // 7. THUẬT TOÁN HAVERSINE TÍNH KHOẢNG CÁCH GPS (Đơn vị: Mét)
-    // =========================================================================
-    private static double CalculateHaversineDistance(decimal lat1, decimal lon1, decimal lat2, decimal lon2)
+    private async Task<Mission> GetAuthorizedMissionAsync(
+        Guid missionId, Guid? currentUserId, bool isManager, CancellationToken cancellationToken)
     {
-        const double R = 6371000;
-        var dLat = (double)(lat2 - lat1) * Math.PI / 180.0;
-        var dLon = (double)(lon2 - lon1) * Math.PI / 180.0;
-
-        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-                Math.Cos((double)lat1 * Math.PI / 180.0) * Math.Cos((double)lat2 * Math.PI / 180.0) *
-                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return R * c;
+        var mission = await _repository.GetMissionWithDetailsAsync(missionId, cancellationToken)
+            ?? throw new KeyNotFoundException("Flight mission not found.");
+        if (!isManager && (!currentUserId.HasValue || mission.CreatedBy != currentUserId.Value))
+            throw new UnauthorizedAccessException("You do not have permission to access this mission history.");
+        return mission;
     }
 
-    // =========================================================================
-    // 8. HÀM ÁNH XẠ DỮ LIỆU ENTITY SANG DTO RESPONSE
-    // =========================================================================
-    private static PostFlightReportResponse MapToReportResponse(PostFlightReport report, Mission mission)
+    private async Task<T> WithMissionLockAsync<T>(Guid missionId, Func<Task<T>> action)
     {
-        return new PostFlightReportResponse
+        var gate = MissionLocks.GetOrAdd(missionId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try { return await action(); }
+        finally { gate.Release(); }
+    }
+
+    private static void ValidateDateRange(DateTime? fromDate, DateTime? toDate)
+    {
+        if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+            throw new ArgumentException("FromDate must be earlier than or equal to ToDate.");
+    }
+
+    private static DateTime? NormalizeInclusiveToDate(DateTime? toDate) =>
+        toDate.HasValue && toDate.Value.TimeOfDay == TimeSpan.Zero
+            ? toDate.Value.Date.AddDays(1).AddTicks(-1)
+            : toDate;
+
+    private static string NormalizeSeverity(string? severity)
+    {
+        if (string.IsNullOrWhiteSpace(severity)) return "Unknown";
+        var value = severity.Trim().ToLowerInvariant();
+        return value switch
         {
-            ReportId = report.Id,
-            MissionId = mission.Id,
-            MissionName = mission.Name,
-            MissionDescription = mission.Description,
-            Status = mission.Status,
-            UavName = mission.UAV?.Name ?? "N/A",
-            UavCode = mission.UAV?.Code ?? "N/A",
-            PilotName = mission.Creator?.FullName ?? "N/A",
-            StartTime = mission.StartTime,
-            EndTime = mission.EndTime,
-            TotalFlightDurationMinutes = report.TotalFlightDurationMinutes,
-            MaxAltitude = report.MaxAltitude,
-            AvgAltitude = report.AvgAltitude,
-            MaxSpeed = report.MaxSpeed,
-            AvgSpeed = report.AvgSpeed,
-            InitialBatteryLevel = report.InitialBatteryLevel,
-            FinalBatteryLevel = report.FinalBatteryLevel,
-            BatteryConsumedPercentage = report.BatteryConsumedPercentage,
-            TotalDistanceMeters = report.TotalDistanceMeters,
-            TotalTelemetryRecords = report.TotalTelemetryRecords,
-            TotalIncidents = report.TotalIncidents,
-            SafetyEvaluation = report.SafetyEvaluation,
-            Summary = report.Summary,
-            Notes = report.Notes,
-            CreatedAt = report.CreatedAt
+            "critical" => "Critical",
+            "high" => "High",
+            "medium" => "Medium",
+            "low" => "Low",
+            _ => "Unknown"
         };
     }
+
+    private static void PopulateReport(
+        PostFlightReport report,
+        Mission mission,
+        IReadOnlyList<TelemetryRecord> telemetry,
+        IReadOnlyList<Incident> incidents)
+    {
+        var firstAt = telemetry[0].SourceTimestamp;
+        var lastAt = telemetry[^1].SourceTimestamp;
+        report.TotalFlightDurationMinutes = Math.Round(Math.Max(0, (lastAt - firstAt).TotalMinutes), 2);
+        var altitudes = telemetry.Where(x => x.Altitude.HasValue).Select(x => x.Altitude!.Value).ToList();
+        report.MaxAltitude = altitudes.Count == 0 ? null : altitudes.Max();
+        report.AvgAltitude = altitudes.Count == 0 ? null : Math.Round(altitudes.Average(), 2);
+        var speeds = telemetry.Where(x => x.Speed.HasValue).Select(x => x.Speed!.Value).ToList();
+        report.MaxSpeed = speeds.Count == 0 ? null : speeds.Max();
+        report.AvgSpeed = speeds.Count == 0 ? null : Math.Round(speeds.Average(), 2);
+        var batteries = telemetry.Where(x => x.BatteryLevel.HasValue).Select(x => x.BatteryLevel!.Value).ToList();
+        report.InitialBatteryLevel = batteries.Count == 0 ? null : batteries[0];
+        report.FinalBatteryLevel = batteries.Count == 0 ? null : batteries[^1];
+        report.BatteryConsumedPercentage = report.InitialBatteryLevel.HasValue && report.FinalBatteryLevel.HasValue
+            ? Math.Max(0, report.InitialBatteryLevel.Value - report.FinalBatteryLevel.Value) : null;
+
+        decimal distance = 0;
+        TelemetryRecord? previous = null;
+        foreach (var point in telemetry.Where(x => x.Latitude.HasValue && x.Longitude.HasValue))
+        {
+            if (previous != null)
+                distance += CalculateDistanceMeters(previous.Latitude!.Value, previous.Longitude!.Value,
+                    point.Latitude!.Value, point.Longitude!.Value);
+            previous = point;
+        }
+        report.TotalDistanceMeters = Math.Round(distance, 2);
+        report.TotalTelemetryRecords = telemetry.Count;
+        report.TotalIncidents = incidents.Count;
+        report.SafetyEvaluation = BuildSafetyEvaluation(incidents);
+        report.Summary ??= $"Flight '{mission.Name}' completed with {telemetry.Count} valid telemetry records and {incidents.Count} incident(s).";
+        report.Status = "Completed";
+    }
+
+    private static string BuildSafetyEvaluation(IReadOnlyList<Incident> incidents)
+    {
+        if (incidents.Count == 0) return "LOW RISK: No incidents were recorded during flight.";
+        if (incidents.Any(x => x.Severity is "Critical" or "High"))
+            return "HIGH RISK: Critical or high-severity incidents were detected during flight.";
+        return "MEDIUM RISK: Minor or medium-severity incidents were recorded during flight.";
+    }
+
+    private static decimal CalculateDistanceMeters(decimal lat1, decimal lon1, decimal lat2, decimal lon2)
+    {
+        const double radius = 6371000;
+        static double ToRadians(decimal degrees) => (double)degrees * Math.PI / 180;
+        var latitude1 = ToRadians(lat1);
+        var latitude2 = ToRadians(lat2);
+        var deltaLatitude = ToRadians(lat2 - lat1);
+        var deltaLongitude = ToRadians(lon2 - lon1);
+        var a = Math.Sin(deltaLatitude / 2) * Math.Sin(deltaLatitude / 2) +
+                Math.Cos(latitude1) * Math.Cos(latitude2) *
+                Math.Sin(deltaLongitude / 2) * Math.Sin(deltaLongitude / 2);
+        return (decimal)(radius * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a)));
+    }
+
+    private static double CalculateScheduledDuration(Mission mission) =>
+        mission.StartTime.HasValue && mission.EndTime.HasValue
+            ? Math.Round(Math.Max(0, (mission.EndTime.Value - mission.StartTime.Value).TotalMinutes), 2)
+            : 0;
+
+    private static PostFlightReportResponse MapToReportResponse(PostFlightReport report, Mission mission) => new()
+    {
+        ReportId = report.Id,
+        MissionId = mission.Id,
+        MissionName = mission.Name,
+        MissionDescription = mission.Description,
+        Status = report.Status,
+        GenerationStatus = report.GenerationStatus,
+        Revision = report.Revision,
+        IsCurrent = report.IsCurrent,
+        CoveredTelemetryThrough = report.CoveredTelemetryThrough,
+        GeneratedAt = report.GeneratedAt,
+        FailureReason = report.FailureReason,
+        GenerationReason = report.GenerationReason,
+        UavName = mission.UAV?.Name ?? "N/A",
+        UavCode = mission.UAV?.Code ?? "N/A",
+        PilotName = mission.Creator?.FullName ?? "N/A",
+        StartTime = mission.StartTime,
+        EndTime = mission.EndTime,
+        TotalFlightDurationMinutes = report.TotalFlightDurationMinutes,
+        MaxAltitude = report.MaxAltitude,
+        AvgAltitude = report.AvgAltitude,
+        MaxSpeed = report.MaxSpeed,
+        AvgSpeed = report.AvgSpeed,
+        InitialBatteryLevel = report.InitialBatteryLevel,
+        FinalBatteryLevel = report.FinalBatteryLevel,
+        BatteryConsumedPercentage = report.BatteryConsumedPercentage,
+        TotalDistanceMeters = report.TotalDistanceMeters,
+        TotalTelemetryRecords = report.TotalTelemetryRecords,
+        TotalIncidents = report.TotalIncidents,
+        SafetyEvaluation = report.SafetyEvaluation,
+        Summary = report.Summary,
+        Notes = report.Notes,
+        CreatedAt = report.CreatedAt
+    };
 }

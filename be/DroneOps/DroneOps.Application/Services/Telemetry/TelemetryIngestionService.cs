@@ -109,7 +109,11 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         }
 
         var now = DateTimeOffset.UtcNow;
-        var clockSkew = request.SourceTimestamp - now;
+
+        // Npgsql chỉ ghi timestamp with time zone bằng UTC. Gateway/Swagger có thể gửi
+        // múi giờ địa phương (+07:00), vì vậy luôn chuẩn hóa trước khi so sánh và lưu DB.
+        var sourceTimestampUtc = request.SourceTimestamp.ToUniversalTime();
+        var clockSkew = sourceTimestampUtc - now;
         var isFutureSkew = clockSkew > TimeSpan.FromSeconds(ClockSkewGraceSeconds);
 
         DateTimeOffset? currentLatestSource = null;
@@ -122,7 +126,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         }
 
         // Gói đến muộn vẫn lưu lịch sử, nhưng không được ghi đè projection "latest".
-        var isLateArrival = currentLatestSource.HasValue && request.SourceTimestamp < currentLatestSource.Value;
+        var isLateArrival = currentLatestSource.HasValue && sourceTimestampUtc < currentLatestSource.Value;
         var usedForLatest = !isFutureSkew && !isLateArrival;
 
         var record = new TelemetryRecord
@@ -131,9 +135,9 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             SourceId = request.SourceId,
             UAVId = request.UavId,
             MissionId = missionId,
-            SourceTimestamp = request.SourceTimestamp,
+            SourceTimestamp = sourceTimestampUtc,
             ReceivedAt = now,
-            RecordedAt = request.SourceTimestamp,
+            RecordedAt = sourceTimestampUtc,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             Altitude = request.AltitudeMeters,
