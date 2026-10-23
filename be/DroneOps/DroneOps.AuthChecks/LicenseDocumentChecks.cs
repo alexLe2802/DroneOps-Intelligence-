@@ -1,18 +1,20 @@
 using System.IO.Compression;
-using DroneOps.API.Storage;
+using DroneOps.Application.Services.Storage;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
 
 internal static class LicenseDocumentChecks
 {
     public static async Task RunAsync()
     {
+        var storage = new UserMediaStorage(new HttpClient(), new ConfigurationBuilder().Build());
         async Task Check(string name, string mime, byte[] bytes, bool accepted, bool avatar = false)
         {
             using var stream = new MemoryStream(bytes);
             var file = new FormFile(stream, 0, bytes.Length, "files", name) { Headers = new HeaderDictionary(), ContentType = mime };
             try
             {
-                await UserMediaStorage.ValidateAsync(file, avatar, default);
+                await storage.ValidateAsync(file, avatar, default);
                 if (!accepted) throw new Exception("Unexpectedly accepted: " + name);
             }
             catch (ArgumentException) when (!accepted) { }

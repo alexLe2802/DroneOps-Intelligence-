@@ -27,6 +27,7 @@ public class AppDbContext : DbContext
     public DbSet<LicenseImage> LicenseImages { get; set; }
     public DbSet<MissionSuggestion> MissionSuggestions { get; set; }
     public DbSet<PostFlightReport> PostFlightReports { get; set; }
+    public DbSet<FlightCompletionEvent> FlightCompletionEvents { get; set; }
     public DbSet<PilotUpdateRequest> PilotUpdateRequests { get; set; }
 
     public DbSet<MissionUpdateRequest> MissionUpdateRequests { get; set; }
@@ -48,5 +49,16 @@ public class AppDbContext : DbContext
 
         // Ánh xạ chuẩn vào bảng Waypoint (dạng số ít) trong PostgreSQL
         modelBuilder.Entity<Waypoint>().ToTable("Waypoint");
+
+        modelBuilder.Entity<PostFlightReport>()
+            .HasIndex(x => new { x.MissionId, x.Revision })
+            .IsUnique();
+        modelBuilder.Entity<PostFlightReport>()
+            .HasIndex(x => x.MissionId)
+            .HasFilter("\"IsCurrent\" = TRUE")
+            .IsUnique();
+        modelBuilder.Entity<FlightCompletionEvent>()
+            .HasIndex(x => x.IdempotencyKey)
+            .IsUnique();
     }
 }

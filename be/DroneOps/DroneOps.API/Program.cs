@@ -1,13 +1,21 @@
 using System.Text;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
+using DroneOps.API.Filters;
 using DroneOps.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-var configurationArgs = args.Where(a => a is not "--migrate-auth" and not "--bootstrap-manager" and not "--migrate-mission-workflow" and not "--migrate-drone-connections").ToArray();
+var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "--migrate-auth", "--bootstrap-manager",
+    "--migrate-telemetry", "--check-telemetry-schema",
+    "--migrate-postflight", "--check-postflight-schema",
+    "--migrate-mission-workflow", "--migrate-drone-connections"
+};
+var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
@@ -43,12 +51,31 @@ if (args.Contains("--migrate-mission-workflow"))
     return;
 }
 
+if (args.Contains("--migrate-telemetry") || args.Contains("--check-telemetry-schema"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    if (args.Contains("--migrate-telemetry")) await TelemetrySchema.MigrateAsync(source);
+    else await TelemetrySchema.CheckAsync(source);
+    Console.WriteLine("Telemetry schema verified.");
+    return;
+}
+
+if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-schema"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    if (args.Contains("--migrate-postflight")) await PostFlightSchema.MigrateAsync(source);
+    else await PostFlightSchema.CheckAsync(source);
+    Console.WriteLine("Post-flight schema verified.");
+    return;
+}
+
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 //builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddControllers(options => options.Filters.Add<MissionValidationExceptionFilter>());
-builder.Services.Configure<DroneOps.Application.Services.Missions.MissionWeatherOptions>(builder.Configuration.GetSection("MissionWeather"));
+builder.Services.Configure<DroneOps.Application.Services.Missions.MissionWeatherOptions>(
+    builder.Configuration.GetSection("MissionWeather"));
 builder.Services.AddHostedService<MissionPreflightMonitor>();
-builder.Services.AddHttpClient<DroneOps.API.Storage.UserMediaStorage>();
+builder.Services.AddHttpClient<DroneOps.Application.Services.Storage.UserMediaStorage>();
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 106 * 1024 * 1024);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 106 * 1024 * 1024);
 builder.Services.AddEndpointsApiExplorer();
@@ -96,6 +123,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
 builder.Services.AddHostedService<CommunicationLossMonitor>();
+builder.Services.AddHostedService<PostFlightCompletionMonitor>();
 
 // 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
 // Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container
@@ -167,6 +195,10 @@ builder.Services.AddRateLimiter(options =>
 var app = builder.Build();
 await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+
+// Detect a missing deployment migration before background monitoring starts.
+await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.

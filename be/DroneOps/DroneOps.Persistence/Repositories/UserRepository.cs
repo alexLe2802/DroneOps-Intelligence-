@@ -40,6 +40,19 @@ public sealed class UserRepository
                 cancellationToken);
     }
 
+    public Task<bool> EmailExistsAsync(
+        string email,
+        Guid? excludingUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        string normalizedEmail = email.Trim().ToLowerInvariant();
+
+        return DbSet.AnyAsync(
+            user => user.Email.ToLower() == normalizedEmail &&
+                    (!excludingUserId.HasValue || user.Id != excludingUserId.Value),
+            cancellationToken);
+    }
+
     public async Task<(
         IReadOnlyList<User> Items,
         int TotalCount)> GetPagedWithRoleAsync(

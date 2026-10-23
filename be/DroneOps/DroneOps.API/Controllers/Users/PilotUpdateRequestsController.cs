@@ -1,150 +1,149 @@
-using System.Security.Claims;
-using System.Text.Json;
-using DroneOps.API.Storage;
+
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.Interfaces.Users;
-using DroneOps.Persistence.Data;
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
+using System.Security.Claims;
 
 namespace DroneOps.API.Controllers;
 
-[ApiController, Authorize(Roles = "uav_operator,operation_manager"), Route("api/users/pilot-update-requests")]
-public sealed class PilotUpdateRequestsController(AppDbContext db, IUserService users, UserMediaStorage storage,
-    IValidator<UpdatePilotProfileRequest> validator, ILogger<PilotUpdateRequestsController> logger) : ControllerBase
+[ApiController]
+[Authorize(Roles = "uav_operator,operation_manager")]
+[Route("api/users/pilot-update-requests")]
+public sealed class PilotUpdateRequestsController : ControllerBase
 {
-    private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-    private bool IsManager => User.IsInRole("operation_manager");
+    private readonly IPilotUpdateRequestService _pilotUpdateRequestService;
+
+    public PilotUpdateRequestsController(
+        IPilotUpdateRequestService pilotUpdateRequestService)
+    {
+        _pilotUpdateRequestService = pilotUpdateRequestService;
+    }
+
+    private Guid UserId =>
+        Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    private bool IsManager =>
+        User.IsInRole("operation_manager");
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] PilotUpdateRequestFilterRequest filter, CancellationToken ct)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] PilotUpdateRequestFilterRequest filter,
+        CancellationToken cancellationToken)
     {
-        var query = db.PilotUpdateRequests.AsNoTracking().AsQueryable();
-        if (!IsManager) query = query.Where(x => x.Pilot.UserId == UserId);
-        if (!string.IsNullOrWhiteSpace(filter.Status)) query = query.Where(x => x.Status == filter.Status.Trim());
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-        {
-            var search = filter.Search.Trim();
-            query = query.Where(x => x.Pilot.User.FullName.Contains(search) || x.Pilot.User.Email.Contains(search) || x.PilotLicenseNo.Contains(search));
-        }
-        var pageNumber = Math.Max(1, filter.PageNumber);
-        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
-        var totalItems = await query.CountAsync(ct);
-        var items = await query.OrderByDescending(x => x.CreatedAt).Skip((pageNumber - 1) * pageSize).Take(pageSize).Select(x => new {
-            x.Id, x.PilotId, userId = x.Pilot.UserId, fullName = x.Pilot.User.FullName, email = x.Pilot.User.Email,
-            x.PilotLicenseNo, x.LicenseIssuedDate, x.LicenseExpiredDate, x.Status,
-            x.RejectReason, x.CreatedAt, x.ReviewedAt, x.ReviewedBy
-        }).ToListAsync(ct);
-        return Ok(new { items, pageNumber, pageSize, totalItems, totalPages = (int)Math.Ceiling(totalItems / (double)pageSize) });
+        var result = await _pilotUpdateRequestService.GetAllAsync(
+            UserId,
+            IsManager,
+            filter,
+            cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> Detail(Guid id, CancellationToken ct)
+    public async Task<IActionResult> GetById(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var query = db.PilotUpdateRequests.AsNoTracking().Include(x => x.Pilot).ThenInclude(x => x.User)
-            .Include(x => x.LicenseImages).AsQueryable();
-        if (!IsManager) query = query.Where(x => x.Pilot.UserId == UserId);
-        var item = await query.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (item is null) return NotFound();
-        var urls = new List<string>();
-        foreach (var image in item.LicenseImages.Where(x => x.ImageUrl.StartsWith("licenses/")))
-            urls.Add(await storage.SignAsync(image.ImageUrl, ct));
-        return Ok(new { item.Id, item.PilotId, userId = item.Pilot.UserId, email = item.Pilot.User.Email, item.CreatedAt, item.ReviewedAt, item.ReviewedBy, fullName = item.Pilot.User.FullName, item.Status, item.RejectReason,
-            item.PilotLicenseNo, item.LicenseIssuedDate, item.LicenseExpiredDate,
-            currentLicenseNo = item.Pilot.PilotLicenseNo, currentIssuedDate = item.Pilot.LicenseIssuedDate,
-            currentExpiredDate = item.Pilot.LicenseExpiredDate, licenseImageUrls = urls });
-    }
+        var result = await _pilotUpdateRequestService.GetByIdAsync(
+            id,
+            UserId,
+            IsManager,
+            cancellationToken);
 
-    [Authorize(Roles = "uav_operator"), HttpPost, RequestSizeLimit(12 * 1024 * 1024)]
-    public Task<IActionResult> Submit([FromForm] string data, [FromForm] List<IFormFile> files, CancellationToken ct)
-        => db.Database.CreateExecutionStrategy().ExecuteAsync(() => SubmitCore(data, files, ct));
-
-    private async Task<IActionResult> SubmitCore(string data, List<IFormFile> files, CancellationToken ct)
-    {
-        db.ChangeTracker.Clear();
-        UpdatePilotProfileRequest? request;
-        try { request = JsonSerializer.Deserialize<UpdatePilotProfileRequest>(data, new JsonSerializerOptions(JsonSerializerDefaults.Web)); }
-        catch (JsonException) { return BadRequest(new { message = "Invalid license details." }); }
-        if (request is null || files.Count != 1)
-            return BadRequest(new { message = "Attach exactly one PDF or Word license document." });
-        // Only license fields belong to this workflow. Object paths are always generated by BE.
-        request.PhoneNumber = null; request.DateOfBirth = null; request.ExperienceYears = null;
-        request.LicenseImageUrls = ["upload-pending"];
-        var validation = await validator.ValidateAsync(request, ct);
-        if (!validation.IsValid) return BadRequest(new { message = validation.Errors[0].ErrorMessage });
-        try { foreach (var file in files) await UserMediaStorage.ValidateAsync(file, false, ct); }
-        catch (ArgumentException e) { return BadRequest(new { message = e.Message }); }
-        var uploaded = new List<string>();
-        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
-        try
+        if (result is null)
         {
-            var pilot = await db.Pilots.FirstOrDefaultAsync(x => x.UserId == UserId, ct);
-            if (pilot is null) return NotFound(new { message = "Pilot profile not found." });
-            if (await db.PilotUpdateRequests.AnyAsync(x => x.PilotId == pilot.Id && x.Status == "Pending", ct))
-                return Conflict(new { message = "You already have a pending license change." });
-            foreach (var file in files)
+            return NotFound(new
             {
-                var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-                var path = $"licenses/{UserId:N}/{Guid.NewGuid():N}{ext}";
-                await storage.UploadAsync(path, file, ct); uploaded.Add(path);
-            }
-            request.LicenseImageUrls = uploaded;
-            var result = await users.UpdatePilotProfileAsync(UserId, request, ct);
-            await transaction.CommitAsync(ct);
+                message = "Pilot update request not found."
+            });
+        }
+
+        return Ok(result);
+    }
+
+    [Authorize(Roles = "uav_operator")]
+    [HttpPost]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    public async Task<IActionResult> Submit(
+     [FromForm] PilotUpdateRequestForm form,
+     CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result =
+                await _pilotUpdateRequestService.SubmitAsync(
+                    UserId,
+                    form,
+                    cancellationToken);
+
             return Ok(result);
         }
-        catch (Exception e)
+        catch (KeyNotFoundException exception)
         {
-            await transaction.RollbackAsync(CancellationToken.None);
-            try { await storage.DeleteAsync(uploaded, CancellationToken.None); }
-            catch (Exception cleanup) { logger.LogWarning(cleanup, "License change upload cleanup failed."); }
-            if (e is InvalidOperationException || e is PostgresException { SqlState: "40001" }
-                || e is DbUpdateException { InnerException: PostgresException { SqlState: "40001" } })
-                return Conflict(new { message = "A license change is already pending or another update occurred. Refresh and try again." });
-            logger.LogError(e, "License change submission failed.");
-            return StatusCode(502, new { message = "Unable to submit license change. Please try again." });
+            return NotFound(new
+            {
+                message = exception.Message
+            });
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new
+            {
+                message = exception.Message
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new
+            {
+                message = exception.Message
+            });
         }
     }
 
-    [Authorize(Roles = "operation_manager"), HttpPut("{id:guid}/approve")]
-    public Task<IActionResult> Approve(Guid id, CancellationToken ct)
-        => Review(id, true, null, ct);
-
-    [Authorize(Roles = "operation_manager"), HttpPut("{id:guid}/reject")]
-    public Task<IActionResult> Reject(Guid id, [FromBody] RejectPilotUpdateRequest request, CancellationToken ct)
-        => Review(id, false, request.RejectReason, ct);
-
-    private Task<IActionResult> Review(Guid id, bool approve, string? reason, CancellationToken ct)
-        => db.Database.CreateExecutionStrategy().ExecuteAsync(() => ReviewCore(id, approve, reason, ct));
-
-    private async Task<IActionResult> ReviewCore(Guid id, bool approve, string? reason, CancellationToken ct)
+    [Authorize(Roles = "operation_manager")]
+    [HttpPut("{id:guid}/approve")]
+    public async Task<IActionResult> Approve(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        if (!approve && (string.IsNullOrWhiteSpace(reason) || reason.Length > 1000))
-            return BadRequest(new { message = "Enter a rejection reason up to 1000 characters." });
-        // A retry must reload state instead of reusing entities from a rolled-back attempt.
-        db.ChangeTracker.Clear();
-        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
-        try
-        {
-            var item = await db.PilotUpdateRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
-            if (item is null) return NotFound();
-            if (item.Status != "Pending") return Conflict(new { message = "Request was already reviewed. Refresh the list." });
-            if (approve && (!item.LicenseExpiredDate.HasValue || item.LicenseExpiredDate.Value < DateOnly.FromDateTime(DateTime.UtcNow)))
-                return BadRequest(new { message = "This license has expired and cannot be approved." });
+        var result = await _pilotUpdateRequestService.ApproveAsync(
+            id,
+            UserId,
+            cancellationToken);
 
-            // Use the original workflow for both decisions and official license/image updates.
-            var result = approve
-                ? await users.ApprovePilotUpdateRequestAsync(id, UserId, ct)
-                : await users.RejectPilotUpdateRequestAsync(id, UserId, new RejectPilotUpdateRequest { RejectReason = reason!.Trim() }, ct);
-            await transaction.CommitAsync(ct);
-            return Ok(result);
-        }
-        catch (InvalidOperationException e)
+        return Ok(result);
+    }
+
+    [Authorize(Roles = "operation_manager")]
+    [HttpPut("{id:guid}/reject")]
+    public async Task<IActionResult> Reject(
+        Guid id,
+        [FromBody] RejectPilotUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _pilotUpdateRequestService.RejectAsync(
+            id,
+            UserId,
+            request,
+            cancellationToken);
+
+        return Ok(result);
+    }
+    private static string GetFileExtension(
+    IFormFile file)
+    {
+        return file.ContentType.ToLowerInvariant() switch
         {
-            return Conflict(new { message = e.Message });
-        }
+            "application/pdf" => ".pdf",
+            "image/png" => ".png",
+            "image/webp" => ".webp",
+            "image/jpeg" => ".jpg",
+            "image/jpg" => ".jpg",
+            _ => Path.GetExtension(file.FileName)
+                .ToLowerInvariant()
+        };
     }
 }

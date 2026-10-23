@@ -4,6 +4,8 @@ using DroneOps.Application.Interfaces.Geofences;
 using DroneOps.Application.Interfaces.Incidents;
 using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Interfaces.PostFlight;
+using DroneOps.Application.Interfaces.Services;
+using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Application.Interfaces.UAVs;
 using DroneOps.Application.Interfaces.Users;
@@ -12,6 +14,7 @@ using DroneOps.Application.Services.Auth;
 using DroneOps.Application.Services.Incidents;
 using DroneOps.Application.Services.Missions;
 using DroneOps.Application.Services.PostFlight;
+using DroneOps.Application.Services.Storage;
 using DroneOps.Application.Services.Telemetry;
 using DroneOps.Application.Services.UAVs;
 using DroneOps.Application.Services.Users;
@@ -37,6 +40,8 @@ public static class DependencyInjection
     {
         services.Configure<TelemetryMonitoringOptions>(
             configuration.GetSection(TelemetryMonitoringOptions.SectionName));
+        services.Configure<PostFlightOptions>(
+            configuration.GetSection(PostFlightOptions.SectionName));
         services.AddMemoryCache();
 
         services.AddFluentValidationAutoValidation();
@@ -65,6 +70,11 @@ public static class DependencyInjection
         services.AddScoped<IDroneConnectionService, DroneConnectionService>();
         services.AddScoped<IIncidentService, IncidentService>();
         services.AddScoped<IMissionApprovalService, MissionApprovalService>();
+        services.AddScoped<IAvatarService, AvatarService>();
+        services.AddScoped<IUserMediaStorage, UserMediaStorage>();
+        services.AddScoped<IOperatorCredentialsService,OperatorCredentialsService>();
+        services.AddScoped<IPilotUpdateRequestService, PilotUpdateRequestService>();
+
         services.AddHttpClient<
 IAIService,
 OpenAIService>(client =>
