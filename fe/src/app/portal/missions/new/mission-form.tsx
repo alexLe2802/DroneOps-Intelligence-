@@ -52,8 +52,19 @@ export default function MissionForm() {
     });
     return () => { active = false; };
   }, []);
-  function addWaypoint(longitude: number, latitude: number) {
-    setWaypoints(current => [...current, { sequenceOrder: current.length + 1, latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: 50, actionType: current.length === 0 ? "TakeOff" : "FlyThrough" }]);
+  function addWaypoint(longitude?: number, latitude?: number) {
+    setWaypoints(current => {
+      const last = current[current.length - 1];
+      const nextLatitude = latitude ?? (last && Number.isFinite(last.latitude) ? last.latitude : 10.8231);
+      const nextLongitude = longitude ?? (last && Number.isFinite(last.longitude) ? last.longitude : 106.6297);
+      return [...current, {
+        sequenceOrder: current.length + 1,
+        latitude: Number(nextLatitude.toFixed(6)),
+        longitude: Number(nextLongitude.toFixed(6)),
+        altitude: 50,
+        actionType: current.length === 0 ? "TakeOff" : "FlyThrough",
+      }];
+    });
   }
   function updateWaypoint(index: number, patch: Partial<MissionWaypoint>) {
     setWaypoints(current => current.map((point, currentIndex) => currentIndex === index ? { ...point, ...patch } : point));
@@ -111,7 +122,7 @@ export default function MissionForm() {
         <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>Click the map in flight order, then configure altitude and action.</p></div><button type="button" className="text-action" disabled={!waypoints.length} onClick={() => { if (window.confirm("Clear all waypoints?")) setWaypoints([]); }}>CLEAR ROUTE</button></div>
         {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
         <MissionMap waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
-        <button type="button" className="module-secondary" onClick={() => addWaypoint(106.6297, 10.8231)}>ADD WAYPOINT MANUALLY</button>
+        <button type="button" className="module-secondary" onClick={() => addWaypoint()}>ADD WAYPOINT MANUALLY</button>
         <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></article>)}</div>
       </section>
       </fieldset>
