@@ -33,7 +33,7 @@ export default function FlightHistoryClient() {
     <section className="history-stats">
       <article><span>TOTAL FLIGHTS</span><strong>{analytics.totalFlights}</strong></article>
       <article><span>COMPLETED</span><strong>{analytics.completedFlights}</strong></article>
-      <article><span>SUCCESS RATE</span><strong>{analytics.successRatePercentage.toFixed(1)}%</strong></article>
+      <article><span>SUCCESS RATE</span><strong>{analytics.successRatePercentage == null ? "N/A" : `${analytics.successRatePercentage.toFixed(1)}%`}</strong></article>
       <article><span>FLIGHT HOURS</span><strong>{analytics.totalFlightHours.toFixed(1)}</strong></article>
       <article><span>INCIDENTS</span><strong>{analytics.totalIncidentsRecorded}</strong></article>
     </section>
