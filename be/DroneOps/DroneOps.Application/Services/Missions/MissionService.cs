@@ -1,6 +1,7 @@
 ﻿using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
+using DroneOps.Application.Interfaces.PostFlight;
 using DroneOps.Domain.Entities;
 using DroneOps.Application.Services.Missions;
 
@@ -11,14 +12,18 @@ public sealed class MissionService : IMissionService
     private readonly IMissionRepository _missionRepository;
     private readonly MissionWorkflowService _workflow;
     private readonly MissionValidationService _validation;
+    private readonly IPostFlightService _postFlightService;
 
     public MissionService(
        IMissionRepository missionRepository,
-       MissionWorkflowService workflow, MissionValidationService validation)
+       MissionWorkflowService workflow,
+       MissionValidationService validation,
+       IPostFlightService postFlightService)
     {
         _missionRepository = missionRepository;
         _workflow = workflow;
         _validation = validation;
+        _postFlightService = postFlightService;
     }
     public async Task<MissionResponse> CreateAsync(
         Guid pilotId,
@@ -33,6 +38,7 @@ public sealed class MissionService : IMissionService
         Guid missionId,
         CancellationToken cancellationToken = default)
     {
+        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
         Mission? mission =
             await _missionRepository.GetByIdAsync(
                 missionId,
@@ -49,6 +55,7 @@ public sealed class MissionService : IMissionService
     public async Task<List<MissionResponse>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
+        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
         List<Mission> missions =
             await _missionRepository.GetAllAsync(
                 cancellationToken);
@@ -62,6 +69,7 @@ public sealed class MissionService : IMissionService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
         List<Mission> missions =
             await _missionRepository.GetByCreatorAsync(
                 userId,

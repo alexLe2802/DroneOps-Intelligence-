@@ -48,6 +48,7 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 });
 builder.Services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(databaseName));
 builder.Services.AddScoped<IMissionRepository, MissionRepository>();
+builder.Services.AddScoped<IPostFlightRepository, PostFlightRepository>();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddSingleton<IDroneConnectionRepository,FixtureDroneConnectionRepository>();
 builder.Services.AddRateLimiter(o=>{o.AddFixedWindowLimiter("gateway-pairing",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-ingest",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});});
@@ -164,7 +165,10 @@ try
     Check(skewed.StatusCode == HttpStatusCode.Created && !(await Json(skewed)).GetProperty("usedForLatestProjection").GetBoolean(), "future clock-skew packet is retained but excluded from latest");
 
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(managerId, "operation_manager"));
-    var missing = await Json(await client.GetAsync($"/api/missions/{emptyMissionId}/telemetry/latest"));
+    var missingResponse = await client.GetAsync($"/api/missions/{emptyMissionId}/telemetry/latest");
+    Check(missingResponse.StatusCode == HttpStatusCode.OK,
+        $"mission without samples endpoint succeeds ({missingResponse.StatusCode}: {await missingResponse.Content.ReadAsStringAsync()})");
+    var missing = await Json(missingResponse);
     Check(missing.GetProperty("snapshotKind").GetString() == "Missing" && missing.GetProperty("sourceTimestamp").ValueKind == JsonValueKind.Null && missing.GetProperty("latitude").ValueKind == JsonValueKind.Null, "mission without samples returns the explicit Missing contract");
     var latestResponse = await client.GetAsync($"/api/missions/{missionId}/telemetry/latest");
     Check(latestResponse.StatusCode == HttpStatusCode.OK, $"manager can read latest API ({latestResponse.StatusCode})");
