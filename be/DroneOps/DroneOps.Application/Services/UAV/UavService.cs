@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.UAV;
+using DroneOps.Application.DTOs.Request.UAV;
 using DroneOps.Application.DTOs.Request.UAVs;
 using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.UAVs;
@@ -119,6 +119,9 @@ public sealed class UavService : IUavService
         {
             return false;
         }
+
+        if (await _uavRepository.HasHardwareIdentityAsync(uavId,cancellationToken))
+            throw new InvalidOperationException("This UAV has a permanent hardware binding. Deactivate it instead of deleting its identity.");
 
         // Xóa trực tiếp không giới hạn trạng thái Status
         _uavRepository.Remove(uav);
