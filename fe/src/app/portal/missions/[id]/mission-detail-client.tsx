@@ -177,7 +177,7 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
 
     {mission.pendingUpdate && <>
       <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
-      <MissionPlanComparison current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
+      <MissionPlanComparison isInitial={mission.pendingUpdate.isInitial} current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
     </>}
     <MissionEvidencePanel key={id} id={id} />
     <section className="mission-command-panel" aria-label="Mission lifecycle actions">
