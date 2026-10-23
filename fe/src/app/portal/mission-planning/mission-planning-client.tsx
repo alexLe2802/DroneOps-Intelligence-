@@ -208,7 +208,7 @@ export default function MissionPlanningClient() {
             <td><b>{item.uavCode || "Unassigned"}</b><small>{item.uavName || "No aircraft record"}{item.uavStatus ? ` // ${item.uavStatus}` : ""}</small></td>
             <td><div className="registry-pilot"><i>{initials(item.pilotName ?? "")}</i><span><b>{item.pilotName || "Pilot unavailable"}</b><small>{item.createdBy ? `USER ${item.createdBy.slice(0, 8).toUpperCase()}` : "CREATOR UNAVAILABLE"}</small></span></div></td>
             <td><b>{formatDate(item.startTime)}</b><small>{item.endTime ? `END ${formatDate(item.endTime)}` : "END NOT SCHEDULED"}</small></td>
-            <td><b>{item.waypoints.length} waypoint{item.waypoints.length === 1 ? "" : "s"}</b><small>{item.altitudeReference || "ALT REF N/A"} // {missionDuration(item)}</small></td>
+            <td><b>{item.waypoints.length} waypoint{item.waypoints.length === 1 ? "" : "s"}</b><small>{item.altitudeReference || "ALT REF N/A"}{" // "}{missionDuration(item)}</small></td>
             <td><span className={`registry-state ${itemBucket}`}>{formatStatus(item.status)}</span><small>{validationLabel(item)}</small></td>
             <td><Link href={pendingReview ? `/portal/mission-approvals?missionId=${encodeURIComponent(item.id)}` : `/portal/missions/${encodeURIComponent(item.id)}`}>{pendingReview ? "REVIEW" : "OPEN"} <span aria-hidden="true">&gt;</span></Link></td>
           </tr>;
