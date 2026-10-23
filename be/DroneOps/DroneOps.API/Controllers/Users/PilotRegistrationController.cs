@@ -22,7 +22,7 @@ public class PilotRegistrationController : ControllerBase
         _storage = storage;
     }
 
-    [AllowAnonymous, HttpPost("with-files"), RequestSizeLimit(106 * 1024 * 1024)]
+    [AllowAnonymous, HttpPost("with-files"), RequestSizeLimit(12 * 1024 * 1024)]
     public async Task<IActionResult> RegisterWithFiles([FromForm] string data, [FromForm] List<IFormFile> files, CancellationToken ct)
     {
         CreatePilotRegistrationRequest? request;
@@ -31,7 +31,7 @@ public class PilotRegistrationController : ControllerBase
         if (request is null || !TryValidateModel(request)) return ValidationProblem(ModelState);
         var validation = await HttpContext.RequestServices.GetRequiredService<IValidator<CreatePilotRegistrationRequest>>().ValidateAsync(request, ct);
         if (!validation.IsValid) return BadRequest(new { message = validation.Errors[0].ErrorMessage });
-        if (files.Count is < 1 or > 10) return BadRequest(new { message = "Attach between 1 and 10 license files." });
+        if (files.Count != 1) return BadRequest(new { message = "Attach exactly one PDF or Word license document." });
         var uploaded = new List<string>();
         try
         {
@@ -39,7 +39,7 @@ public class PilotRegistrationController : ControllerBase
             var folder = Guid.NewGuid().ToString("N");
             foreach (var file in files)
             {
-                var extension = file.ContentType == "application/pdf" ? ".pdf" : file.ContentType == "image/png" ? ".png" : file.ContentType == "image/webp" ? ".webp" : ".jpg";
+                var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
                 var path = $"licenses/{folder}/{Guid.NewGuid():N}{extension}";
                 await _storage.UploadAsync(path, file, ct);
                 uploaded.Add(path);

@@ -1,5 +1,9 @@
 "use client";
 
+import { licenseDocumentLabel } from "@/lib/license-document";
+
+import { isLicenseDocument } from "@/lib/license-document";
+
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import styles from "./license-changes.module.css";
@@ -49,8 +53,8 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
     event.preventDefault(); if (pendingAction.current) return;
     const values = new FormData(event.currentTarget);
     const files = values.getAll("licenseFiles").filter((f): f is File => f instanceof File && f.size > 0);
-    if (!files.length || files.length > 10 || files.some(f => f.size > 10 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(f.type))) {
-      setError("Attach 1–10 JPEG, PNG, WebP or PDF files, up to 10 MB each."); return;
+    if (files.length !== 1 || files.some(file => !isLicenseDocument(file) || file.size > 10 * 1024 * 1024)) {
+      setError("Attach exactly one PDF or Word (.doc, .docx) file, up to 10 MB."); return;
     }
     const issued = String(values.get("licenseIssuedDate")); const expires = String(values.get("licenseExpiredDate"));
     if (expires <= issued) { setError("Expiration must be after the issue date."); return; }
@@ -88,7 +92,7 @@ export default function LicenseChanges({ manager = false, onRefresh }: { manager
     <div className={styles.listHeading}><h3>{manager ? "License change requests" : "Your license requests"}</h3><span>{loading ? "Loading" : listError ? "Unavailable" : `${items.length} requests · latest 100`}</span></div>
     {loading ? <div className={styles.empty} role="status">Loading license change requests…</div> : listError ? null : !items.length ? <div className={styles.empty}><span aria-hidden="true">▤</span><h3>{manager ? "No license changes to review" : "No license changes yet"}</h3><p>{manager ? "Requests will appear here when an operator submits an updated flight license." : "Your submitted requests and review results will appear here."}</p></div> : <div className="request-table-wrap"><table className="request-table"><thead><tr>{manager && <th>Pilot</th>}<th>License</th><th>Status</th><th>Submitted</th><th>Details</th></tr></thead><tbody>{items.map(item => <tr key={item.id}>{manager && <td>{item.fullName}<small>{item.email}</small></td>}<td>{item.pilotLicenseNo}</td><td><span className={`${styles.status} ${item.status === "Approved" ? styles.approved : item.status === "Rejected" ? styles.rejected : styles.pending}`}>{item.status}</span>{item.rejectReason && <p>{item.rejectReason}</p>}</td><td>{new Date(item.createdAt).toLocaleDateString()}</td><td><button type="button" disabled={busy} onClick={() => void inspect(item.id)}>View documents</button></td></tr>)}</tbody></table></div>}
     {detail && <article className={`request-detail-panel ${styles.detail}`}><h3>{detail.fullName} · {detail.status}</h3><div className="request-detail-grid"><div><span>Current license</span><b>{detail.currentLicenseNo}</b><p>{detail.currentIssuedDate} → {detail.currentExpiredDate}</p></div><div><span>Requested license</span><b>{detail.pilotLicenseNo}</b><p>{detail.licenseIssuedDate} → {detail.licenseExpiredDate}</p></div></div>
-      <div className="request-license-files">{detail.licenseImageUrls.map((url, i) => <a key={url} href={url} target="_blank" rel="noreferrer">{new URL(url).pathname.endsWith(".pdf") ? `Open license PDF ${i + 1}` : <Image unoptimized src={url} alt={`License page ${i + 1}`} width={600} height={400} style={{ width: "100%", height: "auto" }} />}</a>)}</div>
+      <div className="request-license-files">{detail.licenseImageUrls.map((url, i) => <a key={url} href={url} target="_blank" rel="noreferrer">{licenseDocumentLabel(url) ? `Open license ${licenseDocumentLabel(url)} ${i + 1}` : <Image unoptimized src={url} alt={`License page ${i + 1}`} width={600} height={400} style={{ width: "100%", height: "auto" }} />}</a>)}</div>
       <button type="button" className="module-secondary" disabled={busy} onClick={() => void inspect(detail.id)}>Refresh document links</button>
       {detail.rejectReason && <p>Rejection reason: {detail.rejectReason}</p>}
       {manager && detail.status === "Pending" && <div className="request-review-controls"><label>Rejection reason<textarea value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} disabled={busy} /></label><button className="module-primary" type="button" disabled={busy} onClick={() => void review(true)}>Approve license change</button><button className="module-danger" type="button" disabled={busy} onClick={() => void review(false)}>Reject</button></div>}
