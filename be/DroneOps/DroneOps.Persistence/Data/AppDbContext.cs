@@ -1,4 +1,4 @@
-﻿using DroneOps.Domain.Entities;
+using DroneOps.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace DroneOps.Persistence.Data;
@@ -11,6 +11,8 @@ public class AppDbContext : DbContext
     {
     }
 
+    public DbSet<DroneHardwareIdentity> DroneHardwareIdentities { get; set; }
+    public DbSet<DroneConnection> DroneConnections { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Pilot> Pilots { get; set; }
     public DbSet<Role> Roles { get; set; }
@@ -37,6 +39,8 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<MissionWeatherCache>().HasKey(x => x.Key);
+        modelBuilder.Entity<DroneHardwareIdentity>().HasOne(h=>h.Uav).WithOne()
+            .HasForeignKey<DroneHardwareIdentity>(h=>h.UavId).OnDelete(DeleteBehavior.Restrict);
 
         // Đảm bảo Email người dùng là duy nhất
         modelBuilder.Entity<User>()

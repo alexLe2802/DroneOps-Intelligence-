@@ -66,6 +66,8 @@ public static class DependencyInjection
         services.AddScoped<IMissionSuggestionService,MissionSuggestionService>();
         services.AddScoped<IPostFlightService, PostFlightService>();
         services.AddScoped<ITelemetryIngestionService, TelemetryIngestionService>();
+        services.AddScoped<IDroneConnectionRepository, DroneConnectionRepository>();
+        services.AddScoped<IDroneConnectionService, DroneConnectionService>();
         services.AddScoped<IIncidentService, IncidentService>();
         services.AddScoped<IMissionApprovalService, MissionApprovalService>();
         services.AddScoped<IAvatarService, AvatarService>();
