@@ -1,11 +1,12 @@
-using System.Text.Json;
-using FluentValidation;
-using DroneOps.API.Storage;
-using Microsoft.AspNetCore.RateLimiting;
 using DroneOps.Application.DTOs.Request.Users;
+using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Application.Interfaces.Users;
+using DroneOps.Application.Services.Storage;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Text.Json;
 
 namespace DroneOps.API.Controllers;
 
@@ -14,46 +15,70 @@ namespace DroneOps.API.Controllers;
 public class PilotRegistrationController : ControllerBase
 {
     private readonly IPilotRegistrationService _service;
-    private readonly UserMediaStorage _storage;
 
-    public PilotRegistrationController(IPilotRegistrationService service, UserMediaStorage storage)
+    public PilotRegistrationController(
+        IPilotRegistrationService service)
     {
         _service = service;
-        _storage = storage;
     }
 
-    [AllowAnonymous, HttpPost("with-files"), RequestSizeLimit(12 * 1024 * 1024)]
-    public async Task<IActionResult> RegisterWithFiles([FromForm] string data, [FromForm] List<IFormFile> files, CancellationToken ct)
+    [AllowAnonymous]
+    [HttpPost("with-files")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    public async Task<IActionResult> RegisterWithFiles(
+    [FromForm] string data,
+    [FromForm] List<IFormFile> files,
+    CancellationToken ct)
     {
         CreatePilotRegistrationRequest? request;
-        try { request = JsonSerializer.Deserialize<CreatePilotRegistrationRequest>(data, new JsonSerializerOptions(JsonSerializerDefaults.Web)); }
-        catch (JsonException) { return BadRequest(new { message = "Invalid registration data." }); }
-        if (request is null || !TryValidateModel(request)) return ValidationProblem(ModelState);
-        var validation = await HttpContext.RequestServices.GetRequiredService<IValidator<CreatePilotRegistrationRequest>>().ValidateAsync(request, ct);
-        if (!validation.IsValid) return BadRequest(new { message = validation.Errors[0].ErrorMessage });
-        if (files.Count != 1) return BadRequest(new { message = "Attach exactly one PDF or Word license document." });
-        var uploaded = new List<string>();
+
         try
         {
-            foreach (var file in files) await UserMediaStorage.ValidateAsync(file, false, ct);
-            var folder = Guid.NewGuid().ToString("N");
-            foreach (var file in files)
+            request =
+                JsonSerializer.Deserialize<CreatePilotRegistrationRequest>(
+                    data,
+                    new JsonSerializerOptions(
+                        JsonSerializerDefaults.Web));
+        }
+        catch (JsonException)
+        {
+            return BadRequest(new
             {
-                var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-                var path = $"licenses/{folder}/{Guid.NewGuid():N}{extension}";
-                await _storage.UploadAsync(path, file, ct);
-                uploaded.Add(path);
-            }
-            request.LicenseImageUrls = uploaded;
-            await _service.RegisterAsync(request);
-            return Ok(new { message = "Registration submitted successfully." });
+                message = "Invalid registration data."
+            });
+        }
+
+        if (request is null || !TryValidateModel(request))
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            await _service.RegisterWithFilesAsync(
+                request,
+                files,
+                ct);
+
+            return Ok(new
+            {
+                message =
+                    "Registration submitted successfully."
+            });
         }
         catch (Exception e)
         {
-            try { await _storage.DeleteAsync(uploaded, CancellationToken.None); }
-            catch (Exception cleanup) { HttpContext.RequestServices.GetRequiredService<ILogger<PilotRegistrationController>>().LogWarning(cleanup, "License upload cleanup failed."); }
-            var message = e is ArgumentException || e is InvalidOperationException ? e.Message : "Unable to submit registration. Check your details or try again.";
-            return BadRequest(new { message });
+            string message =
+                e is ArgumentException ||
+                e is InvalidOperationException
+                    ? e.Message
+                    : "Unable to submit registration. " +
+                      "Check your details or try again.";
+
+            return BadRequest(new
+            {
+                message
+            });
         }
     }
 
@@ -94,22 +119,29 @@ public class PilotRegistrationController : ControllerBase
     }
 
     /// <summary>
-    
+
     /// </summary>
     [Authorize(Roles = "operation_manager")]
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetDetail(Guid id)
+    public async Task<IActionResult> GetDetail(
+     Guid id,
+     CancellationToken cancellationToken)
     {
-        var result = await _service.GetDetailAsync(id);
+        var result = await _service.GetDetailAsync(
+            id,
+            cancellationToken);
+
         if (result == null)
         {
-            return NotFound(new { Message = "Pilot registration not found." });
+            return NotFound(new
+            {
+                Message = "Pilot registration not found."
+            });
         }
-        result.LicenseImageUrls = (await Task.WhenAll(result.LicenseImageUrls
-            .Where(path => path.StartsWith("licenses/"))
-            .Select(path => _storage.SignAsync(path, HttpContext.RequestAborted)))).ToList();
+
         return Ok(result);
     }
+
 
     /// <summary>
     /// Duyệt đơn Pilot: Dùng mật khẩu gốc tạo User + gửi mã OTP xác thực đăng nhập lần đầu qua Email (Operation Manager)

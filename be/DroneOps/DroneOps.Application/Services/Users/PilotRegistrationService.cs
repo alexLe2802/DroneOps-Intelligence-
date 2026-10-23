@@ -1,51 +1,144 @@
-using DroneOps.Domain;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using BCrypt.Net;
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.DTOs.Response.Auth;
 using DroneOps.Application.DTOs.Response.Pages;
 using DroneOps.Application.DTOs.Response.Users;
 using DroneOps.Application.Interfaces.Auth;
+using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Application.Interfaces.Users;
 using DroneOps.Application.Settings;
+using DroneOps.Domain;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
+using FluentValidation;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using System.ComponentModel.DataAnnotations;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace DroneOps.Application.Services.Users;
 
 public class PilotRegistrationService : IPilotRegistrationService
 {
     private readonly IPilotRegistrationRepository _repository;
-    private readonly AppDbContext _context;
     private readonly IEmailService _emailService;
     private readonly IMemoryCache _cache;
     private readonly JwtSettings _jwtSettings;
 
+    private readonly IUserMediaStorage _storage;
+    private readonly IValidator<CreatePilotRegistrationRequest> _validator;
+    private readonly ILogger<PilotRegistrationService> _logger;
+    private readonly AppDbContext _context;
     public PilotRegistrationService(
         IPilotRegistrationRepository repository,
-        AppDbContext context,
         IEmailService emailService,
         IMemoryCache cache,
-        IOptions<JwtSettings> jwtSettings)
+        IOptions<JwtSettings> jwtSettings,
+        AppDbContext context,
+          IUserMediaStorage storage,
+    IValidator<CreatePilotRegistrationRequest> validator,
+    ILogger<PilotRegistrationService> logger)
     {
         _repository = repository;
-        _context = context;
         _emailService = emailService;
         _cache = cache;
         _jwtSettings = jwtSettings.Value;
+        _context = context;
+        _storage = storage;
+        _validator = validator;
+        _logger = logger;
     }
 
     // =========================================================================
     // 1. NỘP ĐƠN ĐĂNG KÝ PILOT
     // Mật khẩu do chính Pilot nhập được băm và lưu trực tiếp vào phiếu đăng ký
     // =========================================================================
+
+    public async Task RegisterWithFilesAsync(
+     CreatePilotRegistrationRequest request,
+     IReadOnlyCollection<IFormFile> files,
+     CancellationToken cancellationToken = default)
+    {
+        var validation = await _validator.ValidateAsync(
+            request,
+            cancellationToken);
+
+        if (!validation.IsValid)
+        {
+            throw new ArgumentException(
+                validation.Errors[0].ErrorMessage);
+        }
+
+        if (files.Count != 1)
+        {
+            throw new ArgumentException(
+                "Attach exactly one PDF or Word license document.");
+        }
+
+        var uploaded = new List<string>();
+
+        try
+        {
+            foreach (var file in files)
+            {
+                await _storage.ValidateAsync(
+                    file,
+                    false,
+                    cancellationToken);
+            }
+
+            string folder =
+                Guid.NewGuid().ToString("N");
+
+            foreach (var file in files)
+            {
+                string extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+                string path =
+                    $"licenses/{folder}/{Guid.NewGuid():N}{extension}";
+
+                await _storage.UploadAsync(
+                    path,
+                    file,
+                    cancellationToken);
+
+                uploaded.Add(path);
+            }
+
+            request.LicenseImageUrls = uploaded;
+
+            // Dùng nguyên flow đăng ký hiện tại
+            await RegisterAsync(request);
+        }
+        catch
+        {
+            try
+            {
+                if (uploaded.Count > 0)
+                {
+                    await _storage.DeleteAsync(
+                        uploaded,
+                        CancellationToken.None);
+                }
+            }
+            catch (Exception cleanupException)
+            {
+                _logger.LogWarning(
+                    cleanupException,
+                    "License upload cleanup failed.");
+            }
+
+            throw;
+        }
+    }
+
     public async Task RegisterAsync(CreatePilotRegistrationRequest request)
     {
         var existed = await _repository.EmailExistsAsync(request.Email);
@@ -102,17 +195,38 @@ public class PilotRegistrationService : IPilotRegistrationService
     // =========================================================================
     // 2. XEM CHI TIẾT ĐƠN ĐĂNG KÝ
     // =========================================================================
-    public async Task<PilotRegistrationDetailResponse?> GetDetailAsync(Guid id)
+    public async Task<PilotRegistrationDetailResponse?> GetDetailAsync(
+     Guid id,
+     CancellationToken cancellationToken = default)
     {
         var registration = await _repository.GetByIdAsync(id);
+
         if (registration == null)
         {
             return null;
         }
 
+        var licenseImageUrls = new List<string>();
+
+        foreach (var image in registration.LicenseImages)
+        {
+            string path = image.ImageUrl;
+
+            if (!path.StartsWith("licenses/"))
+            {
+                continue;
+            }
+
+            string signedUrl = await _storage.SignAsync(
+                path,
+                cancellationToken);
+
+            licenseImageUrls.Add(signedUrl);
+        }
+
         return new PilotRegistrationDetailResponse
         {
-            LicenseImageUrls = registration.LicenseImages.Select(x => x.ImageUrl).ToList(),
+            LicenseImageUrls = licenseImageUrls,
             Id = registration.Id,
             FullName = registration.FullName,
             Email = registration.Email,

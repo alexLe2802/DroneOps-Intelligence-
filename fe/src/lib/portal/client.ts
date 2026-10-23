@@ -1,17 +1,12 @@
 import { api, ApiError } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, LiveMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable">;
 
-export async function getPilotMissions(): Promise<MissionDetail[]> {
-  const [missions, aircraft] = await Promise.all([
-    api<MissionApiRecord[]>("/missions/my"),
-    getAssignedUavs().catch(() => [] as AssignedUav[]),
-  ]);
-  const uavCodes = new Map(aircraft.map(item => [item.id, item.code]));
-  return missions.map(mission => ({
+function normalizeMission(mission: MissionApiRecord, uavCode: string | null): MissionDetail {
+  return {
     ...mission,
-    uavCode: mission.uavId ? uavCodes.get(mission.uavId) ?? null : null,
+    uavCode,
     detailAvailable: true,
     waypoints: Array.isArray(mission.waypoints) ? mission.waypoints.map((point, index) => ({
       sequenceOrder: point.sequenceOrder ?? index + 1,
@@ -20,7 +15,34 @@ export async function getPilotMissions(): Promise<MissionDetail[]> {
       altitude: point.altitude == null ? null : Number(point.altitude),
       actionType: point.actionType ?? "FlyThrough",
     })) : [],
-  }));
+  };
+}
+
+export async function getPilotMissions(): Promise<MissionDetail[]> {
+  const [missions, aircraft] = await Promise.all([
+    api<MissionApiRecord[]>("/missions/my"),
+    getAssignedUavs().catch(() => [] as AssignedUav[]),
+  ]);
+  const uavCodes = new Map(aircraft.map(item => [item.id, item.code]));
+  return missions.map(mission => normalizeMission(mission, mission.uavId ? uavCodes.get(mission.uavId) ?? null : null));
+}
+
+export async function getManagerMissions(): Promise<ManagerMission[]> {
+  const [missions, fleet] = await Promise.all([
+    api<Array<MissionApiRecord & { createdBy: string }>>("/missions"),
+    getManagedUavs({ pageNumber: 1, pageSize: 100 }).catch(() => null),
+  ]);
+  const aircraft = new Map((fleet?.items ?? []).map(item => [item.id, item]));
+  return missions.map(record => {
+    const assigned = record.uavId ? aircraft.get(record.uavId) : undefined;
+    return {
+      ...normalizeMission(record, assigned?.code ?? null),
+      createdBy: record.createdBy,
+      uavName: assigned?.name ?? null,
+      uavStatus: assigned?.status ?? null,
+      pilotName: assigned?.pilotName ?? null,
+    };
+  });
 }
 
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
@@ -69,6 +91,39 @@ export function getLatestMissionTelemetry(id: string): Promise<MissionTelemetry>
 export function getMissionIncidents(missionId: string, pageSize = 8): Promise<PagedIncidents> {
   const params = new URLSearchParams({ missionId, pageNumber: "1", pageSize: String(pageSize) });
   return api<PagedIncidents>(`/incidents?${params}`);
+}
+
+export type IncidentFilters = {
+  pageNumber?: number;
+  pageSize?: number;
+  search?: string;
+  missionId?: string;
+  uavId?: string;
+  type?: string;
+  severity?: string;
+  status?: string;
+  fromDate?: string;
+  toDate?: string;
+};
+
+export function getIncidents(filters: IncidentFilters = {}): Promise<PagedIncidents> {
+  const params = new URLSearchParams({
+    pageNumber: String(filters.pageNumber ?? 1),
+    pageSize: String(filters.pageSize ?? 10),
+  });
+  if (filters.search?.trim()) params.set("search", filters.search.trim());
+  if (filters.missionId) params.set("missionId", filters.missionId);
+  if (filters.uavId) params.set("uavId", filters.uavId);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.severity) params.set("severity", filters.severity);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.fromDate) params.set("fromDate", filters.fromDate);
+  if (filters.toDate) params.set("toDate", filters.toDate);
+  return api<PagedIncidents>(`/incidents?${params}`);
+}
+
+export function getIncident(id: string): Promise<IncidentDetail> {
+  return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
 }
 
 export function liveMissionStreamUrl(missionId: string): string {
@@ -159,8 +214,8 @@ export async function deleteAssignedUav(id: string): Promise<void> {
   await api(`/uavs/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export function getManagedUavs(filters: { pageNumber?: number; keyword?: string; status?: string } = {}): Promise<PagedResponse<AssignedUav>> {
-  const params = new URLSearchParams({ PageNumber: String(filters.pageNumber ?? 1), PageSize: "20" });
+export function getManagedUavs(filters: { pageNumber?: number; pageSize?: number; keyword?: string; status?: string } = {}): Promise<PagedResponse<AssignedUav>> {
+  const params = new URLSearchParams({ PageNumber: String(filters.pageNumber ?? 1), PageSize: String(filters.pageSize ?? 20) });
   if (filters.keyword?.trim()) params.set("Keyword", filters.keyword.trim());
   if (filters.status) params.set("Status", filters.status);
   return api<PagedResponse<AssignedUav>>(`/admin/uavs?${params}`);
@@ -180,21 +235,59 @@ export function setManagedUavStatus(id: string, action: "approve" | "activate" |
   return api<AssignedUav>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" });
 }
 
-export function getFlightHistory(filters: { pageNumber?: number; pageSize?: number; search?: string; status?: string } = {}): Promise<PagedResponse<FlightHistoryItem>> {
+export type FlightHistoryFilters = { pageNumber?: number; pageSize?: number; search?: string; status?: string; uavId?: string; fromDate?: string; toDate?: string };
+
+function postFlightUtcBoundary(value: string, endOfDay: boolean): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+}
+
+export function getFlightHistory(filters: FlightHistoryFilters = {}): Promise<PagedResponse<FlightHistoryItem>> {
   const params = new URLSearchParams();
   params.set("pageNumber", String(filters.pageNumber ?? 1));
   params.set("pageSize", String(filters.pageSize ?? 20));
   if (filters.search) params.set("search", filters.search);
   if (filters.status) params.set("status", filters.status);
+  if (filters.uavId) params.set("uavId", filters.uavId);
+  if (filters.fromDate) params.set("fromDate", postFlightUtcBoundary(filters.fromDate, false));
+  if (filters.toDate) params.set("toDate", postFlightUtcBoundary(filters.toDate, true));
   return api<PagedResponse<FlightHistoryItem>>(`/flight-history?${params}`);
 }
 
-export function getOperationalAnalytics(): Promise<OperationalAnalytics> {
-  return api<OperationalAnalytics>("/flight-history/analytics");
+export function getOperationalAnalytics(filters: Pick<FlightHistoryFilters, "uavId" | "fromDate" | "toDate"> & { missionId?: string } = {}): Promise<OperationalAnalytics> {
+  const params = new URLSearchParams();
+  if (filters.uavId) params.set("uavId", filters.uavId);
+  if (filters.missionId) params.set("missionId", filters.missionId);
+  if (filters.fromDate) params.set("fromDate", postFlightUtcBoundary(filters.fromDate, false));
+  if (filters.toDate) params.set("toDate", postFlightUtcBoundary(filters.toDate, true));
+  const query = params.toString();
+  return api<OperationalAnalytics>(`/flight-history/analytics${query ? `?${query}` : ""}`);
 }
 
 export function getFlightTelemetry(missionId: string): Promise<FlightTelemetryPoint[]> {
   return api<FlightTelemetryPoint[]>(`/flight-history/${encodeURIComponent(missionId)}/telemetry`);
+}
+
+export function getPostFlightReport(missionId: string): Promise<PostFlightReport> {
+  return api<PostFlightReport>(`/flight-history/${encodeURIComponent(missionId)}/report`);
+}
+
+export function getPostFlightReportRevisions(missionId: string): Promise<PostFlightReport[]> {
+  return api<PostFlightReport[]>(`/flight-history/${encodeURIComponent(missionId)}/report/revisions`);
+}
+
+export function getPostFlightIncidents(missionId: string): Promise<PostFlightIncident[]> {
+  return api<PostFlightIncident[]>(`/flight-history/${encodeURIComponent(missionId)}/incidents`);
+}
+
+export function regeneratePostFlightReport(missionId: string, reason: string): Promise<{ success: boolean; message: string; data: PostFlightReport }> {
+  return api<{ success: boolean; message: string; data: PostFlightReport }>(`/flight-history/${encodeURIComponent(missionId)}/regenerate`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason.trim() }),
+  });
 }
 
 export function getGeofences(): Promise<Geofence[]> {

@@ -37,6 +37,28 @@ psql $env:ConnectionStrings__DefaultConnection -f database/check-connection.sql
 
 ## 3. Khởi động và network path
 
+### Cập nhật schema telemetry trên database hiện có
+
+Lỗi PostgreSQL `42703` với `HeadingDegrees`, `BatteryVoltageVolts` hoặc
+`BoardTemperatureCelsius` nghĩa là database chưa áp dụng migration telemetry.
+Từ thư mục gốc repo, dùng cùng environment và cấu hình kết nối với API:
+
+```sh
+dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --check-telemetry-schema --environment Development
+dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --migrate-telemetry --environment Development
+dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --check-telemetry-schema --environment Development
+```
+
+`--migrate-telemetry` chạy đúng file `005_nullable_live_telemetry.sql` được nhúng
+trong assembly, kiểm tra các cột sau khi chạy rồi thoát, không khởi động HTTP API
+hoặc monitor. Base schema phải tồn tại. Migration giữ bản ghi telemetry, nhưng
+xóa khóa idempotency trùng trên các bản ghi sau bản đầu để tạo unique index.
+Chạy lại được; không tự động migrate khi khởi động API. Với môi trường khác,
+thay environment và cấu hình kết nối tương ứng.
+
+API kiểm tra các cột mới trước khi khởi động monitor và báo hướng dẫn migrate
+nếu schema thiếu, thay vì lặp lỗi truy vấn mỗi chu kỳ.
+
 Backend:
 
 ```powershell

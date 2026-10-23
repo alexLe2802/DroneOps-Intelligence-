@@ -23,17 +23,53 @@ public interface IPostFlightService
     Task<PostFlightReportResponse> FinalizeAndGenerateReportAsync(
         Guid missionId,
         FinalizeFlightRequest? request = null,
+        Guid? currentUserId = null,
+        bool isManager = false,
+        CancellationToken cancellationToken = default);
+
+    Task<PostFlightReportResponse> RecordTrustedCompletionAsync(
+        string idempotencyKey,
+        RecordFlightCompletionRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<int> ProcessQueuedReportsAsync(int batchSize = 10, CancellationToken cancellationToken = default);
+
+    Task<PostFlightReportResponse> RegenerateReportAsync(
+        Guid missionId,
+        RegeneratePostFlightReportRequest request,
+        Guid managerUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<List<PostFlightReportResponse>> GetReportRevisionsAsync(
+        Guid missionId,
+        Guid? currentUserId,
+        bool isManager,
         CancellationToken cancellationToken = default);
 
     // Xem chi tiết báo cáo sau bay (SCR-14 / UC-18)
-    Task<PostFlightReportResponse> GetReportByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);
+    Task<PostFlightReportResponse> GetReportByMissionIdAsync(
+        Guid missionId,
+        Guid? currentUserId,
+        bool isManager,
+        CancellationToken cancellationToken = default);
 
     // Lấy chuỗi tọa độ viễn trắc để vẽ lại lộ trình bay thực tế
-    Task<List<FlightTelemetryPointResponse>> GetTelemetryPlaybackAsync(Guid missionId, CancellationToken cancellationToken = default);
+    Task<List<FlightTelemetryPointResponse>> GetTelemetryPlaybackAsync(
+        Guid missionId,
+        Guid? currentUserId,
+        bool isManager,
+        CancellationToken cancellationToken = default);
 
     // Lấy danh sách sự cố trong chuyến bay (SCR-12 / UC-16)
-    Task<List<Incident>> GetIncidentsAsync(Guid missionId, CancellationToken cancellationToken = default);
+    Task<List<Incident>> GetIncidentsAsync(
+        Guid missionId,
+        Guid? currentUserId,
+        bool isManager,
+        CancellationToken cancellationToken = default);
 
     // Thống kê phân tích vận hành (SCR-16 / UC-22)
-    Task<OperationalAnalyticsResponse> GetOperationalAnalyticsAsync(Guid? pilotUserId = null, CancellationToken cancellationToken = default);
+    Task<OperationalAnalyticsResponse> GetOperationalAnalyticsAsync(
+        GetOperationalAnalyticsRequest request,
+        Guid? pilotUserId = null,
+        CancellationToken cancellationToken = default);
 }

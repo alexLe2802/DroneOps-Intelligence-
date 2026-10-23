@@ -2,6 +2,7 @@ using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.DTOs.Response.Auth;
 using DroneOps.Application.DTOs.Response.Pages;
 using DroneOps.Application.DTOs.Response.Users;
+using Microsoft.AspNetCore.Http;
 
 namespace DroneOps.Application.Interfaces.Users;
 
@@ -9,12 +10,18 @@ public interface IPilotRegistrationService
 {
     // 1. Nộp đơn đăng ký
     Task RegisterAsync(CreatePilotRegistrationRequest request);
+    Task RegisterWithFilesAsync(
+        CreatePilotRegistrationRequest request,
+        IReadOnlyCollection<IFormFile> files,
+        CancellationToken cancellationToken = default);
 
     // 2. Lấy danh sách đơn
     Task<PagedPilotRegistrationResponse> GetAllAsync(GetPilotRegistrationsRequest request);
 
     // 3. Xem chi tiết đơn
-    Task<PilotRegistrationDetailResponse?> GetDetailAsync(Guid id);
+    Task<PilotRegistrationDetailResponse?> GetDetailAsync(
+    Guid id,
+    CancellationToken cancellationToken = default);
 
     // 4. Admin phê duyệt đơn (tạo User với mật khẩu gốc + sinh mã OTP xác thực lần đầu gửi qua mail)
     Task<bool> ApprovePilotRegistrationAsync(Guid registrationId, ApprovePilotRegistrationRequest? request = null);
