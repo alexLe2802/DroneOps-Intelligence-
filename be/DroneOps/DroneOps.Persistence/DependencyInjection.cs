@@ -5,6 +5,8 @@ using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Interfaces;
 using DroneOps.Persistence.Repositories;
 using DroneOps.Persistence.Repositories.Missions;
+using DroneOps.Persistence.Interfaces.Notifications;
+using DroneOps.Persistence.Repositories.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IGeofenceRepository, GeofenceRepository>();
         services.AddScoped<IMissionSuggestionRepository, MissionSuggestionRepository>();
         services.AddScoped<IPostFlightRepository, PostFlightRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
 
 
         return services;
