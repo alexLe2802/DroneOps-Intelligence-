@@ -1,6 +1,7 @@
 using DroneOps.Application.DTOs.Request.Telemetry;
 using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Application.Services.Telemetry;
+using DroneOps.Application.Services.Incidents;
 using DroneOps.Application.Settings;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence;
@@ -22,7 +23,13 @@ internal static class DroneConnectionChecks
         await DroneConnectionSchema.CheckAsync(source);
         var role=await db.Roles.Where(r=>r.Name=="uav_operator").Select(r=>r.Id).FirstAsync();
         var owner=Guid.NewGuid();var pilot=Guid.NewGuid();var uav=Guid.NewGuid();var mission=Guid.NewGuid();var stranger=Guid.NewGuid();var otherUav=Guid.NewGuid();var otherMission=Guid.NewGuid();
-        var ingestion=new TelemetryIngestionService(db,NullLogger<TelemetryIngestionService>.Instance,Options.Create(new TelemetryMonitoringOptions()));
+        // Dùng dependency thật như runtime để kiểm tra constructor không bị lệch khi lifecycle incident thay đổi.
+        var incidentLifecycle = new IncidentLifecycleService(db);
+        var ingestion=new TelemetryIngestionService(
+            db,
+            NullLogger<TelemetryIngestionService>.Instance,
+            Options.Create(new TelemetryMonitoringOptions()),
+            incidentLifecycle);
         var service=new DroneConnectionService(new DroneConnectionRepository(db),ingestion);
         int count=0;
         void Check(bool ok,string label){if(!ok)throw new Exception("FAIL: "+label);Console.WriteLine("PASS: "+label);count++;}
