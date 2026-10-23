@@ -1,4 +1,6 @@
 "use client";
+
+import { licenseDocumentLabel } from "@/lib/license-document";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/auth/client";
@@ -24,6 +26,6 @@ export default function OperatorCredentials({ userId }: { userId: string }) {
     </dl><div className={styles.directive}><span aria-hidden="true">◇</span><div><b>Current flight credentials</b><p>Current recorded license details. Pending changes take effect only after manager approval.</p></div></div>
     <h3 className={styles.documentHeading}>License documents</h3>
     {!data.documentsAvailable && <p role="alert">Some documents could not be loaded. Refresh the roster to try again.</p>}
-    {data.licenseImageUrls.length ? <div className={styles.documents}>{data.licenseImageUrls.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer">{new URL(url).pathname.endsWith(".pdf") ? <span>Open license PDF {index + 1}</span> : <Image unoptimized src={url} alt={`Current license document ${index + 1}`} width={600} height={400} style={{ width: "100%", height: "auto" }} />}</a>)}</div> : <p className={styles.credentialsLoading}>No stored documents are available for this license.</p>}
+    {data.licenseImageUrls.length ? <div className={styles.documents}>{data.licenseImageUrls.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer">{licenseDocumentLabel(url) ? <span>Open license {licenseDocumentLabel(url)} {index + 1}</span> : <Image unoptimized src={url} alt={`Current license document ${index + 1}`} width={600} height={400} style={{ width: "100%", height: "auto" }} />}</a>)}</div> : <p className={styles.credentialsLoading}>No stored documents are available for this license.</p>}
   </section>;
 }
