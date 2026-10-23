@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Account } from "@/lib/auth/types";
 import { approveMission, getPendingMissionApprovals, rejectMission, validateMission } from "@/lib/portal/client";
 import type { PendingMissionApproval } from "@/lib/portal/types";
@@ -18,6 +19,8 @@ const formatDate = (value: string | null) => value
 const missionCode = (id: string) => `#MS-${id.slice(0, 4).toUpperCase()}`;
 
 export default function MissionApprovalsClient({ account }: { account: Account }) {
+  const searchParams = useSearchParams();
+  const requestedMissionId = searchParams.get("missionId");
   const [items, setItems] = useState<PendingMissionApproval[] | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -38,13 +41,17 @@ export default function MissionApprovalsClient({ account }: { account: Account }
       const result = await getPendingMissionApprovals();
       setItems(result.items);
       setTotalCount(result.totalCount);
-      setSelectedId(current => result.items.some(item => item.missionId === current) ? current : result.items[0]?.missionId ?? null);
+      setSelectedId(current => {
+        if (result.items.some(item => item.missionId === current)) return current;
+        if (requestedMissionId && result.items.some(item => item.missionId === requestedMissionId)) return requestedMissionId;
+        return result.items[0]?.missionId ?? null;
+      });
     } catch (reason) {
       setError(reason);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [requestedMissionId]);
 
   useEffect(() => {
     let active = true;
@@ -52,10 +59,12 @@ export default function MissionApprovalsClient({ account }: { account: Account }
       if (!active) return;
       setItems(result.items);
       setTotalCount(result.totalCount);
-      setSelectedId(result.items[0]?.missionId ?? null);
+      setSelectedId(requestedMissionId && result.items.some(item => item.missionId === requestedMissionId)
+        ? requestedMissionId
+        : result.items[0]?.missionId ?? null);
     }).catch(reason => { if (active) setError(reason); });
     return () => { active = false; };
-  }, []);
+  }, [requestedMissionId]);
 
   const filtered = useMemo(() => {
     const value = query.trim().toLowerCase();
