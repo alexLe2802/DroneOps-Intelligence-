@@ -1,5 +1,5 @@
 import { api, ApiError } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable">;
 
@@ -124,6 +124,19 @@ export function getIncidents(filters: IncidentFilters = {}): Promise<PagedIncide
 
 export function getIncident(id: string): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
+}
+
+export function getNotificationFeed(unreadOnly = false, limit = 50): Promise<NotificationFeed> {
+  const params = new URLSearchParams({ unreadOnly: String(unreadOnly), limit: String(limit) });
+  return api<NotificationFeed>(`/notifications?${params}`);
+}
+
+export function markNotificationRead(id: string): Promise<PortalNotification> {
+  return api<PortalNotification>(`/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" });
+}
+
+export function markAllNotificationsRead(): Promise<{ updatedCount: number }> {
+  return api<{ updatedCount: number }>("/notifications/read-all", { method: "PATCH" });
 }
 
 export function liveMissionStreamUrl(missionId: string): string {

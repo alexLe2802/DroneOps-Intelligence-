@@ -152,6 +152,26 @@ export type PagedIncidents = {
   totalPages: number;
 };
 
+export type PortalNotification = {
+  id: string;
+  recipientUserId: string;
+  actorUserId: string | null;
+  type: string;
+  title: string;
+  message: string;
+  referenceId: string | null;
+  referenceType: string | null;
+  actionUrl: string | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type NotificationFeed = {
+  unreadCount: number;
+  items: PortalNotification[];
+};
+
 export type PendingMissionApproval = {
   updateRequestId: string;
   currentPlan: CreateMissionRequest;
