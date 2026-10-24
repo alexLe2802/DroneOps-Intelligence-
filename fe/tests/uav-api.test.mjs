@@ -12,7 +12,7 @@ test("operator edit sends the update DTO and accepts a message-only response", a
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, `/api/uavs/${id}`);
     assert.equal(options.method, "PUT");
-    assert.deepEqual(JSON.parse(options.body), { uavCode: "UAV-02", uavName: "Survey", description: "Model B" });
+    assert.deepEqual(JSON.parse(options.body), { code: "UAV-02", name: "Survey", model: "Model B" });
     return Response.json({ message: "UAV updated successfully." });
   });
   try { assert.equal(await client.updateAssignedUav(id, { code: "UAV-02", name: "Survey", model: "Model B" }), undefined); assert.equal(mock.mock.calls.length, 1); }
