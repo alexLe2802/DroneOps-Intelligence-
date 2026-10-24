@@ -65,7 +65,7 @@ public sealed class PilotUpdateRequestsController : ControllerBase
     [Authorize(Roles = "uav_operator")]
     [HttpPost]
     [Consumes("multipart/form-data")]
-    [RequestSizeLimit(106 * 1024 * 1024)]
+    [RequestSizeLimit(12 * 1024 * 1024)]
     public async Task<IActionResult> Submit(
      [FromForm] PilotUpdateRequestForm form,
      CancellationToken cancellationToken)

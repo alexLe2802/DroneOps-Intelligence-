@@ -1,5 +1,7 @@
 "use client";
 
+import { isLicenseDocument } from "@/lib/license-document";
+
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "@/lib/auth/client";
@@ -85,13 +87,8 @@ export default function LoginForm() {
     const licenseIssuedDate = read("licenseIssuedDate");
     const licenseExpiredDate = read("licenseExpiredDate");
     const licenseFiles = values.getAll("licenseFiles").filter((value): value is File => value instanceof File && value.size > 0);
-    if (!licenseFiles.length || licenseFiles.some(file => !file.type.startsWith("image/") && file.type !== "application/pdf")) {
-      setError("Select one or more flight license images or PDF files.");
-      return;
-    }
-    if (licenseFiles.length > 10 || licenseFiles.some(file => file.size > 10 * 1024 * 1024)) {
-      setError("Upload at most 10 files, with each file 10 MB or smaller.");
-      return;
+    if (licenseFiles.length !== 1 || licenseFiles.some(file => !isLicenseDocument(file) || file.size > 10 * 1024 * 1024)) {
+      setError("Attach exactly one PDF or Word (.doc, .docx) file, up to 10 MB."); return;
     }
     if (new Date(licenseExpiredDate) <= new Date(licenseIssuedDate)) {
       setError("License expiration date must be after the issued date.");

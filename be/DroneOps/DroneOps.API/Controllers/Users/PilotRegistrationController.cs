@@ -24,7 +24,7 @@ public class PilotRegistrationController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("with-files")]
-    [RequestSizeLimit(106 * 1024 * 1024)]
+    [RequestSizeLimit(12 * 1024 * 1024)]
     public async Task<IActionResult> RegisterWithFiles(
     [FromForm] string data,
     [FromForm] List<IFormFile> files,

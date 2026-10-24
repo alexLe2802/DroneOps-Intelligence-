@@ -76,7 +76,11 @@ bay, không upload kế hoạch và không tự chuyển mission sang InProgress
 - SourceTimestamp là giờ UTC của gateway khi gom mẫu, không phải đồng hồ boot của
   autopilot. Cần đồng bộ giờ máy gateway. Vị trí dùng GLOBAL_POSITION_INT, relative
   altitude mm→m, vận tốc cm/s→m/s; pin dùng SYS_STATUS. Không có dữ liệu thì không
-  dựng giá trị giả. Thời tiết không lấy từ nhiệt độ bo mạch.
+  dựng giá trị giả. Khi GLOBAL_POSITION_INT chưa có tọa độ dùng được, gateway thử
+  GPS_RAW_INT còn mới (tối đa 5 giây), có fix 3D trở lên; không dùng độ cao GPS MSL
+  thay cho relative altitude. Mỗi 10 giây Terminal in fix_type, số vệ tinh và tuổi
+  dữ liệu GPS để chẩn đoán. Đây không phải bảo đảm độ chính xác vị trí.
+  Thời tiết không lấy từ nhiệt độ bo mạch.
 - MISSION_CURRENT.seq được cộng 1 để chuyển index zero-based sang waypoint web.
   Mission Planner/autopilot có home hoặc command phụ phải được đối chiếu với route
   web trước khi dùng chỉ số tiến độ. Ghép đôi không xác minh kế hoạch onboard khớp
