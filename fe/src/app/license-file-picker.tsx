@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { LICENSE_ACCEPT, isLicenseDocument } from "@/lib/license-document";
 
 const fileKey = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
 const formatSize = (bytes: number) => bytes < 1024 * 1024
@@ -13,6 +14,7 @@ export default function LicenseFilePicker() {
   const inputId = "pilot-license-files";
 
   function updateInput(nextFiles: File[]) {
+    if (inputRef.current && nextFiles.length === 0) inputRef.current.setCustomValidity("");
     const transfer = new DataTransfer();
     nextFiles.forEach(file => transfer.items.add(file));
     if (inputRef.current) inputRef.current.files = transfer.files;
@@ -20,26 +22,27 @@ export default function LicenseFilePicker() {
   }
 
   return <div className="pilot-register-wide pilot-license-upload">
-    <label htmlFor={inputId}>Flight license pages</label>
+    <label htmlFor={inputId}>Flight license document</label>
     <input
       id={inputId}
       ref={inputRef}
       required
-      multiple
       name="licenseFiles"
       type="file"
-      accept="image/png,image/jpeg,image/webp,application/pdf"
+      accept={LICENSE_ACCEPT}
       onChange={event => {
         const selected = Array.from(event.currentTarget.files ?? []);
-        const merged = [...files, ...selected].filter((file, index, list) => list.findIndex(item => fileKey(item) === fileKey(file)) === index);
-        updateInput(merged);
+        const valid = selected.length === 0 || (selected.length === 1 && isLicenseDocument(selected[0]) && selected[0].size <= 10 * 1024 * 1024);
+        event.currentTarget.setCustomValidity(valid ? "" : "Attach exactly one PDF or Word file, up to 10 MB.");
+        updateInput(selected);
+        if (!valid) event.currentTarget.reportValidity();
       }}
     />
-    <small>Select multiple images or PDF documents · maximum 10 files and 10 MB per file.</small>
+    <small>Vui lòng scan đầy đủ các trang giấy phép và gộp thành 1 file duy nhất trước khi đính kèm. Chỉ nhận PDF hoặc Word (.doc, .docx), tối đa 10 MB.</small>
     {files.length > 0 && <div className="license-file-selection" aria-label="Selected flight license files">
       <header><b>{files.length} file{files.length === 1 ? "" : "s"} attached</b><button type="button" onClick={() => updateInput([])}>Clear all</button></header>
       <ul>{files.map(file => <li key={fileKey(file)}>
-        <span className={file.type === "application/pdf" ? "pdf" : "image"}>{file.type === "application/pdf" ? "PDF" : "IMG"}</span>
+        <span className={file.type === "application/pdf" ? "pdf" : "image"}>{file.type === "application/pdf" ? "PDF" : "WORD"}</span>
         <div><b>{file.name}</b><small>{formatSize(file.size)}</small></div>
         <button type="button" aria-label={`Remove ${file.name}`} onClick={() => updateInput(files.filter(item => fileKey(item) !== fileKey(file)))}>Remove</button>
       </li>)}</ul>

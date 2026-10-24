@@ -126,7 +126,7 @@
 .mission-registry-heading h1{max-width:720px;margin:7px 0 6px;font-size:34px;line-height:1.14;letter-spacing:0}
 .mission-registry-heading p:not(.module-kicker){max-width:720px;margin:0;color:var(--sub);line-height:1.5}
 .mission-registry-actions{display:grid;grid-template-columns:145px 210px;gap:8px;flex:0 0 auto}
-.mission-registry-actions button{min-height:54px;border:1px solid #303a49;border-radius:2px;background:#252c37;color:#e6edf5;font:700 9px Consolas,monospace;letter-spacing:1px}
+.mission-registry-actions button,.mission-registry-actions a{min-height:54px;border:1px solid #303a49;border-radius:2px;background:#252c37;color:#e6edf5;font:700 9px Consolas,monospace;letter-spacing:1px;text-decoration:none}
 .mission-registry-actions .plan-mission{border-color:#1caeea;background:#1caeea;color:#06131c;font:700 13px Arial,sans-serif;letter-spacing:0}
 .mission-registry-actions button:disabled{cursor:not-allowed;opacity:.55}
 .mission-status-grid{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));gap:8px}
@@ -182,7 +182,7 @@
 .mission-registry-eyebrow{display:flex;align-items:center;gap:10px;color:#97a5b6;font:9px Consolas,monospace;letter-spacing:1.2px}
 .mission-registry-eyebrow>span{padding:4px 8px;background:#17354c;color:#75d8ff}
 .mission-registry-eyebrow>b{font-weight:400}.mission-registry-eyebrow i{display:inline-block;width:6px;height:6px;margin-left:4px;border-radius:50%;background:#65e4bd;box-shadow:0 0 10px #65e4bd88}
-.mission-registry-actions button{display:grid;align-items:center;justify-content:center;column-gap:9px;padding:8px 12px}
+.mission-registry-actions button,.mission-registry-actions a{display:grid;align-items:center;justify-content:center;column-gap:9px;padding:8px 12px}
 .mission-registry-actions .manifest-export{grid-template-columns:30px auto}.mission-registry-actions .manifest-export>span{display:grid;place-items:center;width:28px;height:28px;border:1px solid #4a596b;color:#75d8ff;font:8px Consolas,monospace}
 .mission-registry-actions .manifest-export>b{font:700 9px/1.15 Consolas,monospace;letter-spacing:1px}
 .mission-registry-actions .plan-mission{grid-template-columns:25px auto;grid-template-rows:auto auto}.mission-registry-actions .plan-mission>span{grid-row:1/3;font-size:24px}.mission-registry-actions .plan-mission>b{align-self:end;font-size:14px}.mission-registry-actions .plan-mission>small{align-self:start;font:8px Consolas,monospace;letter-spacing:1px}

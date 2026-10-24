@@ -4,6 +4,7 @@ export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval
 
 export type PilotMission = {
   id: string;
+  createdBy?: string;
   name: string;
   description: string | null;
   status: MissionStatus;
@@ -42,6 +43,12 @@ export type CreateMissionRequest = {
 };
 export type MissionUpdateSummary = { id: string; status: string; isInitial: boolean; createdAt: string; actorId: string; reviewedBy?: string | null; reviewedAt?: string | null; reason?: string | null; basePlan?: CreateMissionRequest | null; proposedPlan: CreateMissionRequest; validation?: MissionValidationResult | null };
 export type MissionDetail = PilotMission & { altitudeReference?: string | null; pendingUpdate?: MissionUpdateSummary | null; waypoints: MissionWaypoint[]; detailAvailable?: boolean; validation?: MissionValidationResult | null; flightReadiness?: string; preflightValidation?: MissionValidationResult | null };
+export type ManagerMission = MissionDetail & {
+  createdBy: string;
+  uavName: string | null;
+  uavStatus: string | null;
+  pilotName: string | null;
+};
 export type MissionValidationResult = {
   id?: string; updateRequestId?: string | null; restrictionRevision?: string; stale?: boolean; incomplete?: boolean; findings?: { geofenceId: string; revision: number; rule: string; waypointSequence?: number; segmentFrom?: number; segmentTo?: number; reason: string }[]; missionId?: string | null; stage?: string; checkedAt?: string;
   isValid: boolean; message: string; status?: string; issues?: string[]; warnings?: string[];
@@ -207,15 +214,37 @@ export type FlightHistoryItem = {
   missionId: string; missionName: string; status: string; uavId: string | null;
   uavName: string; uavCode: string; pilotName: string; startTime: string | null;
   endTime: string | null; durationMinutes: number; totalIncidents: number; hasReport: boolean;
+  reportStatus?: string; reportRevision: number | null; telemetryCoverageComplete?: boolean;
 };
 export type OperationalAnalytics = {
   totalFlights: number; completedFlights: number; abortedOrFailedFlights: number;
   totalFlightHours: number; totalDistanceKilometers: number; totalIncidentsRecorded: number;
-  successRatePercentage: number | null;
+  successRatePercentage: number | null; reportsAvailable: number; reportsExcluded: number;
+  reportCoveragePercentage: number | null; fromDate: string | null; toDate: string | null;
+  uavId: string | null; missionId: string | null;
+  completionTrend: Array<{ date: string; totalFlights: number; completedFlights: number; failedOrAbortedFlights: number }>;
+  incidentSeverityBreakdown: Record<string, number>;
+  excludedReportReasons: Record<string, number>;
 };
 export type FlightTelemetryPoint = {
   latitude: number | null; longitude: number | null; altitude: number | null;
   speed: number | null; batteryLevel: number | null; recordedAt: string;
+};
+export type PostFlightReport = {
+  reportId: string; missionId: string; missionName: string; missionDescription: string | null;
+  status: string; generationStatus: string; revision: number; isCurrent: boolean;
+  coveredTelemetryThrough: string | null; generatedAt: string | null; failureReason: string | null;
+  generationReason: string | null; uavName: string; uavCode: string; pilotName: string;
+  startTime: string | null; endTime: string | null; totalFlightDurationMinutes: number;
+  maxAltitude: number | null; avgAltitude: number | null; maxSpeed: number | null; avgSpeed: number | null;
+  initialBatteryLevel: number | null; finalBatteryLevel: number | null; batteryConsumedPercentage: number | null;
+  totalDistanceMeters: number | null; totalTelemetryRecords: number; totalIncidents: number;
+  safetyEvaluation: string | null; summary: string | null; notes: string | null; createdAt: string;
+};
+export type PostFlightIncident = {
+  id: string; missionId: string; title: string; description: string | null; severity: string | null;
+  type: string; status: string; latitude: number | null; longitude: number | null;
+  createdAt: string; acknowledgedAt: string | null; resolvedAt: string | null; resolutionNotes: string | null;
 };
 export type GeofenceCoordinate = { latitude: number; longitude: number };
 export type GeofenceRequest = {

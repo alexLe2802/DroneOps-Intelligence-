@@ -15,6 +15,12 @@ if (args.Length == 2 && args[0] == "--drone-connections")
     return;
 }
 
+if (args.Length == 1 && args[0] == "--license-documents")
+{
+    await LicenseDocumentChecks.RunAsync();
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--license-workflow")
 {
     await LicenseWorkflowChecks.RunAsync(Path.GetFullPath(args[1]));

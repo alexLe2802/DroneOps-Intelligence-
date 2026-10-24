@@ -179,10 +179,10 @@ public sealed class PilotUpdateRequestService
         }
 
         if (form.Files is null ||
-            form.Files.Count is < 1 or > 10)
+            form.Files.Count != 1)
         {
             throw new ArgumentException(
-                "Attach between 1 and 10 license documents.");
+                "Attach exactly one PDF or Word license document.");
         }
 
         var request = new UpdatePilotProfileRequest

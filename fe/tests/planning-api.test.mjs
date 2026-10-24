@@ -125,3 +125,58 @@ test("mission detail preserves pending proposal, altitude datum and unknown alti
     assert.equal("latestVersion" in result, false);
   } finally { mock.mock.restore(); }
 });
+
+test("manager mission registry reads mission plans and enriches assigned aircraft", async () => {
+  const mission = { id: "mission-id", createdBy: "user-id", name: "Port survey", status: "Pending Review", uavId: "uav-id", startTime: null, endTime: null, createdAt: "2026-10-23T00:00:00Z", waypoints: [] };
+  const aircraft = { id: "uav-id", code: "UAV-07", name: "North Survey", model: null, status: "Active", pilotId: "pilot-id", pilotName: "Pilot One", createdAt: "2026-10-01T00:00:00Z" };
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async url => {
+    calls.push(String(url));
+    if (String(url) === "/api/missions") return Response.json([mission]);
+    if (String(url).startsWith("/api/admin/uavs?")) return Response.json({ items: [aircraft], pageNumber: 1, pageSize: 100, totalItems: 1, totalPages: 1 });
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  try {
+    const result = await client.getManagerMissions();
+    assert.equal(result[0].id, mission.id);
+    assert.equal(result[0].uavCode, aircraft.code);
+    assert.equal(result[0].uavName, aircraft.name);
+    assert.equal(result[0].pilotName, aircraft.pilotName);
+    assert.equal(calls.some(url => url.includes("flight-history")), false);
+  } finally { mock.mock.restore(); }
+});
+
+test("post-flight archive and report detail preserve backend query and mutation contracts", async () => {
+  const calls = [];
+  const report = { reportId: "report-id", missionId: "mission-id", generationStatus: "Available", revision: 1 };
+  const mock = test.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    calls.push([String(url), options.method ?? "GET", options.body ? JSON.parse(options.body) : null]);
+    if (String(url).includes("/regenerate")) return Response.json({ success: true, message: "Queued", data: { ...report, generationStatus: "Queued", revision: 2 } }, { status: 202 });
+    if (String(url).endsWith("/report/revisions")) return Response.json([report]);
+    if (String(url).endsWith("/report")) return Response.json(report);
+    if (String(url).endsWith("/telemetry")) return Response.json([]);
+    if (String(url).endsWith("/incidents")) return Response.json([]);
+    if (String(url).startsWith("/api/flight-history?")) return Response.json({ items: [], pageNumber: 2, pageSize: 8, totalItems: 0, totalPages: 0 });
+    if (String(url).startsWith("/api/flight-history/analytics?")) return Response.json({ totalFlights: 0 });
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  try {
+    await client.getFlightHistory({ pageNumber: 2, pageSize: 8, search: "survey", status: "Completed", fromDate: "2026-10-01", toDate: "2026-10-23" });
+    await client.getOperationalAnalytics({ fromDate: "2026-10-01", toDate: "2026-10-23" });
+    await client.getPostFlightReport("mission-id");
+    await client.getPostFlightReportRevisions("mission-id");
+    await client.getFlightTelemetry("mission-id");
+    await client.getPostFlightIncidents("mission-id");
+    const queued = await client.regeneratePostFlightReport("mission-id", "Late telemetry received");
+    assert.equal(queued.data.revision, 2);
+    assert.deepEqual(calls, [
+      ["/api/flight-history?pageNumber=2&pageSize=8&search=survey&status=Completed&fromDate=2026-10-01T00%3A00%3A00.000Z&toDate=2026-10-23T23%3A59%3A59.999Z", "GET", null],
+      ["/api/flight-history/analytics?fromDate=2026-10-01T00%3A00%3A00.000Z&toDate=2026-10-23T23%3A59%3A59.999Z", "GET", null],
+      ["/api/flight-history/mission-id/report", "GET", null],
+      ["/api/flight-history/mission-id/report/revisions", "GET", null],
+      ["/api/flight-history/mission-id/telemetry", "GET", null],
+      ["/api/flight-history/mission-id/incidents", "GET", null],
+      ["/api/flight-history/mission-id/regenerate", "POST", { reason: "Late telemetry received" }],
+    ]);
+  } finally { mock.mock.restore(); }
+});
