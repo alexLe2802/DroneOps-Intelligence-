@@ -61,17 +61,48 @@ public sealed class MissionService : IMissionService
         return await MapWithValidationAsync(mission, cancellationToken);
     }
 
-    public async Task<List<MissionResponse>> GetAllAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<MissionPagedResponse> GetAllAsync(
+     MissionFilterRequest request,
+     CancellationToken cancellationToken = default)
     {
-        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
-        List<Mission> missions =
+        await _postFlightService.SynchronizeOverdueMissionsAsync(
+            cancellationToken);
+
+        if (request.PageNumber < 1)
+            request.PageNumber = 1;
+
+        if (request.PageSize < 1)
+            request.PageSize = 10;
+
+        var (missions, totalCount) =
             await _missionRepository.GetAllAsync(
+                request.Search,
+                request.Status,
+                request.FromDate,
+                request.ToDate,
+                request.PageNumber,
+                request.PageSize,
                 cancellationToken);
 
         var results = new List<MissionResponse>();
-        foreach (var mission in missions) results.Add(await MapWithValidationAsync(mission, cancellationToken));
-        return results;
+
+        foreach (var mission in missions)
+        {
+            results.Add(
+                await MapWithValidationAsync(
+                    mission,
+                    cancellationToken));
+        }
+
+        return new MissionPagedResponse
+        {
+            Items = results,
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(
+                totalCount / (double)request.PageSize)
+        };
     }
 
     public async Task<List<MissionResponse>> GetMyAsync(

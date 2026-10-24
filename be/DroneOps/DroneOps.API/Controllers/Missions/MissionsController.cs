@@ -33,10 +33,12 @@ public sealed class MissionsController : ControllerBase
     [HttpGet]
     [Authorize(Roles = "operation_manager")]
     public async Task<IActionResult> GetAll(
-     CancellationToken cancellationToken)
+      [FromQuery] MissionFilterRequest request,
+      CancellationToken cancellationToken)
     {
         var result =
             await _missionService.GetAllAsync(
+                request,
                 cancellationToken);
 
         return Ok(result);
