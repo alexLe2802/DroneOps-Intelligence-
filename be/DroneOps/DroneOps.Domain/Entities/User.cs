@@ -17,6 +17,8 @@ public class User
 
     public string PasswordHash { get; set; } = string.Empty;
 
+    public bool IsActive { get; set; } = true;
+
     public bool RequiresFirstLogin { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

@@ -4,6 +4,10 @@ namespace DroneOps.Persistence.Interfaces;
 
 public interface IPostFlightRepository
 {
+    Task<OverdueMissionSyncResult> SynchronizeOverdueMissionsAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken = default);
+
     // Nhận các kiểu dữ liệu nguyên thủy chuẩn kiến trúc Persistence
     Task<(List<Mission> Items, int TotalCount)> GetFlightHistoryAsync(
         int pageNumber,
@@ -51,3 +55,5 @@ public interface IPostFlightRepository
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
+
+public sealed record OverdueMissionSyncResult(int CompletedMissions, int CancelledMissions);

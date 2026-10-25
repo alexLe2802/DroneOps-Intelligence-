@@ -19,4 +19,11 @@ public sealed class TelemetryMonitoringOptions
 
     /// <summary>Tuổi sample bắt đầu được coi là Offline; phải lớn hơn StaleAfterSeconds.</summary>
     public int OfflineAfterSeconds { get; set; } = 30;
+
+    /// <summary>Khoảng hồi phục pin để tránh đóng/mở cảnh báo quanh đúng ngưỡng.</summary>
+    public int LowBatteryRecoveryMarginPercent { get; set; } = 5;
+
+    public decimal AltitudeRecoveryMarginMeters { get; set; } = 5;
+
+    public decimal GroundSpeedRecoveryMarginMetersPerSecond { get; set; } = 3;
 }

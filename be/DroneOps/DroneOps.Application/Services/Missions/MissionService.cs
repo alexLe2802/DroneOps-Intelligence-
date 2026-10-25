@@ -1,8 +1,11 @@
 ﻿using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
+using DroneOps.Application.Interfaces.PostFlight;
 using DroneOps.Domain.Entities;
 using DroneOps.Application.Services.Missions;
+using DroneOps.Application.Interfaces.Notifications;
+using Microsoft.Extensions.Logging;
 
 namespace DroneOps.Application.Services;
 
@@ -11,14 +14,24 @@ public sealed class MissionService : IMissionService
     private readonly IMissionRepository _missionRepository;
     private readonly MissionWorkflowService _workflow;
     private readonly MissionValidationService _validation;
+    private readonly IPostFlightService _postFlightService;
+    private readonly INotificationService _notificationService;
+    private readonly ILogger<MissionService> _logger;
 
     public MissionService(
        IMissionRepository missionRepository,
-       MissionWorkflowService workflow, MissionValidationService validation)
+       MissionWorkflowService workflow,
+       MissionValidationService validation,
+       IPostFlightService postFlightService,
+       INotificationService notificationService,
+       ILogger<MissionService> logger)
     {
         _missionRepository = missionRepository;
         _workflow = workflow;
         _validation = validation;
+        _postFlightService = postFlightService;
+        _notificationService = notificationService;
+        _logger = logger;
     }
     public async Task<MissionResponse> CreateAsync(
         Guid pilotId,
@@ -26,6 +39,7 @@ public sealed class MissionService : IMissionService
         CancellationToken cancellationToken = default)
     {
         var mission = await _workflow.SavePlanAsync(pilotId, request, null, cancellationToken);
+        await TryPublishPendingNotificationAsync(mission, pilotId, cancellationToken);
         return await MapWithValidationAsync(mission, cancellationToken);
     }
 
@@ -33,6 +47,7 @@ public sealed class MissionService : IMissionService
         Guid missionId,
         CancellationToken cancellationToken = default)
     {
+        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
         Mission? mission =
             await _missionRepository.GetByIdAsync(
                 missionId,
@@ -49,6 +64,7 @@ public sealed class MissionService : IMissionService
     public async Task<List<MissionResponse>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
+        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
         List<Mission> missions =
             await _missionRepository.GetAllAsync(
                 cancellationToken);
@@ -62,6 +78,7 @@ public sealed class MissionService : IMissionService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
         List<Mission> missions =
             await _missionRepository.GetByCreatorAsync(
                 userId,
@@ -117,6 +134,20 @@ public sealed class MissionService : IMissionService
     public async Task<MissionResponse?> UpdateAsync(Guid id, Guid userId, CreateMissionRequest request, CancellationToken cancellationToken = default)
     {
         var mission = await _workflow.SavePlanAsync(userId, request, id, cancellationToken);
+        await TryPublishPendingNotificationAsync(mission, userId, cancellationToken);
         return await MapWithValidationAsync(mission, cancellationToken);
+    }
+
+    private async Task TryPublishPendingNotificationAsync(Mission mission, Guid actorUserId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificationService.PublishPendingMissionAsync(
+                mission.Id, actorUserId, mission.Name, cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "Could not publish pending-mission notification for {MissionId}.", mission.Id);
+        }
     }
 }

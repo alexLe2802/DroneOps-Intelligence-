@@ -13,6 +13,9 @@ namespace DroneOps.Application.Interfaces.PostFlight;
 
 public interface IPostFlightService
 {
+    Task<int> SynchronizeOverdueMissionsAsync(
+        CancellationToken cancellationToken = default);
+
     // Lấy danh sách lịch sử chuyến bay kèm phân trang (SCR-13 / UC-18)
     Task<PagedResponse<FlightHistoryItemResponse>> GetFlightHistoryAsync(
         GetFlightHistoryRequest request,

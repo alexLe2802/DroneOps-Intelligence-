@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
@@ -12,6 +13,17 @@ import { routeError } from "@/lib/maps/planning-validation";
 import { useUnsavedChanges } from "@/lib/maps/use-unsaved-changes";
 
 const actions: WaypointAction[] = ["TakeOff", "FlyThrough", "Hover", "CapturePhoto", "Land"];
+
+function localDateTimeMinimum() {
+  const interval = 5 * 60_000;
+  const now = new Date(Math.ceil(Date.now() / interval) * interval);
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function openDateTimePicker(input: HTMLInputElement) {
+  try { input.showPicker(); }
+  catch { input.focus(); }
+}
 
 export default function MissionForm() {
   const router = useRouter();
@@ -103,6 +115,8 @@ export default function MissionForm() {
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!aircraft) return <ModuleLoading label="Loading mission resources" />;
   const activeAircraft = aircraft.filter(item => item.status.toLowerCase() === "active");
+  const earliestStart = localDateTimeMinimum();
+  const earliestEnd = startTime || earliestStart;
   return <>
     <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
     <form className="mission-builder mission-create-builder" onSubmit={submit}>
@@ -113,8 +127,8 @@ export default function MissionForm() {
           <label>ASSIGNED UAV<select value={uavId} onChange={event => setUavId(event.target.value)} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
           <label className="full-field">DESCRIPTION<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
-          <label>START TIME<input type="datetime-local" value={startTime} onChange={event => setStartTime(event.target.value)} required /></label>
-          <label>END TIME<input type="datetime-local" value={endTime} onChange={event => setEndTime(event.target.value)} required /></label>
+          <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={300} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setStartTime(event.target.value)} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">LOCAL TIME / 5 MIN INTERVALS</small></div>
+          <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={300} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setEndTime(event.target.value)} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">MUST BE LATER THAN START</small></div>
         </div>
         {activeAircraft.length === 0 && <p className="form-warning">No active UAV is ready for mission planning.</p>}
       </section>
