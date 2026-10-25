@@ -14,3 +14,8 @@
 @media(max-width:650px){.heading{flex-direction:column;padding:18px;gap:14px}.heading button{width:100%}.body,.empty{padding:18px}.heading h2{font-size:18px}.comparison :global(.mission-map){margin:0 16px}}
 .routeStatus{margin:20px 24px;padding:18px;border:1px solid #516077;border-radius:8px;background:#162131}.routeStatus strong{font-size:14px}.routeStatus p{font-size:13px;line-height:1.7;color:#afbed0;margin:8px 0 14px}.passed{border-color:#2d7968;background:#142c29}.passed strong{color:#8ce3c6}.attention{border-color:#78633f}.attention strong{color:#e7c788}.routeStatus button,.routeToolbar button{padding:9px 12px;border:1px solid #45617b;border-radius:5px;background:#203345;color:#c4e4f7;font-size:12px;cursor:pointer}.routeStatus button:disabled{border:0;padding:0;background:transparent;color:#9fafc4;cursor:default}.routeToolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:16px 24px}.routeToolbar>div{display:flex;gap:6px}.routeToolbar button[aria-pressed=true]{border-color:#57c7f0;color:#7ddcff;background:#173b50}.routeToolbar>span{color:#9fb2c9;font-size:12px}
 .waypointDetails{margin:20px 0;border-top:1px solid #2b3544;border-bottom:1px solid #2b3544}.waypointDetails summary{padding:16px 24px;cursor:pointer;font-size:13px;color:#b8d3e9}
+
+.changeSummary{padding:14px 24px;margin:0!important;background:#102332;color:#bde8fa!important}
+.changedRow{background:#283222}
+.changedRow>th{border-left:3px solid #e6bf68}
+.comparison .changeBadge{display:block;margin-top:6px;font-size:11px;font-weight:600;color:#f5d58c;letter-spacing:.3px}

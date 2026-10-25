@@ -8,6 +8,7 @@ namespace DroneOps.Application.DTOs.Response.Missions;
 
 public class PendingApprovalItemResponse
 {
+    public bool IsInitial { get; set; }
     public DroneOps.Application.DTOs.Request.Missions.CreateMissionRequest? CurrentPlan { get; set; }
     public DroneOps.Application.DTOs.Request.Missions.CreateMissionRequest? ProposedPlan { get; set; }
     public MissionValidationResult? Validation { get; set; }

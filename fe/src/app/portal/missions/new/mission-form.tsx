@@ -15,7 +15,7 @@ import { useUnsavedChanges } from "@/lib/maps/use-unsaved-changes";
 const actions: WaypointAction[] = ["TakeOff", "FlyThrough", "Hover", "CapturePhoto", "Land"];
 
 function localDateTimeMinimum() {
-  const interval = 5 * 60_000;
+  const interval = 60_000;
   const now = new Date(Math.ceil(Date.now() / interval) * interval);
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
@@ -64,8 +64,19 @@ export default function MissionForm() {
     });
     return () => { active = false; };
   }, []);
-  function addWaypoint(longitude: number, latitude: number) {
-    setWaypoints(current => [...current, { sequenceOrder: current.length + 1, latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: 50, actionType: current.length === 0 ? "TakeOff" : "FlyThrough" }]);
+  function addWaypoint(longitude?: number, latitude?: number) {
+    setWaypoints(current => {
+      const last = current[current.length - 1];
+      const nextLatitude = latitude ?? (last && Number.isFinite(last.latitude) ? last.latitude : 10.8231);
+      const nextLongitude = longitude ?? (last && Number.isFinite(last.longitude) ? last.longitude : 106.6297);
+      return [...current, {
+        sequenceOrder: current.length + 1,
+        latitude: Number(nextLatitude.toFixed(6)),
+        longitude: Number(nextLongitude.toFixed(6)),
+        altitude: 50,
+        actionType: current.length === 0 ? "TakeOff" : "FlyThrough",
+      }];
+    });
   }
   function updateWaypoint(index: number, patch: Partial<MissionWaypoint>) {
     setWaypoints(current => current.map((point, currentIndex) => currentIndex === index ? { ...point, ...patch } : point));
@@ -89,6 +100,7 @@ export default function MissionForm() {
     if (invalidRoute) { setError(invalidRoute); return; }
     const start = new Date(startTime), end = new Date(endTime);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) { setError("Enter a valid schedule with the end time later than the start time."); return; }
+    if (start.getTime() <= Date.now()) { setError("Flight start time must be in the future. Update the start date and time."); return; }
     pending.current = true;
     setSaving(true);
     try {
@@ -108,16 +120,29 @@ export default function MissionForm() {
   const earliestEnd = startTime || earliestStart;
   return <>
     <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
-    <form className="mission-builder mission-create-builder" onSubmit={submit}>
+    <form className="mission-builder mission-create-builder" onSubmit={submit} onInvalidCapture={event => {
+      const field = event.target;
+      if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;
+      // Native validation runs before onSubmit. Show the first blocked field in the form too.
+      if (event.currentTarget.querySelector("input:invalid, select:invalid, textarea:invalid") !== field) return;
+      const label = field.labels?.[0]?.textContent?.trim() || "Field";
+      const message = field.id === "mission-start-time" && field.validity.rangeUnderflow
+        ? "Flight start time must be in the future. Update the start date and time."
+        : field.id === "mission-end-time" && field.validity.rangeUnderflow
+          ? "End time must be later than the start time."
+          : field.validationMessage;
+      setError(`${label}: ${message}`);
+    }}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
+        {error && <p className="form-error" role="alert">{error}</p>}
         <div className="mission-field-grid">
           <label>ASSIGNED UAV<select value={uavId} onChange={event => setUavId(event.target.value)} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
           <label className="full-field">DESCRIPTION<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
-          <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={300} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setStartTime(event.target.value)} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">LOCAL TIME / 5 MIN INTERVALS</small></div>
-          <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={300} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setEndTime(event.target.value)} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">MUST BE LATER THAN START</small></div>
+          <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setStartTime(event.target.value)} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">LOCAL TIME / START MUST BE IN THE FUTURE</small></div>
+          <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setEndTime(event.target.value)} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">MUST BE LATER THAN START</small></div>
         </div>
         {activeAircraft.length === 0 && <p className="form-warning">No active UAV is ready for mission planning.</p>}
       </section>
@@ -125,11 +150,10 @@ export default function MissionForm() {
         <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>Click the map in flight order, then configure altitude and action.</p></div><button type="button" className="text-action" disabled={!waypoints.length} onClick={() => { if (window.confirm("Clear all waypoints?")) setWaypoints([]); }}>CLEAR ROUTE</button></div>
         {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
         <MissionMap waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
-        <button type="button" className="module-secondary" onClick={() => addWaypoint(106.6297, 10.8231)}>ADD WAYPOINT MANUALLY</button>
+        <button type="button" className="module-secondary" onClick={() => addWaypoint()}>ADD WAYPOINT MANUALLY</button>
         <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></article>)}</div>
       </section>
       </fieldset>
-      {error && <p className="form-error" role="alert">{error}</p>}
       <label>Altitude reference<select value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option value="AGL">AGL — above ground</option><option value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select></label>
       <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mandatory checks must pass before the mission is sent for manager review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "VALIDATING…" : "CREATE & VALIDATE MISSION"}</button></div></footer>
     </form>
