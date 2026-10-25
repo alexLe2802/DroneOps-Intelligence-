@@ -124,21 +124,14 @@ public sealed class UavService : IUavService
     public async Task<bool> DeleteAsync(
         Guid userId,
         Guid uavId,
+        bool canManageAll = false,
         CancellationToken cancellationToken = default)
     {
-        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
-        if (uav is null)
-        {
-            return false;
-        }
-
-        if (await _uavRepository.HasHardwareIdentityAsync(uavId,cancellationToken))
-            throw new InvalidOperationException("This UAV has a permanent hardware binding. Deactivate it instead of deleting its identity.");
-
-        // Xóa trực tiếp không giới hạn trạng thái Status
-        _uavRepository.Remove(uav);
-        await _uavRepository.SaveChangesAsync(cancellationToken);
-        return true;
+        return await _uavRepository.DeleteOwnedAsync(
+            uavId,
+            userId,
+            canManageAll,
+            cancellationToken);
     }
 
     // 5. Lấy danh sách UAV đang chờ duyệt ("Pending")

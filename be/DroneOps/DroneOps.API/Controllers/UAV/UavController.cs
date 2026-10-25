@@ -81,25 +81,32 @@ public class UavController : ControllerBase
     }
 
     /// <summary>
-    /// Xóa UAV ở mọi trạng thái (Chỉ dành riêng cho Operation Manager)
+    /// Pilot xóa UAV của chính mình ở mọi trạng thái; manager có thể xóa mọi UAV.
     /// </summary>
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "operation_manager,operations_manager,Admin")]
+    [Authorize(Roles = "uav_operator,operation_manager,operations_manager,Admin")]
     public async Task<IActionResult> Delete(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(
-            User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (!Guid.TryParse(userIdValue, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authenticated user." });
+        }
+
+        var canManageAll = User.IsInRole("operation_manager") ||
+            User.IsInRole("operations_manager") || User.IsInRole("Admin");
 
         var result = await _uavService.DeleteAsync(
             userId,
             id,
+            canManageAll,
             cancellationToken);
 
         if (!result)
         {
-            return NotFound(new { message = "UAV not found." });
+            return NotFound(new { message = "UAV not found or does not belong to the authenticated pilot." });
         }
 
         return Ok(new { message = "UAV deleted successfully." });

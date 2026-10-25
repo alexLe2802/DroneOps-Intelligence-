@@ -103,6 +103,15 @@ internal static class DroneConnectionChecks
             // A moved/deactivated aircraft must invalidate credentials even before TTL.
             await db.UAVs.Where(u=>u.Id==uav).ExecuteUpdateAsync(s=>s.SetProperty(u=>u.Status,"Inactive"));
             await Denied(()=>service.HeartbeatAsync(second.Connection.Id,activeCredential.Token,activeCredential.HardwareIdentity,default),"deactivating aircraft invalidates an already paired credential");
+            var uavRepository = new UavRepository(db);
+            Check(!await uavRepository.DeleteOwnedAsync(uav,stranger,false),"another pilot cannot delete an owned UAV");
+            Check(await uavRepository.DeleteOwnedAsync(uav,owner,false),"pilot can delete their own UAV regardless of status and hardware binding");
+            Check(!await db.UAVs.AsNoTracking().AnyAsync(x=>x.Id==uav)
+                  && !await db.DroneConnections.AsNoTracking().AnyAsync(x=>x.UavId==uav)
+                  && !await db.DroneHardwareIdentities.AsNoTracking().AnyAsync(x=>x.UavId==uav)
+                  && !await db.TelemetryRecords.AsNoTracking().AnyAsync(x=>x.UAVId==uav)
+                  && await db.Missions.AsNoTracking().Where(x=>x.Id==mission).Select(x=>x.UAVId).SingleAsync()==null,
+                "UAV deletion clears required dependents and preserves the mission without an aircraft assignment");
             Console.WriteLine($"{count} PostgreSQL gateway checks passed. Hardware is not used.");
         }
         finally
