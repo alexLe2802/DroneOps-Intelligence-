@@ -172,8 +172,8 @@ export default function LiveMonitoringClient() {
       <div className={styles.operationsGrid} aria-busy={loadingMission}>
         <section className={styles.mapPanel}>
           <header><div><span>SPATIAL TELEMETRY</span><h2>{selected?.missionName}</h2></div><div><b>{telemetry?.flightMode ?? "MODE UNAVAILABLE"}</b><small>{telemetry?.armed ? "ARMED" : "DISARMED"}</small></div></header>
-          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={sequence} recenterToken={recenterToken} />
-          <footer><span>LAST PACKET <b>{shortDate(telemetry?.sourceTimestamp ?? selected?.lastSeen)}</b></span><span>POSITION <b>{hasTelemetryPosition(telemetry) ? `${Number(telemetry.latitude).toFixed(5)}, ${Number(telemetry.longitude).toFixed(5)}` : "UNAVAILABLE"}</b></span></footer>
+          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={sequence} recenterToken={recenterToken} streamLive={streamState === "live"} />
+          <footer><span>LAST PACKET <b>{shortDate(telemetry?.sourceTimestamp ?? selected?.lastSeen)}</b></span><span>{connection === "online" && !telemetry?.isStale && streamState === "live" ? "POSITION" : "LAST KNOWN POSITION"} <b>{hasTelemetryPosition(telemetry) ? `${Number(telemetry.latitude).toFixed(5)}, ${Number(telemetry.longitude).toFixed(5)}` : "UNAVAILABLE"}</b></span></footer>
         </section>
 
         <aside className={styles.liveRail}>
