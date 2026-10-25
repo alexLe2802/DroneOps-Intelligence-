@@ -3,6 +3,7 @@ using DroneOps.API.Controllers;
 using DroneOps.API.Controllers.Users;
 using DroneOps.API.Controllers.Integrations;
 using DroneOps.API.Controllers.PostFlight;
+using DroneOps.API.Controllers.UAVs;
 using DroneOps.API.Filters;
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.Validators.Users;
@@ -86,6 +87,8 @@ Check(typeof(FlightCompletionIntegrationController).GetCustomAttribute<Integrati
 Check(typeof(PostFlightController).GetMethod("FinalizeFlight")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("operation_manager") == true &&
       typeof(PostFlightController).GetMethod("RegenerateReport")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("operation_manager") == true,
     "Only managers can manually process or regenerate post-flight reports");
+Check(typeof(UavController).GetMethod("Delete")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("uav_operator") == true,
+    "Pilots can call the UAV deletion endpoint for ownership-checked deletion");
 var validator = new CreatePilotRegistrationValidator();
 var today = DateOnly.FromDateTime(DateTime.UtcNow);
 CreatePilotRegistrationRequest Valid() => new()

@@ -14,7 +14,45 @@ public sealed class UavRepository
     {
     }
 
-    public Task<bool> HasHardwareIdentityAsync(Guid id,CancellationToken ct=default) => DbContext.DroneHardwareIdentities.AnyAsync(h=>h.UavId==id,ct);
+    public async Task<bool> DeleteOwnedAsync(
+        Guid uavId,
+        Guid userId,
+        bool canManageAll,
+        CancellationToken cancellationToken = default)
+    {
+        return await DbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await DbContext.Database.BeginTransactionAsync(cancellationToken);
+            var canDelete = await DbSet.AsNoTracking().AnyAsync(
+                x => x.Id == uavId && (canManageAll || x.Pilot.UserId == userId),
+                cancellationToken);
+            if (!canDelete)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+
+            // Preserve missions and their audit history, but release the deleted aircraft assignment.
+            await DbContext.Missions
+                .Where(x => x.UAVId == uavId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.UAVId, (Guid?)null), cancellationToken);
+
+            // These records have required UAV foreign keys and cannot survive a physical UAV deletion.
+            await DbContext.DroneConnections.Where(x => x.UavId == uavId).ExecuteDeleteAsync(cancellationToken);
+            await DbContext.DroneHardwareIdentities.Where(x => x.UavId == uavId).ExecuteDeleteAsync(cancellationToken);
+            await DbContext.FlightCompletionEvents.Where(x => x.UAVId == uavId).ExecuteDeleteAsync(cancellationToken);
+            await DbContext.TelemetryRecords.Where(x => x.UAVId == uavId).ExecuteDeleteAsync(cancellationToken);
+
+            // Remove navigation notifications whose target no longer exists.
+            await DbContext.Notifications
+                .Where(x => x.ReferenceType == "UAV" && x.ReferenceId == uavId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            var deleted = await DbSet.Where(x => x.Id == uavId).ExecuteDeleteAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return deleted == 1;
+        });
+    }
 
     public async Task<bool> CodeExistsAsync(
         string code,

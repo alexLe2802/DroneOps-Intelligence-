@@ -58,5 +58,6 @@ public interface IUavService
     Task<bool> DeleteAsync(
         Guid userId,
         Guid uavId,
+        bool canManageAll = false,
         CancellationToken cancellationToken = default);
 }
