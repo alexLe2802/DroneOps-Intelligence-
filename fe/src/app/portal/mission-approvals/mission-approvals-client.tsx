@@ -176,7 +176,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
       <div className="approval-review-layout">
         <div className="approval-spatial-column">
           <div className="approval-request-context"><span>SELECTED REVIEW</span><strong>{selected.updateRequestId ? `Request ${selected.updateRequestId.slice(0, 8).toUpperCase()}` : "Review details unavailable"}</strong><p>{selected.updateRequestId ? "Review the proposal and its evidence before recording your decision." : "Refresh to retrieve the review details. Decisions remain disabled until the plans are available."}</p></div>
-          <MissionPlanComparison key={selected.updateRequestId} current={selected.currentPlan} proposed={selected.proposedPlan} validation={selected.validation} />
+          <MissionPlanComparison key={selected.updateRequestId} isInitial={selected.isInitial} current={selected.currentPlan} proposed={selected.proposedPlan} validation={selected.validation} />
           <MissionEvidencePanel key={`evidence-${selected.updateRequestId}`} id={selected.missionId} requestId={selected.updateRequestId} />
         </div>
 
