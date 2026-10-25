@@ -236,6 +236,15 @@ try
     var lowBatterySecond = await Json(await client.SendAsync(Ingest("low-battery-2", Sample(detectorAt.AddSeconds(1), battery: 19, sequence: 11))));
     Check(lowBatterySecond.GetProperty("raisedIncidentId").ValueKind == JsonValueKind.String, "second consecutive violating sample raises an incident");
     var lowBatteryIncidentId = lowBatterySecond.GetProperty("raisedIncidentId").GetGuid();
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Check(await db.Notifications.CountAsync(x =>
+                x.RecipientUserId == pilotId && x.Type == "IncidentRaised" &&
+                x.ReferenceId == lowBatteryIncidentId && x.ReferenceType == "Incident" &&
+                x.ActionUrl == $"/incident-management?incidentId={lowBatteryIncidentId}") == 1,
+            "new incident creates one navigable Facebook-style notification for the pilot");
+    }
 
     // Pilot nhận alert bền vững, acknowledge/resolve và lịch sử append-only qua HTTP.
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));

@@ -3,8 +3,10 @@ using DroneOps.Application.DTOs.Request.UAVs;
 using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.UAVs;
 using DroneOps.Application.Interfaces.UAVs;
+using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace DroneOps.Application.Services.UAVs;
 
@@ -12,13 +14,19 @@ public sealed class UavService : IUavService
 {
     private readonly IUavRepository _uavRepository;
     private readonly IPilotRepository _pilotRepository;
+    private readonly INotificationService _notificationService;
+    private readonly ILogger<UavService> _logger;
 
     public UavService(
         IUavRepository uavRepository,
-        IPilotRepository pilotRepository)
+        IPilotRepository pilotRepository,
+        INotificationService notificationService,
+        ILogger<UavService> logger)
     {
         _uavRepository = uavRepository;
         _pilotRepository = pilotRepository;
+        _notificationService = notificationService;
+        _logger = logger;
     }
 
     // 1. Tạo mới UAV: Trạng thái mặc định là "Pending" (chờ duyệt)
@@ -58,6 +66,10 @@ public sealed class UavService : IUavService
 
         await _uavRepository.AddAsync(uav, cancellationToken);
         await _uavRepository.SaveChangesAsync(cancellationToken);
+        await TryPublishToManagersAsync(
+            "NewPendingUav", "New UAV Pending Approval",
+            $"UAV '{uav.Code} - {uav.Name}' ({uav.Model ?? "unspecified model"}) has been submitted for approval.",
+            userId, uav.Id, cancellationToken);
 
         return MapToResponse(uav, pilot.User?.FullName ?? string.Empty);
     }
@@ -182,6 +194,7 @@ public sealed class UavService : IUavService
         uav.Status = "Rejected";
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
+        await TryPublishDecisionAsync(uav, false, cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -226,11 +239,13 @@ public sealed class UavService : IUavService
         uav.Status = "Active";
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
+        await TryPublishDecisionAsync(uav, true, cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
 
-    // 10. Kích hoạt lại UAV đã bị vô hiệu hóa: Inactive -> Active
+    // 10. Duyệt/kích hoạt UAV theo nút "Approve & Activate" của giao diện:
+    // Pending/Pending Review -> Active; Inactive -> Active; Active -> Active (retry an toàn).
     public async Task<UavResponse?> ActivateAsync(
         Guid uavId,
         CancellationToken cancellationToken = default)
@@ -244,10 +259,28 @@ public sealed class UavService : IUavService
             return null;
         }
 
-        EnsureStatus(uav, "Inactive", "activate");
-        uav.Status = "Active";
+        var currentStatus = uav.Status.Trim();
+        var canActivate = currentStatus.Equals("Pending", StringComparison.OrdinalIgnoreCase)
+            || currentStatus.Equals("Pending Review", StringComparison.OrdinalIgnoreCase)
+            || currentStatus.Equals("Inactive", StringComparison.OrdinalIgnoreCase)
+            || currentStatus.Equals("Active", StringComparison.OrdinalIgnoreCase);
 
-        await _uavRepository.SaveChangesAsync(cancellationToken);
+        if (!canActivate)
+        {
+            throw new InvalidOperationException(
+                $"Cannot activate UAV with status '{uav.Status}'. Only Pending or Inactive UAVs can be activated.");
+        }
+
+        if (!currentStatus.Equals("Active", StringComparison.OrdinalIgnoreCase))
+        {
+            uav.Status = "Active";
+            await _uavRepository.SaveChangesAsync(cancellationToken);
+            if (currentStatus.Equals("Pending", StringComparison.OrdinalIgnoreCase) ||
+                currentStatus.Equals("Pending Review", StringComparison.OrdinalIgnoreCase))
+            {
+                await TryPublishDecisionAsync(uav, true, cancellationToken);
+            }
+        }
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -321,6 +354,40 @@ public sealed class UavService : IUavService
         {
             throw new InvalidOperationException(
                 $"Cannot {action} UAV with status '{uav.Status}'. Only {expectedStatus} UAVs can be {action}d.");
+        }
+    }
+
+    private async Task TryPublishToManagersAsync(
+        string type, string title, string message, Guid actorUserId, Guid uavId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificationService.PublishToManagersAsync(type, title, message, actorUserId,
+                uavId, "UAV", $"/uav-management?uavId={uavId}", cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Could not publish UAV notification for {UavId}.", uavId);
+        }
+    }
+
+    private async Task TryPublishDecisionAsync(UAV uav, bool approved, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var recipientUserId = uav.Pilot.UserId;
+            var type = approved ? "UavApproved" : "UavRejected";
+            var title = approved ? "UAV Approved" : "UAV Rejected";
+            var message = approved
+                ? $"Your UAV '{uav.Code} - {uav.Name}' has been approved and is now operational."
+                : $"Your UAV '{uav.Code} - {uav.Name}' request was rejected.";
+            await _notificationService.PublishToUserAsync(recipientUserId, type, title, message, null,
+                uav.Id, "UAV", $"/uav-management?uavId={uav.Id}", cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Could not publish UAV decision notification for {UavId}.", uav.Id);
         }
     }
 }
