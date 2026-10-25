@@ -26,4 +26,22 @@ public interface IIncidentService
         bool isManager,
         DateTimeOffset? changedAfter,
         CancellationToken cancellationToken = default);
+
+    Task<IncidentDetailResponse> AcknowledgeAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string? notes,
+        CancellationToken cancellationToken = default);
+
+    Task<IncidentDetailResponse> ResolveAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string resolutionNotes,
+        CancellationToken cancellationToken = default);
+
+    Task<List<IncidentTransitionResponse>> GetHistoryAsync(
+        Guid incidentId, Guid? currentUserId, bool isManager,
+        CancellationToken cancellationToken = default);
+
+    Task<List<IncidentAlertResponse>> GetUnreadAlertsAsync(
+        Guid currentUserId, CancellationToken cancellationToken = default);
+
+    Task MarkAlertReadAsync(
+        Guid alertId, Guid currentUserId, CancellationToken cancellationToken = default);
 }

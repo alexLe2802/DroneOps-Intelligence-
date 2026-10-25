@@ -4,19 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import type { MissionTelemetry, MissionWaypoint } from "@/lib/portal/types";
 import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
+import { mapLinkState } from "@/lib/portal/map-link-state";
+import { formatWeatherTime } from "@/lib/portal/weather-display";
 import { getGeofences } from "@/lib/portal/client";
 import { describeGeofence } from "@/lib/maps/geofences";
 import styles from "./live-monitoring.module.css";
 
 const hasPosition = hasTelemetryPosition;
 
-export default function LiveMap({ missionId, telemetry, waypoints, sequence, recenterToken }: {
+export default function LiveMap({ missionId, telemetry, waypoints, sequence, recenterToken, streamLive }: {
   missionId: string;
   telemetry: MissionTelemetry | null;
   waypoints: MissionWaypoint[];
   sequence: number;
   recenterToken: number;
+  streamLive: boolean;
 }) {
+  const linkState = mapLinkState(telemetry, streamLive);
+  const livePosition = linkState === "online";
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
   const aircraftRef = useRef<Leaflet.Marker | null>(null);
@@ -145,22 +150,26 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || mapRef.current !== map || !hasPosition(telemetry)) return;
       const position: Leaflet.LatLngExpression = [telemetry.latitude, telemetry.longitude];
+      const icon = L.divIcon({
+        className: styles.aircraftIconShell,
+        html: `${livePosition ? `<span class="${styles.aircraftPulse}"></span>` : ""}<span class="${styles.aircraftIcon} ${livePosition ? "" : linkState === "offline" ? styles.aircraftOffline : styles.aircraftStale}">${livePosition ? "UAV" : linkState === "offline" ? "OFF" : "STALE"}</span>`,
+        iconSize: [52, 52],
+        iconAnchor: [26, 26],
+      });
       if (!aircraftRef.current) {
-        aircraftRef.current = L.marker(position, {
-          zIndexOffset: 1000,
-          icon: L.divIcon({
-            className: styles.aircraftIconShell,
-            html: `<span class="${styles.aircraftPulse}"></span><span class="${styles.aircraftIcon}">UAV</span>`,
-            iconSize: [52, 52],
-            iconAnchor: [26, 26],
-          }),
-        }).addTo(map);
+        aircraftRef.current = L.marker(position, { zIndexOffset: 1000, icon }).addTo(map);
       } else {
-        aircraftRef.current.setLatLng(position);
+        aircraftRef.current.setLatLng(position).setIcon(icon);
+      }
+      aircraftRef.current.unbindTooltip();
+      if (!livePosition) {
+        const label = document.createElement("span");
+        label.textContent = `Vị trí cuối cùng · ${formatWeatherTime(telemetry.sourceTimestamp)}`;
+        aircraftRef.current.bindTooltip(label, { permanent: true, direction: "bottom", offset: [0, 20] });
       }
     });
     return () => { cancelled = true; };
-  }, [ready, telemetry]);
+  }, [ready, telemetry, livePosition, linkState]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -185,8 +194,9 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
   const noSpatialData = waypoints.length === 0 && !hasPosition(telemetry);
   return <div className={styles.mapStage}>
     <div ref={containerRef} className={styles.mapCanvas} />
-    <div className={styles.mapTopLeft}>SECTOR GRID / LIVE POSITION</div>
-    <div className={styles.mapTopRight}><i /> ROUTE LINK {telemetry?.connectivityStatus?.toUpperCase() || "OFFLINE"}</div>
+    <div className={styles.mapTopLeft}>SECTOR GRID / {hasPosition(telemetry) ? livePosition ? "LIVE POSITION" : "LAST KNOWN POSITION" : "POSITION UNAVAILABLE"}</div>
+    <div className={styles.mapTopRight} data-state={linkState}><i /> DRONE {linkState.toUpperCase()}</div>
+    {hasPosition(telemetry) && !livePosition && <div className={styles.mapLastKnown} role="status">{linkState === "offline" ? "Drone đã mất kết nối." : "Dữ liệu vị trí chưa được cập nhật."} Marker hiển thị vị trí cuối cùng nhận lúc {formatWeatherTime(telemetry.sourceTimestamp)}.</div>}
     <div className={styles.airspaceLegend} aria-label="Airspace restrictions"><span><i style={{ background: "#ff3344" }} /> Vùng cấm bay</span><span><i style={{ background: "#facc15" }} /> Vùng hạn chế bay</span>{airspaceState !== "loaded" && <small role="status">{airspaceState === "loading" ? "Loading airspace…" : airspaceState === "empty" ? "No restriction data available" : "Airspace could not be loaded. Reload the page to retry."}</small>}</div>
     {!hasPosition(telemetry) && !noSpatialData && <div className={styles.mapError} role="status">UAV position unavailable / Chưa có vị trí UAV hợp lệ</div>}
     {noSpatialData && <div className={styles.mapEmpty}><b>NO SPATIAL TELEMETRY</b><span>Waiting for a valid UAV position / Đang chờ vị trí UAV hợp lệ.</span></div>}

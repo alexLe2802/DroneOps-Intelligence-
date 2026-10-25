@@ -38,4 +38,7 @@ public class Incident
 
     [ForeignKey(nameof(ResolvedBy))]
     public User? Resolver { get; set; }
+
+    public ICollection<IncidentTransition> Transitions { get; set; } = [];
+    public ICollection<IncidentAlertDelivery> AlertDeliveries { get; set; } = [];
 }

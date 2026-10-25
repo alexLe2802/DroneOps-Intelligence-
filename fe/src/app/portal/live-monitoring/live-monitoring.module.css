@@ -950,3 +950,10 @@
 }
 
 .airspaceLegend{position:absolute;bottom:20px;left:16px;z-index:450;display:flex;flex-wrap:wrap;gap:10px 16px;max-width:calc(100% - 90px);padding:10px 14px;border:1px solid #3c566d;border-radius:5px;background:rgba(13,23,34,.93);color:#d0dce9;pointer-events:none;font:11px Consolas,monospace}.airspaceLegend>span{display:flex;align-items:center;gap:7px}.airspaceLegend i{display:inline-block;width:11px;height:11px;border-radius:2px}.airspaceLegend small{flex-basis:100%;color:#e0c791;line-height:1.5}
+
+.aircraftIcon.aircraftOffline{border-color:#ff8d97;color:#ffb5bd;background:#321c27;box-shadow:0 3px 12px #0008}
+.aircraftIcon.aircraftStale{border-color:#e7bc65;color:#f4d69b;background:#30291d;box-shadow:0 3px 12px #0008}
+.mapTopRight[data-state="offline"] i{background:#ff7987}
+.mapTopRight[data-state="stale"] i{background:#e7bc65}
+.mapLastKnown{position:absolute;top:62px;left:14px;right:14px;z-index:450;padding:10px 14px;border:1px solid #825b45;border-radius:5px;background:#251e18f2;color:#f4d6ae;font-size:12px;line-height:1.6;pointer-events:none}
+@media(max-width:720px){.mapLastKnown{top:100px;font-size:11px}}

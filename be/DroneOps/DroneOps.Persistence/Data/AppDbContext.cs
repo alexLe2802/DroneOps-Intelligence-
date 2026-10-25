@@ -21,6 +21,8 @@ public class AppDbContext : DbContext
     public DbSet<Waypoint> Waypoints { get; set; }
     public DbSet<Geofence> Geofences { get; set; }
     public DbSet<Incident> Incidents { get; set; }
+    public DbSet<IncidentTransition> IncidentTransitions { get; set; }
+    public DbSet<IncidentAlertDelivery> IncidentAlertDeliveries { get; set; }
     public DbSet<MissionApproval> MissionApprovals { get; set; }
     public DbSet<TelemetryRecord> TelemetryRecords { get; set; }
     public DbSet<PilotRegistration> PilotRegistrations { get; set; }
@@ -29,6 +31,7 @@ public class AppDbContext : DbContext
     public DbSet<PostFlightReport> PostFlightReports { get; set; }
     public DbSet<FlightCompletionEvent> FlightCompletionEvents { get; set; }
     public DbSet<PilotUpdateRequest> PilotUpdateRequests { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
 
     public DbSet<MissionUpdateRequest> MissionUpdateRequests { get; set; }
     public DbSet<GeofenceRevision> GeofenceRevisions { get; set; }
@@ -60,5 +63,35 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<FlightCompletionEvent>()
             .HasIndex(x => x.IdempotencyKey)
             .IsUnique();
+
+        modelBuilder.Entity<IncidentTransition>()
+            .HasOne(x => x.Actor)
+            .WithMany()
+            .HasForeignKey(x => x.ChangedBy)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<IncidentAlertDelivery>()
+            .HasIndex(x => new { x.TransitionId, x.RecipientUserId })
+            .IsUnique();
+        modelBuilder.Entity<IncidentAlertDelivery>()
+            .HasOne(x => x.Recipient)
+            .WithMany()
+            .HasForeignKey(x => x.RecipientUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Notification>().ToTable("Notification");
+        modelBuilder.Entity<Notification>()
+            .HasIndex(x => new { x.RecipientUserId, x.IsRead, x.CreatedAt })
+            .IsDescending(false, false, true);
+        modelBuilder.Entity<Notification>()
+            .HasOne(x => x.Recipient)
+            .WithMany()
+            .HasForeignKey(x => x.RecipientUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Notification>()
+            .HasOne(x => x.Actor)
+            .WithMany()
+            .HasForeignKey(x => x.ActorUserId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

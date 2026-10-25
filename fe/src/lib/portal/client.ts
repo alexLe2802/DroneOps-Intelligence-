@@ -1,5 +1,5 @@
 import { api, ApiError } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable">;
 
@@ -126,6 +126,19 @@ export function getIncident(id: string): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
 }
 
+export function getNotificationFeed(unreadOnly = false, limit = 50): Promise<NotificationFeed> {
+  const params = new URLSearchParams({ unreadOnly: String(unreadOnly), limit: String(limit) });
+  return api<NotificationFeed>(`/notifications?${params}`);
+}
+
+export function markNotificationRead(id: string): Promise<PortalNotification> {
+  return api<PortalNotification>(`/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" });
+}
+
+export function markAllNotificationsRead(): Promise<{ updatedCount: number }> {
+  return api<{ updatedCount: number }>("/notifications/read-all", { method: "PATCH" });
+}
+
 export function liveMissionStreamUrl(missionId: string): string {
   return `/api/live/stream?missionId=${encodeURIComponent(missionId)}`;
 }
@@ -205,9 +218,8 @@ export async function createUav(request: CreateUavRequest): Promise<AssignedUav>
   return api<AssignedUav>("/uavs", { method: "POST", body: JSON.stringify(request) });
 }
 
-// PUT uses the backend's update DTO, which differs from the create DTO.
-export async function updateAssignedUav(id: string, request: CreateUavRequest): Promise<void> {
-  await api(`/uavs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ uavCode: request.code, uavName: request.name, description: request.model }) });
+export async function updateAssignedUav(id: string, request: UpdateUavRequest): Promise<void> {
+  await api(`/uavs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(request) });
 }
 
 export async function deleteAssignedUav(id: string): Promise<void> {

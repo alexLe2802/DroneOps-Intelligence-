@@ -7,6 +7,7 @@ import { cancelMission, getGeofences, getMission, startMission, validateMission 
 import type { Geofence, MissionDetail, MissionValidationResult } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
+import dialogStyles from "./mission-dialog.module.css";
 
 import MissionPlanComparison from "../mission-plan-comparison";
 import MissionEvidencePanel from "../mission-evidence-panel";
@@ -234,11 +235,26 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
 
     {dialog && <div className="mission-dialog-backdrop" role="presentation">
       <section className="mission-dialog" role="dialog" aria-modal="true" aria-labelledby="mission-dialog-title">
-        <h2 id="mission-dialog-title">Cancel this mission?</h2>
-        <p>Cancellation preserves the record and does not issue an aircraft stop command.</p>
-        <label>Reason<textarea rows={4} maxLength={1000} value={cancelReason} onChange={event => setCancelReason(event.target.value)} /></label>
-        <button type="button" disabled={busy !== null} onClick={() => setDialog(null)}>BACK</button>
-        <button type="button" disabled={busy !== null || !cancelReason.trim()} onClick={() => void confirmCancel()}>CONFIRM CANCELLATION</button>
+        <header>
+          <div><p className="module-kicker">MISSION LIFECYCLE // CANCELLATION</p><h2 id="mission-dialog-title">Cancel this mission plan?</h2></div>
+          <button type="button" aria-label="Close cancellation dialog" disabled={busy !== null} onClick={() => setDialog(null)}>x</button>
+        </header>
+        <div className="mission-dialog-body">
+          <p>The mission remains in the audit history with status Cancelled. This action does not send a stop or return-to-home command to an aircraft.</p>
+          <dl>
+            <div><dt>Mission</dt><dd>{mission.name}</dd></div>
+            <div><dt>Current status</dt><dd>{formatStatus(mission.status)}</dd></div>
+          </dl>
+          <label>
+            <span className={dialogStyles.reasonHeading}>CANCELLATION REASON <b>REQUIRED</b></span>
+            <textarea autoFocus rows={4} maxLength={1000} value={cancelReason} placeholder="Describe why this mission plan is being cancelled..." onChange={event => setCancelReason(event.target.value)} />
+          </label>
+          <small className={dialogStyles.counter}>{cancelReason.length} / 1000</small>
+        </div>
+        <footer>
+          <button className={dialogStyles.back} type="button" disabled={busy !== null} onClick={() => setDialog(null)}>BACK</button>
+          <button className={dialogStyles.confirm} type="button" disabled={busy !== null || !cancelReason.trim()} onClick={() => void confirmCancel()}>{busy === "cancel" ? "CANCELLING..." : "CONFIRM CANCELLATION"}</button>
+        </footer>
       </section>
     </div>}
   </>;
