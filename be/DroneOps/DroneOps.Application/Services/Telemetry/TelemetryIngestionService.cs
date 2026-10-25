@@ -4,6 +4,7 @@ using DroneOps.Application.DTOs.Response.Geofences;
 using DroneOps.Application.DTOs.Response.Telemetry;
 using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Application.Interfaces.Incidents;
+using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Settings;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
@@ -37,17 +38,20 @@ public class TelemetryIngestionService : ITelemetryIngestionService
     private readonly ILogger<TelemetryIngestionService> _logger;
     private readonly TelemetryMonitoringOptions _monitoring;
     private readonly IIncidentLifecycleService _incidentLifecycle;
+    private readonly INotificationService? _notificationService;
 
     public TelemetryIngestionService(
         AppDbContext context,
         ILogger<TelemetryIngestionService> logger,
         IOptions<TelemetryMonitoringOptions> monitoring,
-        IIncidentLifecycleService incidentLifecycle)
+        IIncidentLifecycleService incidentLifecycle,
+        INotificationService? notificationService = null)
     {
         _context = context;
         _logger = logger;
         _monitoring = monitoring.Value;
         _incidentLifecycle = incidentLifecycle;
+        _notificationService = notificationService;
     }
 
     public async Task<TelemetryIngestResult> IngestSampleAsync(
@@ -162,10 +166,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
         await _context.TelemetryRecords.AddAsync(record, cancellationToken);
 
-        Guid? raisedIncidentId = null;
+        var raisedIncidentIds = new List<Guid>();
         if (usedForLatest && record.IsValid && missionId.HasValue)
         {
-            raisedIncidentId = await TryRaiseOperationalIncidentsAsync(record, cancellationToken);
+            raisedIncidentIds = await TryRaiseOperationalIncidentsAsync(record, cancellationToken);
         }
 
         try
@@ -195,6 +199,8 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             };
         }
 
+        await TryPublishIncidentNotificationsAsync(raisedIncidentIds, cancellationToken);
+
         return new TelemetryIngestResult
         {
             Accepted = true,
@@ -202,7 +208,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             IsLateArrival = isLateArrival,
             UsedForLatestProjection = usedForLatest && record.IsValid,
             RecordId = record.Id,
-            RaisedIncidentId = raisedIncidentId,
+            RaisedIncidentId = raisedIncidentIds.Count == 0 ? null : raisedIncidentIds[0],
             Message = isLateArrival
                 ? "Late telemetry sample stored for history and did not replace the latest projection."
                 : "Telemetry sample ingested successfully."
@@ -392,17 +398,17 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         return result;
     }
 
-    private async Task<Guid?> TryRaiseOperationalIncidentsAsync(
+    private async Task<List<Guid>> TryRaiseOperationalIncidentsAsync(
         TelemetryRecord record,
         CancellationToken cancellationToken)
     {
         if (!record.MissionId.HasValue)
         {
-            return null;
+            return [];
         }
 
         var missionId = record.MissionId.Value;
-        Guid? firstRaisedIncidentId = null;
+        var raisedIncidentIds = new List<Guid>();
 
         // Detector dùng mẫu ngay trước đó trong DB cùng mẫu hiện tại. Hai mẫu liên tiếp
         // giúp loại nhiễu tức thời; ngưỡng recovery tách khỏi ngưỡng raise tạo hysteresis.
@@ -420,7 +426,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             value => value >= _monitoring.LowBatteryPercent + _monitoring.LowBatteryRecoveryMarginPercent,
             $"Battery dropped to {record.BatteryLevel}%.", "LowBattery", _monitoring.LowBatteryPercent,
             cancellationToken);
-        firstRaisedIncidentId ??= raised;
+        if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
 
         raised = await EvaluateNumericRuleAsync(
             record, previous, "AltitudeExceeded", "Altitude limit exceeded", "High",
@@ -429,7 +435,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             value => value <= _monitoring.MaximumAltitudeMeters - _monitoring.AltitudeRecoveryMarginMeters,
             $"Altitude reached {record.Altitude} m.", "MaximumAltitude", (double)_monitoring.MaximumAltitudeMeters,
             cancellationToken);
-        firstRaisedIncidentId ??= raised;
+        if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
 
         raised = await EvaluateNumericRuleAsync(
             record, previous, "SpeedExceeded", "Ground speed limit exceeded", "High",
@@ -438,7 +444,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             value => value <= _monitoring.MaximumGroundSpeedMetersPerSecond - _monitoring.GroundSpeedRecoveryMarginMetersPerSecond,
             $"Ground speed reached {record.Speed} m/s.", "MaximumGroundSpeed",
             (double)_monitoring.MaximumGroundSpeedMetersPerSecond, cancellationToken);
-        firstRaisedIncidentId ??= raised;
+        if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
 
         if (record.Latitude.HasValue && record.Longitude.HasValue)
         {
@@ -480,7 +486,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                         record, "GeofenceBreach", "Geofence breach detected", "High",
                         "UAV is outside every configured operating geofence.", "GeofenceKeepIn", null,
                         cancellationToken);
-                    firstRaisedIncidentId ??= raised;
+                    if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
                 }
                 else if (insideAny && previousInside)
                     await _incidentLifecycle.ResolveOpenByRuleAsync(
@@ -498,7 +504,31 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             await _incidentLifecycle.ResolveOpenByRuleAsync(
                 missionId, "CommunicationLoss", "Telemetry communication recovered with two consecutive samples.", cancellationToken);
 
-        return firstRaisedIncidentId;
+        return raisedIncidentIds;
+    }
+
+    private async Task TryPublishIncidentNotificationsAsync(
+        IReadOnlyCollection<Guid> incidentIds, CancellationToken cancellationToken)
+    {
+        if (_notificationService is null || incidentIds.Count == 0) return;
+        var incidents = await _context.Incidents
+            .AsNoTracking()
+            .Where(x => incidentIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Type, PilotUserId = x.Mission.CreatedBy })
+            .ToListAsync(cancellationToken);
+        foreach (var incident in incidents)
+        {
+            try
+            {
+                await _notificationService.PublishIncidentRaisedAsync(
+                    incident.Id, incident.Type, incident.PilotUserId, cancellationToken);
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(exception,
+                    "Could not publish incident notification for {IncidentId}.", incident.Id);
+            }
+        }
     }
 
     private async Task<Guid?> EvaluateNumericRuleAsync(

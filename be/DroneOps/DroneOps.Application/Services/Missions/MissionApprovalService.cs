@@ -39,14 +39,14 @@ public class MissionApprovalService(
     public async Task<MissionDecisionResponse> ApproveMissionAsync(Guid id,ApproveMissionRequest request,Guid manager,CancellationToken ct=default)
     {
         var response=await DecideAsync(id,request.UpdateRequestId,request.ValidationRunId,manager,"Approved",request.Comment,ct);
-        await TryPublishDecisionNotificationAsync(response,manager,true,ct);
+        await TryPublishDecisionNotificationAsync(response,manager,true,request.Comment,ct);
         return response;
     }
     public async Task<MissionDecisionResponse> RejectMissionAsync(Guid id,RejectMissionRequest request,Guid manager,CancellationToken ct=default)
     {
         if(string.IsNullOrWhiteSpace(request.Reason))throw new ArgumentException("Rejection reason is mandatory.");
         var response=await DecideAsync(id,request.UpdateRequestId,null,manager,"Rejected",request.Reason.Trim(),ct);
-        await TryPublishDecisionNotificationAsync(response,manager,false,ct);
+        await TryPublishDecisionNotificationAsync(response,manager,false,request.Reason,ct);
         return response;
     }
     private async Task<MissionDecisionResponse> DecideAsync(Guid id,Guid? requestId,Guid? runId,Guid manager,string decision,string? comment,CancellationToken ct)
@@ -91,10 +91,10 @@ public class MissionApprovalService(
     }
     private static MissionDecisionResponse Response(MissionApproval log,string state,bool replay)=>new(){MissionId=log.MissionId,UpdateRequestId=log.UpdateRequestId,Decision=log.Status,PreviousStatus=state,NewStatus=state,Comment=log.Comment,DecidedAt=log.ApprovedAt??DateTimeOffset.UtcNow,DecidedBy=log.UserId,IdempotentReplay=replay,ValidationRunId=log.ValidationRunId};
 
-    private async Task TryPublishDecisionNotificationAsync(MissionDecisionResponse response,Guid actorUserId,bool approved,CancellationToken ct)
+    private async Task TryPublishDecisionNotificationAsync(MissionDecisionResponse response,Guid actorUserId,bool approved,string? reason,CancellationToken ct)
     {
         if(response.IdempotentReplay || notificationService is null)return;
-        try { await notificationService.PublishMissionDecisionAsync(response.MissionId,actorUserId,approved,ct); }
+        try { await notificationService.PublishMissionDecisionAsync(response.MissionId,actorUserId,approved,reason,ct); }
         catch(Exception ex) when(!ct.IsCancellationRequested)
         {
             logger?.LogWarning(ex,"Could not publish mission-decision notification for {MissionId}.",response.MissionId);

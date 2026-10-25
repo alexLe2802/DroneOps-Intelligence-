@@ -5,6 +5,7 @@ using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using DroneOps.Application.Interfaces.Incidents;
+using DroneOps.Application.Interfaces.Notifications;
 
 public sealed class CommunicationLossMonitor : BackgroundService
 {
@@ -52,6 +53,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var lifecycle = scope.ServiceProvider.GetRequiredService<IIncidentLifecycleService>();
+        var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var options = _options.CurrentValue;
         var cutoff = DateTimeOffset.UtcNow.AddSeconds(-Math.Max(1, options.CommunicationLossSeconds));
 
@@ -68,6 +70,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
             .Where(x => x.Latest != null && x.Latest.ReceivedAt < cutoff)
             .ToListAsync(cancellationToken);
 
+        var raisedIncidents = new List<(Guid IncidentId, Guid PilotUserId)>();
         foreach (var candidate in candidates)
         {
             var hasOpenIncident = await context.Incidents.AnyAsync(
@@ -82,7 +85,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
             }
 
             var latest = candidate.Latest!;
-            await lifecycle.RaiseIfOpenMissingAsync(new Incident
+            var raisedIncidentId = await lifecycle.RaiseIfOpenMissingAsync(new Incident
             {
                 Id = Guid.NewGuid(),
                 MissionId = candidate.Mission.Id,
@@ -109,11 +112,29 @@ public sealed class CommunicationLossMonitor : BackgroundService
                 }),
                 CreatedAt = DateTimeOffset.UtcNow
             }, cancellationToken);
+            if (raisedIncidentId.HasValue)
+            {
+                raisedIncidents.Add((raisedIncidentId.Value, candidate.Mission.CreatedBy));
+            }
         }
 
         if (context.ChangeTracker.HasChanges())
         {
             await context.SaveChangesAsync(cancellationToken);
+        }
+
+        foreach (var raised in raisedIncidents)
+        {
+            try
+            {
+                await notificationService.PublishIncidentRaisedAsync(
+                    raised.IncidentId, "CommunicationLoss", raised.PilotUserId, cancellationToken);
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(exception,
+                    "Could not publish communication-loss notification for {IncidentId}.", raised.IncidentId);
+            }
         }
     }
 }
