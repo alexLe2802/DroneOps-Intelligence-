@@ -32,7 +32,9 @@ js = js.replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.reso
 const { default: Comparison } = await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 test('initial submission shows one submitted plan without Current or saved route toggle', () => {
   const html=renderToStaticMarkup(React.createElement(Comparison, {isInitial:true,proposed:plan}));
-  assert.match(html,/Kế hoạch gửi duyệt/);
+  assert.match(html,/>Submitted plan</);
+  assert.match(html,/View submitted plan waypoints/);
+  assert.doesNotMatch(html,/Nhiệm vụ mới|chưa có kế hoạch trước đó/);
   assert.doesNotMatch(html,/>Current<|>Proposed<|>Saved plan<|Plans are not available/);
 });
 test('update shows both columns and marks changed fields and waypoints', () => {
@@ -41,5 +43,5 @@ test('update shows both columns and marks changed fields and waypoints', () => {
 });
 test('unchanged update remains a comparison and explains no changes', () => {
   const html=renderToStaticMarkup(React.createElement(Comparison, {current:plan,proposed:plan}));
-  assert.match(html,/>Current</); assert.match(html,/Không có thay đổi/);
+  assert.match(html,/>Current</); assert.match(html,/No changes from the saved plan\./);
 });

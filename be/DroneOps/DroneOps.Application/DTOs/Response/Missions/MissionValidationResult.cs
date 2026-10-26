@@ -13,7 +13,7 @@ public sealed class MissionValidationResult
     public DateTimeOffset CheckedAt { get; set; } = DateTimeOffset.UtcNow;
     public bool IsValid => Issues.Count == 0 && !Incomplete && !Stale;
     public string Status => Stale ? "Stale" : Incomplete ? "Incomplete" : IsValid ? "Passed" : "Blocked";
-    public string Message => IsValid ? "Mandatory checks passed. Weather warnings are advisory." : string.Join(" ", Issues);
+    public string Message => IsValid ? "Mandatory checks passed." : string.Join(" ", Issues);
     public List<string> Issues { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
     public WeatherAdvisory? Weather { get; set; }

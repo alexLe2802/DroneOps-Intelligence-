@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import { describeGeofence } from "@/lib/maps/geofences";
 import type { Geofence } from "@/lib/portal/types";
@@ -8,10 +8,64 @@ import type { Geofence } from "@/lib/portal/types";
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
 type CursorCoordinate = { latitude: number; longitude: number } | null;
+type UserPosition = { latitude: number; longitude: number; accuracy: number };
 
 export default function DashboardMap({ geofences, onCursorCoordinate }: { geofences: Geofence[]; onCursorCoordinate?: (coordinate: CursorCoordinate) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<Leaflet.Map | null>(null);
+  const leafletRef = useRef<typeof Leaflet | null>(null);
+  const locationLayerRef = useRef<Leaflet.FeatureGroup | null>(null);
+  const positionRef = useRef<UserPosition | null>(null);
   const [error, setError] = useState("");
+  const [locationError, setLocationError] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+
+  const displayPosition = useCallback((L: typeof Leaflet, map: Leaflet.Map, position: UserPosition, focus = false) => {
+    locationLayerRef.current?.remove();
+    const coordinates: Leaflet.LatLngTuple = [position.latitude, position.longitude];
+    const theme = getComputedStyle(containerRef.current!);
+    const accent = theme.getPropertyValue("--color-accent").trim();
+    const ink = theme.getPropertyValue("--color-ink").trim();
+    const accuracy = L.circle(coordinates, { radius: position.accuracy, color: accent, weight: 1, fillOpacity: .12, interactive: false });
+    const marker = L.circleMarker(coordinates, { radius: 8, color: ink, weight: 2, fillColor: accent, fillOpacity: 1 });
+    const label = document.createElement("span");
+    label.textContent = `Your current location (accuracy ±${Math.round(position.accuracy)} m)`;
+    marker.bindPopup(label);
+    locationLayerRef.current = L.featureGroup([accuracy, marker]).addTo(map);
+    if (focus) {
+      map.fitBounds(accuracy.getBounds(), { maxZoom: 16, padding: [40, 40], animate: false });
+      marker.openPopup();
+    } else {
+      map.panTo(coordinates, { animate: false });
+    }
+  }, []);
+
+  const locateUser = useCallback((focus = true) => {
+    const requestedMap = mapRef.current;
+    if (!requestedMap) return;
+    setLocationError("");
+    if (!navigator.geolocation) {
+      setLocationError("This browser does not support location access.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(position => {
+      const map = mapRef.current;
+      const L = leafletRef.current;
+      if (!map || !L || map !== requestedMap) return;
+      const current = { latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy };
+      positionRef.current = current;
+      displayPosition(L, map, current, focus);
+      setLocating(false);
+    }, reason => {
+      if (mapRef.current !== requestedMap) return;
+      setLocating(false);
+      setLocationError(reason.code === 1 ? "Location permission denied. Allow location access in your browser and try again."
+        : reason.code === 3 ? "Location request timed out. Please try again."
+          : "Your location could not be determined. Check your device location settings and try again.");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  }, [displayPosition]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -23,6 +77,9 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
       if (cancelled) return;
       // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
       map = L.map(container, { center: [10.8231, 106.6297], zoom: 11, zoomControl: false, preferCanvas: false });
+      mapRef.current = map;
+      leafletRef.current = L;
+      setMapReady(true);
       map.on("mousemove", event => onCursorCoordinate?.({ latitude: event.latlng.lat, longitude: event.latlng.lng }));
       map.on("mouseout", () => onCursorCoordinate?.(null));
       L.control.zoom({ position: "bottomleft" }).addTo(map);
@@ -45,6 +102,8 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
         popup.append(title, category, limits);
         polygon.bindPopup(popup).addTo(map!);
       });
+      if (positionRef.current) displayPosition(L, map, positionRef.current);
+      else locateUser(false);
       resizeFrame = requestAnimationFrame(() => {
         if (!cancelled && map) map.invalidateSize({ animate: false, pan: false });
       });
@@ -55,14 +114,19 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
       if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
       map?.stop();
       map?.remove();
+      mapRef.current = null;
+      locationLayerRef.current = null;
       map = undefined;
     };
-  }, [geofences, onCursorCoordinate]);
+  }, [geofences, onCursorCoordinate, displayPosition, locateUser]);
 
   return <div className="dashboard-map-shell">
     <div ref={containerRef} className="dashboard-live-map" />
-    <div className="dashboard-airspace-source">LEAFLET · ESRI STREET MAP · {geofences.length} BACKEND GEOFENCES</div>
     <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
     {error && <div className="dashboard-map-error" role="alert">{error}</div>}
+    <div className="dashboard-map-toolbar">
+      {locationError && <p className="dashboard-location-error" role="alert">{locationError}</p>}
+      <button className="dashboard-locate-button" type="button" onClick={() => locateUser()} disabled={!mapReady || locating} aria-label="Show my current location on the map">{locating ? "Locating…" : "My location"}</button>
+    </div>
   </div>;
 }

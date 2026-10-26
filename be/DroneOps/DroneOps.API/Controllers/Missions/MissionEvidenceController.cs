@@ -12,7 +12,11 @@ public sealed class MissionEvidenceController(MissionValidationService validatio
     [HttpGet("{id:guid}/history")]
     public async Task<IActionResult> History(Guid id,CancellationToken ct)=>Ok(await validation.HistoryAsync(id,Actor,Manager,ct));
     [HttpGet("{id:guid}/validation")]
-    public async Task<IActionResult> Validation(Guid id,[FromQuery] Guid? updateRequestId,CancellationToken ct)=>Ok(await validation.ReadAsync(id,Actor,Manager,updateRequestId,ct));
+    public async Task<IActionResult> Validation(Guid id,[FromQuery] Guid? updateRequestId,[FromQuery] bool latest,CancellationToken ct)=>Ok(latest
+        ? await validation.ReadLatestRunAsync(id,Actor,Manager,ct)
+        : await validation.ReadAsync(id,Actor,Manager,updateRequestId,ct));
+    [HttpGet("{id:guid}/validation/runs/{runId:guid}")]
+    public async Task<IActionResult> ValidationRun(Guid id,Guid runId,CancellationToken ct)=>Ok(await validation.ReadRunAsync(id,runId,Actor,Manager,ct));
     [HttpGet("{id:guid}/weather")]
     public async Task<IActionResult> Weather(Guid id,[FromQuery] Guid? updateRequestId,CancellationToken ct)=>Ok(await weather.ReadAsync(id,Actor,Manager,updateRequestId,false,ct));
     [HttpPost("{id:guid}/weather/refresh")]

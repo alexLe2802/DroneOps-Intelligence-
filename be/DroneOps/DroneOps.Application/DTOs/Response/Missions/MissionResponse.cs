@@ -7,6 +7,7 @@ public sealed class MissionResponse
 
     public MissionValidationResult? PreflightValidation { get; set; }
     public MissionValidationResult? Validation { get; set; }
+    public MissionValidationResult? LatestValidation { get; set; }
     public string FlightReadiness { get; set; } = "AwaitingPreflight";
 
     public Guid Id { get; set; }
