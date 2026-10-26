@@ -10,7 +10,7 @@ export default async function ValidationResultsPage({ searchParams }: {
   const [session, query] = await Promise.all([
     requirePortalSession(["uav_operator", "operation_manager"]), searchParams,
   ]);
-  return <PortalShell account={session.account}><ValidationResultsClient
+  return <PortalShell account={session.account}><ValidationResultsClient key={`${query.missionId ?? ""}:${query.runId ?? ""}`}
     missionId={typeof query.missionId === "string" ? query.missionId : undefined}
     runId={typeof query.runId === "string" ? query.runId : undefined}
   /></PortalShell>;

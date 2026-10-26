@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import { describeGeofence } from "@/lib/maps/geofences";
 import type { Geofence } from "@/lib/portal/types";
@@ -21,7 +21,7 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
   const [locating, setLocating] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
-  function displayPosition(L: typeof Leaflet, map: Leaflet.Map, position: UserPosition, focus = false) {
+  const displayPosition = useCallback((L: typeof Leaflet, map: Leaflet.Map, position: UserPosition, focus = false) => {
     locationLayerRef.current?.remove();
     const coordinates: Leaflet.LatLngTuple = [position.latitude, position.longitude];
     const theme = getComputedStyle(containerRef.current!);
@@ -39,9 +39,9 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
     } else {
       map.panTo(coordinates, { animate: false });
     }
-  }
+  }, []);
 
-  function locateUser(focus = true) {
+  const locateUser = useCallback((focus = true) => {
     const requestedMap = mapRef.current;
     if (!requestedMap) return;
     setLocationError("");
@@ -65,7 +65,7 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
         : reason.code === 3 ? "Location request timed out. Please try again."
           : "Your location could not be determined. Check your device location settings and try again.");
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
-  }
+  }, [displayPosition]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -118,7 +118,7 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
       locationLayerRef.current = null;
       map = undefined;
     };
-  }, [geofences, onCursorCoordinate]);
+  }, [geofences, onCursorCoordinate, displayPosition, locateUser]);
 
   return <div className="dashboard-map-shell">
     <div ref={containerRef} className="dashboard-live-map" />
