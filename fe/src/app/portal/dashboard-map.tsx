@@ -21,7 +21,7 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
   const [locating, setLocating] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
-  function displayPosition(L: typeof Leaflet, map: Leaflet.Map, position: UserPosition) {
+  function displayPosition(L: typeof Leaflet, map: Leaflet.Map, position: UserPosition, focus = false) {
     locationLayerRef.current?.remove();
     const coordinates: Leaflet.LatLngTuple = [position.latitude, position.longitude];
     const theme = getComputedStyle(containerRef.current!);
@@ -33,11 +33,17 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
     label.textContent = `Your current location (accuracy ±${Math.round(position.accuracy)} m)`;
     marker.bindPopup(label);
     locationLayerRef.current = L.featureGroup([accuracy, marker]).addTo(map);
-    map.fitBounds(accuracy.getBounds(), { maxZoom: 16, padding: [40, 40], animate: false });
-    marker.openPopup();
+    if (focus) {
+      map.fitBounds(accuracy.getBounds(), { maxZoom: 16, padding: [40, 40], animate: false });
+      marker.openPopup();
+    } else {
+      map.panTo(coordinates, { animate: false });
+    }
   }
 
-  function locateUser() {
+  function locateUser(focus = true) {
+    const requestedMap = mapRef.current;
+    if (!requestedMap) return;
     setLocationError("");
     if (!navigator.geolocation) {
       setLocationError("This browser does not support location access.");
@@ -47,13 +53,13 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
     navigator.geolocation.getCurrentPosition(position => {
       const map = mapRef.current;
       const L = leafletRef.current;
-      if (!map || !L) return;
+      if (!map || !L || map !== requestedMap) return;
       const current = { latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy };
       positionRef.current = current;
-      displayPosition(L, map, current);
+      displayPosition(L, map, current, focus);
       setLocating(false);
     }, reason => {
-      if (!mapRef.current) return;
+      if (mapRef.current !== requestedMap) return;
       setLocating(false);
       setLocationError(reason.code === 1 ? "Location permission denied. Allow location access in your browser and try again."
         : reason.code === 3 ? "Location request timed out. Please try again."
@@ -97,6 +103,7 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
         polygon.bindPopup(popup).addTo(map!);
       });
       if (positionRef.current) displayPosition(L, map, positionRef.current);
+      else locateUser(false);
       resizeFrame = requestAnimationFrame(() => {
         if (!cancelled && map) map.invalidateSize({ animate: false, pan: false });
       });
@@ -115,10 +122,11 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
 
   return <div className="dashboard-map-shell">
     <div ref={containerRef} className="dashboard-live-map" />
-    <button className="dashboard-locate-button" type="button" onClick={locateUser} disabled={!mapReady || locating} aria-label="Show my current location on the map">{locating ? "Locating…" : "My location"}</button>
-    <div className="dashboard-airspace-source">LEAFLET · ESRI STREET MAP · {geofences.length} BACKEND GEOFENCES</div>
     <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
     {error && <div className="dashboard-map-error" role="alert">{error}</div>}
-    {locationError && <div className="dashboard-location-error" role="alert">{locationError}</div>}
+    <div className="dashboard-map-toolbar">
+      {locationError && <p className="dashboard-location-error" role="alert">{locationError}</p>}
+      <button className="dashboard-locate-button" type="button" onClick={() => locateUser()} disabled={!mapReady || locating} aria-label="Show my current location on the map">{locating ? "Locating…" : "My location"}</button>
+    </div>
   </div>;
 }

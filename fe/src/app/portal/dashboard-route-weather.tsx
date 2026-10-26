@@ -78,6 +78,6 @@ export default function DashboardRouteWeather({ missions }: { missions: FlightHi
       })}
     </ul>}
     {!busy && missions.length > 0 && visibleMissions.length === 0 && <div className="dashboard-panel-empty"><strong>NO AVAILABLE FORECASTS</strong><p>No mission currently has an available weather forecast.</p></div>}
-    <footer><span>First waypoint forecast for each mission · advisory only</span><button type="button" disabled={!missions.length || busy} onClick={() => void load(true)}>Refresh forecasts</button></footer>
+    <footer><span>First waypoint forecast for each mission</span><button type="button" disabled={!missions.length || busy} onClick={() => void load(true)}>Refresh forecasts</button></footer>
   </article>;
 }
