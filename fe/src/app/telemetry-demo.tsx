@@ -16,7 +16,7 @@ export default function TelemetryDemo() {
       <div className="hud-readouts"><div>ALTITUDE: <b>{altitude}.0 m AGL</b><br />SPEED: <b>{thrust ? "16.0" : "0.0"} m/s</b><br />MODE: <b>SIMULATION</b></div><div>BATT: <b>94% (24.8V)</b><br />LINK: <b>−68 dBm</b><br />GPS: <b>12 SAT</b></div></div>
       <div className="radar"><div /><div /><span /></div>
       <span className="horizon">— 0° HORIZON —</span><div className="altitude-scale"><span>220m</span><span>180m</span><span>140m</span><span>100m</span><span>80m</span></div>
-      <div className="drone-rig" style={{ transform: `translateY(${(173 - altitude) * .7}px)` }} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); drag.current = { y: event.clientY, altitude }; }} onPointerMove={move} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}>
+      <div className="drone-rig" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); drag.current = { y: event.clientY, altitude }; }} onPointerMove={move} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}>
         <svg viewBox="0 0 360 220" role="img" aria-label="Quadcopter model with continuously spinning rotors; drag vertically or use altitude slider below">
           <defs><linearGradient id="body-fill" x2="1" y2="1"><stop stopColor="#243c50" /><stop offset="1" stopColor="#070d17" /></linearGradient></defs>
           <path d="M180 115 65 52 M180 115 295 52 M180 115 85 165 M180 115 275 165" stroke="#304357" strokeWidth="9" strokeLinecap="round" />
