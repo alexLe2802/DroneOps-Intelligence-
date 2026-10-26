@@ -75,8 +75,10 @@ export default function OperationalDashboard({ account }: { account: Account }) 
       <span className="dash-icon">{hasIncidents ? "!" : "✓"}</span>
       <div>{hasIncidents ? "CRITICAL ADVISORY" : "AIRSPACE STATUS"}<br />BACKEND RECORDS</div>
       <p>{hasIncidents ? `${analytics.totalIncidentsRecorded} incident${analytics.totalIncidentsRecorded === 1 ? "" : "s"} recorded across mission history.` : "No recorded incidents require immediate attention."}</p>
-      <Link className="preset-button" href="/portal/flight-history">VIEW RECORDS</Link>
-      {hasIncidents && <Link className="new-mission danger-button" href="/portal/flight-history">OPEN INCIDENTS</Link>}
+      <div className="critical-banner-actions">
+        <Link className="preset-button" href="/portal/flight-history">VIEW RECORDS</Link>
+        {hasIncidents && <Link className="new-mission danger-button" href="/portal/flight-history">OPEN INCIDENTS</Link>}
+      </div>
     </section>
 
     {warnings.length > 0 && <section className="dashboard-service-warning" role="status"><b>PARTIAL BACKEND ACCESS</b>{warnings.map(message => <p key={message}>{message}</p>)}</section>}
@@ -97,9 +99,9 @@ export default function OperationalDashboard({ account }: { account: Account }) 
 
     <div className="operations-grid">
       <section className="map-panel">
-        <header><b>◎ TAC-CANVAS // OPERATIONAL AIRSPACE</b><em>{mapCursor ? `${Math.abs(mapCursor.latitude).toFixed(5)}°${mapCursor.latitude >= 0 ? "N" : "S"}, ${Math.abs(mapCursor.longitude).toFixed(5)}°${mapCursor.longitude >= 0 ? "E" : "W"}` : "MOVE CURSOR OVER MAP"}</em><span>BACKEND GEOFENCES</span></header>
+        <header><b>◎ TAC-CANVAS // OPERATIONAL AIRSPACE</b><em>{mapCursor ? `${Math.abs(mapCursor.latitude).toFixed(5)}°${mapCursor.latitude >= 0 ? "N" : "S"}, ${Math.abs(mapCursor.longitude).toFixed(5)}°${mapCursor.longitude >= 0 ? "E" : "W"}` : "MOVE CURSOR OVER MAP"}</em></header>
         <DashboardMap geofences={zones} onCursorCoordinate={setMapCursor} />
-        <footer><span>Airspace layer: <b>DroneOps Geofences API</b> · {zones.length} zones</span><span><Link href="/portal/geofences">OPEN AIRSPACE REGISTRY</Link> · <Link href="/portal/flight-history">FLIGHT HISTORY →</Link></span></footer>
+        <footer><span>Airspace layer: <b>DroneOps Geofences API</b></span><span><Link href="/portal/geofences">OPEN AIRSPACE REGISTRY</Link> · <Link href="/portal/flight-history">FLIGHT HISTORY →</Link></span></footer>
       </section>
 
       <aside className="insight-column">

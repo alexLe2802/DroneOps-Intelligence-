@@ -40,6 +40,15 @@
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+.critical-banner { width: 100%; }
+.critical-banner > p { flex: 1 1 auto; min-width: 0; margin-block: 0; }
+.critical-banner > .critical-banner-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 8px; width: auto; margin-left: auto; }
+.critical-banner > .critical-banner-actions > a { flex: 0 0 auto; margin: 0; white-space: nowrap; }
+@media(max-width:760px) {
+  .critical-banner { flex-wrap: wrap; }
+  .critical-banner > p { flex-basis: calc(100% - 44px); }
+  .critical-banner > .critical-banner-actions { display: flex; flex-basis: 100%; justify-content: flex-end; }
+}
 /* Hallmark polish: readable operational summaries and statuses anchored to their mission. */
 .insight-column { min-width: 0; gap: 12px; }
 .insight-column :is(.ai-panel,.incident-panel) > header { min-width: 0; gap: 12px; padding: 16px; align-items: center; }
@@ -66,10 +75,11 @@
 .insight-column .incident-panel article time { float: none; color: var(--color-muted); font: 11px/1.5 var(--font-data); }
 .insight-column .incident-panel article .insight-event-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--color-muted); font: 12px/1.5 var(--font-body); }
 .dashboard-map-shell { isolation: isolate; }
-.dashboard-map-shell .dashboard-locate-button { position: absolute; z-index: 500; top: 12px; right: 12px; min-height: 36px; padding: 8px 12px; border: 1px solid var(--color-accent); border-radius: 5px; background: var(--color-paper-2); color: var(--color-focus); font: 600 12px/1.4 var(--font-body); cursor: pointer; }
-.dashboard-map-shell .dashboard-locate-button:hover:not(:disabled) { background: var(--color-paper-3); }
-.dashboard-map-shell .dashboard-locate-button:disabled { opacity: .65; cursor: wait; }
-.dashboard-map-shell .dashboard-location-error { position: absolute; z-index: 500; top: 58px; right: 12px; left: 12px; width: fit-content; max-width: calc(100% - 24px); margin-left: auto; padding: 10px 12px; border: 1px solid var(--color-error); border-radius: 5px; background: var(--color-paper-2); color: var(--color-error); font: 12px/1.5 var(--font-body); }
+.dashboard-map-toolbar { position: absolute; z-index: 800; bottom: 18px; left: 52px; display: flex; align-items: flex-end; max-width: calc(100% - 64px); pointer-events: none; }
+.dashboard-map-toolbar .dashboard-locate-button { pointer-events: auto; flex: 0 0 auto; min-height: 34px; padding: 8px 12px; border: 1px solid var(--color-accent); border-radius: 5px; background: var(--color-paper-2); color: var(--color-focus); font: 600 12px/1.4 var(--font-body); cursor: pointer; }
+.dashboard-map-toolbar .dashboard-locate-button:hover:not(:disabled) { background: var(--color-paper-3); }
+.dashboard-map-toolbar .dashboard-locate-button:disabled { opacity: .65; cursor: wait; }
+.dashboard-map-toolbar .dashboard-location-error { position: absolute; bottom: 44px; left: 0; width: min(300px, calc(100vw - 90px)); margin: 0; padding: 10px 12px; border: 1px solid var(--color-error); border-radius: 5px; background: var(--color-paper-2); color: var(--color-error); font: 12px/1.5 var(--font-body); pointer-events: auto; }
 .dashboard-route-weather { min-width: 0; }
 .dashboard-mission-weather-list { display: grid; gap: 8px; margin: 8px 0; padding: 0; list-style: none; }
 .dashboard-mission-weather-list > li { min-width: 0; padding: 9px 11px; background: var(--color-paper-2); border: 1px solid var(--color-rule); border-radius: 5px; }
