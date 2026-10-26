@@ -54,6 +54,63 @@ public class UavController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Đăng ảnh lần đầu hoặc thay thế ảnh hiện tại của UAV.</summary>
+    [HttpPost("{id:guid}/image")]
+    [HttpPut("{id:guid}/image")]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<IActionResult> UploadOrReplaceImage(
+        Guid id,
+        [FromForm] IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actorUserId, out var actorRole))
+            return Unauthorized(new { message = "Invalid authenticated user." });
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var result = await _uavService.UploadOrReplaceUavImageAsync(
+                id, actorUserId, actorRole, stream, file.FileName,
+                file.ContentType, file.Length, cancellationToken);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
+        catch (UnauthorizedAccessException exception) { return StatusCode(403, new { message = exception.Message }); }
+        catch (ArgumentException exception) { return BadRequest(new { message = exception.Message }); }
+        catch (InvalidOperationException exception) { return StatusCode(503, new { message = exception.Message }); }
+        catch (HttpRequestException) { return StatusCode(502, new { message = "UAV image storage is temporarily unavailable." }); }
+    }
+
+    /// <summary>Mở ảnh hiện tại của UAV qua signed URL ngắn hạn.</summary>
+    [HttpGet("{id:guid}/image")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetImage(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var image = await _uavService.GetUavImageAsync(id, cancellationToken);
+            if (image is null) return NotFound(new { message = "UAV image not found." });
+            Response.Headers.CacheControl = "no-store";
+            return Redirect(image.Value.Url);
+        }
+        catch (InvalidOperationException exception) { return StatusCode(503, new { message = exception.Message }); }
+        catch (HttpRequestException) { return StatusCode(502, new { message = "UAV image storage is temporarily unavailable." }); }
+    }
+
+    /// <summary>Xóa ảnh hiện tại nhưng giữ nguyên UAV.</summary>
+    [HttpDelete("{id:guid}/image")]
+    public async Task<IActionResult> DeleteImage(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actorUserId, out var actorRole))
+            return Unauthorized(new { message = "Invalid authenticated user." });
+        try
+        {
+            var deleted = await _uavService.DeleteUavImageAsync(
+                id, actorUserId, actorRole, cancellationToken);
+            return deleted ? NoContent() : NotFound(new { message = "UAV not found." });
+        }
+        catch (UnauthorizedAccessException exception) { return StatusCode(403, new { message = exception.Message }); }
+    }
+
     /// <summary>
     /// Cập nhật thông tin UAV
     /// </summary>
@@ -110,5 +167,14 @@ public class UavController : ControllerBase
         }
 
         return Ok(new { message = "UAV deleted successfully." });
+    }
+
+    private bool TryGetActor(out Guid userId, out string role)
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        role = User.IsInRole("operation_manager") || User.IsInRole("operations_manager") || User.IsInRole("Admin")
+            ? "operation_manager"
+            : User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        return Guid.TryParse(value, out userId);
     }
 }

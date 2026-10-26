@@ -89,6 +89,12 @@ Check(typeof(PostFlightController).GetMethod("FinalizeFlight")!.GetCustomAttribu
     "Only managers can manually process or regenerate post-flight reports");
 Check(typeof(UavController).GetMethod("Delete")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("uav_operator") == true,
     "Pilots can call the UAV deletion endpoint for ownership-checked deletion");
+var uavImageUpload = typeof(UavController).GetMethod("UploadOrReplaceImage")!;
+Check(uavImageUpload.GetCustomAttributes<Microsoft.AspNetCore.Mvc.HttpPostAttribute>().Any(x => x.Template == "{id:guid}/image") &&
+      uavImageUpload.GetCustomAttributes<Microsoft.AspNetCore.Mvc.HttpPutAttribute>().Any(x => x.Template == "{id:guid}/image"),
+    "UAV image upload and replacement share the documented image route");
+Check(typeof(UavController).GetMethod("GetImage")!.GetCustomAttribute<AllowAnonymousAttribute>() is not null,
+    "UAV image display endpoint can be used directly by an image element");
 var validator = new CreatePilotRegistrationValidator();
 var today = DateOnly.FromDateTime(DateTime.UtcNow);
 CreatePilotRegistrationRequest Valid() => new()
@@ -107,4 +113,5 @@ request = Valid(); request.LicenseIssuedDate = today.AddYears(2);
 Check(!validator.Validate(request).IsValid, "Reversed license dates rejected");
 request = Valid(); request.Password = "short";
 Check(!validator.Validate(request).IsValid, "Short password rejected");
+passed += await UavImageChecks.RunAsync();
 Console.WriteLine($"{passed} current auth contract checks passed. Legacy Firebase session checks are archived and were not executed.");

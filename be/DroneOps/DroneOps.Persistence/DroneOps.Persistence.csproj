@@ -28,6 +28,7 @@
 		<EmbeddedResource Include="../../../database/migrations/007_post_flight_lifecycle.sql" LogicalName="DroneOps.Persistence.Migrations.007_post_flight_lifecycle.sql" />
 		<EmbeddedResource Include="../../../database/migrations/008_realtime_incident_lifecycle.sql" LogicalName="DroneOps.Persistence.Migrations.008_realtime_incident_lifecycle.sql" />
 		<EmbeddedResource Include="../../../database/migrations/009_notifications.sql" LogicalName="DroneOps.Persistence.Migrations.009_notifications.sql" />
+		<EmbeddedResource Include="../../../database/migrations/20261026000100_uav_images.sql" LogicalName="DroneOps.Persistence.Migrations.20261026000100_uav_images.sql" />
 	</ItemGroup>
 
 </Project>
