@@ -61,9 +61,9 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
     }, reason => {
       if (mapRef.current !== requestedMap) return;
       setLocating(false);
-      setLocationError(reason.code === 1 ? "Location permission denied. Allow location access in your browser and try again."
-        : reason.code === 3 ? "Location request timed out. Please try again."
-          : "Your location could not be determined. Check your device location settings and try again.");
+      setLocationError(reason.code === 1 ? "Location access unavailable."
+        : reason.code === 3 ? "Location request timed out."
+          : "Unable to determine your location.");
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
   }, [displayPosition]);
 
