@@ -8,7 +8,8 @@ const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
-  if (!allowed.test(path)) return NextResponse.json({ message: "Not found." }, { status: 404 });
+  const validationRunPath = /^missions\/[0-9a-f-]{36}\/validation\/runs\/[0-9a-f-]{36}$/;
+  if (!allowed.test(path) && !validationRunPath.test(path)) return NextResponse.json({ message: "Not found." }, { status: 404 });
   const token = request.cookies.get(accessCookie)?.value;
   if (!["GET", "HEAD"].includes(request.method)) {
     // Next.js may construct nextUrl with localhost while the browser uses

@@ -145,6 +145,13 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
   if (!mission) return <ModuleLoading label="Loading mission details" />;
   const isManager = role === "operation_manager";
   const currentStatus = statusKey(mission.status);
+  const readinessValidation = [validation, mission.latestValidation, mission.preflightValidation, mission.pendingUpdate?.validation]
+    .filter((result): result is MissionValidationResult => result != null)
+    .sort((a, b) => new Date(b.checkedAt ?? 0).getTime() - new Date(a.checkedAt ?? 0).getTime())[0];
+  const readinessStatus = readinessValidation?.status ?? mission.flightReadiness ?? "AwaitingPreflight";
+  const readinessHref = readinessValidation?.id
+    ? `/portal/validation-results?missionId=${encodeURIComponent(id)}&runId=${encodeURIComponent(readinessValidation.id)}`
+    : `/portal/validation-results?missionId=${encodeURIComponent(id)}`;
   const canEdit = !isManager && ["draft", "rejected", "pending", "pendingreview", "submitted", "approved"].includes(currentStatus);
   const canValidate = !["completed", "cancelled", "inprogress"].includes(currentStatus);
   const canCancel = !["inprogress", "completed", "cancelled"].includes(currentStatus);
@@ -166,14 +173,8 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
     {notice && <div className="mission-action-feedback success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")}>DISMISS</button></div>}
 
     <section className="mission-action-feedback" aria-label="Persisted mission validation">
-      <div><b>FLIGHT READINESS: {mission.flightReadiness ?? "AwaitingPreflight"}</b>
-      <p>Mandatory checks run when saving, approving, and within 15 minutes before departure. Weather is advisory.</p>
-      {mission.preflightValidation?.issues?.map((issue, index) => <p role="alert" key={`preflight-${index}`}>{issue}</p>)}
-      {mission.preflightValidation?.warnings?.map((warning, index) => <p role="status" key={`preflight-warning-${index}`}>{warning}</p>)}
-      {validation?.issues?.map((issue, index) => <p role="alert" key={`issue-${index}`}>{issue}</p>)}
-      {validation?.warnings?.map((warning, index) => <p role="status" key={`warning-${index}`}>{warning}</p>)}
-      {validation?.weather && <p><a href="https://open-meteo.com/" target="_blank" rel="noreferrer">{validation.weather.provider}</a> forecast: wind {validation.weather.maxWindMetersPerSecond ?? "unavailable"} m/s; gust {validation.weather.maxGustMetersPerSecond ?? "unavailable"} m/s; rain {validation.weather.maxRainMillimetersPerHour ?? "unavailable"} mm/h.</p>}
-      </div>
+      <b>Flight readiness: {readinessStatus === "Passed" ? "Pass" : formatStatus(readinessStatus)}</b>
+      <Link className="module-link" href={readinessHref}>View validation result</Link>
     </section>
 
     {mission.pendingUpdate && <>

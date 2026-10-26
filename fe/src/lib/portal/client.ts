@@ -341,4 +341,6 @@ export function getPilotProfile(): Promise<PilotProfile> {
 
 export function getMissionHistory(id: string) { return api<import("./types").MissionUpdateSummary[]>(`/missions/${encodeURIComponent(id)}/history`); }
 export function getMissionValidation(id: string, updateRequestId?: string) { return api<MissionValidationResult | null>(`/missions/${encodeURIComponent(id)}/validation${updateRequestId ? `?updateRequestId=${encodeURIComponent(updateRequestId)}` : ""}`); }
+export function getMissionValidationRun(id: string, runId: string) { return api<MissionValidationResult>(`/missions/${encodeURIComponent(id)}/validation/runs/${encodeURIComponent(runId)}`); }
+export function getLatestMissionValidation(id: string) { return api<MissionValidationResult | null>(`/missions/${encodeURIComponent(id)}/validation?latest=true`); }
 export function getMissionWeather(id: string, updateRequestId?: string, refresh = false) { return api<import("./types").MissionWeather>(`/missions/${encodeURIComponent(id)}/weather${refresh ? "/refresh" : ""}${updateRequestId ? `?updateRequestId=${encodeURIComponent(updateRequestId)}` : ""}`, refresh ? { method: "POST" } : {}); }

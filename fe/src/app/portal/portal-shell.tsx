@@ -36,7 +36,8 @@ export default function PortalShell({ account, children, dashboard = false, acti
           label === "Dashboard" || label === "My Dashboard" ? "/portal" :
           label === "AI Risk Assessment" ? "/portal/ai-assessment" :
           label === "Flight History & Reports" || label === "Flight History" ? "/portal/flight-history" :
-          label === "Fleet & Restrictions" || label === "Validation Results" ? "/portal/geofences" :
+          label === "Validation Results" ? "/portal/validation-results" :
+          label === "Fleet & Restrictions" ? "/portal/geofences" :
           !manager && label === "My Missions" ? "/portal/missions" :
           !manager && label === "Connect Drone" ? "/portal/drone-connection" :
           !manager && label === "Assigned UAV" ? "/portal/uav" :
