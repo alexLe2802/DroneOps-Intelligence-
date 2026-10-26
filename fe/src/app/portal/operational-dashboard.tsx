@@ -6,10 +6,12 @@ import type { Account } from "@/lib/auth/types";
 import { getAssignedUavs, getFlightHistory, getGeofences, getOperationalAnalytics } from "@/lib/portal/client";
 import type { AssignedUav, FlightHistoryItem, Geofence, OperationalAnalytics } from "@/lib/portal/types";
 import DashboardMap from "./dashboard-map";
+import DashboardRouteWeather from "./dashboard-route-weather";
 import { ModuleError, ModuleLoading } from "./module-state";
 import PortalShell from "./portal-shell";
 
 type Feed = "live" | "gcs" | "simulation";
+const EMPTY_MISSIONS: FlightHistoryItem[] = [];
 
 const isActive = (status: string) => status.toLowerCase().replaceAll(" ", "") === "inprogress";
 const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
@@ -52,10 +54,15 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  const activeMissions = useMemo(() => missions?.filter(item => isActive(item.status)) ?? [], [missions]);
+  const missionItems = missions ?? EMPTY_MISSIONS;
+  const activeMissions = useMemo(() => missionItems.filter(item => isActive(item.status)), [missionItems]);
+  const weatherMissions = useMemo(() => {
+    const activeIds = new Set(activeMissions.map(item => item.missionId));
+    return [...activeMissions, ...missionItems.filter(item => !activeIds.has(item.missionId))].slice(0, 5);
+  }, [activeMissions, missionItems]);
   const filteredActive = useMemo(() => activeMissions.filter(item =>
     `${item.missionName} ${item.missionId} ${item.uavCode} ${item.pilotName}`.toLowerCase().includes(query.toLowerCase())), [activeMissions, query]);
-  const incidentMissions = useMemo(() => missions?.filter(item => item.totalIncidents > 0).slice(0, 2) ?? [], [missions]);
+  const incidentMissions = useMemo(() => missionItems.filter(item => item.totalIncidents > 0).slice(0, 2), [missionItems]);
 
   if (error) return <PortalShell account={account} dashboard><ModuleError error={error} retry={() => void load()} /></PortalShell>;
   if (!analytics || !missions) return <PortalShell account={account} dashboard><ModuleLoading label="Loading operational dashboard" /></PortalShell>;
@@ -123,8 +130,8 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     </section>
 
     <section className="bottom-grid">
-      <article><header><b>MISSION ROUTE WEATHER</b><span>API PENDING</span></header><div className="dashboard-panel-empty"><span>◌</span><strong>WAYPOINT WEATHER UNAVAILABLE</strong><p>The backend should resolve forecast conditions for each mission waypoint and scheduled flight time.</p></div><footer><span>Awaiting mission weather API</span></footer></article>
-      <article><header><b>{manager ? "GCS CREW ASSIGNMENTS" : "MY UAV ASSIGNMENT"}</b><span>{manager ? "API PENDING" : "BACKEND"}</span></header>{manager ? <div className="dashboard-panel-empty"><span>◎</span><strong>CREW ROSTER UNAVAILABLE</strong><p>The backend does not expose live crew assignments.</p></div> : <ul>{aircraft.length ? aircraft.slice(0, 3).map(item => <li key={item.id}><i /><span>{item.code} · {item.name}</span><b>{item.status}</b></li>) : <li><i className="alert-dot" /><span>No UAV assigned</span><b>—</b></li>}</ul>}<footer><span>{manager ? "Awaiting crew API" : `${aircraft.length} assigned aircraft`}</span></footer></article>
+      <DashboardRouteWeather missions={weatherMissions} />
+      <article><header><b>{manager ? "GCS CREW ASSIGNMENTS" : "MY UAV ASSIGNMENT"}</b>{manager && <span>API PENDING</span>}</header>{manager ? <div className="dashboard-panel-empty"><span>◎</span><strong>CREW ROSTER UNAVAILABLE</strong><p>The backend does not expose live crew assignments.</p></div> : <ul>{aircraft.length ? aircraft.slice(0, 3).map(item => <li key={item.id}><i /><span>{item.code} · {item.name}</span><b>{item.status}</b></li>) : <li><i className="alert-dot" /><span>No UAV assigned</span><b>—</b></li>}</ul>}<footer><span>{manager ? "Awaiting crew API" : `${aircraft.length} assigned aircraft`}</span></footer></article>
     </section>
   </PortalShell>;
 }
