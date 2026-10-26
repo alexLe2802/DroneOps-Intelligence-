@@ -33,6 +33,22 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
         return result;
     }
 
+    public async Task<MissionValidationResult?> ReadLatestRunAsync(Guid missionId,Guid actor,bool manager,CancellationToken ct)
+    {
+        var mission=await db.Missions.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==missionId,ct)??throw new KeyNotFoundException("Mission not found.");
+        if(!manager&&mission.CreatedBy!=actor)throw new UnauthorizedAccessException("Mission is outside your scope.");
+        return Decode(await db.MissionValidationRuns.AsNoTracking().Where(x=>x.MissionId==missionId)
+            .OrderByDescending(x=>x.CheckedAt).ThenByDescending(x=>x.Id).FirstOrDefaultAsync(ct));
+    }
+
+    public async Task<MissionValidationResult?> ReadRunAsync(Guid missionId,Guid runId,Guid actor,bool manager,CancellationToken ct)
+    {
+        var mission=await db.Missions.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==missionId,ct)??throw new KeyNotFoundException("Mission not found.");
+        if(!manager&&mission.CreatedBy!=actor)throw new UnauthorizedAccessException("Mission is outside your scope.");
+        var run=await db.MissionValidationRuns.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==runId&&x.MissionId==missionId,ct)??throw new KeyNotFoundException("Validation result not found.");
+        return Decode(run);
+    }
+
     public async Task<MissionUpdateSummary?> PendingAsync(Guid id,CancellationToken ct)
     {
         var request=await db.MissionUpdateRequests.AsNoTracking().SingleOrDefaultAsync(x=>x.MissionId==id&&x.Status=="Pending",ct);
