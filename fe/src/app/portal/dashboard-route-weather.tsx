@@ -44,10 +44,16 @@ export default function DashboardRouteWeather({ missions }: { missions: FlightHi
     return () => { active = false; };
   }, [missions]);
 
+  const busy = Object.values(forecasts).some(item => item.loading);
+  const visibleMissions = missions.filter(mission => {
+    const state = forecasts[mission.missionId];
+    return !state || state.loading || (!state.error && state.weather && state.weather.status !== "Unavailable");
+  });
+
   return <article className="dashboard-route-weather">
-    <header><b>MISSION ROUTE WEATHER</b><span>{missions.length ? `${missions.length} MISSIONS` : "NO MISSIONS"}</span></header>
+    <header><b>MISSION ROUTE WEATHER</b><span>{busy ? "LOADING" : `${visibleMissions.length} MISSIONS`}</span></header>
     {!missions.length ? <div className="dashboard-panel-empty"><span>◌</span><strong>NO MISSION WEATHER</strong><p>Create or schedule a mission to see forecast conditions for its route.</p></div> : <ul className="dashboard-mission-weather-list">
-      {missions.map(mission => {
+      {visibleMissions.map(mission => {
         const state = forecasts[mission.missionId];
         const weather = state?.weather;
         const firstWaypoint = weather?.waypoints.length
@@ -71,6 +77,7 @@ export default function DashboardRouteWeather({ missions }: { missions: FlightHi
         </li>;
       })}
     </ul>}
-    <footer><span>First waypoint forecast for each mission · advisory only</span><button type="button" disabled={!missions.length || Object.values(forecasts).some(item => item.loading)} onClick={() => void load(true)}>Refresh forecasts</button></footer>
+    {!busy && missions.length > 0 && visibleMissions.length === 0 && <div className="dashboard-panel-empty"><strong>NO AVAILABLE FORECASTS</strong><p>No mission currently has an available weather forecast.</p></div>}
+    <footer><span>First waypoint forecast for each mission · advisory only</span><button type="button" disabled={!missions.length || busy} onClick={() => void load(true)}>Refresh forecasts</button></footer>
   </article>;
 }

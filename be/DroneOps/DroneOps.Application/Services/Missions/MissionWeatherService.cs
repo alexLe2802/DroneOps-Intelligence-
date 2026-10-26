@@ -48,7 +48,7 @@ public sealed class MissionWeatherService(HttpClient http,IOptions<MissionWeathe
                 }
                 fetched[key]=raw;
             }
-            var value=new WaypointWeather {SequenceOrder=point.SequenceOrder,Latitude=point.Latitude,Longitude=point.Longitude,AltitudeMeters=point.Altitude,EstimatedArrivalTime=null,ArrivalTimeReason="Cruise speed and waypoint dwell durations are not configured; flight-window forecast used instead of inventing an arrival time.",SourceFetchedAt=raw.Data?.FetchedAt};
+            var value=new WaypointWeather {SequenceOrder=point.SequenceOrder,Latitude=point.Latitude,Longitude=point.Longitude,AltitudeMeters=point.Altitude,EstimatedArrivalTime=null,ArrivalTimeReason="Forecast based on the scheduled mission flight window.",SourceFetchedAt=raw.Data?.FetchedAt};
             if(raw.Data is not null&&mission.StartTime.HasValue&&mission.EndTime.HasValue)
             {
                 var hours=raw.Data.Hours;var times=hours.GetProperty("time");var first=mission.StartTime.Value;var last=mission.EndTime.Value;
