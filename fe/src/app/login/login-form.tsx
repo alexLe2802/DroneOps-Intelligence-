@@ -127,7 +127,7 @@ export default function LoginForm() {
     </div>
 
     <form className="email-login-form" onSubmit={submit} aria-busy={busy !== null}>
-      <label htmlFor="login-email">OPERATOR IDENTIFIER / EMAIL</label>
+      <label htmlFor="login-email">EMAIL</label>
       <input ref={emailInput} id="login-email" name="email" type="email" required maxLength={254} autoComplete="username" placeholder={mode === "pilot" ? "pilot@droneops.com" : "manager@droneops.com"} disabled={busy !== null} />
       <div className="password-label"><label htmlFor="login-password">PASSWORD</label><button type="button" className="text-button" disabled={busy !== null} onClick={() => void login("reset")}>Forgot credentials?</button></div>
       <div className="password-field"><input ref={passwordInput} id="login-password" name="password" type={showPassword ? "text" : "password"} required maxLength={4096} autoComplete="current-password" disabled={busy !== null} /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} disabled={busy !== null} onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Hide" : "Show"}</button></div>
