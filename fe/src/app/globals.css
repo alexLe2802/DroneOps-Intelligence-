@@ -413,17 +413,10 @@ h1 .heading-white {
 }
 .rotor {
   animation:spin .22s linear infinite;
-  animation-play-state:paused;
   pointer-events:none;
 }
-/* A stationary hit area prevents rotating blades from flickering on hover. */
 .rotor-hit-area {
   pointer-events:all;
-}
-@media(hover:hover) {
-  .rotor-assembly:hover .rotor {
-    animation-play-state:running;
-  }
 }
 .hud-bottom {
   position:absolute;
