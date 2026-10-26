@@ -1,4 +1,5 @@
 "use client";
+import { incidentDescription } from "@/lib/portal/incident-display";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -157,7 +158,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
       <div>
         <div className={styles.breadcrumb}><Link className={styles.backButton} href="/portal/incidents" aria-label="Back to incident list"><span aria-hidden="true">&larr;</span> INCIDENTS</Link><span>/</span><b>{incident.id.toUpperCase()}</b></div>
         <h1>{incident.title}</h1>
-        <p>{incident.description ?? "Immutable telemetry evidence and operational handling record."}</p>
+        <p>{incidentDescription(incident.description) || "Immutable telemetry evidence and operational handling record."}</p>
       </div>
       <div className={styles.identityChips}>
         <span><i aria-hidden="true">MS</i>MISSION <b>{incident.missionName || incident.missionId}</b></span>
@@ -204,7 +205,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
         <PanelHeader label="RESOLUTION & ACTION LOG" value={status === "resolved" ? "CLOSED" : "ACTION REQUIRED"} />
         <div className={styles.timeline}>
           <h2>APPEND-ONLY INCIDENT TIMELINE</h2>
-          <TimelineItem time={incident.createdAt} label="SYSTEM" title="Incident generated" text={incident.description ?? `${labelOf(incident.type)} event detected.`} done />
+          <TimelineItem time={incident.createdAt} label="SYSTEM" title="Incident generated" text={incidentDescription(incident.description) || `${labelOf(incident.type)} event detected.`} done />
           <TimelineItem time={incident.acknowledgedAt} label="ACK" title={incident.acknowledgedAt ? `Acknowledged by ${incident.acknowledgedByName ?? "authorized operator"}` : "Awaiting acknowledgement"} text={incident.acknowledgedAt ? "The incident was accepted for operational handling." : "No acknowledgement has been recorded."} done={Boolean(incident.acknowledgedAt)} />
           <TimelineItem time={incident.resolvedAt} label="RESOLUTION" title={incident.resolvedAt ? `Resolved by ${incident.resolvedByName ?? "authorized operator"}` : "Resolution pending"} text={incident.resolutionNotes ?? "No resolution notes have been recorded."} done={Boolean(incident.resolvedAt)} />
         </div>
