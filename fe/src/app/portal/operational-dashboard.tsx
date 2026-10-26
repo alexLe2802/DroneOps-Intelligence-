@@ -125,7 +125,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     </section>
 
     <section className="bottom-grid">
-      <DashboardRouteWeather missions={weatherMissions} />
+      <DashboardRouteWeather key={weatherMissions.map(mission => mission.missionId).join(",")} missions={weatherMissions} />
       <article><header><b>{manager ? "GCS CREW ASSIGNMENTS" : "MY UAV ASSIGNMENT"}</b>{manager && <span>API PENDING</span>}</header>{manager ? <div className="dashboard-panel-empty"><span>◎</span><strong>CREW ROSTER UNAVAILABLE</strong><p>The backend does not expose live crew assignments.</p></div> : <ul>{aircraft.length ? aircraft.slice(0, 3).map(item => <li key={item.id}><i /><span>{item.code} · {item.name}</span><b>{item.status}</b></li>) : <li><i className="alert-dot" /><span>No UAV assigned</span><b>—</b></li>}</ul>}<footer><span>{manager ? "Awaiting crew API" : `${aircraft.length} assigned aircraft`}</span></footer></article>
     </section>
   </PortalShell>;

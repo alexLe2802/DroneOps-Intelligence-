@@ -16,8 +16,6 @@ export default function ValidationResultsClient({ missionId, runId }: { missionI
 
   useEffect(() => {
     let active = true;
-    setBusy(true);
-    setError(null);
     const load = async () => {
       if (!missionId) {
         const history = await getFlightHistory({ pageSize: 100 });
@@ -36,7 +34,7 @@ export default function ValidationResultsClient({ missionId, runId }: { missionI
   }, [missionId, runId, attempt]);
 
   if (busy) return <ModuleLoading label="Loading validation results" />;
-  if (error) return <ModuleError error={error} retry={() => setAttempt(value => value + 1)} />;
+  if (error) return <ModuleError error={error} retry={() => { setBusy(true); setError(null); setAttempt(value => value + 1); }} />;
 
   return <>
     <header className="module-heading"><div><h1>Validation Results</h1><p>{runId ? "Saved result from the selected validation run." : "Review the latest mission validation."}</p></div>

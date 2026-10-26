@@ -14,7 +14,8 @@ function timeLabel(value: string | null | undefined) {
 }
 
 export default function DashboardRouteWeather({ missions }: { missions: FlightHistoryItem[] }) {
-  const [forecasts, setForecasts] = useState<Record<string, ForecastState>>({});
+  const [forecasts, setForecasts] = useState<Record<string, ForecastState>>(() =>
+    Object.fromEntries(missions.map(mission => [mission.missionId, { loading: true }])));
 
   const load = useCallback(async (refresh = false) => {
     setForecasts(current => Object.fromEntries(missions.map(mission => [mission.missionId, {
@@ -32,7 +33,6 @@ export default function DashboardRouteWeather({ missions }: { missions: FlightHi
 
   useEffect(() => {
     let active = true;
-    setForecasts(Object.fromEntries(missions.map(mission => [mission.missionId, { loading: true }])));
     void Promise.allSettled(missions.map(mission => getMissionWeather(mission.missionId))).then(results => {
       if (!active) return;
       setForecasts(Object.fromEntries(results.map((result, index) => [missions[index].missionId,
