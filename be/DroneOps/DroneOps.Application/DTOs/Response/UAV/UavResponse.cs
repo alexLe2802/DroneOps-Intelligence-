@@ -16,5 +16,7 @@ public sealed class UavResponse
 
     public string Status { get; set; } = string.Empty;
 
+    public string? ImageUrl { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 }

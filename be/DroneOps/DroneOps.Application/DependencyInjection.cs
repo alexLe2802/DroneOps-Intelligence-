@@ -63,6 +63,11 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IPilotRegistrationService, PilotRegistrationService>();
         services.AddScoped<IUavService, UavService>();
+        services.AddHttpClient<IUavImageModerationService, UavImageModerationService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
         services.AddScoped<IGeofenceService, GeofenceService>();
         services.AddScoped<IMissionService, MissionService>();
         services.AddScoped<IMissionSuggestionService,MissionSuggestionService>();

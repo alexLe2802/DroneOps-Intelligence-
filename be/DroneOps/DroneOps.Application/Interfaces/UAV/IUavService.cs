@@ -27,6 +27,26 @@ public interface IUavService
         Guid uavId,
         CancellationToken cancellationToken = default);
 
+    Task<UavResponse> UploadOrReplaceUavImageAsync(
+        Guid uavId,
+        Guid actorUserId,
+        string actorRole,
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        long fileSize,
+        CancellationToken cancellationToken = default);
+
+    Task<(string Url, string ContentType)?> GetUavImageAsync(
+        Guid uavId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> DeleteUavImageAsync(
+        Guid uavId,
+        Guid actorUserId,
+        string actorRole,
+        CancellationToken cancellationToken = default);
+
     Task<UavResponse?> RejectAsync(
         Guid uavId,
         CancellationToken cancellationToken = default);

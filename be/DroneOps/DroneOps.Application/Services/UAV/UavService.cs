@@ -4,6 +4,7 @@ using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.UAVs;
 using DroneOps.Application.Interfaces.UAVs;
 using DroneOps.Application.Interfaces.Notifications;
+using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -16,17 +17,23 @@ public sealed class UavService : IUavService
     private readonly IPilotRepository _pilotRepository;
     private readonly INotificationService _notificationService;
     private readonly ILogger<UavService> _logger;
+    private readonly IUserMediaStorage _storage;
+    private readonly IUavImageModerationService _imageModeration;
 
     public UavService(
         IUavRepository uavRepository,
         IPilotRepository pilotRepository,
         INotificationService notificationService,
-        ILogger<UavService> logger)
+        ILogger<UavService> logger,
+        IUserMediaStorage storage,
+        IUavImageModerationService imageModeration)
     {
         _uavRepository = uavRepository;
         _pilotRepository = pilotRepository;
         _notificationService = notificationService;
         _logger = logger;
+        _storage = storage;
+        _imageModeration = imageModeration;
     }
 
     // 1. Tạo mới UAV: Trạng thái mặc định là "Pending" (chờ duyệt)
@@ -127,11 +134,17 @@ public sealed class UavService : IUavService
         bool canManageAll = false,
         CancellationToken cancellationToken = default)
     {
-        return await _uavRepository.DeleteOwnedAsync(
+        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
+        var deleted = await _uavRepository.DeleteOwnedAsync(
             uavId,
             userId,
             canManageAll,
             cancellationToken);
+        if (deleted && !string.IsNullOrWhiteSpace(uav?.ImageStoragePath))
+        {
+            await CleanupImageAsync(uav.ImageStoragePath);
+        }
+        return deleted;
     }
 
     // 5. Lấy danh sách UAV đang chờ duyệt ("Pending")
@@ -167,6 +180,94 @@ public sealed class UavService : IUavService
         }
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
+    }
+
+    public async Task<UavResponse> UploadOrReplaceUavImageAsync(
+        Guid uavId,
+        Guid actorUserId,
+        string actorRole,
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        long fileSize,
+        CancellationToken cancellationToken = default)
+    {
+        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken)
+            ?? throw new KeyNotFoundException("UAV not found.");
+        EnsureImagePermission(uav, actorUserId, actorRole);
+
+        var normalizedContentType = contentType.Trim().ToLowerInvariant();
+        var imageBytes = await _storage.ReadValidatedUavImageAsync(
+            fileStream, fileName, normalizedContentType, fileSize, cancellationToken);
+        if (!await _imageModeration.IsAllowedAsync(imageBytes, normalizedContentType, cancellationToken))
+        {
+            throw new ArgumentException(
+                "Invalid image content: The uploaded photo must be a valid UAV/Drone image and must not contain inappropriate content.");
+        }
+
+        var extension = normalizedContentType switch
+        {
+            "image/jpeg" => ".jpg",
+            "image/png" => ".png",
+            "image/webp" => ".webp",
+            _ => throw new ArgumentException("Unsupported UAV image type.")
+        };
+        var newPath = $"uavs/{uav.Id:N}/{Guid.NewGuid():N}{extension}";
+        await using (var uploadStream = new MemoryStream(imageBytes, writable: false))
+        {
+            await _storage.UploadAsync(newPath, uploadStream, normalizedContentType, cancellationToken);
+        }
+
+        var oldPath = uav.ImageStoragePath;
+        uav.ImageStoragePath = newPath;
+        uav.ImageContentType = normalizedContentType;
+        uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+        try
+        {
+            await _uavRepository.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            await CleanupImageAsync(newPath);
+            throw;
+        }
+
+        if (!string.IsNullOrWhiteSpace(oldPath) && !string.Equals(oldPath, newPath, StringComparison.Ordinal))
+        {
+            await CleanupImageAsync(oldPath);
+        }
+
+        return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
+    }
+
+    public async Task<(string Url, string ContentType)?> GetUavImageAsync(
+        Guid uavId,
+        CancellationToken cancellationToken = default)
+    {
+        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
+        if (uav is null || string.IsNullOrWhiteSpace(uav.ImageStoragePath)) return null;
+        return (await _storage.SignAsync(uav.ImageStoragePath, cancellationToken),
+            uav.ImageContentType ?? "application/octet-stream");
+    }
+
+    public async Task<bool> DeleteUavImageAsync(
+        Guid uavId,
+        Guid actorUserId,
+        string actorRole,
+        CancellationToken cancellationToken = default)
+    {
+        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
+        if (uav is null) return false;
+        EnsureImagePermission(uav, actorUserId, actorRole);
+        var oldPath = uav.ImageStoragePath;
+        if (string.IsNullOrWhiteSpace(oldPath)) return true;
+
+        uav.ImageStoragePath = null;
+        uav.ImageContentType = null;
+        uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+        await _uavRepository.SaveChangesAsync(cancellationToken);
+        await CleanupImageAsync(oldPath);
+        return true;
     }
 
     // 7. Từ chối duyệt UAV -> Chuyển trạng thái sang "Rejected"
@@ -337,6 +438,9 @@ public sealed class UavService : IUavService
             Name = uav.Name,
             Model = uav.Model,
             Status = uav.Status,
+            ImageUrl = string.IsNullOrWhiteSpace(uav.ImageStoragePath)
+                ? null
+                : $"/api/uavs/{uav.Id}/image?v={Uri.EscapeDataString(uav.ImageStoragePath)}",
             CreatedAt = uav.CreatedAt
         };
     }
@@ -347,6 +451,29 @@ public sealed class UavService : IUavService
         {
             throw new InvalidOperationException(
                 $"Cannot {action} UAV with status '{uav.Status}'. Only {expectedStatus} UAVs can be {action}d.");
+        }
+    }
+
+    private static void EnsureImagePermission(UAV uav, Guid actorUserId, string actorRole)
+    {
+        var normalizedRole = actorRole.Trim().ToLowerInvariant();
+        var isManager = normalizedRole is "operation_manager" or "operations_manager" or
+            "operationsmanager" or "admin" or "systemadmin";
+        if (!isManager && uav.Pilot.UserId != actorUserId)
+        {
+            throw new UnauthorizedAccessException("You may only manage the image of your own UAV.");
+        }
+    }
+
+    private async Task CleanupImageAsync(string path)
+    {
+        try
+        {
+            await _storage.DeleteAsync([path], CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Unable to remove replaced UAV image {ImagePath}.", path);
         }
     }
 
