@@ -57,10 +57,11 @@ public class UavController : ControllerBase
     /// <summary>Đăng ảnh lần đầu hoặc thay thế ảnh hiện tại của UAV.</summary>
     [HttpPost("{id:guid}/image")]
     [HttpPut("{id:guid}/image")]
+    [Consumes("multipart/form-data")]
     [RequestSizeLimit(6 * 1024 * 1024)]
     public async Task<IActionResult> UploadOrReplaceImage(
         Guid id,
-        [FromForm] IFormFile file,
+        IFormFile file,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actorUserId, out var actorRole))
