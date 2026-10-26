@@ -27,7 +27,12 @@ export default function MissionEvidencePanel({ id, requestId }: { id: string; re
     setBusy(false);
   }, [id, context]);
   useEffect(() => { const sequence = ++requests.current; let active = true; void Promise.allSettled([getMissionHistory(id), getMissionWeather(id, context || undefined)]).then(([events, forecast]) => { if (!active || sequence !== requests.current) return; setBusy(false); if (events.status === "fulfilled") setHistory(events.value); else setError("History unavailable. Retry to load history."); if (forecast.status === "fulfilled") setWeather(forecast.value); else { setWeather(null); setError("Forecast unavailable. You may still review the mission manually."); } }); return () => { active = false; }; }, [id, context]);
-  const weatherGroups = weather ? groupWeatherWaypoints(weather.waypoints) : [];
+  const weatherGroups = weather ? groupWeatherWaypoints(weather.waypoints.map(point => ({
+    ...point,
+    arrivalTimeReason: point.estimatedArrivalTime
+      ? point.arrivalTimeReason
+      : "Forecast based on the scheduled mission flight window.",
+  }))) : [];
   return <section className={styles.panel} aria-busy={busy}>
     <header className={styles.heading}><div><span className={styles.kicker}>SUPPORTING EVIDENCE</span><h2>Weather &amp; review history</h2><p>Check forecast conditions and previous review decisions.</p></div><button type="button" disabled={busy} onClick={() => void load(true)}>{busy ? "Refreshing…" : "Refresh forecast and history"}</button></header><div className={styles.body}>
     <label className={styles.context}><span>FORECAST FOR</span><select value={context} onChange={event => { setContext(event.target.value); setWeather(null); setError(""); setBusy(true); }}><option value="">Current mission</option>{requestId && !history.some(request => request.id === requestId) && <option value={requestId}>Selected proposal</option>}{history.map(request => <option key={request.id} value={request.id}>{request.status} request · {formatWeatherTime(request.createdAt)}</option>)}</select></label>

@@ -6,10 +6,11 @@ import type { Account } from "@/lib/auth/types";
 import { getAssignedUavs, getFlightHistory, getGeofences, getOperationalAnalytics } from "@/lib/portal/client";
 import type { AssignedUav, FlightHistoryItem, Geofence, OperationalAnalytics } from "@/lib/portal/types";
 import DashboardMap from "./dashboard-map";
+import DashboardRouteWeather from "./dashboard-route-weather";
 import { ModuleError, ModuleLoading } from "./module-state";
 import PortalShell from "./portal-shell";
 
-type Feed = "live" | "gcs" | "simulation";
+const EMPTY_MISSIONS: FlightHistoryItem[] = [];
 
 const isActive = (status: string) => status.toLowerCase().replaceAll(" ", "") === "inprogress";
 const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
@@ -22,7 +23,6 @@ export default function OperationalDashboard({ account }: { account: Account }) 
   const [zones, setZones] = useState<Geofence[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<unknown>(null);
-  const [feed, setFeed] = useState<Feed>("live");
   const [query, setQuery] = useState("");
   const [mapCursor, setMapCursor] = useState<{ latitude: number; longitude: number } | null>(null);
 
@@ -52,10 +52,15 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  const activeMissions = useMemo(() => missions?.filter(item => isActive(item.status)) ?? [], [missions]);
+  const missionItems = missions ?? EMPTY_MISSIONS;
+  const activeMissions = useMemo(() => missionItems.filter(item => isActive(item.status)), [missionItems]);
+  const weatherMissions = useMemo(() => {
+    const activeIds = new Set(activeMissions.map(item => item.missionId));
+    return [...activeMissions, ...missionItems.filter(item => !activeIds.has(item.missionId))].slice(0, 5);
+  }, [activeMissions, missionItems]);
   const filteredActive = useMemo(() => activeMissions.filter(item =>
     `${item.missionName} ${item.missionId} ${item.uavCode} ${item.pilotName}`.toLowerCase().includes(query.toLowerCase())), [activeMissions, query]);
-  const incidentMissions = useMemo(() => missions?.filter(item => item.totalIncidents > 0).slice(0, 2) ?? [], [missions]);
+  const incidentMissions = useMemo(() => missionItems.filter(item => item.totalIncidents > 0).slice(0, 2), [missionItems]);
 
   if (error) return <PortalShell account={account} dashboard><ModuleError error={error} retry={() => void load()} /></PortalShell>;
   if (!analytics || !missions) return <PortalShell account={account} dashboard><ModuleLoading label="Loading operational dashboard" /></PortalShell>;
@@ -70,19 +75,16 @@ export default function OperationalDashboard({ account }: { account: Account }) 
       <span className="dash-icon">{hasIncidents ? "!" : "✓"}</span>
       <div>{hasIncidents ? "CRITICAL ADVISORY" : "AIRSPACE STATUS"}<br />BACKEND RECORDS</div>
       <p>{hasIncidents ? `${analytics.totalIncidentsRecorded} incident${analytics.totalIncidentsRecorded === 1 ? "" : "s"} recorded across mission history.` : "No recorded incidents require immediate attention."}</p>
-      <Link className="preset-button" href="/portal/flight-history">VIEW RECORDS</Link>
-      {hasIncidents && <Link className="new-mission danger-button" href="/portal/flight-history">OPEN INCIDENTS</Link>}
+      <div className="critical-banner-actions">
+        <Link className="preset-button" href="/portal/flight-history">VIEW RECORDS</Link>
+        {hasIncidents && <Link className="new-mission danger-button" href="/portal/flight-history">OPEN INCIDENTS</Link>}
+      </div>
     </section>
 
     {warnings.length > 0 && <section className="dashboard-service-warning" role="status"><b>PARTIAL BACKEND ACCESS</b>{warnings.map(message => <p key={message}>{message}</p>)}</section>}
 
     <section className="dashboard-heading">
-      <div><p>◎ SECTOR SGN-04 TECH PARK OPERATIONAL THEATER</p><h1>Mission &amp; Fleet Operations Hub</h1></div>
-      <div className="feed-tabs" aria-label="Dashboard data mode">
-        <button className={feed === "live" ? "active" : ""} onClick={() => setFeed("live")}>LIVE FEED</button>
-        <button className={feed === "gcs" ? "active" : ""} onClick={() => setFeed("gcs")}>GCS SYNC</button>
-        <button className={feed === "simulation" ? "active" : ""} onClick={() => setFeed("simulation")}>SIMULATION</button>
-      </div>
+      <div><h1>Mission &amp; Fleet Operations Hub</h1></div>
       <Link className="preset-button" href="/portal/geofences">⌁ SECTOR PRESETS</Link>
       <Link className="new-mission" href={manager ? "/portal/uav-management" : "/portal/missions/new"}>{manager ? "REVIEW UAV QUEUE" : "+ NEW MISSION DISPATCH"}</Link>
     </section>
@@ -97,19 +99,19 @@ export default function OperationalDashboard({ account }: { account: Account }) 
 
     <div className="operations-grid">
       <section className="map-panel">
-        <header><b>◎ TAC-CANVAS // OPERATIONAL AIRSPACE</b><em>{mapCursor ? `${Math.abs(mapCursor.latitude).toFixed(5)}°${mapCursor.latitude >= 0 ? "N" : "S"}, ${Math.abs(mapCursor.longitude).toFixed(5)}°${mapCursor.longitude >= 0 ? "E" : "W"}` : "MOVE CURSOR OVER MAP"}</em><span>BACKEND GEOFENCES</span></header>
+        <header><b>◎ TAC-CANVAS // OPERATIONAL AIRSPACE</b><em>{mapCursor ? `${Math.abs(mapCursor.latitude).toFixed(5)}°${mapCursor.latitude >= 0 ? "N" : "S"}, ${Math.abs(mapCursor.longitude).toFixed(5)}°${mapCursor.longitude >= 0 ? "E" : "W"}` : "MOVE CURSOR OVER MAP"}</em></header>
         <DashboardMap geofences={zones} onCursorCoordinate={setMapCursor} />
-        <footer><span>Airspace layer: <b>DroneOps Geofences API</b> · {zones.length} zones</span><span><Link href="/portal/geofences">OPEN AIRSPACE REGISTRY</Link> · <Link href="/portal/flight-history">FLIGHT HISTORY →</Link></span></footer>
+        <footer><span>Airspace layer: <b>DroneOps Geofences API</b></span><span><Link href="/portal/geofences">OPEN AIRSPACE REGISTRY</Link> · <Link href="/portal/flight-history">FLIGHT HISTORY →</Link></span></footer>
       </section>
 
       <aside className="insight-column">
         <section className="ai-panel">
-          <header><span className="dash-icon">◎</span><div><h2>AI Decision Engine</h2><span>GEMINI ASSESSMENT SERVICE</span></div><b>AI</b></header>
-          <article><h3>{latestMission ? latestMission.missionName : "NO MISSION CONTEXT"}<small>{latestMission?.status ?? "IDLE"}</small></h3><p>{latestMission ? `Latest backend mission record for ${latestMission.uavCode || "an unassigned UAV"}.` : "Create a mission before requesting an assessment."}</p><div><span>{latestMission ? `${latestMission.totalIncidents} recorded incidents` : "No mission selected"}</span><Link className="module-link" href="/portal/ai-assessment">OPEN ASSESSMENT →</Link></div></article>
+          <header><span className="dash-icon" aria-hidden="true">◎</span><div><h2>AI Decision Engine</h2></div><b>AI</b></header>
+          <article><div className="insight-mission-heading"><h3>{latestMission ? latestMission.missionName : "No mission context"}</h3><span className="insight-mission-status" data-status={latestMission?.status.toLowerCase().replaceAll(" ", "") ?? "idle"}>{latestMission?.status ?? "Idle"}</span></div><p>{latestMission ? `Latest mission record for ${latestMission.uavCode || "an unassigned UAV"}.` : "Create a mission before requesting an assessment."}</p><div className="insight-mission-actions"><span>{latestMission ? `${latestMission.totalIncidents} recorded incidents` : "No mission selected"}</span><Link className="module-link" href="/portal/ai-assessment">Open assessment</Link></div></article>
         </section>
         <section className="incident-panel">
-          <header><div><h2>Critical Incidents &amp; Approvals</h2><span>RECORDED MISSION EVENTS</span></div><Link href="/portal/flight-history">VIEW ALL</Link></header>
-          {incidentMissions.length ? incidentMissions.map(item => <article key={item.missionId}><time>{formatDate(item.startTime)}</time><b className="warn">{item.totalIncidents} INCIDENT{item.totalIncidents === 1 ? "" : "S"}</b><h3>{item.missionName}</h3><p>{item.uavCode || "Unassigned UAV"} · {item.status}</p></article>) : <article><b className="ok">NO CRITICAL RECORDS</b><h3>Operational history is clear</h3><p>The Flight History API returned no mission incidents.</p></article>}
+          <header><div><h2>Critical Incidents &amp; Approvals</h2></div><Link href="/portal/flight-history">View all</Link></header>
+          {incidentMissions.length ? incidentMissions.map(item => <article key={item.missionId}><div className="insight-event-meta"><b className="warn">{item.totalIncidents} incident{item.totalIncidents === 1 ? "" : "s"}</b><time>{formatDate(item.startTime)}</time></div><h3>{item.missionName}</h3><div className="insight-event-footer"><span>{item.uavCode || "Unassigned UAV"}</span><span className="insight-mission-status" data-status={item.status.toLowerCase().replaceAll(" ", "")}>{item.status}</span></div></article>) : <article><b className="ok">No critical records</b><h3>Operational history is clear</h3><p>The Flight History API returned no mission incidents.</p></article>}
         </section>
       </aside>
     </div>
@@ -123,8 +125,8 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     </section>
 
     <section className="bottom-grid">
-      <article><header><b>MISSION ROUTE WEATHER</b><span>API PENDING</span></header><div className="dashboard-panel-empty"><span>◌</span><strong>WAYPOINT WEATHER UNAVAILABLE</strong><p>The backend should resolve forecast conditions for each mission waypoint and scheduled flight time.</p></div><footer><span>Awaiting mission weather API</span></footer></article>
-      <article><header><b>{manager ? "GCS CREW ASSIGNMENTS" : "MY UAV ASSIGNMENT"}</b><span>{manager ? "API PENDING" : "BACKEND"}</span></header>{manager ? <div className="dashboard-panel-empty"><span>◎</span><strong>CREW ROSTER UNAVAILABLE</strong><p>The backend does not expose live crew assignments.</p></div> : <ul>{aircraft.length ? aircraft.slice(0, 3).map(item => <li key={item.id}><i /><span>{item.code} · {item.name}</span><b>{item.status}</b></li>) : <li><i className="alert-dot" /><span>No UAV assigned</span><b>—</b></li>}</ul>}<footer><span>{manager ? "Awaiting crew API" : `${aircraft.length} assigned aircraft`}</span></footer></article>
+      <DashboardRouteWeather key={weatherMissions.map(mission => mission.missionId).join(",")} missions={weatherMissions} />
+      <article><header><b>{manager ? "GCS CREW ASSIGNMENTS" : "MY UAV ASSIGNMENT"}</b>{manager && <span>API PENDING</span>}</header>{manager ? <div className="dashboard-panel-empty"><span>◎</span><strong>CREW ROSTER UNAVAILABLE</strong><p>The backend does not expose live crew assignments.</p></div> : <ul>{aircraft.length ? aircraft.slice(0, 3).map(item => <li key={item.id}><i /><span>{item.code} · {item.name}</span><b>{item.status}</b></li>) : <li><i className="alert-dot" /><span>No UAV assigned</span><b>—</b></li>}</ul>}<footer><span>{manager ? "Awaiting crew API" : `${aircraft.length} assigned aircraft`}</span></footer></article>
     </section>
   </PortalShell>;
 }
