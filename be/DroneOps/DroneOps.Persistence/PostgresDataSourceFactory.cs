@@ -14,6 +14,23 @@ public static class PostgresDataSourceFactory
         // and credentials and keeps application authentication requests reliable.
         if (settings.Port == 6543) settings.Port = 5432;
 
+        // Local configs may point at the original developer's machine. Resolve
+        // relative CA paths from the repository root when that path is absent.
+        if (!string.IsNullOrWhiteSpace(settings.RootCertificate) && !File.Exists(settings.RootCertificate))
+        {
+            var fileName = Path.GetFileName(settings.RootCertificate);
+            for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+                 directory is not null;
+                 directory = directory.Parent)
+            {
+                var repositoryCertificate = Path.Combine(
+                    directory.FullName, "database", "certificates", fileName);
+                if (!File.Exists(repositoryCertificate)) continue;
+                settings.RootCertificate = repositoryCertificate;
+                break;
+            }
+        }
+
         // Keep automatic prepared statements disabled so either pooler mode is safe.
         settings.MaxAutoPrepare = 0;
         settings.IncludeErrorDetail = false;
