@@ -1,3 +1,6 @@
+/* Hallmark · shape: operational sidebar · genre: modern-minimal · theme: night operations · depth: polish
+ * tokens: inherited navy, cyan and semantic status colors · type: inherited Segoe UI · v2.0.0 */
+/* Hallmark critique: preserve mission data and links; anchor statuses to mission titles; use readable metadata. */
 /* Shared portal refinements: keep the operational navy and cyan palette. */
 .ops-shell {
   --panel: var(--color-paper-2);
@@ -37,6 +40,36 @@
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+/* Hallmark polish: readable operational summaries and statuses anchored to their mission. */
+.insight-column { min-width: 0; gap: 12px; }
+.insight-column :is(.ai-panel,.incident-panel) > header { min-width: 0; gap: 12px; padding: 16px; align-items: center; }
+.insight-column :is(.ai-panel,.incident-panel) > header > div { min-width: 0; flex: 1; }
+.insight-column :is(.ai-panel,.incident-panel) h2 { margin: 0; font: 650 15px/1.4 var(--font-body); color: var(--color-ink); overflow-wrap: break-word; }
+.insight-column :is(.ai-panel,.incident-panel) > header div > span { display: block; margin-top: 3px; font: 12px/1.5 var(--font-body); color: var(--color-muted); letter-spacing: 0; }
+.insight-column .ai-panel header > .dash-icon { flex: 0 0 34px; height: 34px; margin: 0; color: var(--color-purple); background: color-mix(in srgb,var(--color-purple) 14%,var(--color-paper-2)); font-size: 18px; }
+.insight-column .ai-panel header > b { padding: 4px 7px; border-radius: 4px; color: var(--color-purple); background: color-mix(in srgb,var(--color-purple) 12%,var(--color-paper-2)); font: 600 11px/1.3 var(--font-body); }
+.insight-column :is(.ai-panel,.incident-panel) > article { padding: 16px; }
+.insight-column :is(.ai-panel,.incident-panel) > article:last-child { border-bottom: 0; }
+.insight-column :is(.ai-panel,.incident-panel) h3 { min-width: 0; margin: 0; color: var(--color-ink); font: 600 14px/1.5 var(--font-body); overflow-wrap: anywhere; }
+.insight-column :is(.ai-panel,.incident-panel) p { margin: 8px 0 14px; color: var(--color-muted); font: 13px/1.6 var(--font-body); }
+.insight-column .ai-panel article .insight-mission-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.insight-column .insight-mission-status { display: inline-flex; flex: 0 0 auto; align-items: center; padding: 4px 8px; border: 1px solid var(--color-rule); border-radius: 4px; background: var(--color-paper-3); color: var(--color-ink-2); font: 600 11px/1.3 var(--font-body); letter-spacing: 0; white-space: nowrap; }
+.insight-column .insight-mission-status:is([data-status="approved"],[data-status="completed"]) { color: var(--color-success); border-color: color-mix(in srgb,var(--color-success) 30%,var(--color-rule)); background: color-mix(in srgb,var(--color-success) 8%,var(--color-paper-2)); }
+.insight-column .insight-mission-status[data-status="inprogress"] { color: var(--color-accent); }
+.insight-column .insight-mission-status:is([data-status="rejected"],[data-status="failed"],[data-status="aborted"]) { color: var(--color-error); }
+.insight-column .insight-mission-status:is([data-status="pending"],[data-status="pendingreview"],[data-status="submitted"]) { color: var(--color-warning); }
+.insight-column .ai-panel article .insight-mission-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-rule); font: 12px/1.5 var(--font-body); color: var(--color-muted); }
+.insight-column :is(.ai-panel,.incident-panel) a { font: 600 12px/1.4 var(--font-body); letter-spacing: 0; color: var(--color-focus); }
+.insight-column .incident-panel header > a { padding-left: 0; flex-shrink: 0; }
+.insight-column .incident-panel article .insight-event-meta { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 10px; font: 12px/1.5 var(--font-body); }
+.insight-column .insight-event-meta .warn { color: var(--color-error); font-weight: 600; }
+.insight-column .incident-panel article time { float: none; color: var(--color-muted); font: 11px/1.5 var(--font-data); }
+.insight-column .incident-panel article .insight-event-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--color-muted); font: 12px/1.5 var(--font-body); }
+.dashboard-map-shell { isolation: isolate; }
+.dashboard-map-shell .dashboard-locate-button { position: absolute; z-index: 500; top: 12px; right: 12px; min-height: 36px; padding: 8px 12px; border: 1px solid var(--color-accent); border-radius: 5px; background: var(--color-paper-2); color: var(--color-focus); font: 600 12px/1.4 var(--font-body); cursor: pointer; }
+.dashboard-map-shell .dashboard-locate-button:hover:not(:disabled) { background: var(--color-paper-3); }
+.dashboard-map-shell .dashboard-locate-button:disabled { opacity: .65; cursor: wait; }
+.dashboard-map-shell .dashboard-location-error { position: absolute; z-index: 500; top: 58px; right: 12px; left: 12px; width: fit-content; max-width: calc(100% - 24px); margin-left: auto; padding: 10px 12px; border: 1px solid var(--color-error); border-radius: 5px; background: var(--color-paper-2); color: var(--color-error); font: 12px/1.5 var(--font-body); }
 .dashboard-route-weather { min-width: 0; }
 .dashboard-mission-weather-list { display: grid; gap: 8px; margin: 8px 0; padding: 0; list-style: none; }
 .dashboard-mission-weather-list > li { min-width: 0; padding: 9px 11px; background: var(--color-paper-2); border: 1px solid var(--color-rule); border-radius: 5px; }
