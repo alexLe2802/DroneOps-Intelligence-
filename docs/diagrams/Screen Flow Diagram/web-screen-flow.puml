@@ -1,0 +1,154 @@
+@startuml
+title DroneOps — Web Screen Flow
+
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam linetype ortho
+skinparam nodesep 67
+skinparam ranksep 85
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam ArrowColor #6B778C
+skinparam ArrowThickness 1.2
+skinparam packageStyle rectangle
+skinparam packageTitleAlignment left
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #A5ADBA
+  FontColor #172B4D
+}
+skinparam rectangle<<anchor>> {
+  BackgroundColor transparent
+  BorderColor transparent
+  FontColor transparent
+}
+hide stereotype
+
+legend top right
+  |= Line |= Meaning |
+  | → | Workflow |
+  | Navigation card | Sidebar / direct navigation |
+  | Purple | Shared screen |
+endlegend
+
+package "01  ENTRY & AUTHENTICATION" #FAF9FF {
+  rectangle "**Landing Page**\n/" as Landing #FFFFFF
+  rectangle "**Sign In**\n/login" as Login #FFFFFF
+  rectangle "**Pilot Registration**\nmodal on /login" as Registration #FFFFFF
+  rectangle "**First-time Activation**\n/login/first-time" as Activation #FFFFFF
+  rectangle "**Operational Dashboard**\n/portal" as Dashboard #EAE6FF
+
+
+  Landing --> Login : Sign in
+  Login ---> Registration : Request
+  Login ----> Activation : First Login
+  Login --> Dashboard : Authenticated
+  Activation --> Dashboard : Activate
+}
+
+package "02  SHARED PORTAL" #F4F5F7 {
+  rectangle "**Session Role**\n<<role decision>>" as Role #FFF0B3
+  rectangle "**operation_manager**" as ManagerRole #DEEBFF
+  rectangle "**uav_operator**" as OperatorRole #ABF5D1
+  rectangle " " as ProfileSpacer <<anchor>>
+  rectangle "**Profile & Account**\n/portal/profile" as Profile #EAE6FF
+  rectangle "**Notification Center**\ncontextual deep links" as Notifications #EAE6FF
+  Dashboard --> Role
+  Role -right-> ManagerRole
+  Role -down-> OperatorRole
+  Dashboard -[hidden]right- ProfileSpacer
+  ProfileSpacer -[hidden]right-> Profile
+  Dashboard --> Profile : <color:transparent>offset</color>\nAccount menu
+  Dashboard .down.> Notifications : &#160;\n&#160;&#160;&#160;&#160;&#160;&#160;Bell
+}
+
+package "03A  OPERATIONS MANAGER" #F7FAFF {
+  rectangle "**Manager Sidebar**" as ManagerNav #DEEBFF
+  note right of ManagerNav #DEEBFF
+    Direct navigation to every
+    manager screen in this lane
+  end note
+
+  together {
+    rectangle "**Operators**\n/portal/operators" as Operators
+    rectangle "**UAV Management**\n/portal/uav-management" as UavReview
+    rectangle "**Fleet & Restrictions**\n/portal/geofences" as Geofences
+  }
+
+  together {
+    rectangle "**Mission Planning**\n/portal/mission-planning" as Planning
+    rectangle "**Validation & Approvals**\n/portal/mission-approvals" as Approvals
+    rectangle "**Mission Details**\n/portal/missions/[id]" as ManagerMission
+  }
+
+  together {
+    rectangle "**Live Monitoring**\n/portal/live-monitoring" as ManagerLive
+    rectangle "**Incident Management**\n/portal/incidents" as ManagerIncidents
+    rectangle "**Incident Details**\n/portal/incidents/[id]" as ManagerIncident
+  }
+
+  rectangle "**Flight History**\n/portal/flight-history" as ManagerHistory
+  rectangle "**Post-flight Report**\n/portal/flight-history/[missionId]" as ManagerReport
+  rectangle "**AI Risk Assessment**\n/portal/ai-assessment" as ManagerAI
+  
+  ManagerHistory -[hidden]down-> ManagerNav
+  Operators -[hidden]right-> UavReview
+  UavReview -[hidden]right-> Geofences
+
+  Planning --> Approvals : Review
+  Approvals --> ManagerMission : Open
+  ManagerLive --> ManagerIncidents : Alert
+  ManagerIncidents ---> ManagerIncident : Incident Link
+  ManagerHistory ---> ManagerReport : View report
+  ManagerReport ----> ManagerIncident : Incident Link
+}
+
+package "03B  UAV OPERATOR" #F7FCF9 {
+  rectangle "**Operator Sidebar**" as OperatorNav #ABF5D1
+  note right of OperatorNav #ABF5D1
+    Direct navigation to every
+    operator screen in this lane
+  end note
+
+  together {
+    rectangle "**Assigned UAV**\n/portal/uav" as MyUav
+    rectangle "**UAV Add / Detail / Edit**\nnew · [id] · [id]/edit" as UavCrud
+    rectangle "**Connect Drone**\n/portal/drone-connection" as Connect
+  }
+
+  together {
+    rectangle "**My Missions**\n/portal/missions" as Missions
+    rectangle "**New / Detail / Edit Mission**\nnew · [id] · [id]/edit" as MissionCrud
+    rectangle "**Validation Results**\n/portal/validation-results" as Validation
+  }
+
+  together {
+    rectangle "**Live Monitoring**\n/portal/live-monitoring" as OperatorLive
+    rectangle "**My Incidents → Details**\n/portal/incidents · [id]" as OperatorIncidents
+    rectangle "**Flight History → Report**\n/flight-history · [missionId]" as OperatorHistory
+  }
+
+  rectangle "**AI Risk Assessment**\n/portal/ai-assessment" as OperatorAI
+
+  OperatorNav -[hidden]right-> MyUav
+
+  MyUav --> UavCrud : Manage
+  UavCrud -[hidden]right-> Connect
+  UavCrud -right-> Connect : Pair
+  Connect ---> OperatorLive : Monitor
+  Missions ----> MissionCrud : Open / Edit
+  MissionCrud ---> Validation : Validate
+  MissionCrud ---> OperatorAI : Assess
+  OperatorLive ---> OperatorIncidents : Alerts
+  OperatorLive ---> OperatorHistory : Completed
+}
+
+rectangle " " as OperatorEntry <<anchor>>
+ManagerRole -down-> ManagerNav
+OperatorRole -[hidden]right- OperatorEntry
+OperatorEntry -[hidden]up- OperatorNav
+OperatorRole --> OperatorNav
+
+@enduml
