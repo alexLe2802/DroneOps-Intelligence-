@@ -4,6 +4,56 @@
 @media(max-width:760px){.reportHeading{align-items:flex-start;flex-direction:column}.reportHeadingActions{width:100%;align-items:stretch;flex-direction:column}.reportMetrics{grid-template-columns:1fr 1fr}.reportAside{grid-template-columns:1fr}.summaryPanel dl{grid-template-columns:1fr}.flightMap{height:340px}}
 @media(max-width:650px){.heading{align-items:flex-start;flex-direction:column}.heading>button{width:100%}.heading h1,.reportHeading h1{font-size:25px}.metrics,.filters>div,.reportMetrics{grid-template-columns:1fr}.search{grid-column:auto}.record>header,.records>header,.records>footer{align-items:flex-start;flex-direction:column}.recordIdentity dl{grid-template-columns:1fr 1fr}.reportState a,.reportState button{width:100%}.mapPanel>header{align-items:flex-start;flex-direction:column}.flightMap{height:300px}}
 
+/* Clear, actionable missing-route state over third-party basemap tiles. */
+.flightMapEmpty {
+  padding: 60px 24px 24px;
+  background: #07111bd9;
+}
+
+.flightMapEmpty > div {
+  display: grid;
+  justify-items: center;
+  width: min(560px, 100%);
+  padding: 22px 26px;
+  border: 1px solid #765f2d;
+  border-radius: 5px;
+  background: #211d17f2;
+  box-shadow: 0 16px 45px #0007;
+}
+
+.flightMapEmpty .flightMapEmptyIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin: 0 0 12px;
+  border: 1px solid #a7833d;
+  border-radius: 50%;
+  background: #3b301c;
+  color: #ffd67d;
+  font: 700 18px Consolas, monospace;
+}
+
+.flightMapEmpty b {
+  color: #ffe1a0;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.flightMapEmpty p {
+  margin: 9px 0 0;
+  color: #edf2f6;
+  line-height: 1.5;
+}
+
+.flightMapEmpty small {
+  display: block;
+  margin-top: 9px;
+  color: #bdc7d1;
+  line-height: 1.5;
+}
+
 /* SCR-13 archive presentation */
 .archive {
   gap: 18px;
