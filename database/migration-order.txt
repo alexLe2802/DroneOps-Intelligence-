@@ -1,0 +1,17 @@
+# Explicit production migration order. Apply manually after backup and approval.
+001_auth.sql
+002_ai_assessments.sql
+003_canonical_roles.sql
+004_first_login.sql
+005_nullable_live_telemetry.sql
+005_user_media.sql
+006_post_flight_integrity.sql
+007_post_flight_lifecycle.sql
+008_realtime_incident_lifecycle.sql
+009_notifications.sql
+20261020170309_mission_validation.sql
+20261020173401_mission_requests_weather_restrictions.sql
+20261021112520_drone_gateway_sessions.sql
+20261021115253_drone_hardware_identity.sql
+20261023000100_license_word_documents.sql
+20261026000100_uav_images.sql
