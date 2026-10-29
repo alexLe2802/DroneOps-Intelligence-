@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import Link from "next/link";
 import type { Account } from "@/lib/auth/types";
 import { getIncident, getIncidents } from "@/lib/portal/client";
+import { incidentDescription } from "@/lib/portal/incident-display";
 import type { IncidentDetail, IncidentItem, PagedIncidents } from "@/lib/portal/types";
 import IncidentMap from "./incident-map";
 import styles from "./incident-management.module.css";
@@ -191,7 +192,6 @@ export default function IncidentManagementClient({ account }: { account: Account
   return <div className={styles.registry}>
     <header className={styles.heading}>
       <div>
-        <span className={styles.eyebrow}>BR-09 TELEMETRY WATCHDOG / SCR-11 / UC-15</span>
         <h1>Tactical Incidents &amp; Operational Anomaly Log</h1>
         <p>Real-time anomaly detection, spatial evidence, and operational incident handling.</p>
       </div>
@@ -311,7 +311,7 @@ function IncidentRow({ item, selected, onSelect }: { item: IncidentItem; selecte
   return <article className={`${styles.incidentRow} ${selected ? styles.selected : ""}`} role="button" tabIndex={0} aria-pressed={selected} onClick={onSelect} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(); } }}>
     <div className={styles.incidentIdentity}><span className={`${styles.severityLine} ${styles[`severity${severityKey}`] ?? ""}`} /><div><small>{item.id.slice(0, 8).toUpperCase()}</small><h3>{item.title}</h3><b className={styles[`severity${severityKey}`]}>{item.severity.toUpperCase()}</b></div></div>
     <div className={styles.assetCell}><strong>{item.uavCode ?? "UNASSIGNED"}</strong><span>{item.uavName ?? "UAV name unavailable"}</span><small>MISSION: {item.missionName || item.missionId.slice(0, 8)}</small></div>
-    <div className={styles.triggerCell}><b>{displayLabel(item.type)}</b><span>{item.description ?? "No description supplied"}</span><small>{item.latitude !== null && item.longitude !== null ? `${item.latitude.toFixed(4)}, ${item.longitude.toFixed(4)}` : "POSITION UNAVAILABLE"}</small></div>
+    <div className={styles.triggerCell}><b>{displayLabel(item.type)}</b><span>{incidentDescription(item.description) || "No description supplied"}</span><small>{item.latitude !== null && item.longitude !== null ? `${item.latitude.toFixed(4)}, ${item.longitude.toFixed(4)}` : "POSITION UNAVAILABLE"}</small></div>
     <div className={styles.timeCell}><strong>{formatDate(item.createdAt)}</strong><span>{relativeAge(item.createdAt)}</span></div>
     <div className={styles.statusCell}><StatusBadge value={item.status} /><small>{item.resolvedAt ? `CLOSED ${formatDate(item.resolvedAt, false)}` : item.acknowledgedAt ? `ACK ${formatDate(item.acknowledgedAt, false)}` : "UNACKNOWLEDGED"}</small></div>
     <div className={styles.rowAction}><Link href={`/portal/incidents/${item.id}`} onClick={event => event.stopPropagation()}>VIEW DETAILS</Link></div>

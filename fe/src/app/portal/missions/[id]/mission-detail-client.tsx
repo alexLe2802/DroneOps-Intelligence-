@@ -7,6 +7,7 @@ import { cancelMission, getGeofences, getMission, startMission, validateMission 
 import type { Geofence, MissionDetail, MissionValidationResult } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
+import dialogStyles from "./mission-dialog.module.css";
 
 import MissionPlanComparison from "../mission-plan-comparison";
 import MissionEvidencePanel from "../mission-evidence-panel";
@@ -144,6 +145,13 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
   if (!mission) return <ModuleLoading label="Loading mission details" />;
   const isManager = role === "operation_manager";
   const currentStatus = statusKey(mission.status);
+  const readinessValidation = [validation, mission.latestValidation, mission.preflightValidation, mission.pendingUpdate?.validation]
+    .filter((result): result is MissionValidationResult => result != null)
+    .sort((a, b) => new Date(b.checkedAt ?? 0).getTime() - new Date(a.checkedAt ?? 0).getTime())[0];
+  const readinessStatus = readinessValidation?.status ?? mission.flightReadiness ?? "AwaitingPreflight";
+  const readinessHref = readinessValidation?.id
+    ? `/portal/validation-results?missionId=${encodeURIComponent(id)}&runId=${encodeURIComponent(readinessValidation.id)}`
+    : `/portal/validation-results?missionId=${encodeURIComponent(id)}`;
   const canEdit = !isManager && ["draft", "rejected", "pending", "pendingreview", "submitted", "approved"].includes(currentStatus);
   const canValidate = !["completed", "cancelled", "inprogress"].includes(currentStatus);
   const canCancel = !["inprogress", "completed", "cancelled"].includes(currentStatus);
@@ -165,19 +173,13 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
     {notice && <div className="mission-action-feedback success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")}>DISMISS</button></div>}
 
     <section className="mission-action-feedback" aria-label="Persisted mission validation">
-      <div><b>FLIGHT READINESS: {mission.flightReadiness ?? "AwaitingPreflight"}</b>
-      <p>Mandatory checks run when saving, approving, and within 15 minutes before departure. Weather is advisory.</p>
-      {mission.preflightValidation?.issues?.map((issue, index) => <p role="alert" key={`preflight-${index}`}>{issue}</p>)}
-      {mission.preflightValidation?.warnings?.map((warning, index) => <p role="status" key={`preflight-warning-${index}`}>{warning}</p>)}
-      {validation?.issues?.map((issue, index) => <p role="alert" key={`issue-${index}`}>{issue}</p>)}
-      {validation?.warnings?.map((warning, index) => <p role="status" key={`warning-${index}`}>{warning}</p>)}
-      {validation?.weather && <p><a href="https://open-meteo.com/" target="_blank" rel="noreferrer">{validation.weather.provider}</a> forecast: wind {validation.weather.maxWindMetersPerSecond ?? "unavailable"} m/s; gust {validation.weather.maxGustMetersPerSecond ?? "unavailable"} m/s; rain {validation.weather.maxRainMillimetersPerHour ?? "unavailable"} mm/h.</p>}
-      </div>
+      <b>Flight readiness: {readinessStatus === "Passed" ? "Pass" : formatStatus(readinessStatus)}</b>
+      <Link className="module-link" href={readinessHref}>View validation result</Link>
     </section>
 
     {mission.pendingUpdate && <>
       <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
-      <MissionPlanComparison current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
+      <MissionPlanComparison isInitial={mission.pendingUpdate.isInitial} current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
     </>}
     <MissionEvidencePanel key={id} id={id} />
     <section className="mission-command-panel" aria-label="Mission lifecycle actions">
@@ -234,11 +236,26 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
 
     {dialog && <div className="mission-dialog-backdrop" role="presentation">
       <section className="mission-dialog" role="dialog" aria-modal="true" aria-labelledby="mission-dialog-title">
-        <h2 id="mission-dialog-title">Cancel this mission?</h2>
-        <p>Cancellation preserves the record and does not issue an aircraft stop command.</p>
-        <label>Reason<textarea rows={4} maxLength={1000} value={cancelReason} onChange={event => setCancelReason(event.target.value)} /></label>
-        <button type="button" disabled={busy !== null} onClick={() => setDialog(null)}>BACK</button>
-        <button type="button" disabled={busy !== null || !cancelReason.trim()} onClick={() => void confirmCancel()}>CONFIRM CANCELLATION</button>
+        <header>
+          <div><p className="module-kicker">MISSION LIFECYCLE // CANCELLATION</p><h2 id="mission-dialog-title">Cancel this mission plan?</h2></div>
+          <button type="button" aria-label="Close cancellation dialog" disabled={busy !== null} onClick={() => setDialog(null)}>x</button>
+        </header>
+        <div className="mission-dialog-body">
+          <p>The mission remains in the audit history with status Cancelled. This action does not send a stop or return-to-home command to an aircraft.</p>
+          <dl>
+            <div><dt>Mission</dt><dd>{mission.name}</dd></div>
+            <div><dt>Current status</dt><dd>{formatStatus(mission.status)}</dd></div>
+          </dl>
+          <label>
+            <span className={dialogStyles.reasonHeading}>CANCELLATION REASON <b>REQUIRED</b></span>
+            <textarea autoFocus rows={4} maxLength={1000} value={cancelReason} placeholder="Describe why this mission plan is being cancelled..." onChange={event => setCancelReason(event.target.value)} />
+          </label>
+          <small className={dialogStyles.counter}>{cancelReason.length} / 1000</small>
+        </div>
+        <footer>
+          <button className={dialogStyles.back} type="button" disabled={busy !== null} onClick={() => setDialog(null)}>BACK</button>
+          <button className={dialogStyles.confirm} type="button" disabled={busy !== null || !cancelReason.trim()} onClick={() => void confirmCancel()}>{busy === "cancel" ? "CANCELLING..." : "CONFIRM CANCELLATION"}</button>
+        </footer>
       </section>
     </div>}
   </>;

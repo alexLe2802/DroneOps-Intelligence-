@@ -83,7 +83,7 @@ export default function FlightHistoryClient() {
     : 0;
   return <div className={styles.archive}>
     <header className={styles.heading}>
-      <div><p>FE-08 // UC-18 <i /> ARCHIVAL CERTIFICATION</p><h1>Flight History &amp; Reports</h1><span>Audit-ready repository of finalized missions, telemetry coverage, incidents, and post-flight reports.</span></div>
+      <div><p><i /> ARCHIVAL CERTIFICATION</p><h1>Flight History &amp; Reports</h1><span>Audit-ready repository of finalized missions, telemetry coverage, incidents, and post-flight reports.</span></div>
       <div className={styles.headingActions}><span><i /> BACKEND ARCHIVE ONLINE</span><button type="button" onClick={() => void load(false)} disabled={refreshing}>{refreshing ? "SYNCING ARCHIVE" : "REFRESH ARCHIVE"}</button></div>
     </header>
 

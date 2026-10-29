@@ -1,0 +1,118 @@
+/* Hallmark · shape: operational sidebar · genre: modern-minimal · theme: night operations · depth: polish
+ * tokens: inherited navy, cyan and semantic status colors · type: inherited Segoe UI · v2.0.0 */
+/* Hallmark critique: preserve mission data and links; anchor statuses to mission titles; use readable metadata. */
+/* Shared portal refinements: keep the operational navy and cyan palette. */
+.ops-shell {
+  --panel: var(--color-paper-2);
+  --line: var(--color-rule);
+  --ink: var(--color-ink);
+  --sub: var(--color-muted);
+  --aqua: var(--color-success);
+  --blue: var(--color-accent);
+  --red: var(--color-error);
+  min-height: 100vh;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.ops-sidebar,
+.ops-topbar {
+  background: var(--color-paper-2);
+  border-color: var(--color-rule);
+}
+
+.ops-sidebar { color: var(--color-ink-2); }
+.ops-sidebar nav a,
+.ops-sidebar nav button { color: var(--color-muted); }
+.ops-sidebar nav a:hover,
+.ops-sidebar nav button:hover,
+.ops-sidebar nav a.active { color: var(--color-ink); }
+.ops-content { color: var(--color-ink); }
+.ops-shell :where(input, select, textarea) {
+  color: var(--color-ink);
+  background-color: var(--field);
+  border-color: var(--color-rule);
+}
+.ops-shell :where(input, select, textarea)::placeholder { color: var(--color-muted); opacity: .82; }
+.ops-shell :where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.critical-banner { width: 100%; }
+.critical-banner > p { flex: 1 1 auto; min-width: 0; margin-block: 0; }
+.critical-banner > .critical-banner-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 8px; width: auto; margin-left: auto; }
+.critical-banner > .critical-banner-actions > a { flex: 0 0 auto; margin: 0; white-space: nowrap; }
+@media(max-width:760px) {
+  .critical-banner { flex-wrap: wrap; }
+  .critical-banner > p { flex-basis: calc(100% - 44px); }
+  .critical-banner > .critical-banner-actions { display: flex; flex-basis: 100%; justify-content: flex-end; }
+}
+/* Hallmark polish: readable operational summaries and statuses anchored to their mission. */
+.insight-column { min-width: 0; gap: 12px; }
+.insight-column :is(.ai-panel,.incident-panel) > header { min-width: 0; gap: 12px; padding: 16px; align-items: center; }
+.insight-column :is(.ai-panel,.incident-panel) > header > div { min-width: 0; flex: 1; }
+.insight-column :is(.ai-panel,.incident-panel) h2 { margin: 0; font: 650 15px/1.4 var(--font-body); color: var(--color-ink); overflow-wrap: break-word; }
+.insight-column :is(.ai-panel,.incident-panel) > header div > span { display: block; margin-top: 3px; font: 12px/1.5 var(--font-body); color: var(--color-muted); letter-spacing: 0; }
+.insight-column .ai-panel header > .dash-icon { flex: 0 0 34px; height: 34px; margin: 0; color: var(--color-purple); background: color-mix(in srgb,var(--color-purple) 14%,var(--color-paper-2)); font-size: 18px; }
+.insight-column .ai-panel header > b { padding: 4px 7px; border-radius: 4px; color: var(--color-purple); background: color-mix(in srgb,var(--color-purple) 12%,var(--color-paper-2)); font: 600 11px/1.3 var(--font-body); }
+.insight-column :is(.ai-panel,.incident-panel) > article { padding: 16px; }
+.insight-column :is(.ai-panel,.incident-panel) > article:last-child { border-bottom: 0; }
+.insight-column :is(.ai-panel,.incident-panel) h3 { min-width: 0; margin: 0; color: var(--color-ink); font: 600 14px/1.5 var(--font-body); overflow-wrap: anywhere; }
+.insight-column :is(.ai-panel,.incident-panel) p { margin: 8px 0 14px; color: var(--color-muted); font: 13px/1.6 var(--font-body); }
+.insight-column .ai-panel article .insight-mission-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.insight-column .insight-mission-status { display: inline-flex; flex: 0 0 auto; align-items: center; padding: 4px 8px; border: 1px solid var(--color-rule); border-radius: 4px; background: var(--color-paper-3); color: var(--color-ink-2); font: 600 11px/1.3 var(--font-body); letter-spacing: 0; white-space: nowrap; }
+.insight-column .insight-mission-status:is([data-status="approved"],[data-status="completed"]) { color: var(--color-success); border-color: color-mix(in srgb,var(--color-success) 30%,var(--color-rule)); background: color-mix(in srgb,var(--color-success) 8%,var(--color-paper-2)); }
+.insight-column .insight-mission-status[data-status="inprogress"] { color: var(--color-accent); }
+.insight-column .insight-mission-status:is([data-status="rejected"],[data-status="failed"],[data-status="aborted"]) { color: var(--color-error); }
+.insight-column .insight-mission-status:is([data-status="pending"],[data-status="pendingreview"],[data-status="submitted"]) { color: var(--color-warning); }
+.insight-column .ai-panel article .insight-mission-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-rule); font: 12px/1.5 var(--font-body); color: var(--color-muted); }
+.insight-column :is(.ai-panel,.incident-panel) a { font: 600 12px/1.4 var(--font-body); letter-spacing: 0; color: var(--color-focus); }
+.insight-column .incident-panel header > a { padding-left: 0; flex-shrink: 0; }
+.insight-column .incident-panel article .insight-event-meta { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 10px; font: 12px/1.5 var(--font-body); }
+.insight-column .insight-event-meta .warn { color: var(--color-error); font-weight: 600; }
+.insight-column .incident-panel article time { float: none; color: var(--color-muted); font: 11px/1.5 var(--font-data); }
+.insight-column .incident-panel article .insight-event-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--color-muted); font: 12px/1.5 var(--font-body); }
+.dashboard-map-shell { isolation: isolate; }
+.dashboard-map-toolbar { position: absolute; z-index: 800; bottom: 18px; left: 52px; display: flex; align-items: flex-end; max-width: calc(100% - 64px); pointer-events: none; }
+.dashboard-map-toolbar .dashboard-locate-button { pointer-events: auto; flex: 0 0 auto; min-height: 34px; padding: 8px 12px; border: 1px solid var(--color-accent); border-radius: 5px; background: var(--color-paper-2); color: var(--color-focus); font: 600 12px/1.4 var(--font-body); cursor: pointer; }
+.dashboard-map-toolbar .dashboard-locate-button:hover:not(:disabled) { background: var(--color-paper-3); }
+.dashboard-map-toolbar .dashboard-locate-button:disabled { opacity: .65; cursor: wait; }
+.dashboard-map-toolbar .dashboard-location-error { position: absolute; bottom: 44px; left: 0; width: min(300px, calc(100vw - 90px)); margin: 0; padding: 10px 12px; border: 1px solid var(--color-error); border-radius: 5px; background: var(--color-paper-2); color: var(--color-error); font: 12px/1.5 var(--font-body); pointer-events: auto; }
+.dashboard-route-weather { min-width: 0; }
+.dashboard-mission-weather-list { display: grid; gap: 8px; margin: 8px 0; padding: 0; list-style: none; }
+.dashboard-mission-weather-list > li { min-width: 0; padding: 9px 11px; background: var(--color-paper-2); border: 1px solid var(--color-rule); border-radius: 5px; }
+.dashboard-mission-weather-title { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: center; }
+.dashboard-mission-weather-title > a { min-width: 0; overflow: hidden; color: var(--color-focus); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-mission-weather-title > span { color: var(--color-muted); font-size: 10px; }
+.dashboard-mission-weather-title > b { grid-column: 2; grid-row: 1 / span 2; color: var(--color-success); font: 9px var(--font-data); }
+.dashboard-mission-weather-values { display: grid; grid-template-columns: minmax(130px,1.4fr) minmax(58px,.55fr) minmax(100px,1fr) minmax(100px,1fr) minmax(100px,1fr); align-items: center; gap: 8px 12px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-rule); color: var(--color-muted); font-size: 10px; }
+.dashboard-mission-weather-values > span:first-child { display: grid; gap: 3px; color: var(--color-ink-2); }
+.dashboard-mission-weather-values small { color: var(--color-muted); font-size: 9px; white-space: nowrap; }
+.dashboard-mission-weather-values > strong { color: var(--color-ink); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dashboard-mission-weather-values > span:nth-child(3) { color: var(--color-success); }
+.dashboard-mission-weather-values b { color: var(--color-ink-2); font-variant-numeric: tabular-nums; }
+.dashboard-mission-weather-empty { margin: 8px 0 0; color: var(--color-muted); font-size: 10px; line-height: 1.45; }
+@media(max-width:900px) {
+  .dashboard-mission-weather-values { grid-template-columns: minmax(110px,1fr) auto minmax(95px,1fr); gap: 7px 10px; }
+  .dashboard-mission-weather-values > span:nth-child(3) { grid-column: 1; }
+  .dashboard-mission-weather-values > span:nth-child(4) { grid-column: 2; }
+  .dashboard-mission-weather-values > span:nth-child(5) { grid-column: 3; }
+}
+.dashboard-route-weather footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dashboard-route-weather footer button { border: 1px solid var(--color-rule); border-radius: 4px; padding: 6px 9px; color: var(--color-focus); background: var(--color-paper-2); }
+.dashboard-route-weather footer button:hover:not(:disabled) { border-color: var(--color-accent); }
+.dashboard-route-weather footer button:disabled { cursor: not-allowed; opacity: .65; }
+.dashboard-route-weather footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dashboard-route-weather footer button { border: 1px solid var(--color-rule); border-radius: 4px; padding: 6px 9px; color: var(--color-focus); background: var(--color-paper-2); }
+.dashboard-route-weather footer button:hover:not(:disabled) { border-color: var(--color-accent); }
+.dashboard-route-weather footer button:disabled { cursor: not-allowed; opacity: .65; }
+@media (prefers-reduced-motion: reduce) {
+  .ops-shell *, .ops-shell *::before, .ops-shell *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

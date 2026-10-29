@@ -12,7 +12,7 @@ test("operator edit sends the update DTO and accepts a message-only response", a
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, `/api/uavs/${id}`);
     assert.equal(options.method, "PUT");
-    assert.deepEqual(JSON.parse(options.body), { uavCode: "UAV-02", uavName: "Survey", description: "Model B" });
+    assert.deepEqual(JSON.parse(options.body), { code: "UAV-02", name: "Survey", model: "Model B" });
     return Response.json({ message: "UAV updated successfully." });
   });
   try { assert.equal(await client.updateAssignedUav(id, { code: "UAV-02", name: "Survey", model: "Model B" }), undefined); assert.equal(mock.mock.calls.length, 1); }
@@ -47,10 +47,19 @@ test("manager deactivate uses the admin status endpoint", async () => {
   finally { mock.mock.restore(); }
 });
 
+test("manager approval uses the pending UAV approval endpoint", async () => {
+  const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(url, `/api/admin/uavs/${id}/approve`); assert.equal(options.method, "PUT");
+    return Response.json({ id, status: "Active" });
+  });
+  try { assert.equal((await client.setManagedUavStatus(id, "approve")).status, "Active"); }
+  finally { mock.mock.restore(); }
+});
+
 test("proxy permits exact UAV IDs and admin actions, rejecting invented routes", async () => {
   const source = await readFile(new URL("../src/app/api/[...path]/route.ts", import.meta.url), "utf8");
   const declaration = source.split("\n").find(line => line.startsWith("const allowed = "));
   const allowed = Function(`${declaration} return allowed;`)();
-  for (const path of ["uavs", "uavs/myUAV", `uavs/${id}`, "admin/uavs", `admin/uavs/${id}/deactivate`]) assert.equal(allowed.test(path), true, path);
+  for (const path of ["uavs", "uavs/myUAV", `uavs/${id}`, "admin/uavs", `admin/uavs/${id}/approve`, `admin/uavs/${id}/deactivate`]) assert.equal(allowed.test(path), true, path);
   for (const path of ["uavs/not-an-id", `admin/uavs/${id}/delete`, `uavs/${id}/deactivate`]) assert.equal(allowed.test(path), false, path);
 });

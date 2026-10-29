@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Account } from "@/lib/auth/types";
 import AccountMenu from "./account-menu";
+import NotificationCenter from "./notification-center";
 import { managerNavItems, operatorNavItems } from "./portal-navigation";
 
 export default function PortalShell({ account, children, dashboard = false, activeNav, onNavigate }: {
@@ -23,7 +24,6 @@ export default function PortalShell({ account, children, dashboard = false, acti
   return <div className={`ops-shell${dashboard ? "" : " module-shell"}`}>
     <aside className="ops-sidebar">
       <Link className="ops-brand" href="/portal"><Image src="/droneops-logo.svg" width={34} height={34} alt="" priority /><div><b>DRONEOPS</b><span>INTELLIGENCE</span></div></Link>
-      <div className="airspace-label"><span>ACTIVE AIRSPACE</span><b>UTM SECTOR 04</b></div>
       <nav aria-label={`${manager ? "Manager" : "Operator"} navigation`}>{nav.map(([icon, label, badge]) => {
         const href =
           label === "Operators" ? "/portal/operators" :
@@ -35,7 +35,8 @@ export default function PortalShell({ account, children, dashboard = false, acti
           label === "Dashboard" || label === "My Dashboard" ? "/portal" :
           label === "AI Risk Assessment" ? "/portal/ai-assessment" :
           label === "Flight History & Reports" || label === "Flight History" ? "/portal/flight-history" :
-          label === "Fleet & Restrictions" || label === "Validation Results" ? "/portal/geofences" :
+          label === "Validation Results" ? "/portal/validation-results" :
+          label === "Fleet & Restrictions" ? "/portal/geofences" :
           !manager && label === "My Missions" ? "/portal/missions" :
           !manager && label === "Connect Drone" ? "/portal/drone-connection" :
           !manager && label === "Assigned UAV" ? "/portal/uav" :
@@ -47,7 +48,7 @@ export default function PortalShell({ account, children, dashboard = false, acti
       <div className="sidebar-status"><div><span>TELEMETRY LINK</span><b>ENCRYPTED (AES-256)</b></div><i /><div><span>BANDWIDTH</span><b>48.2 Mbps</b></div></div>
     </aside>
     <div className="ops-main">
-      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now ? now.toLocaleTimeString("en-GB", { timeZone: "UTC" }) : "--:--:--"} UTC</time><div className="account-role">{manager ? "OPERATIONS MANAGER" : "UAV OPERATOR"}</div><AccountMenu account={account} /></header>
+      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now ? now.toLocaleTimeString("en-GB", { timeZone: "UTC" }) : "--:--:--"} UTC</time><div className="account-role">{manager ? "OPERATIONS MANAGER" : "UAV OPERATOR"}</div><NotificationCenter /><AccountMenu account={account} /></header>
       <main className={`ops-content${dashboard ? "" : " module-content"}`}>{children}</main>
     </div>
   </div>;
