@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
-from gateway import TelemetryState, api_origin, GatewayError, save_session, hardware_identity, read_identity
+from gateway import TelemetryState, websocket_endpoint, GatewayError, save_session, hardware_identity, read_identity
 
 SESSION={'sourceId':'gateway-test','uavId':'uav','missionId':'mission'}
 def message(kind, system=1, component=1, **values):
@@ -76,8 +76,9 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.state.sample(SESSION)['missionSequence'],1)
     def test_untrusted_origins_rejected(self):
         for value in ['http://remote.example','https://user:secret@host','https://host/path','file:///tmp']:
-            with self.assertRaises(GatewayError):api_origin(value)
-        self.assertEqual(api_origin('http://localhost:5159'),'http://localhost:5159')
+            with self.assertRaises(GatewayError):websocket_endpoint(value)
+        self.assertEqual(websocket_endpoint('http://localhost:5159'),'ws://localhost:5159/ws/drone-gateway')
+        self.assertEqual(websocket_endpoint('https://api.example.com'),'wss://api.example.com/ws/drone-gateway')
     def test_hardware_uid_is_stable_and_not_system_id(self):
         self.assertEqual(hardware_identity(SimpleNamespace(uid=123456789)), 'UID64-00000000075BCD15')
         self.assertIsNone(hardware_identity(SimpleNamespace(uid=0,uid2=[0]*18)))

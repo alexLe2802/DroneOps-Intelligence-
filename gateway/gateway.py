@@ -13,9 +13,7 @@ import socket
 import sys
 import threading
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 import uuid
 
 
@@ -23,32 +21,49 @@ class GatewayError(Exception):
     pass
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None  # Never forward a pairing code/token to a redirected host.
-
-
-def api_origin(value, allow_http=False):
+def websocket_endpoint(value, allow_insecure=False):
     p = urllib.parse.urlsplit(value)
-    if p.scheme not in ('https', 'http') or not p.hostname or p.username or p.password or p.path not in ('', '/') or p.query or p.fragment:
-        raise GatewayError('API must be a backend origin, e.g. https://api.example.com')
-    if p.scheme == 'http' and p.hostname not in ('localhost', '127.0.0.1', '::1') and not allow_http:
-        raise GatewayError('Use HTTPS, or explicitly --allow-insecure-http on a trusted development LAN.')
-    return value.rstrip('/')
+    if p.scheme not in ('wss', 'ws', 'https', 'http') or not p.hostname or p.username or p.password or p.path not in ('', '/') or p.query or p.fragment:
+        raise GatewayError('Server must be a backend origin, e.g. https://api.example.com or wss://api.example.com')
+    insecure = p.scheme in ('ws', 'http')
+    if insecure and p.hostname not in ('localhost', '127.0.0.1', '::1') and not allow_insecure:
+        raise GatewayError('Use WSS, or explicitly --allow-insecure-websocket on a trusted development LAN.')
+    scheme = 'wss' if p.scheme in ('wss', 'https') else 'ws'
+    return urllib.parse.urlunsplit((scheme, p.netloc, '/ws/drone-gateway', '', ''))
 
 
-def request(api, path, payload, token=None, key=None, identity=None):
-    headers = {'Content-Type': 'application/json'}
-    if token:
-        headers['Authorization'] = 'Bearer ' + token
-    if identity:
-        headers['X-Drone-Identity'] = identity
-    if key:
-        headers['Idempotency-Key'] = key
-    req = urllib.request.Request(api + path, data=json.dumps(payload).encode(), headers=headers, method='POST')
-    with urllib.request.build_opener(NoRedirect).open(req, timeout=8) as response:
-        data = response.read()
-        return json.loads(data) if data else None
+def open_gateway_socket(endpoint, session=None, pairing=None):
+    import websocket
+    connection = websocket.create_connection(endpoint, timeout=10, enable_multithread=True)
+    try:
+        if session:
+            hello = {'type': 'resume', 'payload': {
+                'connectionId': session['connectionId'], 'token': session['token'],
+                'hardwareIdentity': session['hardwareIdentity']}}
+            expected = 'ready'
+        else:
+            hello = {'type': 'pair', 'payload': pairing}
+            expected = 'session'
+        connection.send(json.dumps(hello, separators=(',', ':')))
+        response = json.loads(connection.recv())
+        if response.get('type') == 'error':
+            raise GatewayError(response.get('message', 'Gateway WebSocket handshake rejected.'))
+        if response.get('type') != expected:
+            raise GatewayError('Backend returned an unexpected WebSocket handshake response.')
+        return connection, response.get('payload')
+    except BaseException:
+        connection.close()
+        raise
+
+
+def exchange(connection, message, expected):
+    connection.send(json.dumps(message, separators=(',', ':')))
+    response = json.loads(connection.recv())
+    if response.get('type') == 'error':
+        raise GatewayError(response.get('message', 'Gateway message rejected.'))
+    if response.get('type') != expected:
+        raise GatewayError('Backend returned an unexpected WebSocket acknowledgement.')
+    return response
 
 
 def save_session(path, value):
@@ -161,49 +176,40 @@ class TelemetryState:
         return value
 
 
-def forward(api, session, pending, stop, failures):
+def forward(endpoint, session, pending, stop, failures):
     last_heartbeat, retry_delay = 0.0, 1.0
     while not stop.is_set():
+        connection = None
         try:
-            if time.monotonic() - last_heartbeat >= 10:
-                request(api, '/api/drone-gateway/' + session['connectionId'] + '/heartbeat', {}, session['token'], identity=session['hardwareIdentity'])
-                last_heartbeat = time.monotonic()
-            try:
-                key, sample, captured = pending.get(timeout=.5)
-            except queue.Empty:
-                continue
-            # Drop old samples on reconnect; do not present backlog as live data.
-            while not stop.is_set() and time.monotonic() - captured <= 10:
+            connection, _ = open_gateway_socket(endpoint, session=session)
+            retry_delay = 1.0
+            last_heartbeat = 0.0
+            while not stop.is_set():
+                if time.monotonic() - last_heartbeat >= 10:
+                    exchange(connection, {'type': 'heartbeat'}, 'heartbeatAck')
+                    last_heartbeat = time.monotonic()
                 try:
-                    request(api, '/api/drone-gateway/' + session['connectionId'] + '/samples', sample, session['token'], key, session['hardwareIdentity'])
-                    retry_delay = 1.0
-                    break
-                except urllib.error.HTTPError as error:
-                    if error.code in (401, 403):
-                        raise
-                    if error.code < 500 and error.code != 429:
-                        print('Sample rejected (HTTP %s). Check mission status, clock and mapping.' % error.code)
-                        break
-                    stop.wait(retry_delay)
-                    retry_delay = min(retry_delay * 2, 8)
-                except (OSError, TimeoutError):
-                    stop.wait(retry_delay)
-                    retry_delay = min(retry_delay * 2, 8)
-        except urllib.error.HTTPError as error:
-            if error.code in (401, 403):
-                failures.append('Connection revoked, expired or no longer eligible. Create a new pairing on the web.')
-                stop.set()
-            else:
-                print('Backend unavailable (HTTP %s); retrying.' % error.code)
-                stop.wait(3)
-        except (OSError, TimeoutError):
-            print('Backend unreachable; retrying. No old data is replayed as live.')
-            stop.wait(3)
+                    key, sample, captured = pending.get(timeout=.5)
+                except queue.Empty:
+                    continue
+                if time.monotonic() - captured > 10:
+                    continue
+                exchange(connection, {'type': 'telemetry', 'idempotencyKey': key, 'payload': sample}, 'telemetryAck')
+        except GatewayError as error:
+            failures.append(str(error))
+            stop.set()
+        except Exception as error:
+            print('Backend WebSocket unavailable (%s); reconnecting. No old data is replayed as live.' % type(error).__name__)
+            stop.wait(retry_delay)
+            retry_delay = min(retry_delay * 2, 8)
+        finally:
+            if connection:
+                connection.close()
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--api', required=True)
+    parser.add_argument('--server', '--api', dest='server', required=True, help='Backend HTTPS/WSS origin')
     parser.add_argument('--device', required=True, help='udpin:127.0.0.1:14550, COM3 or /dev/ttyUSB0')
     parser.add_argument('--baud', type=int, default=57600)
     parser.add_argument('--system-id', type=int, required=True)
@@ -212,9 +218,9 @@ def main():
     parser.add_argument('--session-file', default=str(Path(__file__).with_name('session.private.json')))
     parser.add_argument('--new-pairing', action='store_true')
     parser.add_argument('--pair-code-stdin', action='store_true', help='Read pairing code from stdin for automated integration tests')
-    parser.add_argument('--allow-insecure-http', action='store_true')
+    parser.add_argument('--allow-insecure-websocket', '--allow-insecure-http', dest='allow_insecure_websocket', action='store_true')
     args = parser.parse_args()
-    api = api_origin(args.api, args.allow_insecure_http)
+    endpoint = websocket_endpoint(args.server, args.allow_insecure_websocket)
     if not 1 <= args.system_id <= 255 or not 1 <= args.component_id <= 255 or args.baud <= 0:
         raise GatewayError('Use valid MAVLink system/component IDs and baud rate.')
     if not args.device.startswith('udpin:') and not (args.device.startswith('/dev/') or re.fullmatch(r'(?:\\\\\.\\)?COM[0-9]+', args.device, re.IGNORECASE)):
@@ -231,20 +237,21 @@ def main():
     session = None
     if not args.new_pairing and Path(args.session_file).exists():
         candidate = json.loads(Path(args.session_file).read_text())
-        if candidate.get('api') == api and candidate.get('systemId') == args.system_id and candidate.get('componentId') == args.component_id:
+        if candidate.get('endpoint') == endpoint and candidate.get('systemId') == args.system_id and candidate.get('componentId') == args.component_id:
             if candidate.get('hardwareIdentity') != identity:
                 link.close()
                 raise GatewayError('This connected drone is not the device bound to the saved session. Select its registered UAV on the web and pair it separately.')
             session = candidate
     if session is None:
         code = sys.stdin.readline().strip() if args.pair_code_stdin else getpass.getpass('One-time pairing code from the web: ')
-        session = request(api, '/api/drone-gateway/pair', {'code': code, 'gatewayName': args.name,
+        connection, session = open_gateway_socket(endpoint, pairing={'code': code, 'gatewayName': args.name,
                           'systemId': args.system_id, 'componentId': args.component_id, 'hardwareIdentity': identity})
-        session.update(api=api, systemId=args.system_id, componentId=args.component_id)
+        connection.close()
+        session.update(endpoint=endpoint, systemId=args.system_id, componentId=args.component_id)
         save_session(args.session_file, session)
     print('Gateway paired. Listening for autopilot %s/%s on %s. No flight commands are sent.' % (args.system_id, args.component_id, args.device))
     stop, pending, failures = threading.Event(), queue.Queue(maxsize=1), []
-    worker = threading.Thread(target=forward, args=(api, session, pending, stop, failures), daemon=True)
+    worker = threading.Thread(target=forward, args=(endpoint, session, pending, stop, failures), daemon=True)
     worker.start()
     streams_requested = False
     state, last_sent, sent_revision, link = TelemetryState(args.system_id, args.component_id), 0.0, -1, link
@@ -322,15 +329,6 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except urllib.error.HTTPError as error:
-        try:
-            problem = json.loads(error.read(4096))
-            detail = problem.get('message', 'Pairing request rejected')
-        except (ValueError, OSError):
-            detail = str(error)
-        print('Gateway error:', ''.join(c for c in str(detail)[:500] if c.isprintable()))
-        raise SystemExit(1)
     except (GatewayError, ImportError, ValueError) as error:
-        # HTTPError string never includes the bearer token or request body.
         print('Gateway error:', error)
         raise SystemExit(1)
