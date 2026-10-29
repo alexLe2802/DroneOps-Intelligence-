@@ -1,0 +1,15 @@
+.panel { padding: 20px; margin-bottom: 14px; border: 1px solid var(--color-rule); border-radius: 8px; background: var(--color-paper-2); color: var(--color-ink); }
+.panel h2 { margin: 0 0 12px; font-size: 18px; }
+.panel p, .panel li { line-height: 1.7; color: var(--color-muted); }
+.panel li + li { margin-top: 6px; }
+.summary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.summary span { color: var(--color-muted); }
+.metadata { display: flex; flex-wrap: wrap; gap: 20px 32px; }
+.metadata dt { color: var(--color-muted); font-size: 12px; }
+.metadata dd { margin: 6px 0 0; overflow-wrap: anywhere; }
+.weather { display: flex; flex-wrap: wrap; gap: 24px; }
+.weather span { display: grid; gap: 6px; color: var(--color-muted); }
+.weather b { color: var(--color-ink); }
+.missions { margin: 0; padding: 0; list-style: none; }
+.missions li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--color-rule); }
+.missions a { color: var(--color-focus); }

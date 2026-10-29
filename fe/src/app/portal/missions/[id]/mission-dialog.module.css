@@ -1,0 +1,44 @@
+.reasonHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reasonHeading b {
+  color: #ff9ea6;
+  font-size: 8px;
+}
+
+.counter {
+  display: block;
+  margin-top: 7px;
+  color: #7f8d9d;
+  text-align: right;
+  font: 8px Consolas, monospace;
+}
+
+.back,
+.confirm {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 2px;
+  font: 700 8px Consolas, monospace;
+  letter-spacing: .8px;
+}
+
+.back {
+  border: 1px solid #3a4858;
+  background: #202834;
+  color: #dce5ed;
+}
+
+.confirm {
+  border: 1px solid #91424d;
+  background: #c62c3a;
+  color: #fff;
+}
+
+.confirm:hover:not(:disabled) {
+  background: #e13b49;
+}

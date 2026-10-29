@@ -1,5 +1,5 @@
 import { api, ApiError } from "@/lib/auth/client";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable">;
 
@@ -126,6 +126,19 @@ export function getIncident(id: string): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
 }
 
+export function getNotificationFeed(unreadOnly = false, limit = 50): Promise<NotificationFeed> {
+  const params = new URLSearchParams({ unreadOnly: String(unreadOnly), limit: String(limit) });
+  return api<NotificationFeed>(`/notifications?${params}`);
+}
+
+export function markNotificationRead(id: string): Promise<PortalNotification> {
+  return api<PortalNotification>(`/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" });
+}
+
+export function markAllNotificationsRead(): Promise<{ updatedCount: number }> {
+  return api<{ updatedCount: number }>("/notifications/read-all", { method: "PATCH" });
+}
+
 export function liveMissionStreamUrl(missionId: string): string {
   return `/api/live/stream?missionId=${encodeURIComponent(missionId)}`;
 }
@@ -205,9 +218,8 @@ export async function createUav(request: CreateUavRequest): Promise<AssignedUav>
   return api<AssignedUav>("/uavs", { method: "POST", body: JSON.stringify(request) });
 }
 
-// PUT uses the backend's update DTO, which differs from the create DTO.
-export async function updateAssignedUav(id: string, request: CreateUavRequest): Promise<void> {
-  await api(`/uavs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ uavCode: request.code, uavName: request.name, description: request.model }) });
+export async function updateAssignedUav(id: string, request: UpdateUavRequest): Promise<void> {
+  await api(`/uavs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(request) });
 }
 
 export async function deleteAssignedUav(id: string): Promise<void> {
@@ -329,4 +341,6 @@ export function getPilotProfile(): Promise<PilotProfile> {
 
 export function getMissionHistory(id: string) { return api<import("./types").MissionUpdateSummary[]>(`/missions/${encodeURIComponent(id)}/history`); }
 export function getMissionValidation(id: string, updateRequestId?: string) { return api<MissionValidationResult | null>(`/missions/${encodeURIComponent(id)}/validation${updateRequestId ? `?updateRequestId=${encodeURIComponent(updateRequestId)}` : ""}`); }
+export function getMissionValidationRun(id: string, runId: string) { return api<MissionValidationResult>(`/missions/${encodeURIComponent(id)}/validation/runs/${encodeURIComponent(runId)}`); }
+export function getLatestMissionValidation(id: string) { return api<MissionValidationResult | null>(`/missions/${encodeURIComponent(id)}/validation?latest=true`); }
 export function getMissionWeather(id: string, updateRequestId?: string, refresh = false) { return api<import("./types").MissionWeather>(`/missions/${encodeURIComponent(id)}/weather${refresh ? "/refresh" : ""}${updateRequestId ? `?updateRequestId=${encodeURIComponent(updateRequestId)}` : ""}`, refresh ? { method: "POST" } : {}); }

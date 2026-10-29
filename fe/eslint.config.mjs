@@ -7,6 +7,9 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    // Installed design tools and generated design reports are not app source.
+    ".agents/**",
+    ".hallmark/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

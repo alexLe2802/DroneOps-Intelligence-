@@ -172,8 +172,8 @@ export default function LiveMonitoringClient() {
       <div className={styles.operationsGrid} aria-busy={loadingMission}>
         <section className={styles.mapPanel}>
           <header><div><span>SPATIAL TELEMETRY</span><h2>{selected?.missionName}</h2></div><div><b>{telemetry?.flightMode ?? "MODE UNAVAILABLE"}</b><small>{telemetry?.armed ? "ARMED" : "DISARMED"}</small></div></header>
-          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={sequence} recenterToken={recenterToken} />
-          <footer><span>LAST PACKET <b>{shortDate(telemetry?.sourceTimestamp ?? selected?.lastSeen)}</b></span><span>POSITION <b>{hasTelemetryPosition(telemetry) ? `${Number(telemetry.latitude).toFixed(5)}, ${Number(telemetry.longitude).toFixed(5)}` : "UNAVAILABLE"}</b></span></footer>
+          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={sequence} recenterToken={recenterToken} streamLive={streamState === "live"} />
+          <footer><span>LAST PACKET <b>{shortDate(telemetry?.sourceTimestamp ?? selected?.lastSeen)}</b></span><span>{connection === "online" && !telemetry?.isStale && streamState === "live" ? "POSITION" : "LAST KNOWN POSITION"} <b>{hasTelemetryPosition(telemetry) ? `${Number(telemetry.latitude).toFixed(5)}, ${Number(telemetry.longitude).toFixed(5)}` : "UNAVAILABLE"}</b></span></footer>
         </section>
 
         <aside className={styles.liveRail}>
@@ -208,7 +208,7 @@ export default function LiveMonitoringClient() {
             </dl> : <strong>Position unavailable</strong>}
             <div><small>{hasTelemetryPosition(telemetry) ? "Đơn vị: độ thập phân (WGS84)" : "Waiting for valid coordinates"}</small><small>Snapshot: {telemetry?.snapshotKind ?? "Missing"}</small></div>
           </article>
-          <TelemetryCard index="02" label="ALTITUDE" value={valueOr(telemetry?.altitudeMeters, telemetry?.altitudeReference === "AGL" ? " m AGL" : telemetry?.altitudeReference === "MSL" ? " m MSL" : " m")} lines={[`Reference: ${telemetry?.altitudeReference === "Relative" ? "Relative to Home / So với Home" : telemetry?.altitudeReference ?? "Unavailable"}`, `Validity: ${telemetry?.isValid ? "Valid" : "Unavailable"}`]} />
+          <TelemetryCard index="02" label="ALTITUDE" value={valueOr(telemetry?.altitudeMeters, telemetry?.altitudeReference === "AGL" ? " m AGL" : telemetry?.altitudeReference === "MSL" ? " m MSL" : " m")} lines={[`Reference: ${telemetry?.altitudeReference === "Relative" ? "Relative to Home" : telemetry?.altitudeReference ?? "Unavailable"}`, `Validity: ${telemetry?.isValid ? "Valid" : "Unavailable"}`]} />
           <TelemetryCard index="03" label="VELOCITY" value={valueOr(telemetry?.groundSpeedMetersPerSecond, " m/s")} lines={[telemetry?.groundSpeedMetersPerSecond == null ? "Ground speed unavailable" : `${(Number(telemetry.groundSpeedMetersPerSecond) * 3.6).toFixed(1)} km/h`, "Wind data unavailable"]} />
           <TelemetryCard index="04" label="POWER & CELLS" value={valueOr(telemetry?.batteryPercent, "%", 0)} tone={telemetry?.batteryPercent != null && telemetry.batteryPercent < 25 ? "danger" : "good"} lines={["Voltage unavailable", `State: ${telemetry?.armed ? "Armed" : "Disarmed"}`]} />
           <TelemetryCard index="05" label="LINK & TELEMETRY" value={(telemetry?.connectivityStatus ?? "Offline").toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />

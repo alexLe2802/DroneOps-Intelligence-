@@ -1,34 +1,34 @@
+/* Hallmark · shape: application shell · genre: modern-minimal · theme: night operations (kept) · redesign: restyle
+ * paper: #0a0e16 · accent: #22d3ee · display: Segoe UI · body: Segoe UI
+ * nav: compact shell retained · signature: live MAVLink telemetry · states: hover, focus, active, disabled
+ * axes: dark/technical/cool · posture: left-led · contrast: improved through shared tokens · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H5 E4 S5 R4 V3 · weakest: V, retain the telemetry grid on the landing page and flatten portal chrome */
 @import "tailwindcss";
-  
-:root {
-  --background:#0a0e16;
-  --foreground:#e2e8f0;
-  --cyan:#22d3ee;
-  --green:#2ce6b2;
-  --border:#1c2c43;
-  --muted:#a1b3c9
-}
+@import "./tokens.css";
+@import "./base.css" layer(base);
 
 @theme inline {
   --color-background:var(--background);
   --color-foreground:var(--foreground);
-  --font-sans:Arial,Helvetica,sans-serif;
-  --font-mono:"SFMono-Regular",Consolas,monospace
+  --font-sans:var(--font-body);
+  --font-mono:var(--font-data)
 }
 
 * {
   box-sizing:border-box
 }
 html {
+  overflow-x:clip;
   scroll-behavior:smooth;
   scroll-padding-top:110px
 }
 body {
+  overflow-x:clip;
   margin:0;
   background:var(--background);
   color:var(--foreground);
-  font-family:Arial,Helvetica,sans-serif;
-  background-image:radial-gradient(#0e719329 1px,transparent 1px),linear-gradient(#14223540 1px,transparent 1px),linear-gradient(90deg,#14223540 1px,transparent 1px);
+  font-family:var(--font-body);
+  background-image:radial-gradient(var(--grid-dot) 1px,transparent 1px),linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
   background-size:28px 28px,112px 112px,112px 112px
 }
 a {
@@ -48,29 +48,29 @@ button {
   color:inherit
 }
 a,button {
-  transition:background .2s,border-color .2s,color .2s
+  transition:background-color var(--dur-short) var(--ease-out),border-color var(--dur-short) var(--ease-out),color var(--dur-short) var(--ease-out)
 }
 a:hover {
   color:var(--cyan)
 }
 :focus-visible {
-  outline:2px solid var(--cyan);
-  outline-offset:5px
+  outline:2px solid var(--color-focus);
+  outline-offset:3px
 }
 ::selection {
-  background:#155e75;
-  color:white
+  background:var(--accent-soft);
+  color:var(--color-ink)
 }
 .shell {
-  max-width:1280px;
+  max-width:var(--content-width);
   margin:auto;
-  padding-inline:32px
+  padding-inline:var(--gutter)
 }
 .site-header {
   position:sticky;
   top:0;
   z-index:20;
-  background:#0a0e16f2;
+  background:color-mix(in oklab,var(--background) 94%,transparent);
   border-bottom:1px solid var(--border);
   backdrop-filter:blur(14px)
 }
@@ -126,25 +126,25 @@ a:hover {
   font-weight:600
 }
 .primary {
-  background:linear-gradient(110deg,#13c5e1,#6ae2f3);
-  color:#03151c;
-  box-shadow:0 0 24px #13c5e11c
+  background:var(--color-accent);
+  color:var(--color-accent-ink);
+  box-shadow:none
 }
 .primary:hover {
-  background:#93edfa;
-  color:#03151c
+  background:var(--color-focus);
+  color:var(--color-accent-ink)
 }
 .secondary {
-  background:#101827;
+  background:var(--panel);
   border-color:var(--border)
 }
 .secondary span {
   color:var(--cyan)
 }
 .outline {
-  border-color:#166078;
-  color:#6ce9ff;
-  background:#07111a;
+  border-color:var(--color-accent);
+  color:var(--color-focus);
+  background:var(--background);
   padding:10px 16px
 }
 .mobile-nav,.mobile-only {
@@ -189,7 +189,7 @@ h1 {
   font-size:clamp(36px,3.9vw,52px);
   line-height:1.07;
   letter-spacing:-2px;
-  color:#fff;
+  color:var(--color-ink);
   font-weight:800;
   margin:25px 0 18px
 }
@@ -208,7 +208,7 @@ h1 .heading-white {
 .hero-description {
   font-size:17px;
   line-height:1.65;
-  color:#cbd5e1;
+  color:var(--color-ink-2);
   max-width:540px
 }
 .metrics {
@@ -312,7 +312,7 @@ h1 .heading-white {
   border-color:#38485c
 }
 .hud {
-  height:340px;
+  height:370px;
   margin-top:12px;
   position:relative;
   overflow:hidden;
@@ -398,7 +398,7 @@ h1 .heading-white {
 }
 .drone-rig {
   position:absolute;
-  inset:94px 13% auto;
+  inset:80px 13% 40px;
   cursor:grab;
   touch-action:none;
   user-select:none
@@ -408,22 +408,16 @@ h1 .heading-white {
 }
 .drone-rig svg {
   width:100%;
+  height:100%;
   display:block;
   filter:drop-shadow(0 0 12px #0ea5e92b)
 }
 .rotor {
   animation:spin .22s linear infinite;
-  animation-play-state:paused;
   pointer-events:none;
 }
-/* A stationary hit area prevents rotating blades from flickering on hover. */
 .rotor-hit-area {
   pointer-events:all;
-}
-@media(hover:hover) {
-  .rotor-assembly:hover .rotor {
-    animation-play-state:running;
-  }
 }
 .hud-bottom {
   position:absolute;
@@ -515,6 +509,10 @@ h1 .heading-white {
 .section-heading {
   text-align:center
 }
+.section-heading>h2,
+.section-heading>p {
+  margin-inline:auto
+}
 .eyebrow {
   display:inline-block;
   font:10px var(--font-mono);
@@ -559,6 +557,7 @@ h2 {
 .feature-icon {
   width:48px;
   height:48px;
+  margin-bottom:18px;
   display:grid;
   place-items:center;
   border-radius:8px;
@@ -816,10 +815,10 @@ h1 {
   justify-self:center
 }
 .hud {
-  height:360px
+  height:390px
 }
 .drone-rig {
-  inset:95px 19% auto
+  inset:80px 19% 40px
 }
 .feature-grid {
   grid-template-columns:1fr
@@ -915,13 +914,13 @@ h1 {
   font-size:8px
 }
 .hud {
-  height:310px
+  height:330px
 }
 .hud-readouts>div {
   font-size:8px
 }
 .drone-rig {
-  inset:111px 10% auto
+  inset:80px 10% 46px
 }
 .radar {
   width:200px;

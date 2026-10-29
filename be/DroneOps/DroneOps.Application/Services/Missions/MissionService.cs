@@ -155,6 +155,7 @@ public sealed class MissionService : IMissionService
     {
         var response = MapToResponse(mission);
         response.Validation = await _validation.ReadAsync(mission.Id,mission.CreatedBy,false,null,ct);
+        response.LatestValidation = await _validation.ReadLatestRunAsync(mission.Id,mission.CreatedBy,false,ct);
         response.PendingUpdate = await _validation.PendingAsync(mission.Id, ct);
         var preflight = await _validation.LatestPreflightAsync(mission.Id, ct);
         response.PreflightValidation = preflight;

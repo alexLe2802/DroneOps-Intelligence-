@@ -42,7 +42,7 @@ export type CreateMissionRequest = {
   waypoints: MissionWaypoint[];
 };
 export type MissionUpdateSummary = { id: string; status: string; isInitial: boolean; createdAt: string; actorId: string; reviewedBy?: string | null; reviewedAt?: string | null; reason?: string | null; basePlan?: CreateMissionRequest | null; proposedPlan: CreateMissionRequest; validation?: MissionValidationResult | null };
-export type MissionDetail = PilotMission & { altitudeReference?: string | null; pendingUpdate?: MissionUpdateSummary | null; waypoints: MissionWaypoint[]; detailAvailable?: boolean; validation?: MissionValidationResult | null; flightReadiness?: string; preflightValidation?: MissionValidationResult | null };
+export type MissionDetail = PilotMission & { altitudeReference?: string | null; pendingUpdate?: MissionUpdateSummary | null; waypoints: MissionWaypoint[]; detailAvailable?: boolean; validation?: MissionValidationResult | null; latestValidation?: MissionValidationResult | null; flightReadiness?: string; preflightValidation?: MissionValidationResult | null };
 export type ManagerMission = MissionDetail & {
   createdBy: string;
   uavName: string | null;
@@ -152,7 +152,28 @@ export type PagedIncidents = {
   totalPages: number;
 };
 
+export type PortalNotification = {
+  id: string;
+  recipientUserId: string;
+  actorUserId: string | null;
+  type: string;
+  title: string;
+  message: string;
+  referenceId: string | null;
+  referenceType: string | null;
+  actionUrl: string | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type NotificationFeed = {
+  unreadCount: number;
+  items: PortalNotification[];
+};
+
 export type PendingMissionApproval = {
+  isInitial: boolean;
   updateRequestId: string;
   currentPlan: CreateMissionRequest;
   proposedPlan: CreateMissionRequest;

@@ -17,7 +17,13 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
     public Task<MissionValidationRun?> LatestRunAsync(Guid id, CancellationToken ct) => db.MissionValidationRuns.AsNoTracking().Where(x=>x.MissionId==id && x.UpdateRequestId==null).OrderByDescending(x=>x.CheckedAt).FirstOrDefaultAsync(ct);
     public async Task<MissionValidationResult?> LatestAsync(Guid id,CancellationToken ct)=>Decode(await LatestRunAsync(id,ct));
     public async Task<MissionValidationResult?> LatestPreflightAsync(Guid id,CancellationToken ct)=>Decode(await db.MissionValidationRuns.AsNoTracking().Where(x=>x.MissionId==id&&x.Stage=="Preflight").OrderByDescending(x=>x.CheckedAt).FirstOrDefaultAsync(ct));
-    public static string RestrictionHash(IEnumerable<Geofence> zones)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(zones.OrderBy(x=>x.Id).Select(x=>new{x.Id,x.Revision,x.Coordinates,x.MinAltitudeMeters,x.MaxAltitudeMeters,x.AltitudeReference,x.VerticalRule}),JsonOptions))));
+    public static string RestrictionHash(IEnumerable<Geofence> zones)=>HashRestrictionRevisions(zones.Select(x=>(x.Id,x.Revision)));
+    private static string HashRestrictionRevisions(IEnumerable<(Guid Id,long Revision)> zones)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(zones.OrderBy(x=>x.Id).Select(x=>new{x.Id,x.Revision}),JsonOptions))));
+    private async Task<string> CurrentRestrictionHashAsync(CancellationToken ct)
+    {
+        var revisions=await db.Geofences.AsNoTracking().Select(x=>new{x.Id,x.Revision}).ToListAsync(ct);
+        return HashRestrictionRevisions(revisions.Select(x=>(x.Id,x.Revision)));
+    }
     public async Task<MissionValidationResult?> ReadAsync(Guid missionId,Guid actor,bool manager,Guid? requestId,CancellationToken ct)
     {
         var mission=await db.Missions.AsNoTracking().Include(x=>x.Waypoints).SingleOrDefaultAsync(x=>x.Id==missionId,ct)??throw new KeyNotFoundException("Mission not found.");
@@ -29,8 +35,24 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
         }
         var run=await db.MissionValidationRuns.AsNoTracking().Where(x=>x.MissionId==missionId&&x.UpdateRequestId==requestId).OrderByDescending(x=>x.CheckedAt).FirstOrDefaultAsync(ct);
         var result=Decode(run);
-        if(result is not null)result.Stale=run!.PlanHash!=Hash(mission)||result.RestrictionRevision!=RestrictionHash(await db.Geofences.AsNoTracking().ToListAsync(ct));
+        if(result is not null)result.Stale=run!.PlanHash!=Hash(mission)||result.RestrictionRevision!=await CurrentRestrictionHashAsync(ct);
         return result;
+    }
+
+    public async Task<MissionValidationResult?> ReadLatestRunAsync(Guid missionId,Guid actor,bool manager,CancellationToken ct)
+    {
+        var mission=await db.Missions.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==missionId,ct)??throw new KeyNotFoundException("Mission not found.");
+        if(!manager&&mission.CreatedBy!=actor)throw new UnauthorizedAccessException("Mission is outside your scope.");
+        return Decode(await db.MissionValidationRuns.AsNoTracking().Where(x=>x.MissionId==missionId)
+            .OrderByDescending(x=>x.CheckedAt).ThenByDescending(x=>x.Id).FirstOrDefaultAsync(ct));
+    }
+
+    public async Task<MissionValidationResult?> ReadRunAsync(Guid missionId,Guid runId,Guid actor,bool manager,CancellationToken ct)
+    {
+        var mission=await db.Missions.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==missionId,ct)??throw new KeyNotFoundException("Mission not found.");
+        if(!manager&&mission.CreatedBy!=actor)throw new UnauthorizedAccessException("Mission is outside your scope.");
+        var run=await db.MissionValidationRuns.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==runId&&x.MissionId==missionId,ct)??throw new KeyNotFoundException("Validation result not found.");
+        return Decode(run);
     }
 
     public async Task<MissionUpdateSummary?> PendingAsync(Guid id,CancellationToken ct)
@@ -155,7 +177,7 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
             {
                 if (m.Status != "Approved") throw new InvalidOperationException("Preflight checks require an approved mission.");
                 var recent = await db.MissionValidationRuns.AsNoTracking().Where(x => x.MissionId == id && x.Stage == "Preflight" && x.CheckedAt > DateTimeOffset.UtcNow.AddMinutes(-1)).OrderByDescending(x => x.CheckedAt).FirstOrDefaultAsync(ct);
-                if (recent is not null && recent.PlanHash == Hash(m) && Decode(recent)?.RestrictionRevision == RestrictionHash(await db.Geofences.AsNoTracking().ToListAsync(ct))) { await tx.CommitAsync(ct); return Decode(recent)!; }
+                if (recent is not null && recent.PlanHash == Hash(m) && Decode(recent)?.RestrictionRevision == await CurrentRestrictionHashAsync(ct)) { await tx.CommitAsync(ct); return Decode(recent)!; }
             }
             var r = await EvaluateAsync(m, stage, ct); r.UpdateRequestId=update?.Id; Store(m, actor, r);
             if(update is not null)update.ValidationRunId=r.Id;
