@@ -3,8 +3,10 @@ using DroneOps.Application.DTOs.Request.PostFlight;
 using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.PostFlight;
 using DroneOps.Application.Interfaces.PostFlight;
+using DroneOps.Application.Settings;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
+using Microsoft.Extensions.Options;
 
 namespace DroneOps.Application.Services.PostFlight;
 
@@ -16,8 +18,18 @@ public sealed class PostFlightService : IPostFlightService
         ["MISSION_COMPLETED", "FLIGHT_COMPLETED", "LANDED"];
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> MissionLocks = new();
     private readonly IPostFlightRepository _repository;
+    private readonly int _communicationLossSeconds;
 
-    public PostFlightService(IPostFlightRepository repository) => _repository = repository;
+    public PostFlightService(IPostFlightRepository repository)
+        : this(repository, Microsoft.Extensions.Options.Options.Create(new TelemetryMonitoringOptions())) { }
+
+    public PostFlightService(
+        IPostFlightRepository repository,
+        IOptions<TelemetryMonitoringOptions> monitoringOptions)
+    {
+        _repository = repository;
+        _communicationLossSeconds = Math.Max(1, monitoringOptions.Value.CommunicationLossSeconds);
+    }
 
     public async Task<int> SynchronizeOverdueMissionsAsync(
         CancellationToken cancellationToken = default)
@@ -329,23 +341,40 @@ public sealed class PostFlightService : IPostFlightService
         Guid? pilotUserId = null,
         CancellationToken cancellationToken = default)
     {
-        await SynchronizeOverdueMissionsAsync(cancellationToken);
         ValidateDateRange(request.FromDate, request.ToDate);
         var inclusiveToDate = NormalizeInclusiveToDate(request.ToDate);
-        var missions = await _repository.GetTerminalMissionsAsync(
+        var missions = await _repository.GetStartedMissionsAsync(
             request.FromDate, inclusiveToDate, request.UavId, request.MissionId,
             pilotUserId, cancellationToken);
         var reports = new List<PostFlightReport>();
         var incidents = new List<Incident>();
+        decimal recordedDistanceMeters = 0;
+        var validDistanceSegments = 0;
+        var excludedDistanceSegments = 0;
+        double excludedGapSeconds = 0;
+        var missingGpsSamples = 0;
+        var invalidTelemetrySamples = 0;
+        var missionsWithoutGpsCoverage = 0;
         foreach (var mission in missions)
         {
             var report = await _repository.GetReportByMissionIdAsync(mission.Id, cancellationToken);
             if (report != null) reports.Add(report);
             incidents.AddRange(await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken));
+            var distance = CalculateRecordedDistance(
+                await _repository.GetTelemetryForAnalyticsAsync(mission.Id, cancellationToken),
+                _communicationLossSeconds);
+            recordedDistanceMeters += distance.Meters;
+            validDistanceSegments += distance.ValidSegments;
+            excludedDistanceSegments += distance.ExcludedSegments;
+            excludedGapSeconds += distance.ExcludedGapSeconds;
+            missingGpsSamples += distance.MissingGpsSamples;
+            invalidTelemetrySamples += distance.InvalidTelemetrySamples;
+            if (distance.ValidSegments == 0) missionsWithoutGpsCoverage++;
         }
 
         var eligibleReports = reports.Where(x => x.GenerationStatus == "Available").ToList();
         var completed = missions.Count(x => x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase));
+        var distinctIncidents = incidents.DistinctBy(x => x.Id).ToList();
         var exclusions = missions
             .Select(mission => reports.FirstOrDefault(report => report.MissionId == mission.Id)?.GenerationStatus ?? "NoReport")
             .Where(status => status != "Available")
@@ -358,9 +387,10 @@ public sealed class PostFlightService : IPostFlightService
             CompletedFlights = completed,
             AbortedOrFailedFlights = missions.Count - completed,
             TotalFlightHours = Math.Round(eligibleReports.Sum(x => x.TotalFlightDurationMinutes) / 60.0, 2),
-            TotalDistanceKilometers = Math.Round(eligibleReports.Sum(x => x.TotalDistanceMeters ?? 0) / 1000m, 2),
-            TotalIncidentsRecorded = incidents.Count,
+            TotalDistanceKilometers = Math.Round(recordedDistanceMeters / 1000m, 2),
+            TotalIncidentsRecorded = distinctIncidents.Count,
             SuccessRatePercentage = missions.Count == 0 ? null : Math.Round(completed * 100.0 / missions.Count, 1),
+            CompletionRateStatus = missions.Count == 0 ? "Unavailable" : "Available",
             ReportsAvailable = eligibleReports.Count,
             ReportsExcluded = missions.Count - eligibleReports.Count,
             ReportCoveragePercentage = missions.Count == 0 ? null : Math.Round(eligibleReports.Count * 100.0 / missions.Count, 1),
@@ -369,7 +399,7 @@ public sealed class PostFlightService : IPostFlightService
             UavId = request.UavId,
             MissionId = request.MissionId,
             CompletionTrend = missions
-                .GroupBy(x => DateOnly.FromDateTime(x.EndTime ?? x.StartTime ?? x.CreatedAt))
+                .GroupBy(x => DateOnly.FromDateTime(x.StartTime!.Value))
                 .OrderBy(x => x.Key)
                 .Select(group => new AnalyticsTrendPointResponse
                 {
@@ -378,12 +408,77 @@ public sealed class PostFlightService : IPostFlightService
                     CompletedFlights = group.Count(x => x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase)),
                     FailedOrAbortedFlights = group.Count(x => !x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
                 }).ToList(),
-            IncidentSeverityBreakdown = incidents
+            IncidentSeverityBreakdown = distinctIncidents
                 .GroupBy(x => NormalizeSeverity(x.Severity))
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
-            ExcludedReportReasons = exclusions
+            ExcludedReportReasons = exclusions,
+            Contract = new AnalyticsContractResponse
+            {
+                CommunicationLossThresholdSeconds = _communicationLossSeconds
+            },
+            MissingCoverage = new AnalyticsCoverageResponse
+            {
+                ValidDistanceSegments = validDistanceSegments,
+                ExcludedDistanceSegments = excludedDistanceSegments,
+                ExcludedGapSeconds = Math.Round(excludedGapSeconds, 3),
+                MissingGpsSamples = missingGpsSamples,
+                InvalidTelemetrySamples = invalidTelemetrySamples,
+                MissionsWithoutValidGpsCoverage = missionsWithoutGpsCoverage,
+                MissionsWithoutAvailableReport = missions.Count - eligibleReports.Count
+            }
         };
     }
+
+    private static RecordedDistance CalculateRecordedDistance(
+        IReadOnlyList<TelemetryRecord> telemetry,
+        int communicationLossSeconds)
+    {
+        decimal meters = 0;
+        var validSegments = 0;
+        var excludedSegments = 0;
+        double excludedGapSeconds = 0;
+        var missingGpsSamples = 0;
+        var invalidTelemetrySamples = 0;
+        TelemetryRecord? previous = null;
+        foreach (var point in telemetry)
+        {
+            if (!point.IsValid)
+            {
+                invalidTelemetrySamples++;
+                previous = null;
+                continue;
+            }
+            if (!point.Latitude.HasValue || !point.Longitude.HasValue ||
+                point.Latitude is < -90 or > 90 || point.Longitude is < -180 or > 180)
+            {
+                missingGpsSamples++;
+                previous = null;
+                continue;
+            }
+            if (previous != null)
+            {
+                var gap = (point.SourceTimestamp - previous.SourceTimestamp).TotalSeconds;
+                if (gap >= 0 && gap <= communicationLossSeconds)
+                {
+                    meters += CalculateDistanceMeters(previous.Latitude!.Value, previous.Longitude!.Value,
+                        point.Latitude.Value, point.Longitude.Value);
+                    validSegments++;
+                }
+                else
+                {
+                    excludedSegments++;
+                    if (gap > 0) excludedGapSeconds += gap;
+                }
+            }
+            previous = point;
+        }
+        return new(Math.Round(meters, 2), validSegments, excludedSegments, excludedGapSeconds,
+            missingGpsSamples, invalidTelemetrySamples);
+    }
+
+    private sealed record RecordedDistance(
+        decimal Meters, int ValidSegments, int ExcludedSegments, double ExcludedGapSeconds,
+        int MissingGpsSamples, int InvalidTelemetrySamples);
 
     private async Task<Mission> GetAuthorizedMissionAsync(
         Guid missionId, Guid? currentUserId, bool isManager, CancellationToken cancellationToken)

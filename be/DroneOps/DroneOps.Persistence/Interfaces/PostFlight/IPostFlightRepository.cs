@@ -24,6 +24,8 @@ public interface IPostFlightRepository
 
     Task<List<TelemetryRecord>> GetTelemetryByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);
 
+    Task<List<TelemetryRecord>> GetTelemetryForAnalyticsAsync(Guid missionId, CancellationToken cancellationToken = default);
+
     Task<FlightCompletionEvent?> GetCompletionEventByKeyAsync(string idempotencyKey, CancellationToken cancellationToken = default);
 
     Task<FlightCompletionEvent?> GetTrustedCompletionEventAsync(Guid missionId, CancellationToken cancellationToken = default);
@@ -47,7 +49,7 @@ public interface IPostFlightRepository
 
     Task UpdateMissionAsync(Mission mission, CancellationToken cancellationToken = default);
 
-    Task<List<Mission>> GetTerminalMissionsAsync(
+    Task<List<Mission>> GetStartedMissionsAsync(
         DateTime? fromDate, DateTime? toDate, Guid? uavId, Guid? missionId,
         Guid? pilotUserId, CancellationToken cancellationToken = default);
 
