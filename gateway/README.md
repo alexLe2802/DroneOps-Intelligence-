@@ -1,7 +1,7 @@
 # Kết nối drone với DroneOps Web
 
-Luồng: pilot tạo mã trên web → gateway ghép đôi → nhận MAVLink qua UDP/USB → gửi
-telemetry vào backend → Live Monitoring. Gateway nhận telemetry và có thể xin tần suất stream trên serial, không gửi lệnh
+Luồng: pilot tạo mã trên web → gateway Jetson ghép đôi qua WebSocket → nhận MAVLink qua UDP/USB → gửi
+telemetry qua một kết nối WSS lâu dài → backend → Live Monitoring. Gateway nhận telemetry và có thể xin tần suất stream trên serial, không gửi lệnh
 bay, không upload kế hoạch và không tự chuyển mission sang InProgress.
 
 ## Pilot sử dụng
@@ -27,7 +27,7 @@ bay, không upload kế hoạch và không tự chuyển mission sang InProgress
    ví dụ UDP 14550. Nếu cùng máy, dùng loopback:
 
    ```sh
-   python gateway.py --api https://YOUR-BACKEND --device udpin:127.0.0.1:14550 --system-id 1
+   python gateway.py --server https://YOUR-BACKEND --device udpin:127.0.0.1:14550 --system-id 1
    ```
 
    Nếu Mission Planner ở máy khác, chọn IP interface nhận UDP của gateway, ví dụ
@@ -38,7 +38,7 @@ bay, không upload kế hoạch và không tự chuyển mission sang InProgress
    tên cổng và baud của thiết bị, ví dụ Windows COM3 hoặc Linux /dev/ttyUSB0:
 
    ```sh
-   python gateway.py --api https://YOUR-BACKEND --device COM3 --baud 57600 --system-id 1
+   python gateway.py --server https://YOUR-BACKEND --device /dev/ttyACM0 --baud 57600 --system-id 1
    ```
 
 7. Nhập mã khi gateway hỏi. Mã được nhập ẩn; không cần integration key dùng chung.
@@ -47,6 +47,63 @@ bay, không upload kế hoạch và không tự chuyển mission sang InProgress
    Mở Live Monitoring để xem vị trí, pin, mode và các mẫu mới nhất.
 9. Bấm **Disconnect** trên web để thu hồi credential. Dừng gateway bằng Ctrl+C chỉ
    dừng chương trình; muốn ngắt quyền gửi hoàn toàn thì thu hồi trên web.
+
+## Jetson Orin Nano (Ubuntu/JetPack)
+
+Cài lần đầu và ghép đôi tương tác trước khi bật service:
+
+```sh
+sudo useradd --system --home /var/lib/droneops-gateway --create-home --shell /usr/sbin/nologin droneops
+sudo mkdir -p /opt/droneops-gateway /var/lib/droneops-gateway
+sudo chown -R droneops:droneops /opt/droneops-gateway /var/lib/droneops-gateway
+sudo -u droneops python3 -m venv /opt/droneops-gateway/.venv
+sudo -u droneops /opt/droneops-gateway/.venv/bin/pip install -r /opt/droneops-gateway/requirements.txt
+sudo -u droneops /opt/droneops-gateway/.venv/bin/python /opt/droneops-gateway/gateway.py \
+  --server https://YOUR-BACKEND --device /dev/ttyACM0 --baud 57600 --system-id 1 \
+  --session-file /var/lib/droneops-gateway/session.private.json --new-pairing
+```
+
+Sau khi ghép đôi thành công, tạo `/etc/droneops-gateway.env`:
+
+```ini
+DRONEOPS_SERVER=https://YOUR-BACKEND
+MAVLINK_DEVICE=/dev/ttyACM0
+MAVLINK_BAUD=57600
+MAVLINK_SYSTEM_ID=1
+MAVLINK_COMPONENT_ID=1
+```
+
+Sao chép `droneops-gateway.service.example` vào `/etc/systemd/system/droneops-gateway.service`,
+cho user `droneops` quyền đọc cổng serial (thường là group `dialout`), rồi bật service:
+
+```sh
+sudo usermod -aG dialout droneops
+sudo chmod 600 /etc/droneops-gateway.env
+sudo systemctl daemon-reload
+sudo systemctl enable --now droneops-gateway
+sudo journalctl -u droneops-gateway -f
+```
+
+Backend production phải được reverse proxy bằng TLS và cho phép WebSocket Upgrade tại
+`/ws/drone-gateway`. Không bật `--allow-insecure-websocket` ngoài mạng phát triển cô lập.
+
+Ví dụ location Nginx (dùng chung certificate HTTPS hiện có):
+
+```nginx
+location /ws/drone-gateway {
+    proxy_pass http://127.0.0.1:5159;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+}
+```
+
+“Không dùng HTTP” trong tài liệu này áp dụng cho data plane Jetson → backend:
+pair/resume/heartbeat/telemetry đều đi qua WSS. Các thao tác người dùng trên web như tạo
+mã ghép đôi, xem trạng thái và thu hồi phiên vẫn là API HTTPS thông thường.
 
 ## Credential, kết nối lại và giới hạn
 
@@ -58,8 +115,8 @@ bay, không upload kế hoạch và không tự chuyển mission sang InProgress
   Windows cần giữ thư mục dưới profile có ACL riêng của người dùng.
 - Khởi động lại gateway tự dùng credential đã lưu. Khi bị thu hồi/hết hạn, tạo mã
   mới trên web và chạy với `--new-pairing`. Không chia sẻ file credential giữa UAV.
-- HTTPS mặc định cho máy ở xa. Localhost HTTP được hỗ trợ để dev. Mạng LAN dev
-  có thể dùng `--allow-insecure-http` một cách tường minh; backend phải bind IP
+- WSS mặc định cho Jetson/máy ở xa. Localhost WS được hỗ trợ để dev. Mạng LAN dev
+  có thể dùng `--allow-insecure-websocket` một cách tường minh; backend phải bind IP
   mà máy gateway truy cập được. FE server dùng biến **API_BASE_URL**, không dùng
   NEXT_PUBLIC_API_BASE_URL để định tuyến JWT proxy.
 - Chọn đúng `--system-id` và `--component-id` (mặc định component 1). Gateway bỏ qua
@@ -69,9 +126,9 @@ bay, không upload kế hoạch và không tự chuyển mission sang InProgress
 - Với serial trực tiếp, gateway gửi REQUEST_DATA_STREAM (2 Hz) sau heartbeat
   đúng autopilot để xin dữ liệu. Không gửi arm/takeoff/land hay upload mission. UDP
   forwarding dùng stream có sẵn từ Mission Planner.
-- Mẫu tối đa khoảng 1 Hz; gateway heartbeat 10 giây/lần. Mất autopilot heartbeat
+- Mẫu tối đa khoảng 1 Hz; gateway gửi heartbeat trong cùng WebSocket 10 giây/lần. Mất autopilot heartbeat
   quá 5 giây thì ngừng tạo mẫu. Giá trị cảm biến quá 5 giây trở thành null.
-  Lỗi HTTP tạm thời retry có backoff và cùng Idempotency-Key; backlog quá 10 giây
+  WebSocket đứt tạm thời sẽ kết nối lại với backoff; sample giữ cùng Idempotency-Key và backlog quá 10 giây
   bị bỏ để không thể hiện dữ liệu cũ thành live. Credential lỗi 401/403 thì dừng.
 - SourceTimestamp là giờ UTC của gateway khi gom mẫu, không phải đồng hồ boot của
   autopilot. Cần đồng bộ giờ máy gateway. Vị trí dùng GLOBAL_POSITION_INT, relative
@@ -98,12 +155,10 @@ Controller không dùng AppDbContext. API pilot dùng JWT role uav_operator:
 | GET | /api/drone-connections | Phiên của pilot hiện tại |
 | POST | /api/drone-connections | Tạo mã cho `{uavId, missionId}` |
 | DELETE | /api/drone-connections/{id} | Thu hồi phiên của mình |
-| POST | /api/drone-gateway/pair | Đổi mã + gatewayName/systemId/componentId lấy credential |
-| POST | /api/drone-gateway/{id}/heartbeat | Bearer token riêng của gateway |
-| POST | /api/drone-gateway/{id}/samples | Bearer token + Idempotency-Key + DTO telemetry hiện có |
+| WebSocket | /ws/drone-gateway | Pair/resume session, heartbeat, telemetry và ACK trên một kết nối WSS |
 
-Pair endpoint công khai được rate limit theo remote IP (10 request/phút); ingest
-240 request/phút/IP. Nếu deploy nhiều API instance, cấu hình thêm limiter ở gateway
+WebSocket handshake được rate limit theo remote IP (60 kết nối/phút); mỗi connection
+chấp nhận tối đa 240 message/phút. Nếu deploy nhiều API instance, cấu hình thêm limiter ở gateway
 mạng dùng chung. Không cho phép proxy browser chuyển tiếp các route gateway.
 Bảng mới bật RLS và không cấp quyền anon/authenticated; backend là nơi kiểm tra scope.
 
@@ -123,7 +178,7 @@ python -m unittest discover -s gateway -p 'test_*.py'
 dotnet run --project be/DroneOps/DroneOps.AuthChecks -- --drone-connections /absolute/path/to/repo
 ```
 
-Để chạy thêm HTTP + UDP + DB + SSE smoke test với backend local port 5159 đang chạy,
+Để chạy thêm WebSocket + UDP + DB + SSE smoke test với backend local port 5159 đang chạy,
 đặt DRONEOPS_GATEWAY_PYTHON thành đường dẫn Python của virtualenv có pymavlink rồi
 chạy lại --drone-connections. Test tạo dữ liệu riêng, không dùng mission của pilot thật,
 và dọn fixture trong finally. Unit test transport dùng UDP loopback và serial PTY
@@ -147,7 +202,7 @@ Có thể kiểm tra HTTP/SSE/UDP cô lập không cần DB ngoài:
 dotnet run --project be/DroneOps/DroneOps.TelemetryChecks -- --gateway /absolute/path/to/repo
 ```
 
-Suite này dùng Kestrel thật, MAVLink UDP và gateway Python thật, EF InMemory cùng
+Suite này dùng Kestrel thật, WebSocket, MAVLink UDP và gateway Python thật, EF InMemory cùng
 repository test double. PostgreSQL repository được kiểm tra riêng bằng AuthChecks.
 
 ## Danh tính thiết bị vật lý

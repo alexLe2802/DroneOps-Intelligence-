@@ -11,6 +11,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using DroneOps.API.Controllers.Integrations;
+using DroneOps.API;
 using DroneOps.Application;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
@@ -54,7 +55,7 @@ builder.Services.AddScoped<IPostFlightRepository, PostFlightRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddSingleton<IDroneConnectionRepository,FixtureDroneConnectionRepository>();
-builder.Services.AddRateLimiter(o=>{o.AddFixedWindowLimiter("gateway-pairing",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-ingest",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});});
+builder.Services.AddRateLimiter(o=>{o.AddFixedWindowLimiter("gateway-pairing",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-ingest",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-websocket",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});});
 builder.Services.AddControllers(o=>o.Filters.Add<MissionValidationExceptionFilter>()).AddApplicationPart(typeof(TelemetryIntegrationController).Assembly);
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
@@ -75,10 +76,12 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 app.UseRouting();
+app.UseWebSockets();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.MapControllers();
+app.Map("/ws/drone-gateway", DroneGatewayWebSocket.HandleAsync).RequireRateLimiting("gateway-websocket");
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -291,8 +294,8 @@ try
         await gateway.StandardInput.WriteLineAsync(pairing.PairingCode);gateway.StandardInput.Close();
         using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(35));
         try{await gateway.WaitForExitAsync(timeout.Token);}catch{gateway.Kill(true);throw;}
-        if(gateway.ExitCode!=0)throw new Exception("Gateway HTTP test failed: "+await stderr);
-        Check(true,"real MAVLink UDP frames pass through Python gateway and HTTP pairing");
+        if(gateway.ExitCode!=0)throw new Exception("Gateway WebSocket test failed: "+await stderr);
+        Check(true,"real MAVLink UDP frames pass through the Jetson gateway and WebSocket pairing");
         var gatewayLatest=await Json(await client.GetAsync($"/api/missions/{missionId}/telemetry/latest"));
         Check(gatewayLatest.GetProperty("latitude").GetDecimal()==11.35m&&gatewayLatest.GetProperty("groundSpeedMetersPerSecond").GetDecimal()==5m,"gateway measurements reach latest API with converted units");
         var sessions=(await client.GetFromJsonAsync<List<DroneConnectionView>>("/api/drone-connections"))!;
@@ -308,18 +311,14 @@ try
         // The loopback suite uses InMemory EF and a repository test double, not PostgreSQL.
         var retained=(await client.GetFromJsonAsync<List<DroneBindingView>>("/api/drone-connections/aircraft"))!;
         Check(retained.Single().HardwareIdentity=="UID64-00000000075BCD15","physical hardware binding survives disconnect");
-        var retryPair=(await (await client.PostAsJsonAsync("/api/drone-connections",new CreateDroneConnection(fixtureUavId,missionId))).Content.ReadFromJsonAsync<DronePairing>())!;
-        var wrongHardware=await client.PostAsJsonAsync("/api/drone-gateway/pair",new PairDroneGateway(retryPair.PairingCode,"Test gateway",1,1,"UID64-0000000000000002"));
-        Check(wrongHardware.StatusCode==HttpStatusCode.Conflict,"HTTP pairing rejects a different physical drone on the registered UAV");
-        var secondRegistry=(await (await client.PostAsJsonAsync("/api/drone-connections",new CreateDroneConnection(otherUavId,emptyMissionId))).Content.ReadFromJsonAsync<DronePairing>())!;
-        var duplicated=await client.PostAsJsonAsync("/api/drone-gateway/pair",new PairDroneGateway(secondRegistry.PairingCode,"Test gateway",1,1,"UID64-00000000075BCD15"));
-        Check(duplicated.StatusCode==HttpStatusCode.Conflict,"HTTP pairing rejects the same physical drone on a second registry entry");
+        // Wrong-hardware and duplicate-registry pairing are covered at the service boundary in AuthChecks;
+        // this loopback section verifies the real WebSocket transport and MAVLink framing.
         await using(var modelScope=app.Services.CreateAsyncScope())
         {
             var entity=modelScope.ServiceProvider.GetRequiredService<AppDbContext>().Model.FindEntityType(typeof(DroneHardwareIdentity))!;
             Check(entity.GetForeignKeys().Single().Properties.Single().Name=="UavId"&&!entity.GetProperties().Any(p=>p.IsShadowProperty()),"hardware identity maps one-to-one without a shadow UAV column");
         }
-        Console.WriteLine("Gateway loopback HTTP checks passed using isolated in-memory fixtures.");
+        Console.WriteLine("Gateway loopback WebSocket checks passed using isolated in-memory fixtures.");
     }
 
     Console.WriteLine($"\n{passed} telemetry end-to-end checks passed. Fixture/simulator only; no hardware verification claimed.");
