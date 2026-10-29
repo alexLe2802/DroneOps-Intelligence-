@@ -144,6 +144,23 @@ export default function LiveMonitoringClient() {
   const activeIncidents = incidents.filter(item => statusKey(item.status) !== "resolved");
   const latestIncident = activeIncidents[0];
 
+  // QA performance hook: requestAnimationFrame runs after React commits the
+  // telemetry state, so browser automation can distinguish SSE receipt from a
+  // frame that was actually ready to paint. No telemetry is sent anywhere;
+  // consumers must explicitly listen for this local browser event.
+  useEffect(() => {
+    if (!telemetry?.missionId || !telemetry.sourceTimestamp) return;
+    const frame = window.requestAnimationFrame(timestamp => {
+      window.dispatchEvent(new CustomEvent("droneops:telemetry-rendered", { detail: {
+        missionId: telemetry.missionId,
+        sourceTimestamp: telemetry.sourceTimestamp,
+        renderedAt: new Date().toISOString(),
+        frameTimestamp: timestamp,
+      }}));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [telemetry]);
+
   if (missions === null) return <section className={styles.state}><div className={styles.spinner} /><p>ESTABLISHING LIVE OPERATIONS LINK</p></section>;
 
   return <div className={styles.monitor}>

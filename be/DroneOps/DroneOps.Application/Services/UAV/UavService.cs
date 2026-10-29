@@ -127,7 +127,8 @@ public sealed class UavService : IUavService
         return true;
     }
 
-    // 4. Xóa UAV: Cho phép xóa toàn bộ Drone ở MỌI TRẠNG THÁI (Pending, Rejected, Active, Inactive)
+    // 4. Xóa UAV chưa gắn flight controller. Binding lâu dài không được
+    // xóa lách qua API UAV; UAV đã bind chỉ có thể deactivate.
     public async Task<bool> DeleteAsync(
         Guid userId,
         Guid uavId,

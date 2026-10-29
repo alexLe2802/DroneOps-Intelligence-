@@ -23,6 +23,7 @@ internal static class DroneConnectionChecks
         await DroneConnectionSchema.CheckAsync(source);
         var role=await db.Roles.Where(r=>r.Name=="uav_operator").Select(r=>r.Id).FirstAsync();
         var owner=Guid.NewGuid();var pilot=Guid.NewGuid();var uav=Guid.NewGuid();var mission=Guid.NewGuid();var stranger=Guid.NewGuid();var otherUav=Guid.NewGuid();var otherMission=Guid.NewGuid();
+        var raceUavA=Guid.NewGuid();var raceMissionA=Guid.NewGuid();var raceUavB=Guid.NewGuid();var raceMissionB=Guid.NewGuid();
         // Dùng dependency thật như runtime để kiểm tra constructor không bị lệch khi lifecycle incident thay đổi.
         var incidentLifecycle = new IncidentLifecycleService(db);
         var ingestion=new TelemetryIngestionService(
@@ -43,7 +44,17 @@ internal static class DroneConnectionChecks
             db.Missions.Add(new Mission{Id=mission,UAVId=uav,CreatedBy=owner,Name="Temporary gateway mission",Status="Approved",StartTime=DateTime.UtcNow.AddDays(3),EndTime=DateTime.UtcNow.AddDays(3).AddHours(1),CreatedAt=DateTime.UtcNow});
             db.UAVs.Add(new UAV{Id=otherUav,PilotId=pilot,Name="Other registry entry",Code=$"GATEWAY-{otherUav:N}",Status="Active",CreatedAt=DateTimeOffset.UtcNow});
             db.Missions.Add(new Mission{Id=otherMission,UAVId=otherUav,CreatedBy=owner,Name="Other fixture mission",Status="Approved",StartTime=DateTime.UtcNow.AddDays(4),EndTime=DateTime.UtcNow.AddDays(4).AddHours(1),CreatedAt=DateTime.UtcNow});
+            db.UAVs.AddRange(
+                new UAV{Id=raceUavA,PilotId=pilot,Name="Concurrent registry A",Code=$"GATEWAY-{raceUavA:N}",Status="Active",CreatedAt=DateTimeOffset.UtcNow},
+                new UAV{Id=raceUavB,PilotId=pilot,Name="Concurrent registry B",Code=$"GATEWAY-{raceUavB:N}",Status="Active",CreatedAt=DateTimeOffset.UtcNow});
+            db.Missions.AddRange(
+                new Mission{Id=raceMissionA,UAVId=raceUavA,CreatedBy=owner,Name="Concurrent mission A",Status="Approved",StartTime=DateTime.UtcNow.AddDays(5),EndTime=DateTime.UtcNow.AddDays(5).AddHours(1),CreatedAt=DateTime.UtcNow},
+                new Mission{Id=raceMissionB,UAVId=raceUavB,CreatedBy=owner,Name="Concurrent mission B",Status="Approved",StartTime=DateTime.UtcNow.AddDays(5),EndTime=DateTime.UtcNow.AddDays(5).AddHours(1),CreatedAt=DateTime.UtcNow});
             await db.SaveChangesAsync();db.ChangeTracker.Clear();
+            await using(var shadowColumn=source.CreateCommand("SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='DroneHardwareIdentity' AND column_name='UavId1'"))
+                Check(Convert.ToInt64(await shadowColumn.ExecuteScalarAsync())==0
+                      && db.Model.FindEntityType(typeof(DroneHardwareIdentity))?.FindProperty("UavId1") is null,
+                    "hardware binding uses the explicit UavId key without an EF or PostgreSQL UavId1 shadow column");
             await Denied(async()=>{await service.CreateAsync(stranger,new(uav,mission),default);},"another pilot cannot pair this UAV");
             var p=await service.CreateAsync(owner,new(uav,mission),default);
             var row=await db.DroneConnections.AsNoTracking().SingleAsync(c=>c.Id==p.Connection.Id);
@@ -78,7 +89,7 @@ internal static class DroneConnectionChecks
             try {await service.PairAsync(Pair(wrong.PairingCode) with {HardwareIdentity="UID64-0000000000000002"},default);throw new Exception("Wrong physical drone accepted");}
             catch(InvalidOperationException){Check(true,"registered UAV cannot be silently rebound to another physical drone");}
             var reconnected=await service.PairAsync(Pair(wrong.PairingCode),default);
-            Check(reconnected.HardwareIdentity==credentials.HardwareIdentity,"same physical drone reconnects after a new session");
+            Check(reconnected.HardwareIdentity==credentials.HardwareIdentity,"failed conflict rolls back and the same pairing code can reconnect the correct physical drone");
             await Denied(()=>service.HeartbeatAsync(wrong.Connection.Id,reconnected.Token,"UID64-0000000000000002",default),"saved credential rejects a different observed drone identity");
             var duplicateRegistry=await service.CreateAsync(owner,new(otherUav,otherMission),default);
             try {await service.PairAsync(Pair(duplicateRegistry.PairingCode),default);throw new Exception("Duplicate physical drone accepted");}
@@ -100,18 +111,31 @@ internal static class DroneConnectionChecks
             }));
             Check(simultaneous.Count(x=>x is not null)==1,"concurrent claims consume the code exactly once");
             var activeCredential=simultaneous.Single(x=>x is not null)!;
+            var racePairA=await service.CreateAsync(owner,new(raceUavA,raceMissionA),default);
+            var racePairB=await service.CreateAsync(owner,new(raceUavB,raceMissionB),default);
+            const string raceIdentity="UID64-00000000000000CC";
+            var distinctClaims=await Task.WhenAll(new[]{racePairA,racePairB}.Select(async pairing=>
+            {
+                await using var ctx=new AppDbContext(options);
+                var svc=new DroneConnectionService(new DroneConnectionRepository(ctx),ingestion);
+                try { return await svc.PairAsync(Pair(pairing.PairingCode) with {HardwareIdentity=raceIdentity},default); }
+                catch(InvalidOperationException) { return null; }
+            }));
+            Check(distinctClaims.Count(x=>x is not null)==1
+                  && await db.DroneHardwareIdentities.CountAsync(x=>x.Identity==raceIdentity)==1,
+                "two registry UAVs concurrently claiming one UID produce exactly one durable binding");
             // A moved/deactivated aircraft must invalidate credentials even before TTL.
             await db.UAVs.Where(u=>u.Id==uav).ExecuteUpdateAsync(s=>s.SetProperty(u=>u.Status,"Inactive"));
             await Denied(()=>service.HeartbeatAsync(second.Connection.Id,activeCredential.Token,activeCredential.HardwareIdentity,default),"deactivating aircraft invalidates an already paired credential");
             var uavRepository = new UavRepository(db);
             Check(!await uavRepository.DeleteOwnedAsync(uav,stranger,false),"another pilot cannot delete an owned UAV");
-            Check(await uavRepository.DeleteOwnedAsync(uav,owner,false),"pilot can delete their own UAV regardless of status and hardware binding");
-            Check(!await db.UAVs.AsNoTracking().AnyAsync(x=>x.Id==uav)
-                  && !await db.DroneConnections.AsNoTracking().AnyAsync(x=>x.UavId==uav)
-                  && !await db.DroneHardwareIdentities.AsNoTracking().AnyAsync(x=>x.UavId==uav)
-                  && !await db.TelemetryRecords.AsNoTracking().AnyAsync(x=>x.UAVId==uav)
-                  && await db.Missions.AsNoTracking().Where(x=>x.Id==mission).Select(x=>x.UAVId).SingleAsync()==null,
-                "UAV deletion clears required dependents and preserves the mission without an aircraft assignment");
+            try {await uavRepository.DeleteOwnedAsync(uav,owner,false);throw new Exception("Bound UAV was deleted");}
+            catch(InvalidOperationException)
+            {
+                Check(await db.UAVs.AsNoTracking().AnyAsync(x=>x.Id==uav)
+                      && await db.DroneHardwareIdentities.AsNoTracking().AnyAsync(x=>x.UavId==uav),
+                    "a permanent binding prevents UAV deletion and remains stored");
+            }
             Console.WriteLine($"{count} PostgreSQL gateway checks passed. Hardware is not used.");
         }
         finally
