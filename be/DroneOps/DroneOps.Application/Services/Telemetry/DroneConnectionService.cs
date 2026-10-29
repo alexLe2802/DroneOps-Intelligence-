@@ -15,7 +15,7 @@ public sealed class DroneConnectionService(IDroneConnectionRepository repository
         var now = DateTimeOffset.UtcNow;
         var state = c.RevokedAt != null ? "Revoked" : c.ExpiresAt <= now ? "Expired" : c.PairedAt == null ? c.CodeExpiresAt <= now ? "PairingExpired" : "AwaitingGateway"
             : c.LastGatewayAt < now.AddSeconds(-30) ? "Offline" : c.LastSampleAt >= now.AddSeconds(-15) ? "ReceivingTelemetry" : "GatewayConnected";
-        return new(c.Id,c.UavId,c.MissionId,c.CreatedAt,c.CodeExpiresAt,c.ExpiresAt,c.PairedAt,c.LastGatewayAt,c.LastSampleAt,c.RevokedAt,c.GatewayName,c.SystemId,c.ComponentId,state,c.HardwareIdentity);
+        return new(c.Id,c.UavId,c.MissionId,c.CreatedAt,c.CodeExpiresAt,c.ExpiresAt,c.PairedAt,c.LastGatewayAt,c.LastSampleAt,c.RevokedAt,c.GatewayName,c.SystemId,c.ComponentId,state,c.HardwareIdentity,"WebSocket");
     }
     public async Task<List<DroneBindingView>> BindingsAsync(Guid owner,CancellationToken ct) => (await repository.BindingsAsync(owner,ct)).Select(h=>new DroneBindingView(h.UavId,h.Identity,h.BoundAt)).ToList();
     public async Task<DronePairing> CreateAsync(Guid owner, CreateDroneConnection request, CancellationToken ct)
@@ -26,7 +26,7 @@ public sealed class DroneConnectionService(IDroneConnectionRepository repository
         var connection = new DroneConnection { Id=Guid.NewGuid(),OwnerId=owner,UavId=request.UavId,MissionId=request.MissionId,
             PairCodeHash=Hash(code),CreatedAt=now,CodeExpiresAt=now.AddMinutes(5),ExpiresAt=now.AddHours(12) };
         await repository.CreateAsync(connection,ct);
-        return new(View(connection),code);
+        return new(View(connection),code,"/ws/drone-gateway");
     }
     public async Task<List<DroneConnectionView>> ListAsync(Guid owner,CancellationToken ct) => (await repository.ListAsync(owner,ct)).Select(View).ToList();
     public Task<bool> RevokeAsync(Guid id,Guid owner,CancellationToken ct) => repository.RevokeAsync(id,owner,ct);
