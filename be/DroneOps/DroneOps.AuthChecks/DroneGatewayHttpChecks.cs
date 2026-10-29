@@ -35,11 +35,11 @@ internal static class DroneGatewayHttpChecks
         await process.StandardInput.WriteLineAsync(pair.PairingCode);process.StandardInput.Close();
         using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(40));
         try{await process.WaitForExitAsync(timeout.Token);}catch{process.Kill(true);throw;}
-        if(process.ExitCode!=0)throw new Exception("Gateway HTTP smoke failed: "+await errors);
+        if(process.ExitCode!=0)throw new Exception("Gateway WebSocket smoke failed: "+await errors);
         Console.WriteLine((await output).Trim());
         var latest=await client.GetFromJsonAsync<MissionLatestTelemetryResponse>($"/api/missions/{mission}/telemetry/latest");
         if(latest?.Latitude!=11.35m||latest.Longitude!=106.34m||latest.GroundSpeedMetersPerSecond!=5m)throw new Exception("MAVLink telemetry did not reach the latest API with expected units.");
-        Console.WriteLine("PASS: MAVLink -> UDP -> gateway credential -> HTTP ingestion -> PostgreSQL -> latest telemetry API");
+        Console.WriteLine("PASS: MAVLink -> UDP -> Jetson gateway -> WebSocket -> PostgreSQL -> latest telemetry API");
         // Verify the same stream used by Live Monitoring includes this mission's data.
         using var streamTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(12));
         using var stream=await client.GetAsync($"/api/live/stream?missionId={mission}",HttpCompletionOption.ResponseHeadersRead,streamTimeout.Token);
