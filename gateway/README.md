@@ -59,9 +59,21 @@ nối hai cổng USB-C. Khi dùng TELEM2 qua USB–UART, không nối chân +5 V
 
 ### Quick start trên Jetson
 
-Trong thư mục vừa giải nén, chạy:
+Trước hết phải đưa file ZIP lên Jetson. Ví dụ chạy trên máy macOS đang chứa repo:
 
 ```sh
+scp /Users/alexxxx/Desktop/SEP490/fe/public/downloads/droneops-gateway.zip \
+  dronelab@IP_CUA_JETSON:/home/dronelab/
+```
+
+Sau đó chạy trên Jetson; `ls` phải thấy file trước khi `unzip`:
+
+```sh
+cd ~
+ls -lh droneops-gateway.zip
+mkdir -p ~/droneops-package
+unzip droneops-gateway.zip -d ~/droneops-package
+cd ~/droneops-package/droneops-gateway
 chmod +x install-jetson.sh pair-jetson.sh
 sudo ./install-jetson.sh
 ```

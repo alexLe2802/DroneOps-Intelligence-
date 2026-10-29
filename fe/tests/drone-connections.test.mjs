@@ -13,3 +13,8 @@ test('browser proxy exposes pilot sessions but not unauthenticated gateway crede
  const source=await readFile(new URL('../src/app/api/[...path]/route.ts',import.meta.url),'utf8');const regex=source.match(/const allowed = (\/.*\/);/)[1];const allowed=Function(`return ${regex}`)();
  assert.equal(allowed.test('drone-connections'),true);assert.equal(allowed.test('drone-connections/aircraft'),true);assert.equal(allowed.test('drone-connections/11111111-1111-1111-1111-111111111111'),true);assert.equal(allowed.test('drone-gateway/pair'),false);assert.equal(allowed.test('drone-connections/not-a-uuid'),false);
 });
+test('connect-drone page is Jetson-first while keeping the browser off the gateway WebSocket',async()=>{
+ const source=await readFile(new URL('../src/app/portal/drone-connection/drone-connection-client.tsx',import.meta.url),'utf8');
+ assert.match(source,/install-jetson\.sh/);assert.match(source,/pair-jetson\.sh/);assert.match(source,/PAIR OVER WEBSOCKET/);
+ assert.doesNotMatch(source,/new WebSocket\s*\(/);assert.doesNotMatch(source,/COM3/);
+});
