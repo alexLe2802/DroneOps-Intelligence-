@@ -50,11 +50,42 @@ bay, không upload kế hoạch và không tự chuyển mission sang InProgress
 
 ## Jetson Orin Nano (Ubuntu/JetPack)
 
+Hướng dẫn đầy đủ về USB/TELEM2, sơ đồ nguồn pin 4S2P, cài JetPack, tự khởi động và
+truy cập headless nằm tại
+[`docs/jetson-orin-nano-pixhawk-6c-setup.md`](../docs/jetson-orin-nano-pixhawk-6c-setup.md)
+(trong gói tải về, mở `JETSON_SETUP.md`).
+Lưu ý nhanh: USB phải đi từ **USB-A host của Jetson sang USB-C của Pixhawk**; không
+nối hai cổng USB-C. Khi dùng TELEM2 qua USB–UART, không nối chân +5 V của TELEM2.
+
+### Quick start trên Jetson
+
+Trong thư mục vừa giải nén, chạy:
+
+```sh
+chmod +x install-jetson.sh pair-jetson.sh
+sudo ./install-jetson.sh
+```
+
+Installer tự cài gateway, hỏi device/baud/IP backend và tạo service. Sau đó tạo mã
+pairing trên web và chạy:
+
+```sh
+sudo /opt/droneops-gateway/pair-jetson.sh
+```
+
+Pair thành công thì service tự bật ở mọi lần boot sau. Không chạy lại installer.
+Chỉ chạy lại `pair-jetson.sh` khi session 12 giờ hết hạn, bị revoke hoặc đổi
+mission/UAV. Phần lệnh dài dưới đây là cách cài thủ công/xử lý lỗi.
+
 Cài lần đầu và ghép đôi tương tác trước khi bật service:
 
 ```sh
+# Trước hết cd vào thư mục gateway/ của repo, hoặc thư mục droneops-gateway/
+# vừa giải nén. Ba file ở lệnh ls phải tồn tại.
+ls -l gateway.py requirements.txt droneops-gateway.service.example
 sudo useradd --system --home /var/lib/droneops-gateway --create-home --shell /usr/sbin/nologin droneops
 sudo mkdir -p /opt/droneops-gateway /var/lib/droneops-gateway
+sudo install -m 0644 gateway.py requirements.txt droneops-gateway.service.example /opt/droneops-gateway/
 sudo chown -R droneops:droneops /opt/droneops-gateway /var/lib/droneops-gateway
 sudo -u droneops python3 -m venv /opt/droneops-gateway/.venv
 sudo -u droneops /opt/droneops-gateway/.venv/bin/pip install -r /opt/droneops-gateway/requirements.txt
@@ -73,6 +104,9 @@ MAVLINK_SYSTEM_ID=1
 MAVLINK_COMPONENT_ID=1
 ```
 
+Trên thiết bị thật, thay `/dev/ttyACM0` bằng đường dẫn ổn định trong
+`/dev/serial/by-id/` để service không nối nhầm cổng sau reboot.
+
 Sao chép `droneops-gateway.service.example` vào `/etc/systemd/system/droneops-gateway.service`,
 cho user `droneops` quyền đọc cổng serial (thường là group `dialout`), rồi bật service:
 
@@ -86,6 +120,161 @@ sudo journalctl -u droneops-gateway -f
 
 Backend production phải được reverse proxy bằng TLS và cho phép WebSocket Upgrade tại
 `/ws/drone-gateway`. Không bật `--allow-insecure-websocket` ngoài mạng phát triển cô lập.
+
+## Chạy backend trên máy phát triển và cho Jetson kết nối qua LAN
+
+Repo dùng port backend mặc định **5159**. `localhost:5159` chỉ truy cập được từ chính
+máy chạy backend; Jetson phải dùng **IPv4 LAN của máy đó**, ví dụ
+`http://192.168.1.20:5159`. Đây là IP/port backend, không phải frontend port 3000 và
+không phải IP của Jetson.
+
+### 1. Cho backend lắng nghe trên mạng LAN
+
+Bảo đảm máy đã có .NET 8 SDK và cấu hình database trong
+`be/DroneOps/DroneOps.API/appsettings.Local.json` hoặc biến môi trường
+`ConnectionStrings__DefaultConnection`. Từ thư mục gốc repo chạy:
+
+```sh
+cd be/DroneOps
+ASPNETCORE_ENVIRONMENT=Development dotnet run \
+  --project DroneOps.API/DroneOps.API.csproj \
+  --no-launch-profile --urls http://0.0.0.0:5159
+```
+
+PowerShell:
+
+```powershell
+cd be/DroneOps
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+dotnet run --project DroneOps.API/DroneOps.API.csproj `
+  --no-launch-profile --urls http://0.0.0.0:5159
+```
+
+Nếu repo đang dùng SDK cục bộ `.tools/dotnet`, có thể dùng script sẵn có và truyền
+đối số ứng dụng sau `--`:
+
+```sh
+./be/DroneOps/run-api.sh -- --urls http://0.0.0.0:5159
+```
+
+Log phải có dòng tương tự `Now listening on: http://0.0.0.0:5159`. Không dùng
+launch profile `http` mặc định cho trường hợp này vì profile bind
+`http://localhost:5159`.
+
+### 2. Lấy đúng IP của máy chạy backend
+
+Máy backend và Jetson phải ở cùng Wi-Fi/LAN, và access point không bật client/AP
+isolation. Lấy địa chỉ của card mạng đang kết nối:
+
+```sh
+# macOS, thường là Wi-Fi en0
+ipconfig getifaddr en0
+
+# Linux
+hostname -I
+
+# Windows PowerShell
+ipconfig
+```
+
+Chọn IPv4 private dạng `192.168.x.x`, `10.x.x.x` hoặc `172.16–31.x.x`; không chọn
+`127.0.0.1`, địa chỉ VPN/Docker hoặc IPv6 link-local. Ví dụ máy backend trả về
+`192.168.1.20` thì URL Jetson phải là `http://192.168.1.20:5159`.
+
+Nên tạo DHCP reservation trên router để IP máy backend không đổi. Nếu IP đổi thì
+phải sửa `DRONEOPS_SERVER` trên Jetson và restart service.
+
+### 3. Mở firewall chỉ trong mạng tin cậy
+
+Cho phép inbound TCP 5159 cho private/trusted LAN. Trên macOS, khi được hỏi hãy cho
+phép kết nối đến `dotnet`, hoặc mở **System Settings → Network → Firewall → Options**.
+Trên Ubuntu có thể dùng:
+
+```sh
+sudo ufw allow from 192.168.1.0/24 to any port 5159 proto tcp
+```
+
+Thay subnet bằng mạng thực tế. Trên Windows tạo inbound rule TCP 5159 cho profile
+**Private**, không dùng profile Public. Không port-forward 5159 trên router và không
+phơi HTTP development ra Internet.
+
+Từ một máy khác trong cùng LAN, kiểm tra trước:
+
+```sh
+curl -i http://192.168.1.20:5159/ws/drone-gateway
+```
+
+Kết quả `400 Bad Request` kèm thông báo yêu cầu WebSocket là **đúng**: nó chứng minh
+đã đến được endpoint; request `curl` thường không phải WebSocket upgrade.
+
+### 4. Kiểm tra từ Jetson và ghép đôi
+
+SSH vào Jetson rồi kiểm tra route/IP:
+
+```sh
+ip route
+ping -c 3 192.168.1.20
+curl -i --connect-timeout 5 http://192.168.1.20:5159/ws/drone-gateway
+```
+
+Sau đó dừng service và ghép đôi một lần. Vì đây là HTTP/WS thuần trong LAN dev, cờ
+`--allow-insecure-websocket` là bắt buộc:
+
+```sh
+sudo systemctl stop droneops-gateway
+sudo -u droneops /opt/droneops-gateway/.venv/bin/python \
+  /opt/droneops-gateway/gateway.py \
+  --server http://192.168.1.20:5159 \
+  --device /dev/serial/by-id/REPLACE_ME \
+  --baud 921600 --system-id 1 --component-id 1 \
+  --session-file /var/lib/droneops-gateway/session.private.json \
+  --new-pairing --allow-insecure-websocket
+```
+
+Thay IP, device và baud bằng giá trị thật. Mã pairing được tạo trên web và chỉ có
+hiệu lực 5 phút.
+
+### 5. Cho service Jetson dùng IP backend LAN
+
+Tạo hoặc sửa `/etc/droneops-gateway.env`:
+
+```ini
+DRONEOPS_SERVER=http://192.168.1.20:5159
+MAVLINK_DEVICE=/dev/serial/by-id/REPLACE_ME
+MAVLINK_BAUD=921600
+MAVLINK_SYSTEM_ID=1
+MAVLINK_COMPONENT_ID=1
+```
+
+Service mẫu mặc định cố ý không cho WS không mã hóa. Với môi trường LAN dev, tạo
+override để thêm cờ cho riêng máy này:
+
+```sh
+sudo systemctl edit droneops-gateway
+```
+
+Nhập nguyên khối sau:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/opt/droneops-gateway/.venv/bin/python /opt/droneops-gateway/gateway.py --server ${DRONEOPS_SERVER} --device ${MAVLINK_DEVICE} --baud ${MAVLINK_BAUD} --system-id ${MAVLINK_SYSTEM_ID} --component-id ${MAVLINK_COMPONENT_ID} --session-file /var/lib/droneops-gateway/session.private.json --allow-insecure-websocket
+```
+
+Áp dụng và xác minh:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl restart droneops-gateway
+systemctl status droneops-gateway --no-pager
+sudo journalctl -u droneops-gateway -n 100 --no-pager
+```
+
+Web phải lần lượt hiện **Gateway online** và **Receiving drone telemetry**. Nếu
+`curl` timeout thì kiểm tra backend bind/firewall/IP trước; nếu `curl` được nhưng
+gateway báo không có UID/heartbeat thì kiểm tra Pixhawk, device và baud. Khi deploy
+thật, dùng domain HTTPS/WSS với certificate hợp lệ, bỏ override
+`--allow-insecure-websocket`, và đặt `DRONEOPS_SERVER=https://...`.
 
 Ví dụ location Nginx (dùng chung certificate HTTPS hiện có):
 
