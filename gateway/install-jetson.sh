@@ -1,99 +1,93 @@
 #!/usr/bin/env bash
+# One-time setup; services reconnect without a terminal.
 set -euo pipefail
-
-if [[ $EUID -ne 0 ]]; then
-  echo "Run this installer with sudo: sudo ./install-jetson.sh" >&2
-  exit 1
-fi
-
+[[ $EUID -eq 0 ]] || { echo 'Run: sudo bash install-jetson.sh'; exit 1; }
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 install_dir=/opt/droneops-gateway
 state_dir=/var/lib/droneops-gateway
-env_file=/etc/droneops-gateway.env
-service_file=/etc/systemd/system/droneops-gateway.service
-
-for file in gateway.py requirements.txt droneops-gateway.service.example pair-jetson.sh; do
-  if [[ ! -f "$source_dir/$file" ]]; then
-    echo "Missing $file in $source_dir. Run this script from the extracted gateway package." >&2
-    exit 1
-  fi
+for file in gateway.py requirements.txt droneops-gateway.service.example droneops-router.service.example pair-jetson.sh; do
+  [[ -f "$source_dir/$file" ]] || { echo "Missing $file"; exit 1; }
 done
-
-if ! command -v python3 >/dev/null || ! python3 -m venv --help >/dev/null 2>&1; then
-  echo "Install prerequisites first: sudo apt update && sudo apt install -y python3-venv python3-pip" >&2
-  exit 1
-fi
-
-echo "Detected serial devices:"
+echo 'Pixhawk serial adapters:'
 find /dev/serial/by-id -maxdepth 1 -type l -print 2>/dev/null || true
-compgen -G '/dev/ttyACM*' || true
-compgen -G '/dev/ttyUSB*' || true
-echo
-read -r -p "Pixhawk device (prefer /dev/serial/by-id/...): " mavlink_device
-if [[ "$mavlink_device" != /dev/* || ! -e "$mavlink_device" ]]; then
-  echo "Device does not exist: $mavlink_device" >&2
-  exit 1
-fi
-
-read -r -p "MAVLink baud [921600]: " mavlink_baud
-mavlink_baud=${mavlink_baud:-921600}
-[[ "$mavlink_baud" =~ ^[1-9][0-9]*$ ]] || { echo "Baud must be a positive number." >&2; exit 1; }
-
-read -r -p "MAVLink system ID [1]: " system_id
+read -r -p 'Pixhawk serial path (/dev/serial/by-id/...): ' serial_device
+[[ "$serial_device" =~ ^/dev/[a-zA-Z0-9_./:+-]+$ && -e "$serial_device" ]] || { echo 'Use an existing /dev serial device without spaces.'; exit 1; }
+read -r -p 'Baud matching Pixhawk TELEM2 [115200]: ' baud
+baud=${baud:-115200}
+[[ "$baud" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid baud'; exit 1; }
+read -r -p 'MAVLink system ID [1]: ' system_id
 system_id=${system_id:-1}
-[[ "$system_id" =~ ^[0-9]+$ ]] && (( system_id >= 1 && system_id <= 255 )) || {
-  echo "System ID must be between 1 and 255." >&2; exit 1;
-}
-
-read -r -p "Backend origin (example http://192.168.1.20:5159): " server
-if [[ ! "$server" =~ ^https://[^/]+$ && ! "$server" =~ ^http://[^/]+$ ]]; then
-  echo "Use an origin without a path, for example http://192.168.1.20:5159 or https://api.example.com" >&2
-  exit 1
+[[ "$system_id" =~ ^[1-9][0-9]{0,2}$ ]] && (( system_id <= 255 )) || { echo 'Invalid system ID'; exit 1; }
+read -r -p 'Backend origin (https://api.example.com): ' server
+[[ "$server" =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] || { echo 'Use an HTTP(S) origin without path, credentials or spaces.'; exit 1; }
+transport_flag=''
+if [[ "$server" == http://* ]]; then
+  read -r -p 'Unencrypted LAN development only. Type LAN to continue: ' consent
+  [[ "$consent" == LAN ]] || exit 1
+  transport_flag=--allow-insecure-websocket
 fi
-
-if ! id droneops >/dev/null 2>&1; then
-  useradd --system --home "$state_dir" --create-home --shell /usr/sbin/nologin droneops
+read -r -p 'Optional laptop IPv4 for QGroundControl (blank = web only): ' laptop
+if [[ -n "$laptop" ]]; then
+  [[ "$laptop" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo 'Use a laptop IPv4 address'; exit 1; }
+  IFS=. read -r -a octets <<< "$laptop"
+  for octet in "${octets[@]}"; do (( 10#$octet <= 255 )) || { echo 'Invalid IPv4'; exit 1; }; done
 fi
+systemctl stop droneops-gateway droneops-router 2>/dev/null || true
+apt-get update
+apt-get install -y python3-venv python3-pip git meson ninja-build pkg-config gcc g++ libsystemd-dev
+if ! command -v mavlink-routerd >/dev/null; then
+  if ! apt-get install -y mavlink-router; then
+    build_dir=$(mktemp -d)
+    git clone --recurse-submodules https://github.com/mavlink-router/mavlink-router.git "$build_dir/router"
+    meson setup "$build_dir/router/build" "$build_dir/router"
+    ninja -C "$build_dir/router/build"
+    ninja -C "$build_dir/router/build" install
+    echo "Router source retained at $build_dir/router; record the commit for reproducibility."
+  fi
+fi
+router_binary=$(command -v mavlink-routerd)
+id droneops >/dev/null 2>&1 || useradd --system --home "$state_dir" --create-home --shell /usr/sbin/nologin droneops
 usermod -aG dialout droneops
 install -d -o droneops -g droneops "$install_dir" "$state_dir"
 install -m 0644 "$source_dir/gateway.py" "$source_dir/requirements.txt" "$install_dir/"
 install -m 0755 "$source_dir/pair-jetson.sh" "$install_dir/"
-install -m 0644 "$source_dir/droneops-gateway.service.example" "$service_file"
-chown -R droneops:droneops "$install_dir" "$state_dir"
-
-if [[ ! -x "$install_dir/.venv/bin/python" ]]; then
-  sudo -u droneops python3 -m venv "$install_dir/.venv"
-fi
-sudo -u droneops "$install_dir/.venv/bin/pip" install --upgrade pip
-sudo -u droneops "$install_dir/.venv/bin/pip" install -r "$install_dir/requirements.txt"
-
+[[ -x "$install_dir/.venv/bin/python" ]] || python3 -m venv "$install_dir/.venv"
+"$install_dir/.venv/bin/pip" install -r "$install_dir/requirements.txt"
+chown -R root:root "$install_dir"
+chown droneops:droneops "$state_dir"
 umask 077
-printf '%s\n' \
-  "DRONEOPS_SERVER=$server" \
-  "MAVLINK_DEVICE=$mavlink_device" \
-  "MAVLINK_BAUD=$mavlink_baud" \
-  "MAVLINK_SYSTEM_ID=$system_id" \
-  "MAVLINK_COMPONENT_ID=1" > "$env_file"
-
-override_dir=/etc/systemd/system/droneops-gateway.service.d
-if [[ "$server" == http://* ]]; then
-  install -d -m 0755 "$override_dir"
-  cat > "$override_dir/lan-development.conf" <<'EOF'
-[Service]
-ExecStart=
-ExecStart=/opt/droneops-gateway/.venv/bin/python /opt/droneops-gateway/gateway.py --server ${DRONEOPS_SERVER} --device ${MAVLINK_DEVICE} --baud ${MAVLINK_BAUD} --system-id ${MAVLINK_SYSTEM_ID} --component-id ${MAVLINK_COMPONENT_ID} --session-file /var/lib/droneops-gateway/session.private.json --allow-insecure-websocket
+printf '%s\n' "DRONEOPS_SERVER=$server" 'MAVLINK_DEVICE=udpin:127.0.0.1:14551' \
+  "MAVLINK_BAUD=$baud" "MAVLINK_SYSTEM_ID=$system_id" 'MAVLINK_COMPONENT_ID=1' \
+  "DRONEOPS_TRANSPORT_FLAG=$transport_flag" > /etc/droneops-gateway.env
+chown root:droneops /etc/droneops-gateway.env
+chmod 0640 /etc/droneops-gateway.env
+install -d -m 0755 /etc/droneops-router
+cat > /etc/droneops-router/main.conf <<EOF
+[General]
+TcpServerPort=0
+[UartEndpoint pixhawk]
+Device=$serial_device
+Baud=$baud
+FlowControl=false
+[UdpEndpoint gateway]
+Mode=Normal
+Address=127.0.0.1
+Port=14551
 EOF
-  echo "WARNING: HTTP/WS mode is only suitable for a trusted development LAN."
-else
-  if [[ -f "$override_dir/lan-development.conf" ]]; then
-    rm "$override_dir/lan-development.conf"
-  fi
+if [[ -n "$laptop" ]]; then
+  cat >> /etc/droneops-router/main.conf <<EOF
+[UdpEndpoint laptop]
+Mode=Normal
+Address=$laptop
+Port=14550
+EOF
 fi
-
+chmod 0644 /etc/droneops-router/main.conf
+install -m 0644 "$source_dir/droneops-gateway.service.example" /etc/systemd/system/droneops-gateway.service
+sed "s|/usr/local/bin/mavlink-routerd|$router_binary|" "$source_dir/droneops-router.service.example" > /etc/systemd/system/droneops-router.service
+legacy=/etc/systemd/system/droneops-gateway.service.d/lan-development.conf
+[[ ! -f "$legacy" ]] || rm -- "$legacy"
 systemctl daemon-reload
-systemctl disable --now droneops-gateway >/dev/null 2>&1 || true
-
-echo
-echo "Installation complete. Pair once with:"
-echo "  sudo $install_dir/pair-jetson.sh"
-
+systemctl enable --now droneops-router droneops-gateway
+echo 'Ready. Services start on boot and retry when serial/network return.'
+echo 'Create a code on Connect Drone, then run: sudo /opt/droneops-gateway/pair-jetson.sh'

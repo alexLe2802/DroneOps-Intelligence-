@@ -13,8 +13,12 @@ test('browser proxy exposes pilot sessions but not unauthenticated gateway crede
  const source=await readFile(new URL('../src/app/api/[...path]/route.ts',import.meta.url),'utf8');const regex=source.match(/const allowed = (\/.*\/);/)[1];const allowed=Function(`return ${regex}`)();
  assert.equal(allowed.test('drone-connections'),true);assert.equal(allowed.test('drone-connections/aircraft'),true);assert.equal(allowed.test('drone-connections/11111111-1111-1111-1111-111111111111'),true);assert.equal(allowed.test('drone-gateway/pair'),false);assert.equal(allowed.test('drone-connections/not-a-uuid'),false);
 });
-test('connect-drone page supports Jetson and radio gateways while keeping the browser off the gateway WebSocket',async()=>{
+test('connect-drone offers Jetson and laptop radio profiles without a browser gateway socket',async()=>{
  const source=await readFile(new URL('../src/app/portal/drone-connection/drone-connection-client.tsx',import.meta.url),'utf8');
- assert.match(source,/GATEWAY VIA JETSON/);assert.match(source,/RADIO TELEMETRY/);assert.match(source,/install-jetson\.sh/);assert.match(source,/pair-jetson\.sh/);assert.match(source,/udpin:127\.0\.0\.1:14550/);
+ assert.match(source,/JETSON ONBOARD/);assert.match(source,/install-jetson\.sh/);assert.match(source,/pair-jetson\.sh/);
+ assert.match(source,/12-hour session expires/);assert.match(source,/Network recovery alone does not require pairing again/);
+ assert.match(source,/RADIO TELEMETRY/);assert.match(source,/aria-pressed=\{profile===/);
+ assert.match(source,/--device COM5 --baud 57600/);assert.match(source,/Keep this process running/);
+ assert.match(source,/Gateway online/);assert.doesNotMatch(source,/Last Jetson contact/);
  assert.doesNotMatch(source,/new WebSocket\s*\(/);assert.doesNotMatch(source,/COM3/);
 });
