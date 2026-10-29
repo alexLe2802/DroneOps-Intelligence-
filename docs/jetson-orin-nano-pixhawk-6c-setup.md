@@ -36,24 +36,42 @@ chỉ dùng khi cần hiểu phần cứng, cài thủ công hoặc xử lý l�
 ### Lần đầu: cài một lần
 
 1. Cắm Pixhawk vào Jetson, bảo đảm backend đang chạy và Jetson truy cập được backend.
-2. Tải `droneops-gateway.zip` từ trang **Connect Drone**, rồi trên Jetson chạy:
+2. Đưa `droneops-gateway.zip` lên Jetson. Có thể tải từ trang **Connect Drone**.
+   Nếu web chưa chạy, mở terminal trên **máy đang chứa repo** (không phải terminal
+   SSH của Jetson) và dùng `scp`:
 
    ```sh
-   cd ~/Downloads
-   unzip droneops-gateway.zip
-   cd droneops-gateway
+   scp /Users/alexxxx/Desktop/SEP490/fe/public/downloads/droneops-gateway.zip \
+     dronelab@IP_CUA_JETSON:/home/dronelab/
+   ```
+
+   Thay `IP_CUA_JETSON` bằng IP thật. Nếu không biết, chạy `hostname -I` trên Jetson.
+   `scp` sẽ hỏi password của user `dronelab`.
+
+3. Quay lại terminal Jetson, kiểm tra file trước khi giải nén:
+
+   ```sh
+   cd ~
+   ls -lh droneops-gateway.zip
+   mkdir -p ~/droneops-package
+   unzip droneops-gateway.zip -d ~/droneops-package
+   cd ~/droneops-package/droneops-gateway
    chmod +x install-jetson.sh pair-jetson.sh
    sudo ./install-jetson.sh
    ```
 
-3. Installer sẽ hỏi bốn thông tin:
+   Không chạy `unzip` nếu `ls` báo không có file. Nếu dùng trình duyệt để tải trực
+   tiếp trên Jetson và file thật sự nằm trong `~/Downloads`, dùng
+   `cd ~/Downloads` thay cho `cd ~`.
+
+4. Installer sẽ hỏi bốn thông tin:
 
    - device Pixhawk: copy một dòng `/dev/serial/by-id/...` mà installer vừa in;
    - baud: nhấn Enter để dùng `921600` cho TELEM2;
    - system ID: nhấn Enter để dùng `1`;
    - backend: ví dụ `http://192.168.1.20:5159`.
 
-4. Trên web tạo pairing code, sau đó chạy đúng một lệnh:
+5. Trên web tạo pairing code, sau đó chạy đúng một lệnh:
 
    ```sh
    sudo /opt/droneops-gateway/pair-jetson.sh
@@ -61,7 +79,7 @@ chỉ dùng khi cần hiểu phần cứng, cài thủ công hoặc xử lý l�
 
    Nhập pairing code khi được hỏi. Thành công thì helper tự enable và start service.
 
-5. Kiểm tra:
+6. Kiểm tra:
 
    ```sh
    systemctl is-active droneops-gateway
@@ -73,7 +91,7 @@ chỉ dùng khi cần hiểu phần cứng, cài thủ công hoặc xử lý l�
 ### Những lần bật nguồn sau
 
 Không chạy lại installer. Jetson tự boot, tự nối Wi-Fi và service tự kết nối lại
-Pixhawk/backend. Chỉ chạy lại lệnh pairing ở bước 4 khi session 12 giờ hết hạn, bị
+Pixhawk/backend. Chỉ chạy lại lệnh pairing ở bước 5 khi session 12 giờ hết hạn, bị
 Disconnect/Revoke hoặc đổi mission/UAV. Không cần chạy lại các lệnh Python dài trong
 tài liệu.
 
