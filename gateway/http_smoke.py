@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import websocket
+import datetime as dt
 from pymavlink import mavutil
 
 server=sys.argv[1]
@@ -33,6 +35,18 @@ with tempfile.TemporaryDirectory() as folder:
                 time.sleep(1)
         if not session.exists():raise RuntimeError('Gateway did not identify and pair the drone over WebSocket')
         if process.poll() is not None:raise RuntimeError('Gateway exited during telemetry forwarding')
+        saved=json.loads(session.read_text())
+        ws=websocket.create_connection(server.replace('http://','ws://').replace('https://','wss://')+'/ws/drone-gateway',timeout=5)
+        try:
+            ws.send(json.dumps({'type':'resume','payload':{k:saved[k] for k in ('connectionId','token','hardwareIdentity')}}))
+            assert json.loads(ws.recv())['type']=='ready'
+            invalid={k:saved[k] for k in ('sourceId','uavId','missionId')}
+            invalid.update(sourceTimestamp=dt.datetime.now(dt.timezone.utc).isoformat(),latitude=999,batteryPercent=200)
+            ws.send(json.dumps({'type':'telemetry','idempotencyKey':'invalid-sample','payload':invalid}))
+            response=json.loads(ws.recv())
+            assert response['type']=='error' and 'Latitude' in response['message'],response
+        finally:
+            ws.close()
         print('Real MAVLink frames were forwarded over UDP to the paired gateway.')
     finally:
         process.terminate()

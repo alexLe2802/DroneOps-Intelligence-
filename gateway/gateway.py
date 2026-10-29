@@ -178,6 +178,7 @@ class TelemetryState:
 
 def forward(endpoint, session, pending, stop, failures):
     last_heartbeat, retry_delay = 0.0, 1.0
+    inflight = None
     while not stop.is_set():
         connection = None
         try:
@@ -188,13 +189,17 @@ def forward(endpoint, session, pending, stop, failures):
                 if time.monotonic() - last_heartbeat >= 10:
                     exchange(connection, {'type': 'heartbeat'}, 'heartbeatAck')
                     last_heartbeat = time.monotonic()
-                try:
-                    key, sample, captured = pending.get(timeout=.5)
-                except queue.Empty:
-                    continue
+                if inflight is None:
+                    try:
+                        inflight = pending.get(timeout=.5)
+                    except queue.Empty:
+                        continue
+                key, sample, captured = inflight
                 if time.monotonic() - captured > 10:
+                    inflight = None
                     continue
                 exchange(connection, {'type': 'telemetry', 'idempotencyKey': key, 'payload': sample}, 'telemetryAck')
+                inflight = None
         except GatewayError as error:
             failures.append(str(error))
             stop.set()
@@ -217,9 +222,16 @@ def main():
     parser.add_argument('--name', default=socket.gethostname())
     parser.add_argument('--session-file', default=str(Path(__file__).with_name('session.private.json')))
     parser.add_argument('--new-pairing', action='store_true')
+    parser.add_argument('--pair-only', action='store_true', help='Save a paired session and exit without forwarding')
+    parser.add_argument('--service', action='store_true', help='Never prompt interactively; wait for a saved session')
     parser.add_argument('--pair-code-stdin', action='store_true', help='Read pairing code from stdin for automated integration tests')
     parser.add_argument('--allow-insecure-websocket', '--allow-insecure-http', dest='allow_insecure_websocket', action='store_true')
     args = parser.parse_args()
+    if args.service and (args.new_pairing or args.pair_only):
+        raise GatewayError('Service mode cannot create a pairing.')
+    while args.service and not Path(args.session_file).exists():
+        print('Ready for setup. Run sudo /opt/droneops-gateway/pair-jetson.sh to pair.', flush=True)
+        time.sleep(10)
     endpoint = websocket_endpoint(args.server, args.allow_insecure_websocket)
     if not 1 <= args.system_id <= 255 or not 1 <= args.component_id <= 255 or args.baud <= 0:
         raise GatewayError('Use valid MAVLink system/component IDs and baud rate.')
@@ -243,12 +255,18 @@ def main():
                 raise GatewayError('This connected drone is not the device bound to the saved session. Select its registered UAV on the web and pair it separately.')
             session = candidate
     if session is None:
+        if args.service:
+            raise GatewayError('Saved session does not match this server or device. Pair again.')
         code = sys.stdin.readline().strip() if args.pair_code_stdin else getpass.getpass('One-time pairing code from the web: ')
         connection, session = open_gateway_socket(endpoint, pairing={'code': code, 'gatewayName': args.name,
                           'systemId': args.system_id, 'componentId': args.component_id, 'hardwareIdentity': identity})
         connection.close()
         session.update(endpoint=endpoint, systemId=args.system_id, componentId=args.component_id)
         save_session(args.session_file, session)
+    if args.pair_only:
+        link.close()
+        print('Pairing saved. The background service can now resume this session.')
+        return
     print('Gateway paired. Listening for autopilot %s/%s on %s. No flight commands are sent.' % (args.system_id, args.component_id, args.device))
     stop, pending, failures = threading.Event(), queue.Queue(maxsize=1), []
     worker = threading.Thread(target=forward, args=(endpoint, session, pending, stop, failures), daemon=True)
