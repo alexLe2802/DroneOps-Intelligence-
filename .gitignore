@@ -20,12 +20,11 @@ obj/
 .env.*
 !.env.example
 
-# Diagram deliverables: draw.io and PNG only
+# Diagram deliverables: PlantUML source and PNG; ignore transient exports
 **/diagrams/**/*.svg
 **/diagrams/**/*.pdf
 **/diagrams/**/*.dot
 **/diagrams/**/*.plain
-**/diagrams/**/*.puml
 
 # Machine-local database settings
 database/appsettings.local.json
