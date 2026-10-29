@@ -3,6 +3,12 @@ from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
+import os
+import json
+import queue
+import threading
+from unittest.mock import patch, Mock
+from gateway import main, forward
 from gateway import TelemetryState, websocket_endpoint, GatewayError, save_session, hardware_identity, read_identity
 
 SESSION={'sourceId':'gateway-test','uavId':'uav','missionId':'mission'}
@@ -99,6 +105,57 @@ class GatewayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'session.json';save_session(path,SESSION)
             self.assertTrue(path.exists())
-            self.assertEqual(path.stat().st_mode & 0o777,0o600)
+            if os.name == 'posix':
+                self.assertEqual(path.stat().st_mode & 0o777,0o600)
+
+    def test_pair_only_saves_session_closes_link_and_never_starts_worker(self):
+        from pymavlink import mavutil
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'session.json'
+            link, connection = Mock(), Mock()
+            credential = dict(SESSION, connectionId='c', token='t', hardwareIdentity='UID64-0000000000000001')
+            argv = ['gateway.py', '--server', 'https://api.example.com', '--device', 'udpin:127.0.0.1:14551',
+                    '--system-id', '1', '--session-file', str(path), '--pair-only', '--new-pairing']
+            with patch('sys.argv', argv), patch.object(mavutil, 'mavlink_connection', return_value=link), \
+                 patch('gateway.read_identity', return_value=credential['hardwareIdentity']), \
+                 patch('gateway.getpass.getpass', return_value='ABCDEF0123456789'), \
+                 patch('gateway.open_gateway_socket', return_value=(connection, credential)), \
+                 patch('gateway.threading.Thread') as worker:
+                main()
+            self.assertEqual(json.loads(path.read_text())['connectionId'], 'c')
+            link.close.assert_called_once()
+            connection.close.assert_called_once()
+            worker.assert_not_called()
+
+    def test_network_reconnect_retries_inflight_sample_with_same_key(self):
+        pending = queue.Queue()
+        pending.put(('same-key', {'latitude': 11.35}, 100))
+        stop = threading.Event()
+        failures, attempts = [], []
+        def exchange_fake(connection, message, expected):
+            if message['type'] == 'telemetry':
+                attempts.append(message)
+                if len(attempts) == 1:
+                    raise OSError('network lost before ACK')
+                stop.set()
+            return {'type': expected}
+        with patch('gateway.open_gateway_socket', side_effect=lambda *a, **k: (Mock(), None)), \
+             patch('gateway.exchange', side_effect=exchange_fake), \
+             patch('gateway.time.monotonic', return_value=100), patch.object(stop, 'wait'):
+            forward('wss://api.example.com/ws/drone-gateway', SESSION, pending, stop, failures)
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(attempts[0], attempts[1])
+        self.assertEqual(failures, [])
+
+    def test_service_without_session_waits_without_prompting_or_opening_serial(self):
+        with tempfile.TemporaryDirectory() as folder:
+            argv = ['gateway.py', '--server', 'https://api.example.com', '--device', 'udpin:127.0.0.1:14551',
+                    '--system-id', '1', '--session-file', str(Path(folder)/'absent.json'), '--service']
+            with patch('sys.argv', argv), patch('gateway.time.sleep', side_effect=InterruptedError), \
+                 patch('gateway.getpass.getpass') as prompt, patch('gateway.read_identity') as identity:
+                with self.assertRaises(InterruptedError):
+                    main()
+                prompt.assert_not_called()
+                identity.assert_not_called()
 
 if __name__=='__main__':unittest.main()
