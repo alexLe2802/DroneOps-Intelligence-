@@ -1,6 +1,7 @@
 using System.Text;
 using DroneOps.Application;
 using DroneOps.Application.Settings;
+using DroneOps.API;
 using DroneOps.API.Filters;
 using DroneOps.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -165,9 +166,6 @@ builder.Services.AddAuthentication(options =>
     {
         OnMessageReceived = context =>
         {
-            // Gateway routes validate a separate scoped opaque token in the service.
-            // Do not attempt to parse it as a pilot JWT or log false JWT failures.
-            if (context.Request.Path.StartsWithSegments("/api/drone-gateway")) context.NoResult();
             return Task.CompletedTask;
         },
         OnAuthenticationFailed = context =>
@@ -185,9 +183,9 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("gateway-pairing", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
         { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-    options.AddPolicy("gateway-ingest", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+    options.AddPolicy("gateway-websocket", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-        { PermitLimit = 240, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 #endregion
@@ -211,13 +209,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
-
-
-
+app.UseWebSockets(new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(20)
+});
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapControllers();
+app.Map("/ws/drone-gateway", DroneGatewayWebSocket.HandleAsync)
+    .RequireRateLimiting("gateway-websocket");
 
 app.Run();
