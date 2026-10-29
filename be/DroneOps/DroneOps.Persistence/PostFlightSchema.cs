@@ -18,6 +18,12 @@ public static class PostFlightSchema
         using var lifecycleReader = new StreamReader(lifecycleStream);
         await using var lifecycleCommand = source.CreateCommand(await lifecycleReader.ReadToEndAsync());
         await lifecycleCommand.ExecuteNonQueryAsync();
+        using var snapshotStream = typeof(PostFlightSchema).Assembly.GetManifestResourceStream(
+            "DroneOps.Persistence.Migrations.20261029000100_post_flight_execution_snapshot.sql")
+            ?? throw new InvalidOperationException("Embedded post-flight execution snapshot migration is missing.");
+        using var snapshotReader = new StreamReader(snapshotStream);
+        await using var snapshotCommand = source.CreateCommand(await snapshotReader.ReadToEndAsync());
+        await snapshotCommand.ExecuteNonQueryAsync();
         await CheckAsync(source);
     }
 
@@ -39,12 +45,19 @@ public static class PostFlightSchema
                 WHERE table_schema = current_schema()
                   AND table_name = 'FlightCompletionEvent'
             )
+            AND EXISTS (
+                SELECT 1 FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND tablename = 'FlightCompletionEvent'
+                  AND indexname = 'UX_FlightCompletionEvent_Mission_Trusted'
+            )
             AND NOT EXISTS (
                 SELECT 1
                 FROM unnest(ARRAY[
                     'Revision',
                     'IsCurrent',
                     'GenerationStatus',
+                    'CoveredTelemetryFrom',
                     'CoveredTelemetryThrough',
                     'GenerationStartedAt',
                     'GeneratedAt',
@@ -68,7 +81,8 @@ public static class PostFlightSchema
             throw new InvalidOperationException(
                 "Post-flight schema is out of date. Run the API with --migrate-postflight " +
                 "or apply database/migrations/006_post_flight_integrity.sql followed by " +
-                "database/migrations/007_post_flight_lifecycle.sql.");
+                "database/migrations/007_post_flight_lifecycle.sql and " +
+                "database/migrations/20261029000100_post_flight_execution_snapshot.sql.");
         }
     }
 }

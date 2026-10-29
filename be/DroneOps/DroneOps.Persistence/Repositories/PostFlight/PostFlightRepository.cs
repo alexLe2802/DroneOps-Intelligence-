@@ -2,6 +2,7 @@
 using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace DroneOps.Persistence.Repositories;
 
@@ -90,6 +91,8 @@ public class PostFlightRepository : IPostFlightRepository
                         IsCurrent = true,
                         GenerationStatus = "Queued",
                         Status = "Completed",
+                        CoveredTelemetryFrom = mission.StartTime.HasValue
+                            ? new DateTimeOffset(DateTime.SpecifyKind(mission.StartTime.Value, DateTimeKind.Utc)) : null,
                         CoveredTelemetryThrough = completedAt,
                         CreatedAt = now,
                         GenerationReason = "Scheduled mission end time elapsed"
@@ -245,6 +248,94 @@ public class PostFlightRepository : IPostFlightRepository
     public async Task AddCompletionEventAsync(
         FlightCompletionEvent completionEvent, CancellationToken cancellationToken = default) =>
         await _context.FlightCompletionEvents.AddAsync(completionEvent, cancellationToken);
+
+    public Task<CompletionClaimResult> ClaimCompletionAsync(
+        FlightCompletionEvent completionEvent,
+        PostFlightReport report,
+        IReadOnlyCollection<string> finalizableStatuses,
+        CancellationToken cancellationToken = default)
+    {
+        async Task<CompletionClaimResult> ClaimCoreAsync()
+        {
+            var duplicate = await _context.FlightCompletionEvents.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.IdempotencyKey == completionEvent.IdempotencyKey, cancellationToken);
+            if (duplicate != null)
+            {
+                var duplicateReport = await _context.PostFlightReports.AsNoTracking()
+                    .Where(x => x.MissionId == duplicate.MissionId && x.IsCurrent)
+                    .Select(x => (Guid?)x.Id).FirstOrDefaultAsync(cancellationToken);
+                return new("Duplicate", duplicate.MissionId, duplicate.Id, duplicateReport);
+            }
+
+            Mission? mission;
+            if (_context.Database.IsRelational())
+                mission = await _context.Missions.FromSqlInterpolated(
+                    $"SELECT * FROM \"Mission\" WHERE \"Id\"={completionEvent.MissionId} FOR UPDATE")
+                    .SingleOrDefaultAsync(cancellationToken);
+            else
+                mission = await _context.Missions.SingleOrDefaultAsync(
+                    x => x.Id == completionEvent.MissionId, cancellationToken);
+            if (mission == null) return new("MissingMission", completionEvent.MissionId);
+            if (mission.UAVId != completionEvent.UAVId) return new("WrongUav", mission.Id);
+            if (mission.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+            {
+                var existingEvent = await _context.FlightCompletionEvents.AsNoTracking()
+                    .Where(x => x.MissionId == mission.Id && x.IsTrusted)
+                    .OrderBy(x => x.CompletedAt).FirstOrDefaultAsync(cancellationToken);
+                var existingReport = await _context.PostFlightReports.AsNoTracking()
+                    .Where(x => x.MissionId == mission.Id && x.IsCurrent)
+                    .Select(x => (Guid?)x.Id).FirstOrDefaultAsync(cancellationToken);
+                return new("AlreadyCompleted", mission.Id, existingEvent?.Id, existingReport);
+            }
+            if (!finalizableStatuses.Contains(mission.Status, StringComparer.OrdinalIgnoreCase))
+                return new("InvalidStatus", mission.Id);
+            if (!mission.StartTime.HasValue || completionEvent.CompletedAt.UtcDateTime < mission.StartTime.Value)
+                return new("BeforeStart", mission.Id);
+
+            completionEvent.Evidence = JsonSerializer.Serialize(new
+            {
+                execution = new
+                {
+                    missionId = mission.Id,
+                    mission.UAVId,
+                    mission.StartTime,
+                    statusAtReceipt = mission.Status
+                },
+                completion = new
+                {
+                    completionEvent.SourceId,
+                    completionEvent.EventType,
+                    completionEvent.CompletedAt
+                },
+                suppliedEvidence = completionEvent.Evidence
+            });
+            report.CoveredTelemetryFrom = new DateTimeOffset(
+                DateTime.SpecifyKind(mission.StartTime.Value, DateTimeKind.Utc));
+            report.CoveredTelemetryThrough = completionEvent.CompletedAt;
+            mission.Status = "Completed";
+            mission.EndTime = completionEvent.CompletedAt.UtcDateTime;
+            await _context.FlightCompletionEvents.AddAsync(completionEvent, cancellationToken);
+            await _context.PostFlightReports.AddAsync(report, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            return new("Created", mission.Id, completionEvent.Id, report.Id);
+        }
+
+        if (!_context.Database.IsRelational()) return ClaimCoreAsync();
+        return _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            _context.ChangeTracker.Clear();
+            await using var transaction = await _context.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable, cancellationToken);
+            // The key lock serializes the same replay key even if two requests name
+            // different missions; the mission row lock serializes ambiguous keys for
+            // one flight. Unique indexes remain the final invariant.
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({completionEvent.IdempotencyKey},0))", cancellationToken);
+            var result = await ClaimCoreAsync();
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        });
+    }
 
     /// <summary>
     /// Lấy danh sách các sự cố ghi nhận trong chuyến bay

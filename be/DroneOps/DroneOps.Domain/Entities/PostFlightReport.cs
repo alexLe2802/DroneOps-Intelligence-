@@ -13,6 +13,7 @@ public class PostFlightReport
     public int Revision { get; set; } = 1;
     public bool IsCurrent { get; set; } = true;
     public string GenerationStatus { get; set; } = "Queued";
+    public DateTimeOffset? CoveredTelemetryFrom { get; set; }
     public DateTimeOffset? CoveredTelemetryThrough { get; set; }
     public DateTimeOffset? GenerationStartedAt { get; set; }
     public DateTimeOffset? GeneratedAt { get; set; }

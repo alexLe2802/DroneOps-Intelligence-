@@ -13,7 +13,7 @@ namespace DroneOps.Application.Services.PostFlight;
 public sealed class PostFlightService : IPostFlightService
 {
     private static readonly string[] FinalizableStatuses =
-        ["Approved", "In Progress", "InProgress", "Active", "Flying", "Executing"];
+        ["In Progress", "InProgress", "Active", "Flying", "Executing"];
     private static readonly string[] TrustedCompletionEventTypes =
         ["MISSION_COMPLETED", "FLIGHT_COMPLETED", "LANDED"];
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> MissionLocks = new();
@@ -105,35 +105,10 @@ public sealed class PostFlightService : IPostFlightService
         if (request.CompletedAt == default || request.CompletedAt > DateTimeOffset.UtcNow.AddMinutes(5))
             throw new ArgumentException("Completion timestamp is invalid.");
 
-        var duplicate = await _repository.GetCompletionEventByKeyAsync(idempotencyKey.Trim(), cancellationToken);
-        if (duplicate != null)
-        {
-            if (duplicate.MissionId != request.MissionId || duplicate.UAVId != request.UavId ||
-                !string.Equals(duplicate.SourceId, request.SourceId.Trim(), StringComparison.Ordinal) ||
-                !string.Equals(duplicate.EventType, request.EventType.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                duplicate.CompletedAt != request.CompletedAt.ToUniversalTime())
-                throw new InvalidOperationException("Idempotency-Key was already used for a different completion event.");
-            var duplicateReport = await _repository.GetReportByMissionIdAsync(duplicate.MissionId, cancellationToken)
-                ?? throw new InvalidOperationException("Completion was recorded but its report queue entry is missing.");
-            var duplicateMission = await _repository.GetMissionWithDetailsAsync(duplicate.MissionId, cancellationToken)
-                ?? throw new KeyNotFoundException("Flight mission not found.");
-            return MapToReportResponse(duplicateReport, duplicateMission);
-        }
-
         return await WithMissionLockAsync(request.MissionId, async () =>
         {
             var mission = await _repository.GetMissionWithDetailsAsync(request.MissionId, cancellationToken)
                 ?? throw new KeyNotFoundException("Flight mission not found.");
-            if (mission.UAVId != request.UavId)
-                throw new InvalidOperationException("Completion event UAV does not match the mission assignment.");
-            if (mission.Status == "Completed")
-            {
-                var current = await _repository.GetReportByMissionIdAsync(mission.Id, cancellationToken)
-                    ?? throw new InvalidOperationException("Mission is completed but no report record exists.");
-                return MapToReportResponse(current, mission);
-            }
-            if (!FinalizableStatuses.Contains(mission.Status, StringComparer.OrdinalIgnoreCase))
-                throw new InvalidOperationException($"Mission with status '{mission.Status}' cannot be completed.");
 
             var completionEvent = new FlightCompletionEvent
             {
@@ -156,20 +131,56 @@ public sealed class PostFlightService : IPostFlightService
                 IsCurrent = true,
                 GenerationStatus = "Queued",
                 Status = "Completed",
+                CoveredTelemetryFrom = mission.StartTime.HasValue
+                    ? new DateTimeOffset(DateTime.SpecifyKind(mission.StartTime.Value, DateTimeKind.Utc)) : null,
                 CoveredTelemetryThrough = completionEvent.CompletedAt,
                 CreatedAt = DateTimeOffset.UtcNow,
                 GenerationReason = "Trusted completion event"
             };
 
-            mission.Status = "Completed";
-            mission.EndTime = completionEvent.CompletedAt.UtcDateTime;
-            await _repository.AddCompletionEventAsync(completionEvent, cancellationToken);
-            await _repository.AddReportAsync(report, cancellationToken);
-            await _repository.UpdateMissionAsync(mission, cancellationToken);
-            await _repository.SaveChangesAsync(cancellationToken);
-            return MapToReportResponse(report, mission);
+            var claim = await _repository.ClaimCompletionAsync(
+                completionEvent, report, FinalizableStatuses, cancellationToken);
+            switch (claim.Outcome)
+            {
+                case "MissingMission": throw new KeyNotFoundException("Flight mission not found.");
+                case "WrongUav": throw new InvalidOperationException("Completion event UAV does not match the mission assignment.");
+                case "InvalidStatus": throw new InvalidOperationException($"Mission with status '{mission.Status}' cannot be completed; a trusted start is required.");
+                case "BeforeStart": throw new InvalidOperationException("Completion timestamp cannot be earlier than the flight start.");
+                case "Duplicate":
+                {
+                    var duplicate = await _repository.GetCompletionEventByKeyAsync(idempotencyKey.Trim(), cancellationToken)
+                        ?? throw new InvalidOperationException("Completion replay could not be reloaded.");
+                    if (!MatchesCompletion(duplicate, request))
+                        throw new InvalidOperationException("Idempotency-Key was already used for a different completion event.");
+                    break;
+                }
+                case "AlreadyCompleted":
+                {
+                    var existing = await _repository.GetTrustedCompletionEventAsync(request.MissionId, cancellationToken)
+                        ?? throw new InvalidOperationException("Mission is completed without trusted completion evidence.");
+                    if (!MatchesCompletion(existing, request))
+                        throw new InvalidOperationException("An ambiguous completion conflicts with the trusted event already recorded for this flight.");
+                    break;
+                }
+                case "Created": break;
+                default: throw new InvalidOperationException("Trusted completion could not be recorded.");
+            }
+
+            var currentMission = await _repository.GetMissionWithDetailsAsync(request.MissionId, cancellationToken)
+                ?? throw new KeyNotFoundException("Flight mission not found.");
+            var currentReport = await _repository.GetReportByMissionIdAsync(request.MissionId, cancellationToken)
+                ?? throw new InvalidOperationException("Completion was recorded but its report queue entry is missing.");
+            return MapToReportResponse(currentReport, currentMission);
         });
     }
+
+    private static bool MatchesCompletion(
+        FlightCompletionEvent existing,
+        RecordFlightCompletionRequest request) =>
+        existing.MissionId == request.MissionId && existing.UAVId == request.UavId &&
+        string.Equals(existing.SourceId, request.SourceId.Trim(), StringComparison.Ordinal) &&
+        string.Equals(existing.EventType, request.EventType.Trim(), StringComparison.OrdinalIgnoreCase) &&
+        existing.CompletedAt == request.CompletedAt.ToUniversalTime();
 
     public async Task<PostFlightReportResponse> FinalizeAndGenerateReportAsync(
         Guid missionId,
@@ -190,6 +201,8 @@ public sealed class PostFlightService : IPostFlightService
             {
                 Id = Guid.NewGuid(), MissionId = missionId, Revision = 1, IsCurrent = true,
                 GenerationStatus = "Queued", Status = "Completed", CreatedAt = DateTimeOffset.UtcNow,
+                CoveredTelemetryFrom = mission.StartTime.HasValue
+                    ? new DateTimeOffset(DateTime.SpecifyKind(mission.StartTime.Value, DateTimeKind.Utc)) : null,
                 CoveredTelemetryThrough = completion.CompletedAt, RequestedBy = currentUserId,
                 Notes = request?.Notes, Summary = request?.Summary, GenerationReason = "Manager processing request"
             };
@@ -242,6 +255,7 @@ public sealed class PostFlightService : IPostFlightService
                 Id = Guid.NewGuid(), MissionId = missionId,
                 Revision = revisions.Count == 0 ? 1 : revisions.Max(x => x.Revision) + 1,
                 IsCurrent = true, GenerationStatus = "Queued", Status = current.Status,
+                CoveredTelemetryFrom = current.CoveredTelemetryFrom,
                 CoveredTelemetryThrough = completion.CompletedAt, CreatedAt = DateTimeOffset.UtcNow,
                 RequestedBy = managerUserId, GenerationReason = request.Reason.Trim(), Notes = current.Notes
             };
@@ -272,7 +286,8 @@ public sealed class PostFlightService : IPostFlightService
             var coveredThrough = completion?.CompletedAt ?? report.CoveredTelemetryThrough
                 ?? throw new InvalidOperationException("The completed flight window is missing.");
             var telemetry = (await _repository.GetTelemetryByMissionIdAsync(mission.Id, cancellationToken))
-                .Where(x => x.SourceTimestamp <= coveredThrough)
+                .Where(x => (!report.CoveredTelemetryFrom.HasValue || x.SourceTimestamp >= report.CoveredTelemetryFrom) &&
+                            x.SourceTimestamp <= coveredThrough)
                 .ToList();
             var incidents = await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken);
             if (telemetry.Count == 0 && !scheduledCompletion)
@@ -613,6 +628,7 @@ public sealed class PostFlightService : IPostFlightService
         GenerationStatus = report.GenerationStatus,
         Revision = report.Revision,
         IsCurrent = report.IsCurrent,
+        CoveredTelemetryFrom = report.CoveredTelemetryFrom,
         CoveredTelemetryThrough = report.CoveredTelemetryThrough,
         GeneratedAt = report.GeneratedAt,
         FailureReason = report.FailureReason,

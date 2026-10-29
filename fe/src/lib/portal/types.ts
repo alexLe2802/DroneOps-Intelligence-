@@ -264,7 +264,8 @@ export type FlightTelemetryPoint = {
 export type PostFlightReport = {
   reportId: string; missionId: string; missionName: string; missionDescription: string | null;
   status: string; generationStatus: string; revision: number; isCurrent: boolean;
-  coveredTelemetryThrough: string | null; generatedAt: string | null; failureReason: string | null;
+  coveredTelemetryFrom: string | null; coveredTelemetryThrough: string | null;
+  generatedAt: string | null; failureReason: string | null;
   generationReason: string | null; uavName: string; uavCode: string; pilotName: string;
   startTime: string | null; endTime: string | null; totalFlightDurationMinutes: number;
   maxAltitude: number | null; avgAltitude: number | null; maxSpeed: number | null; avgSpeed: number | null;
