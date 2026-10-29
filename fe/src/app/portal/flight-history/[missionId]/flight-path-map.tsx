@@ -17,6 +17,17 @@ export default function FlightPathMap({ telemetry, uavCode }: { telemetry: Fligh
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const points = telemetry.filter(positioned);
+  const missingRoute = telemetry.length === 0
+    ? {
+        title: "No flight telemetry received",
+        message: "This flight has no telemetry samples, so its route cannot be drawn.",
+        action: "Check the drone connection and telemetry ingestion for this flight.",
+      }
+    : {
+        title: "Position data is missing or invalid",
+        message: `None of the ${telemetry.length} telemetry samples contains a valid latitude and longitude pair.`,
+        action: "Check the GPS fields in the recorded telemetry, then regenerate the report after correcting the source data.",
+      };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -61,8 +72,15 @@ export default function FlightPathMap({ telemetry, uavCode }: { telemetry: Fligh
 
   return <div className={styles.flightMap}>
     <div ref={containerRef} className={styles.flightMapCanvas} />
-    <div className={styles.flightMapBanner}>{points.length ? `${uavCode || "UAV"} // ${points.length} POSITION FIXES` : "SPATIAL TELEMETRY UNAVAILABLE"}</div>
-    {!points.length && <div className={styles.flightMapEmpty}><b>NO RECORDED ROUTE</b><span>The report has no valid latitude and longitude samples.</span></div>}
+    <div className={styles.flightMapBanner}>{points.length ? `${uavCode || "UAV"} // ${points.length} POSITION FIXES` : `0 OF ${telemetry.length} VALID POSITION FIXES`}</div>
+    {!points.length && <div className={styles.flightMapEmpty} role="status" aria-live="polite">
+      <div>
+        <span className={styles.flightMapEmptyIcon} aria-hidden="true">!</span>
+        <b>{missingRoute.title}</b>
+        <p>{missingRoute.message}</p>
+        <small>{missingRoute.action}</small>
+      </div>
+    </div>}
     {error && <div className={styles.flightMapError} role="alert">{error}</div>}
   </div>;
 }
