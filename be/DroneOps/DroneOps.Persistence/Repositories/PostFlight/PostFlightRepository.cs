@@ -223,6 +223,13 @@ public class PostFlightRepository : IPostFlightRepository
             .ToListAsync(cancellationToken);
     }
 
+    public Task<List<TelemetryRecord>> GetTelemetryForAnalyticsAsync(
+        Guid missionId, CancellationToken cancellationToken = default) =>
+        _context.TelemetryRecords.AsNoTracking()
+            .Where(t => t.MissionId == missionId)
+            .OrderBy(t => t.SourceTimestamp).ThenBy(t => t.ReceivedAt)
+            .ToListAsync(cancellationToken);
+
     public Task<FlightCompletionEvent?> GetCompletionEventByKeyAsync(
         string idempotencyKey, CancellationToken cancellationToken = default) =>
         _context.FlightCompletionEvents.AsNoTracking()
@@ -322,22 +329,26 @@ public class PostFlightRepository : IPostFlightRepository
         return Task.CompletedTask;
     }
 
-    public async Task<List<Mission>> GetTerminalMissionsAsync(
+    public async Task<List<Mission>> GetStartedMissionsAsync(
         DateTime? fromDate, DateTime? toDate, Guid? uavId, Guid? missionId,
         Guid? pilotUserId, CancellationToken cancellationToken = default)
     {
-        var terminalStatuses = new[] { "Completed", "Failed", "Aborted", "Cancelled" };
+        var startedStatuses = new[]
+        {
+            "completed", "failed", "aborted", "in progress", "inprogress",
+            "active", "flying", "executing"
+        };
         var query = _context.Missions
             .Include(x => x.UAV)
             .AsNoTracking()
-            .Where(x => terminalStatuses.Contains(x.Status));
+            .Where(x => x.StartTime.HasValue && startedStatuses.Contains(x.Status.Trim().ToLower()));
 
         if (pilotUserId.HasValue)
             query = query.Where(x => x.CreatedBy == pilotUserId.Value);
         if (fromDate.HasValue)
-            query = query.Where(x => (x.EndTime ?? x.StartTime ?? x.CreatedAt) >= fromDate.Value);
+            query = query.Where(x => x.StartTime >= fromDate.Value);
         if (toDate.HasValue)
-            query = query.Where(x => (x.EndTime ?? x.StartTime ?? x.CreatedAt) <= toDate.Value);
+            query = query.Where(x => x.StartTime <= toDate.Value);
         if (uavId.HasValue)
             query = query.Where(x => x.UAVId == uavId.Value);
         if (missionId.HasValue)

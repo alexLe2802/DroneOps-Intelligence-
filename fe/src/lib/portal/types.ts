@@ -240,12 +240,22 @@ export type FlightHistoryItem = {
 export type OperationalAnalytics = {
   totalFlights: number; completedFlights: number; abortedOrFailedFlights: number;
   totalFlightHours: number; totalDistanceKilometers: number; totalIncidentsRecorded: number;
-  successRatePercentage: number | null; reportsAvailable: number; reportsExcluded: number;
+  successRatePercentage: number | null; completionRateStatus: "Available" | "Unavailable";
+  reportsAvailable: number; reportsExcluded: number;
   reportCoveragePercentage: number | null; fromDate: string | null; toDate: string | null;
   uavId: string | null; missionId: string | null;
   completionTrend: Array<{ date: string; totalFlights: number; completedFlights: number; failedOrAbortedFlights: number }>;
   incidentSeverityBreakdown: Record<string, number>;
   excludedReportReasons: Record<string, number>;
+  contract: {
+    windowBasis: string; windowTimeZone: string; units: Record<string, string>;
+    sourceLinks: Record<string, string>; communicationLossThresholdSeconds: number;
+  };
+  missingCoverage: {
+    validDistanceSegments: number; excludedDistanceSegments: number; excludedGapSeconds: number;
+    missingGpsSamples: number; invalidTelemetrySamples: number;
+    missionsWithoutValidGpsCoverage: number; missionsWithoutAvailableReport: number;
+  };
 };
 export type FlightTelemetryPoint = {
   latitude: number | null; longitude: number | null; altitude: number | null;
