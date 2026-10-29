@@ -32,6 +32,12 @@ public interface IPostFlightRepository
 
     Task AddCompletionEventAsync(FlightCompletionEvent completionEvent, CancellationToken cancellationToken = default);
 
+    Task<CompletionClaimResult> ClaimCompletionAsync(
+        FlightCompletionEvent completionEvent,
+        PostFlightReport report,
+        IReadOnlyCollection<string> finalizableStatuses,
+        CancellationToken cancellationToken = default);
+
     Task<List<Incident>> GetIncidentsByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);
 
     Task<PostFlightReport?> GetReportByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);
@@ -59,3 +65,9 @@ public interface IPostFlightRepository
 }
 
 public sealed record OverdueMissionSyncResult(int CompletedMissions, int CancelledMissions);
+
+public sealed record CompletionClaimResult(
+    string Outcome,
+    Guid MissionId,
+    Guid? ExistingEventId = null,
+    Guid? ReportId = null);

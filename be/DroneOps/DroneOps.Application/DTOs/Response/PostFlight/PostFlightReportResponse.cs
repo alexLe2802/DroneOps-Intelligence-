@@ -16,6 +16,7 @@ public class PostFlightReportResponse
     public string GenerationStatus { get; set; } = string.Empty;
     public int Revision { get; set; }
     public bool IsCurrent { get; set; }
+    public DateTimeOffset? CoveredTelemetryFrom { get; set; }
     public DateTimeOffset? CoveredTelemetryThrough { get; set; }
     public DateTimeOffset? GeneratedAt { get; set; }
     public string? FailureReason { get; set; }

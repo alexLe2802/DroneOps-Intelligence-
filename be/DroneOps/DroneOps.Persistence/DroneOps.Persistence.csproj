@@ -26,6 +26,7 @@
 		<EmbeddedResource Include="../../../database/migrations/005_nullable_live_telemetry.sql" LogicalName="DroneOps.Persistence.Migrations.005_nullable_live_telemetry.sql" />
 		<EmbeddedResource Include="../../../database/migrations/006_post_flight_integrity.sql" LogicalName="DroneOps.Persistence.Migrations.006_post_flight_integrity.sql" />
 		<EmbeddedResource Include="../../../database/migrations/007_post_flight_lifecycle.sql" LogicalName="DroneOps.Persistence.Migrations.007_post_flight_lifecycle.sql" />
+		<EmbeddedResource Include="../../../database/migrations/20261029000100_post_flight_execution_snapshot.sql" LogicalName="DroneOps.Persistence.Migrations.20261029000100_post_flight_execution_snapshot.sql" />
 		<EmbeddedResource Include="../../../database/migrations/008_realtime_incident_lifecycle.sql" LogicalName="DroneOps.Persistence.Migrations.008_realtime_incident_lifecycle.sql" />
 		<EmbeddedResource Include="../../../database/migrations/009_notifications.sql" LogicalName="DroneOps.Persistence.Migrations.009_notifications.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261026000100_uav_images.sql" LogicalName="DroneOps.Persistence.Migrations.20261026000100_uav_images.sql" />

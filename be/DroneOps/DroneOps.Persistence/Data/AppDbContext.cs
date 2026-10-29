@@ -63,6 +63,10 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<FlightCompletionEvent>()
             .HasIndex(x => x.IdempotencyKey)
             .IsUnique();
+        modelBuilder.Entity<FlightCompletionEvent>()
+            .HasIndex(x => x.MissionId)
+            .HasFilter("\"IsTrusted\" = TRUE")
+            .IsUnique();
 
         modelBuilder.Entity<IncidentTransition>()
             .HasOne(x => x.Actor)

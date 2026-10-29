@@ -11,6 +11,12 @@ if (args.Length == 2 && args[0] == "--analytics-postgres")
     return;
 }
 
+if (args.Length == 2 && args[0] == "--lifecycle-postgres")
+{
+    await PostFlightPostgresChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
+
 var options = new DbContextOptionsBuilder<AppDbContext>()
     .UseInMemoryDatabase($"post-flight-checks-{Guid.NewGuid()}")
     .Options;
@@ -77,6 +83,18 @@ await ExpectThrowsAsync<InvalidOperationException>(
     "manager finalize requires a trusted completion event");
 Check((await db.Missions.FindAsync(missionId))!.Status == "Approved",
     "rejected finalize does not mutate mission status");
+await ExpectThrowsAsync<InvalidOperationException>(
+    () => service.RecordTrustedCompletionAsync("completion-before-start", new RecordFlightCompletionRequest
+    {
+        MissionId = missionId, UavId = uavId, SourceId = "trusted-simulator",
+        EventType = "MISSION_COMPLETED", CompletedAt = now
+    }),
+    "trusted completion cannot bypass the flight start state");
+Check(!await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == missionId) &&
+      !await db.PostFlightReports.AnyAsync(x => x.MissionId == missionId),
+    "rejected pre-start completion creates neither flight event nor report");
+(await db.Missions.FindAsync(missionId))!.Status = "InProgress";
+await db.SaveChangesAsync();
 
 var queued = await service.RecordTrustedCompletionAsync("completion-1", new RecordFlightCompletionRequest
 {
@@ -92,6 +110,15 @@ var duplicate = await service.RecordTrustedCompletionAsync("completion-1", new R
     EventType = "MISSION_COMPLETED", CompletedAt = now
 });
 Check(duplicate.ReportId == queued.ReportId, "completion ingestion is idempotent");
+var alternateReplay = await service.RecordTrustedCompletionAsync("completion-1-alternate-key", new RecordFlightCompletionRequest
+{
+    MissionId = missionId, UavId = uavId, SourceId = "trusted-simulator",
+    EventType = "MISSION_COMPLETED", CompletedAt = now
+});
+Check(alternateReplay.ReportId == queued.ReportId &&
+      await db.FlightCompletionEvents.CountAsync(x => x.MissionId == missionId) == 1 &&
+      await db.PostFlightReports.CountAsync(x => x.MissionId == missionId) == 1,
+    "semantic replay with another key does not duplicate a flight or report");
 
 Check(await service.ProcessQueuedReportsAsync() == 1, "queued report is processed");
 var report = await service.GetReportByMissionIdAsync(missionId, pilotId, false);
@@ -122,6 +149,8 @@ Check(revisions.Count == 2 && revisions.Single(x => x.Revision == 1).IsCurrent =
 Check(revisions.Single(x => x.Revision == 2).TotalTelemetryRecords == 3,
     "regenerated report includes late telemetry");
 
+(await db.Missions.FindAsync(noTelemetryMissionId))!.Status = "InProgress";
+await db.SaveChangesAsync();
 await service.RecordTrustedCompletionAsync("completion-no-data", new RecordFlightCompletionRequest
 {
     MissionId = noTelemetryMissionId, UavId = uavId, SourceId = "trusted-simulator",
@@ -131,6 +160,9 @@ await service.ProcessQueuedReportsAsync();
 var failedReport = await service.GetReportByMissionIdAsync(noTelemetryMissionId, pilotId, false);
 Check(failedReport.GenerationStatus == "Failed" && !string.IsNullOrWhiteSpace(failedReport.FailureReason),
     "generation failure is explicit and flight evidence is preserved");
+Check(await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == noTelemetryMissionId) &&
+      await db.PostFlightReports.AnyAsync(x => x.MissionId == noTelemetryMissionId),
+    "generation failure retains trusted completion evidence and report state");
 
 Check(await service.SynchronizeOverdueMissionsAsync() == 4,
     "scheduled lifecycle synchronization runs explicitly before analytics");
