@@ -1,4 +1,6 @@
-﻿using DroneOps.Application.Interfaces.AI;
+﻿using DroneOps.Application.DTOs.Options;
+using DroneOps.Application.Interfaces;
+using DroneOps.Application.Interfaces.AI;
 using DroneOps.Application.Interfaces.Auth;
 using DroneOps.Application.Interfaces.Geofences;
 using DroneOps.Application.Interfaces.Incidents;
@@ -10,6 +12,7 @@ using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Application.Interfaces.UAVs;
 using DroneOps.Application.Interfaces.Users;
+using DroneOps.Application.Interfaces.Validators;
 using DroneOps.Application.Services;
 using DroneOps.Application.Services.Auth;
 using DroneOps.Application.Services.Incidents;
@@ -52,11 +55,11 @@ public static class DependencyInjection
             <CreatePilotRegistrationValidator>();
 
         services.AddScoped<MissionBusinessValidator>();
-        services.AddScoped<MissionValidationService>();
-        services.AddScoped<MissionWorkflowService>();
-        services.AddScoped<MissionWeatherQueryService>();
+        services.AddScoped<IMissionValidationService, MissionValidationService>();
+        services.AddScoped<IMissionWorkflowService, MissionWorkflowService>();
+        services.AddScoped<IMissionWeatherQueryService,MissionWeatherQueryService>();
+
         services.AddOptions<MissionWeatherOptions>();
-        services.AddHttpClient<IMissionWeatherService, MissionWeatherService>(client => client.Timeout = TimeSpan.FromSeconds(8));
 
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IAuthService, AuthService>();
@@ -83,6 +86,16 @@ public static class DependencyInjection
         services.AddScoped<IUserMediaStorage, UserMediaStorage>();
         services.AddScoped<IOperatorCredentialsService,OperatorCredentialsService>();
         services.AddScoped<IPilotUpdateRequestService, PilotUpdateRequestService>();
+        services.AddScoped<IMissionPreflightService,MissionPreflightService>();
+
+        services.AddHttpClient<
+    IMissionWeatherService,
+    MissionWeatherService>(
+        client =>
+        {
+            client.Timeout =
+                TimeSpan.FromSeconds(15);
+        });
 
         services.AddHttpClient<
 IAIService,

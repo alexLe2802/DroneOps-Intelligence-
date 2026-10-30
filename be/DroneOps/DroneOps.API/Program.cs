@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using DroneOps.Application.DTOs.Options;
 
 var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
@@ -72,7 +73,7 @@ if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-s
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 //builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddControllers(options => options.Filters.Add<MissionValidationExceptionFilter>());
-builder.Services.Configure<DroneOps.Application.Services.Missions.MissionWeatherOptions>(
+builder.Services.Configure<MissionWeatherOptions>(
     builder.Configuration.GetSection("MissionWeather"));
 builder.Services.AddHostedService<MissionPreflightMonitor>();
 builder.Services.AddHttpClient<DroneOps.Application.Services.Storage.UserMediaStorage>();

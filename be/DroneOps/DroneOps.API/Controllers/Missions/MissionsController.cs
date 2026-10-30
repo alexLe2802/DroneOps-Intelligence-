@@ -7,6 +7,8 @@ using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Interfaces.Telemetry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using DroneOps.Application.Interfaces.Validators;
+using DroneOps.Application.Interfaces;
 
 namespace DroneOps.API.Controllers;
 
@@ -16,13 +18,15 @@ namespace DroneOps.API.Controllers;
 public sealed class MissionsController : ControllerBase
 {
     private readonly IMissionService _missionService;
-    private readonly MissionValidationService _validation;
-    private readonly MissionWorkflowService _workflow;
+    private readonly IMissionValidationService _validation;
+    private readonly IMissionWorkflowService _workflow;
     private readonly ITelemetryIngestionService _telemetryService;
 
     public MissionsController(
-        IMissionService missionService,
-        ITelemetryIngestionService telemetryService, MissionValidationService validation, MissionWorkflowService workflow)
+    IMissionService missionService,
+    ITelemetryIngestionService telemetryService,
+    IMissionValidationService validation,
+    IMissionWorkflowService workflow)
     {
         _missionService = missionService;
         _validation = validation;
@@ -108,8 +112,17 @@ public sealed class MissionsController : ControllerBase
      Guid id,
      CancellationToken cancellationToken)
     {
-        if (!TryGetUserId(out var actor)) return Unauthorized();
-        await _validation.ReadAsync(id,actor,User.IsInRole("operation_manager"),null,cancellationToken);
+        if (!TryGetUserId(out var actor))
+        {
+            return Unauthorized();
+        }
+
+        await _validation.ReadAsync(
+            id,
+            actor,
+            User.IsInRole("operation_manager"),
+            cancellationToken);
+
         var result =
             await _missionService.GetByIdAsync(
                 id,
@@ -166,21 +179,21 @@ public sealed class MissionsController : ControllerBase
     /// <summary>
     /// Kiểm tra tính hợp lệ của tham số / waypoints nhiệm vụ bay (Validate Mission)
     /// </summary>
-    [HttpPost("validate")]
-    [Authorize(Roles = "uav_operator,operation_manager")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> ValidateMission([FromBody] MissionValidateDto request, CancellationToken cancellationToken)
-    {
-        if (!TryGetUserId(out var actor)) return Unauthorized();
-        try
-        {
-            // Always load the saved plan; ignore client-supplied waypoint replacements.
-            return Ok(await _validation.RevalidateAsync(request.MissionId, actor, User.IsInRole("operation_manager"), "Manager", cancellationToken, request.UpdateRequestId));
-        }
-        catch (UnauthorizedAccessException e) { return StatusCode(403, new { message = e.Message }); }
-        catch (KeyNotFoundException e) { return NotFound(new { message = e.Message }); }
-    }
+    //[HttpPost("validate")]
+    //[Authorize(Roles = "uav_operator,operation_manager")]
+    //[ProducesResponseType(StatusCodes.Status200OK)]
+    //[ProducesResponseType(StatusCodes.Status400BadRequest)]
+    //public async Task<IActionResult> ValidateMission([FromBody] MissionValidateDto request, CancellationToken cancellationToken)
+    //{
+    //    if (!TryGetUserId(out var actor)) return Unauthorized();
+    //    try
+    //    {
+    //        // Always load the saved plan; ignore client-supplied waypoint replacements.
+    //        return Ok(await _validation.RevalidateAsync(request.MissionId, actor, User.IsInRole("operation_manager"), "Manager", cancellationToken, request.UpdateRequestId));
+    //    }
+    //    catch (UnauthorizedAccessException e) { return StatusCode(403, new { message = e.Message }); }
+    //    catch (KeyNotFoundException e) { return NotFound(new { message = e.Message }); }
+    //}
 
     [HttpPost("{id:guid}/start")]
     [Authorize(Roles = "uav_operator,operation_manager")]
