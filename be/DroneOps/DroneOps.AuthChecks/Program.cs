@@ -119,4 +119,5 @@ Check(!validator.Validate(request).IsValid, "Reversed license dates rejected");
 request = Valid(); request.Password = "short";
 Check(!validator.Validate(request).IsValid, "Short password rejected");
 passed += await UavImageChecks.RunAsync();
+passed += await GeofenceServiceChecks.RunAsync();
 Console.WriteLine($"{passed} current auth contract checks passed. Legacy Firebase session checks are archived and were not executed.");
