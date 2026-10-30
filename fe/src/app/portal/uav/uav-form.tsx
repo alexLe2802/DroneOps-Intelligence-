@@ -40,7 +40,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       <label>UAV NAME<input value={name} onChange={event => setName(event.target.value)} placeholder="South Survey Two" minLength={2} maxLength={100} required /></label>
       <label>MODEL<input value={model} onChange={event => setModel(event.target.value)} placeholder="DJI Matrice 350 RTK" maxLength={100} /></label>
       </fieldset><p className="field-help">{aircraft ? "Changes are saved to your UAV record. Operational status is managed by the Operations Manager." : "The UAV is created with Pending status and becomes operational after an admin approves it."}</p>
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <p className="form-error" role="alert" aria-live="assertive">{error}</p>}
       <div className="form-actions"><Link className="module-secondary module-link" href={aircraft ? `/portal/uav/${aircraft.id}` : "/portal/uav"}>CANCEL</Link><button className="module-primary" disabled={saving}>{saving ? "SAVING…" : aircraft ? "SAVE CHANGES" : "SUBMIT FOR APPROVAL"}</button></div>
     </form>
   </>;

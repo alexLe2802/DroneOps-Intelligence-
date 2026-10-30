@@ -1,0 +1,20 @@
+[Unit]
+Description=DroneOps Pixhawk MAVLink router
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+User=droneops
+Group=droneops
+SupplementaryGroups=dialout
+ExecStart=/usr/local/bin/mavlink-routerd -c /etc/droneops-router/main.conf
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

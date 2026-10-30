@@ -60,6 +60,7 @@ internal static class DroneConnectionChecks
             var row=await db.DroneConnections.AsNoTracking().SingleAsync(c=>c.Id==p.Connection.Id);
             Check(row.PairCodeHash!=p.PairingCode&&row.TokenHash==null,"pairing secret is hashed; token does not exist before claim");
             Check(p.Connection.Status=="AwaitingGateway","creation waits for gateway, not a fake online drone");
+            Check(p.Connection.GatewayTransport=="WebSocket"&&p.GatewayPath=="/ws/drone-gateway","pairing contract directs the Jetson to the WebSocket data plane");
             Check((await service.ListAsync(stranger,default)).Count==0,"session list is owner scoped");
             var credentials=await service.PairAsync(Pair(p.PairingCode),default);
             Check(credentials.UavId==uav&&credentials.MissionId==mission,"credential binds the selected UAV and mission");

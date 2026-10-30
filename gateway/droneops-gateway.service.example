@@ -1,0 +1,24 @@
+[Unit]
+Description=DroneOps MAVLink to WebSocket gateway
+After=network-online.target droneops-router.service
+Wants=network-online.target droneops-router.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=droneops
+Group=droneops
+WorkingDirectory=/opt/droneops-gateway
+EnvironmentFile=/etc/droneops-gateway.env
+ExecStart=/opt/droneops-gateway/.venv/bin/python -u /opt/droneops-gateway/gateway.py --service --server ${DRONEOPS_SERVER} --device ${MAVLINK_DEVICE} --baud ${MAVLINK_BAUD} --system-id ${MAVLINK_SYSTEM_ID} --component-id ${MAVLINK_COMPONENT_ID} --session-file /var/lib/droneops-gateway/session.private.json ${DRONEOPS_TRANSPORT_FLAG}
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/droneops-gateway
+
+[Install]
+WantedBy=multi-user.target

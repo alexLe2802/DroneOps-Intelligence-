@@ -127,3 +127,4 @@ gateway/session.private.tmp
 gateway/.venv/
 __pycache__/
 *.pyc
+tmp/
