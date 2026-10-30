@@ -180,3 +180,16 @@ test("post-flight archive and report detail preserve backend query and mutation 
     ]);
   } finally { mock.mock.restore(); }
 });
+
+test("proxy allows post-flight regeneration and report revision routes", async () => {
+  const source = await readFile(new URL("../src/app/api/[...path]/route.ts", import.meta.url), "utf8");
+  const declaration = source.split("\n").find(line => line.startsWith("const allowed = "));
+  const allowed = Function(`${declaration} return allowed;`)();
+  const id = "12345678-1234-1234-1234-123456789abc";
+  for (const path of [`flight-history/${id}/regenerate`, `flight-history/${id}/report/revisions`]) {
+    assert.equal(allowed.test(path), true, path);
+  }
+  for (const path of [`flight-history/${id}/regenerate/delete`, "flight-history/not-a-guid/regenerate"]) {
+    assert.equal(allowed.test(path), false, path);
+  }
+});
