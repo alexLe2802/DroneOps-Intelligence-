@@ -16,3 +16,4 @@
 20261023000100_license_word_documents.sql
 20261026000100_uav_images.sql
 20261029000100_post_flight_execution_snapshot.sql
+20261030000100_versioned_operational_restrictions.sql

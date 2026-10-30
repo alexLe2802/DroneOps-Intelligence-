@@ -53,6 +53,7 @@ public static class DependencyInjection
 
         services.AddScoped<MissionBusinessValidator>();
         services.AddScoped<MissionValidationService>();
+        services.AddSingleton<ITerrainElevationService, UnavailableTerrainElevationService>();
         services.AddScoped<MissionWorkflowService>();
         services.AddScoped<MissionWeatherQueryService>();
         services.AddOptions<MissionWeatherOptions>();

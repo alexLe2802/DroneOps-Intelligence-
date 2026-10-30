@@ -14,6 +14,16 @@ internal static class MissionApprovalChecks
     {
         public Task<WeatherAdvisory> GetAsync(Mission m, CancellationToken ct) => Task.FromResult(new WeatherAdvisory {Available=false,Warnings=["Simulated wind/rain/thunderstorm advisory; no live weather used."]});
     }
+    private sealed class FixedTerrain(decimal elevationMslMeters) : ITerrainElevationService
+    {
+        public Task<TerrainElevation> GetElevationAsync(decimal latitude,decimal longitude,CancellationToken ct) =>
+            Task.FromResult(new TerrainElevation(elevationMslMeters,"Fixture"));
+    }
+    private sealed class BrokenTerrain : ITerrainElevationService
+    {
+        public Task<TerrainElevation> GetElevationAsync(decimal latitude,decimal longitude,CancellationToken ct) =>
+            throw new InvalidOperationException("Simulated terrain provider failure");
+    }
     public static async Task RunAsync(string root)
     {
         var config=new ConfigurationBuilder().AddJsonFile(Path.Combine(root,"be/DroneOps/DroneOps.API/appsettings.Local.json")).Build();
@@ -22,7 +32,7 @@ internal static class MissionApprovalChecks
         await using var db=new AppDbContext(options);
         var manager=await db.Users.AsNoTracking().Where(x=>x.Role.Name=="operation_manager").Select(x=>x.Id).FirstAsync();
         var role=await db.Roles.AsNoTracking().Where(x=>x.Name=="uav_operator").Select(x=>x.Id).FirstAsync();
-        var uid=Guid.NewGuid();var pid=Guid.NewGuid();var aircraft=Guid.NewGuid();var zone=Guid.NewGuid();
+        var uid=Guid.NewGuid();var pid=Guid.NewGuid();var aircraft=Guid.NewGuid();var zone=Guid.NewGuid();var boundary=Guid.NewGuid();
         var weather=new AdvisoryWeather();var validation=new MissionValidationService(db,weather);var workflow=new MissionWorkflowService(db,validation);
         int count=0;
         void Check(bool ok,string message) { if(!ok)throw new Exception("FAIL: "+message);Console.WriteLine("PASS: "+message);count++; }
@@ -34,6 +44,7 @@ internal static class MissionApprovalChecks
             db.Pilots.Add(new Pilot {Id=pid,UserId=uid,PilotLicenseNo="TEST",LicenseIssuedDate=today.AddYears(-1),LicenseExpiredDate=today.AddYears(1),CreatedAt=DateTime.UtcNow});
             db.UAVs.Add(new UAV {Id=aircraft,PilotId=pid,Code=$"TEST-{aircraft:N}",Name="Workflow fixture",Status="Active",CreatedAt=DateTimeOffset.UtcNow});
             db.Geofences.Add(new Geofence {Id=zone,Name=$"Workflow-{zone:N}",Coordinates="[{\"latitude\":9,\"longitude\":105},{\"latitude\":11,\"longitude\":105},{\"latitude\":11,\"longitude\":107},{\"latitude\":9,\"longitude\":107}]",CreatedAt=DateTime.UtcNow});
+            db.Geofences.Add(new Geofence {Id=boundary,RestrictionType="OperationalBoundary",VerticalRule="AllAltitudes",Name=$"Boundary-{boundary:N}",Coordinates="[{\"latitude\":-46,\"longitude\":-121},{\"latitude\":-44,\"longitude\":-121},{\"latitude\":-44,\"longitude\":-119},{\"latitude\":-46,\"longitude\":-119}]",CreatedAt=DateTime.UtcNow});
             await db.SaveChangesAsync();db.ChangeTracker.Clear();
             var bad=Plan();bad.Waypoints=[];
             try {await workflow.SavePlanAsync(uid,bad,null,default);throw new Exception("Invalid creation accepted");}
@@ -47,6 +58,11 @@ internal static class MissionApprovalChecks
             Check(mission.Status=="Pending Review","valid creation automatically enters Pending Review");
             var latest=(await validation.PendingAsync(mission.Id,default))!.Validation;
             Check(latest!.IsValid && latest.Warnings.Count>0,"weather unavailability/warnings never block mandatory validation");
+            var storedRun=await db.MissionValidationRuns.AsNoTracking().SingleAsync(x=>x.Id==latest.Id);
+            Check(storedRun.ResultStatus=="Pass"&&storedRun.PlanHash.Length==64&&storedRun.RestrictionRevision==latest.RestrictionRevision&&storedRun.EvidenceJson.Contains("planHash"),"validation audit stores outcome, payload identity, restriction revision and evidence");
+            var outsideBoundary=await db.Missions.AsNoTracking().Include(x=>x.Waypoints).SingleAsync(x=>x.Id==mission.Id);
+            foreach(var point in outsideBoundary.Waypoints)point.Latitude=-40;
+            Check((await validation.EvaluateAsync(outsideBoundary,"Manager",default)).Findings.Any(x=>x.Rule=="OutsideOperationalBoundary"),"route and segments must remain inside an operational boundary");
             Check((await new MissionApprovalService(db,validation).GetPendingApprovalsAsync(new(),manager)).Items.Any(x=>x.MissionId==mission.Id && x.Validation!.Id==latest.Id),"manager queue returns persisted result");
             db.ChangeTracker.Clear();
             await db.UAVs.Where(x=>x.Id==aircraft).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Status,"Inactive"));
@@ -99,9 +115,17 @@ internal static class MissionApprovalChecks
             Check(below.IsValid,"route below a matching altitude-referenced restriction passes");
             foreach(var point in forAltitude.Waypoints)point.Altitude=150;
             var insideAltitude=await validation.EvaluateAsync(forAltitude,"Manager",default);
-            Check(!insideAltitude.IsValid&&insideAltitude.Findings.Count>0,"altitude-band intersection records waypoint/segment/rule findings");
+            Check(!insideAltitude.IsValid&&insideAltitude.Findings.Any(x=>x.Rule=="AirspaceAltitudeIntersection"),"restricted airspace takes precedence inside an operational boundary");
             forAltitude.AltitudeReference="AGL";
             Check((await validation.EvaluateAsync(forAltitude,"Manager",default)).Status=="Incomplete","incompatible altitude reference is incomplete, never assumed converted");
+            foreach(var point in forAltitude.Waypoints)point.Altitude=50;
+            var converted=await new MissionValidationService(db,weather,new FixedTerrain(100)).EvaluateAsync(forAltitude,"Manager",default);
+            Check(converted.Status=="Fail"&&converted.Findings.Count>0,"terrain fixture converts AGL to MSL and applies the altitude band");
+            Check(converted.RestrictionEvidence.Any(x=>x.GeofenceId==zone&&x.Revision>0&&x.CoordinatesJson.Contains("latitude")&&!string.IsNullOrWhiteSpace(x.Text)),"intersected restriction retains revisioned map and text evidence");
+            var brokenValidation=new MissionValidationService(db,weather,new BrokenTerrain());
+            var errored=await brokenValidation.EvaluateAsync(forAltitude,"Manager",default);
+            brokenValidation.Store(forAltitude,uid,errored);await db.SaveChangesAsync();
+            Check(errored.Outcome=="Error"&&await db.MissionValidationRuns.AsNoTracking().AnyAsync(x=>x.Id==errored.Id&&x.ResultStatus=="Error"),"terrain processing failure is persisted as Error, never Pass");
             Check(await db.GeofenceRevisions.CountAsync(x=>x.GeofenceId==zone)>=2,"geofence updates retain immutable restriction revisions");
             Check((await validation.ReadAsync(mission.Id,uid,false,update.Id,default))!.Stale,"changing restrictions invalidates stored validation evidence");
             // Restore the fixture zone away from the mission for remaining preflight tests.
@@ -113,7 +137,7 @@ internal static class MissionApprovalChecks
             Check(dueIds.Contains(mission.Id),"scheduler selects approved missions within 15 minutes of departure");
             var preflight=await validation.RevalidateAsync(mission.Id,uid,true,"Preflight",default);
             Check(!await MissionPreflightMonitor.DueMissions(db,DateTime.UtcNow).AnyAsync(x=>x.Id==mission.Id),"scheduler avoids immediately repeating a completed preflight check");
-            Check(preflight.Status=="Blocked","preflight stores Blocked after conditions change");
+            Check(preflight.Status=="Fail","preflight stores Fail after conditions change");
             Check(await db.Incidents.AnyAsync(x=>x.MissionId==mission.Id && x.Type=="PreflightValidation"),"preflight produces an operator/manager incident alert");
             Check(await db.Missions.AsNoTracking().Where(x=>x.Id==mission.Id).Select(x=>x.Status).SingleAsync()=="Approved","blocked readiness preserves approval history/status");
             await db.Missions.Where(x=>x.Id==mission.Id).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.StartTime,DateTime.UtcNow.AddMinutes(-1)));
@@ -151,7 +175,7 @@ internal static class MissionApprovalChecks
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM \"MissionWeatherCache\" WHERE \"ForecastJson\"->>'missionId' IN (SELECT \"Id\"::text FROM \"Mission\" WHERE \"CreatedBy\"={uid})");
             await db.MissionUpdateRequests.Where(x=>missions.Contains(x.MissionId)).ExecuteDeleteAsync();
             await db.Missions.Where(x=>x.CreatedBy==uid).ExecuteDeleteAsync();
-            await db.UAVs.Where(x=>x.Id==aircraft).ExecuteDeleteAsync();await db.Pilots.Where(x=>x.Id==pid).ExecuteDeleteAsync();await db.Users.Where(x=>x.Id==uid).ExecuteDeleteAsync();await db.Geofences.Where(x=>x.Id==zone).ExecuteDeleteAsync();await db.GeofenceRevisions.Where(x=>x.GeofenceId==zone).ExecuteDeleteAsync();
+            await db.UAVs.Where(x=>x.Id==aircraft).ExecuteDeleteAsync();await db.Pilots.Where(x=>x.Id==pid).ExecuteDeleteAsync();await db.Users.Where(x=>x.Id==uid).ExecuteDeleteAsync();await db.Geofences.Where(x=>x.Id==zone||x.Id==boundary).ExecuteDeleteAsync();await db.GeofenceRevisions.Where(x=>x.GeofenceId==zone||x.GeofenceId==boundary).ExecuteDeleteAsync();
             Console.WriteLine("Temporary workflow records removed.");
         }
     }

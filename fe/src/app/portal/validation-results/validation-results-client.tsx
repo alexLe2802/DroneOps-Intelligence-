@@ -45,7 +45,7 @@ export default function ValidationResultsClient({ missionId, runId }: { missionI
         : <ModuleEmpty title="No missions" message="Mission validation results will appear here after a mission is created." />}
     </section> : !result ? <ModuleEmpty title="No validation result" message="This mission has no saved validation result yet." /> : <>
       <section className={styles.panel}>
-        <div className={styles.summary}><h2>Flight readiness: {result.status === "Passed" ? "Pass" : result.status ?? (result.isValid ? "Pass" : "Blocked")}</h2><span>{result.stage}</span></div>
+        <div className={styles.summary}><h2>Flight readiness: {result.status ?? (result.isValid ? "Pass" : "Fail")}</h2><span>{result.stage}</span></div>
         <p>{result.message.replace(/\s*Weather warnings are advisory\./gi, "").trim()}</p>
         <dl className={styles.metadata}><div><dt>Checked</dt><dd>{result.checkedAt ? new Date(result.checkedAt).toLocaleString() : "Not recorded"}</dd></div><div><dt>Validation ID</dt><dd>{result.id ?? "Not recorded"}</dd></div><div><dt>Mission ID</dt><dd>{missionId}</dd></div></dl>
         {!runId && result.id && <Link className="module-link" href={`/portal/validation-results?missionId=${encodeURIComponent(missionId)}&runId=${encodeURIComponent(result.id)}`}>Link to this validation run</Link>}

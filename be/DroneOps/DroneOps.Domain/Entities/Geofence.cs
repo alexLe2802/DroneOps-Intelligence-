@@ -5,6 +5,7 @@ namespace DroneOps.Domain.Entities;
 [Table("Geofence")]
 public class Geofence
 {
+    public string RestrictionType { get; set; } = "Restricted";
     public string VerticalRule { get; set; } = "Unspecified";
     public string? AltitudeReference { get; set; }
     public decimal? MinAltitudeMeters { get; set; }
