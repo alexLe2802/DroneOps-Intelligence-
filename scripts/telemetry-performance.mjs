@@ -83,6 +83,7 @@ async function send(vehicle, second, options = {}) {
 const streams = Array.from({ length: sessionCount }, (_, i) => consumeSse(i + 1, config.vehicles[i % 5]));
 await new Promise(resolve => setTimeout(resolve, 1000));
 let expectedUnique = 0;
+const incidentStart = Math.max(1, Math.floor(durationSeconds / 3));
 for (let second = 0; second < durationSeconds; second++) {
   const tick = Date.now();
   // Deliberate five-second disconnect window at midpoint; evidence records that no
@@ -92,8 +93,8 @@ for (let second = 0; second < durationSeconds; second++) {
   else {
     expectedUnique += config.vehicles.length;
     await Promise.all(config.vehicles.map((vehicle, i) => {
-      const incident = second === Math.max(1, Math.floor(durationSeconds / 3)) && i === 0;
-      if (incident) incidentTriggers.set(vehicle.missionId, Date.now());
+      const incident = i === 0 && (second === incidentStart || second === incidentStart + 1);
+      if (incident && second === incidentStart) incidentTriggers.set(vehicle.missionId, Date.now());
       return send(vehicle, second, { late: second > 0 && second % 30 === 0, duplicate: second > 0 && second % 20 === 0, incident });
     }));
     if (second === Math.floor(durationSeconds / 2) + Math.min(5, Math.max(1, durationSeconds - 1))) write({ kind: "gateway-reconnected", second });
@@ -107,7 +108,8 @@ const summary = { startedAt: startedAt.toISOString(), endedAt: new Date().toISOS
   ...summarize(events, expectedUnique, sessionCount) };
 summary.soak60MinutesSatisfied = durationSeconds >= 3600;
 summary.pass = summary.soak60MinutesSatisfied && summary.lost === 0 && summary.requestErrors === 0 && summary.sseErrors === 0 &&
-  summary.connectedSessions === sessionCount && summary.reconnectObserved &&
+  summary.connectedSessions === sessionCount && summary.browserSessions === sessionCount && summary.reconnectObserved &&
+  summary.publishLost === 0 && summary.browserRenderLost === 0 &&
   summary.publishP95Ms !== null && summary.publishP95Ms <= 2000 && summary.browserRenderP95Ms !== null && summary.browserRenderP95Ms <= 2000 &&
   summary.incidentDetectionP95Ms !== null;
 fs.writeFileSync(path.join(output, "summary.json"), JSON.stringify(summary, null, 2));

@@ -37,6 +37,7 @@ window.addEventListener("droneops:telemetry-rendered", event => {
   const detail = event.detail;
   const row = {
     kind: "telemetry-rendered",
+    browserSession: window.__KAN80_SESSION_ID,
     missionId: detail.missionId,
     sourceTimestamp: detail.sourceTimestamp,
     renderedAt: detail.renderedAt,
@@ -46,6 +47,7 @@ window.addEventListener("droneops:telemetry-rendered", event => {
 });
 ```
 
+Đặt `window.__KAN80_SESSION_ID` thành một số riêng từ 1–10 trước khi đăng ký listener.
 Thu các dòng sau tiền tố `KAN80_RENDER` của 10 browser page/session vào một file
 JSONL. Đây là mốc render thật; không đổi tên SSE receipt thành browser latency.
 
@@ -71,9 +73,11 @@ node scripts/telemetry-performance.mjs --config telemetry-performance.private.js
 Runner chủ động tạo duplicate mỗi 20 giây, late sample mỗi 30 giây, low-battery
 incident và một cửa sổ disconnect/reconnect. `raw-evidence.jsonl` giữ timestamp,
 HTTP status, latency và event; `summary.json` có accepted/lost/late/duplicate,
-persist/SSE/browser p95, session count và incident-detection latency.
+acknowledged record count, persist/SSE/browser p95, stage-correlation loss,
+SSE/browser session count và incident-detection latency.
 
 Run chỉ PASS khi không mất request đã gửi, đủ 10 session, p95 SSE và browser đều
-không quá 2000 ms, có browser evidence và có incident evidence. Đồng bộ NTP giữa
+không quá 2000 ms, cả 10 browser session có evidence, không mất sample giữa
+accepted→publish→render và có incident evidence. Đồng bộ NTP giữa
 gateway/load host, API host và browser host; nếu không, source-to-render latency
 không có giá trị. Không tuyên bố soak 60 phút PASS dựa trên smoke ngắn.
