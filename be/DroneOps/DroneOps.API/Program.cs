@@ -13,7 +13,7 @@ var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCas
     "--migrate-auth", "--bootstrap-manager",
     "--migrate-telemetry", "--check-telemetry-schema",
     "--migrate-postflight", "--check-postflight-schema",
-    "--migrate-mission-workflow", "--migrate-drone-connections"
+    "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows"
 };
 var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
@@ -41,6 +41,13 @@ if (args.Contains("--migrate-drone-connections"))
     await DroneConnectionSchema.ApplyAsync(source);
     Console.WriteLine("Drone connection schema verified.");
     return;
+}
+
+if(args.Contains("--migrate-account-workflows"))
+{
+    await using var source=PostgresDataSourceFactory.Create(connectionString);
+    await AccountWorkflowSchema.ApplyAsync(source);
+    Console.WriteLine("Account workflow schema verified.");return;
 }
 
 if (args.Contains("--migrate-mission-workflow"))
@@ -195,6 +202,7 @@ builder.Services.AddRateLimiter(options =>
 var app = builder.Build();
 await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await AccountWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 // Detect a missing deployment migration before background monitoring starts.
 await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
