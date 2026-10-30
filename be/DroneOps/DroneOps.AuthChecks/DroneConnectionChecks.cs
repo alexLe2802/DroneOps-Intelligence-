@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using DroneOps.Application.DTOs.Response.Telemetry;
 
 internal static class DroneConnectionChecks
 {
@@ -34,10 +35,44 @@ internal static class DroneConnectionChecks
         var service=new DroneConnectionService(new DroneConnectionRepository(db),ingestion);
         int count=0;
         void Check(bool ok,string label){if(!ok)throw new Exception("FAIL: "+label);Console.WriteLine("PASS: "+label);count++;}
+        async Task<long> ScalarLong(string sql)
+        {
+            await using var command=source.CreateCommand(sql);
+            return Convert.ToInt64(await command.ExecuteScalarAsync());
+        }
         async Task Denied(Func<Task> action,string label){try{await action();throw new Exception("FAIL: "+label);}catch(UnauthorizedAccessException){Check(true,label);}}
         PairDroneGateway Pair(string code)=>new(code,"Temporary gateway fixture",1,1,"UID64-00000000075BCD15");
         try
         {
+            var order=File.ReadAllLines(Path.Combine(root,"database/migration-order.txt"))
+                .Select(x=>x.Trim()).Where(x=>x.Length>0&&!x.StartsWith('#')).ToList();
+            Check(order.IndexOf("20261021112520_drone_gateway_sessions.sql")>=0
+                  && order.IndexOf("20261021115253_drone_hardware_identity.sql")
+                     ==order.IndexOf("20261021112520_drone_gateway_sessions.sql")+1,
+                "gateway sessions and hardware identity migrations have an explicit consecutive order");
+            Check(await ScalarLong("""
+                SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+                WHERE n.nspname='public' AND c.relname IN ('DroneConnection','DroneHardwareIdentity') AND c.relrowsecurity
+                """)==2,"RLS is enabled on both private gateway tables");
+            Check(await ScalarLong("""
+                SELECT count(*) FROM (VALUES
+                  (has_table_privilege('anon','"public"."DroneConnection"','SELECT')),
+                  (has_table_privilege('authenticated','"public"."DroneConnection"','SELECT')),
+                  (has_table_privilege('anon','"public"."DroneHardwareIdentity"','SELECT')),
+                  (has_table_privilege('authenticated','"public"."DroneHardwareIdentity"','SELECT'))
+                ) AS permissions(allowed) WHERE allowed
+                """)==0,"anon and authenticated roles cannot read gateway credentials or bindings directly");
+            Check(await ScalarLong("""
+                SELECT count(*) FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid
+                WHERE t.relname IN ('DroneConnection','DroneHardwareIdentity') AND c.contype IN ('f','u','p')
+                """)>=8,"gateway schema retains primary, foreign-key and unique constraints");
+            Check(await ScalarLong("""
+                SELECT count(*) FROM public."DroneConnection"
+                WHERE "RevokedAt" IS NULL AND "HardwareIdentity" IS NULL
+                """)==0,"legacy sessions without observed hardware UID are revoked");
+            var pilotContract=typeof(DroneConnectionView).GetProperties().Select(x=>x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Check(!pilotContract.Contains("PairCodeHash")&&!pilotContract.Contains("TokenHash")&&!pilotContract.Contains("PairingCode")&&!pilotContract.Contains("Token"),
+                "pilot session response contract contains no pairing or gateway credential secret");
             db.Users.Add(new User{Id=owner,RoleId=role,FullName="Temporary gateway pilot",Email=$"gateway-{owner:N}@example.com",PasswordHash="disabled-fixture",CreatedAt=DateTimeOffset.UtcNow});
             db.Pilots.Add(new Pilot{Id=pilot,UserId=owner,PilotLicenseNo="FIXTURE",CreatedAt=DateTime.UtcNow});
             db.UAVs.Add(new UAV{Id=uav,PilotId=pilot,Name="Temporary gateway UAV",Code=$"GATEWAY-{uav:N}",Status="Active",CreatedAt=DateTimeOffset.UtcNow});

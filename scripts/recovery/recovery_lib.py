@@ -104,6 +104,13 @@ def database_coverage(database_url: str, psql: str = "psql") -> dict[str, int]:
     return {key: int(value) for key, value in json.loads(output).items()}
 
 
+def require_empty_restore_database(database_url: str, psql: str = "psql") -> None:
+    sql = "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relkind IN ('r','p') AND n.nspname NOT IN ('pg_catalog','information_schema');"
+    output = run_postgres(psql, ["--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--tuples-only", "--no-align", "--command", sql], database_url, True)
+    if int(output) != 0:
+        raise RuntimeError("Restore target database must be empty; create a new isolated database for each rehearsal.")
+
+
 class SupabaseStorage:
     def __init__(self, url: str, service_key: str, bucket: str = "user-media"):
         self.base = url.rstrip("/") + "/storage/v1"

@@ -37,7 +37,8 @@ def main() -> int:
     try:
         database_dump = temporary / "database.dump"
         pg_env, database_target = postgres_environment(database_url)
-        command = [args.pg_dump, "--format=custom", "--compress=9", "--no-owner", "--no-acl", "--file", str(database_dump)]
+        command = [args.pg_dump, "--format=custom", "--compress=9", "--no-owner", "--no-acl",
+                   "--schema=public", "--schema=droneops", "--file", str(database_dump)]
         completed = subprocess.run(command, env=pg_env, text=True, capture_output=True, check=False)
         if completed.returncode:
             raise RuntimeError(f"pg_dump failed ({completed.returncode}): {completed.stderr.strip()}")

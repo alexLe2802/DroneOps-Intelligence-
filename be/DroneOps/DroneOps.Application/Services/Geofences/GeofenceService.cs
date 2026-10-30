@@ -205,12 +205,13 @@ public class GeofenceService : IGeofenceService
             if (string.IsNullOrWhiteSpace(geofence.Coordinates))
                 continue;
 
-            List<List<decimal>>? polygon;
+            List<GeofenceCoordinateRequest>? polygon;
 
             try
             {
-                polygon = JsonSerializer.Deserialize<List<List<decimal>>>(
-                    geofence.Coordinates);
+                polygon = JsonSerializer.Deserialize<List<GeofenceCoordinateRequest>>(
+                    geofence.Coordinates,
+                    JsonOptions);
             }
             catch (JsonException)
             {
@@ -280,7 +281,7 @@ public class GeofenceService : IGeofenceService
     private static bool IsPointInsidePolygon(
      decimal latitude,
      decimal longitude,
-     List<List<decimal>> polygon)
+     List<GeofenceCoordinateRequest> polygon)
     {
         if (polygon is null || polygon.Count < 3)
         {
@@ -292,19 +293,11 @@ public class GeofenceService : IGeofenceService
 
         for (var i = 0; i < polygon.Count; i++)
         {
-            if (polygon[i].Count < 2 ||
-                polygon[j].Count < 2)
-            {
-                j = i;
-                continue;
-            }
+            var xi = polygon[i].Longitude;
+            var yi = polygon[i].Latitude;
 
-            // Coordinates format: [longitude, latitude]
-            var xi = polygon[i][0];
-            var yi = polygon[i][1];
-
-            var xj = polygon[j][0];
-            var yj = polygon[j][1];
+            var xj = polygon[j].Longitude;
+            var yj = polygon[j].Latitude;
 
             var intersects =
                 ((yi > latitude) != (yj > latitude)) &&
