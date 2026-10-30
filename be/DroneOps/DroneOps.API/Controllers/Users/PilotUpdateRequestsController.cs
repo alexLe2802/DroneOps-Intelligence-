@@ -109,12 +109,11 @@ public sealed class PilotUpdateRequestsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result = await _pilotUpdateRequestService.ApproveAsync(
-            id,
-            UserId,
-            cancellationToken);
-
-        return Ok(result);
+        try
+        {
+            var result=await _pilotUpdateRequestService.ApproveAsync(id,UserId,cancellationToken);return Ok(result);
+        }
+        catch(InvalidOperationException exception){return Conflict(new {message=exception.Message});}
     }
 
     [Authorize(Roles = "operation_manager")]
@@ -124,13 +123,11 @@ public sealed class PilotUpdateRequestsController : ControllerBase
         [FromBody] RejectPilotUpdateRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _pilotUpdateRequestService.RejectAsync(
-            id,
-            UserId,
-            request,
-            cancellationToken);
-
-        return Ok(result);
+        try
+        {
+            var result=await _pilotUpdateRequestService.RejectAsync(id,UserId,request,cancellationToken);return Ok(result);
+        }
+        catch(InvalidOperationException exception){return Conflict(new {message=exception.Message});}
     }
     private static string GetFileExtension(
     IFormFile file)

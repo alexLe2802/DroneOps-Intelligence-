@@ -109,26 +109,26 @@ public sealed class UserController : ControllerBase
                 return BadRequest(new { message = "Full name cannot be empty." });
             await using var command = _dataSource.CreateCommand("""
                 WITH updated AS (
-                    UPDATE public."User" SET "FullName" = @name, "UpdatedAt" = now()
-                    WHERE "Id" = @id AND "IsActive" AND "WebAccessProvisioned"
-                    RETURNING "Id", "FullName", "Email", "RoleId", "CreatedAt"
+                    UPDATE public."User" SET "FullName" = @name, "UpdatedAt" = now(), "ProfileVersion"="ProfileVersion"+1
+                    WHERE "Id" = @id AND "IsActive" AND "WebAccessProvisioned" AND "ProfileVersion"=@version
+                    RETURNING "Id", "FullName", "Email", "RoleId", "CreatedAt", "ProfileVersion"
                 )
                 SELECT u."Id", u."FullName", u."Email",
                        CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'uav_operator' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operation_manager' WHEN 'Admin' THEN 'operation_manager' WHEN 'SystemAdmin' THEN 'operation_manager' WHEN 'operations_manager' THEN 'operation_manager' WHEN 'operation_manager' THEN 'operation_manager' END,
-                       u."CreatedAt"
+                       u."CreatedAt",u."ProfileVersion"
                 FROM updated u JOIN public."Role" r ON r."Id" = u."RoleId"
                 """);
             command.Parameters.AddWithValue("id", session.Account.Id);
             command.Parameters.AddWithValue("name", fullName);
+            command.Parameters.AddWithValue("version",request.ExpectedVersion);
             var profile = await ReadProfileAsync(command, cancellationToken);
-            return profile is null ? NotFound(new { message = "User profile not found." }) : Ok(profile);
+            return profile is null ? Conflict(new { message = "Profile changed since it was loaded. Refresh and retry." }) : Ok(profile);
         }
 
-        UserProfileResponse? result =
-            await _userService.UpdateProfileAsync(
-                userId,
-                request,
-                cancellationToken);
+        UserProfileResponse? result;
+        try { result=await _userService.UpdateProfileAsync(userId,request,cancellationToken); }
+        catch(Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        { return Conflict(new {message="Profile changed since it was loaded. Refresh and retry."}); }
 
         if (result is null)
         {
@@ -146,7 +146,7 @@ public sealed class UserController : ControllerBase
         await using var command = _dataSource.CreateCommand("""
             SELECT u."Id", u."FullName", u."Email",
                    CASE r."Name" WHEN 'Pilot' THEN 'uav_operator' WHEN 'uav_operator' THEN 'uav_operator' WHEN 'OperationsManager' THEN 'operation_manager' WHEN 'Admin' THEN 'operation_manager' WHEN 'SystemAdmin' THEN 'operation_manager' WHEN 'operations_manager' THEN 'operation_manager' WHEN 'operation_manager' THEN 'operation_manager' END,
-                   u."CreatedAt"
+                   u."CreatedAt",u."ProfileVersion"
             FROM public."User" u JOIN public."Role" r ON r."Id" = u."RoleId"
             WHERE u."Id" = @id AND u."IsActive" AND u."WebAccessProvisioned"
             """);
@@ -165,6 +165,7 @@ public sealed class UserController : ControllerBase
             Email = reader.GetString(2),
             Role = reader.GetString(3),
             CreatedAt = reader.GetFieldValue<DateTimeOffset>(4)
+            ,ProfileVersion=reader.GetInt64(5)
         };
     }
 

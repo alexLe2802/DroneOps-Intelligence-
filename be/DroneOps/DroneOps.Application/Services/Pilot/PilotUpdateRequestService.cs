@@ -237,18 +237,6 @@ public sealed class PilotUpdateRequestService
                 "Pilot profile not found.");
         }
 
-        bool hasPendingRequest =
-            await _pilotRepository
-                .HasPendingUpdateRequestAsync(
-                    pilot.Id,
-                    cancellationToken);
-
-        if (hasPendingRequest)
-        {
-            throw new InvalidOperationException(
-                "You already have a pending license change.");
-        }
-
         var uploadedPaths = new List<string>();
 
         try

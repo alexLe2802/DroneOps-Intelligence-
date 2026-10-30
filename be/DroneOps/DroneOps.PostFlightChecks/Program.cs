@@ -1,9 +1,23 @@
 using DroneOps.Application.DTOs.Request.PostFlight;
+using DroneOps.Application.DTOs.Request.AI;
 using DroneOps.Application.Services.PostFlight;
+using DroneOps.Application.Services.AI;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
+
+if (args.Length == 2 && args[0] == "--analytics-postgres")
+{
+    await AnalyticsPostgresChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
+
+if (args.Length == 2 && args[0] == "--lifecycle-postgres")
+{
+    await PostFlightPostgresChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
 
 var options = new DbContextOptionsBuilder<AppDbContext>()
     .UseInMemoryDatabase($"post-flight-checks-{Guid.NewGuid()}")
@@ -71,6 +85,18 @@ await ExpectThrowsAsync<InvalidOperationException>(
     "manager finalize requires a trusted completion event");
 Check((await db.Missions.FindAsync(missionId))!.Status == "Approved",
     "rejected finalize does not mutate mission status");
+await ExpectThrowsAsync<InvalidOperationException>(
+    () => service.RecordTrustedCompletionAsync("completion-before-start", new RecordFlightCompletionRequest
+    {
+        MissionId = missionId, UavId = uavId, SourceId = "trusted-simulator",
+        EventType = "MISSION_COMPLETED", CompletedAt = now
+    }),
+    "trusted completion cannot bypass the flight start state");
+Check(!await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == missionId) &&
+      !await db.PostFlightReports.AnyAsync(x => x.MissionId == missionId),
+    "rejected pre-start completion creates neither flight event nor report");
+(await db.Missions.FindAsync(missionId))!.Status = "InProgress";
+await db.SaveChangesAsync();
 
 var queued = await service.RecordTrustedCompletionAsync("completion-1", new RecordFlightCompletionRequest
 {
@@ -86,6 +112,15 @@ var duplicate = await service.RecordTrustedCompletionAsync("completion-1", new R
     EventType = "MISSION_COMPLETED", CompletedAt = now
 });
 Check(duplicate.ReportId == queued.ReportId, "completion ingestion is idempotent");
+var alternateReplay = await service.RecordTrustedCompletionAsync("completion-1-alternate-key", new RecordFlightCompletionRequest
+{
+    MissionId = missionId, UavId = uavId, SourceId = "trusted-simulator",
+    EventType = "MISSION_COMPLETED", CompletedAt = now
+});
+Check(alternateReplay.ReportId == queued.ReportId &&
+      await db.FlightCompletionEvents.CountAsync(x => x.MissionId == missionId) == 1 &&
+      await db.PostFlightReports.CountAsync(x => x.MissionId == missionId) == 1,
+    "semantic replay with another key does not duplicate a flight or report");
 
 Check(await service.ProcessQueuedReportsAsync() == 1, "queued report is processed");
 var report = await service.GetReportByMissionIdAsync(missionId, pilotId, false);
@@ -116,6 +151,8 @@ Check(revisions.Count == 2 && revisions.Single(x => x.Revision == 1).IsCurrent =
 Check(revisions.Single(x => x.Revision == 2).TotalTelemetryRecords == 3,
     "regenerated report includes late telemetry");
 
+(await db.Missions.FindAsync(noTelemetryMissionId))!.Status = "InProgress";
+await db.SaveChangesAsync();
 await service.RecordTrustedCompletionAsync("completion-no-data", new RecordFlightCompletionRequest
 {
     MissionId = noTelemetryMissionId, UavId = uavId, SourceId = "trusted-simulator",
@@ -125,22 +162,27 @@ await service.ProcessQueuedReportsAsync();
 var failedReport = await service.GetReportByMissionIdAsync(noTelemetryMissionId, pilotId, false);
 Check(failedReport.GenerationStatus == "Failed" && !string.IsNullOrWhiteSpace(failedReport.FailureReason),
     "generation failure is explicit and flight evidence is preserved");
+Check(await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == noTelemetryMissionId) &&
+      await db.PostFlightReports.AnyAsync(x => x.MissionId == noTelemetryMissionId),
+    "generation failure retains trusted completion evidence and report state");
 
+Check(await service.SynchronizeOverdueMissionsAsync() == 4,
+    "scheduled lifecycle synchronization runs explicitly before analytics");
 var analytics = await service.GetOperationalAnalyticsAsync(new GetOperationalAnalyticsRequest(), pilotId);
-Check(analytics.TotalFlights == 7 && analytics.CompletedFlights == 5 &&
-      analytics.SuccessRatePercentage == 71.4,
-    "completion rate uses all terminal flights instead of report count");
-Check(analytics.ReportsAvailable == 4 && analytics.ReportsExcluded == 3 &&
-      analytics.ReportCoveragePercentage == 57.1,
+Check(analytics.TotalFlights == 6 && analytics.CompletedFlights == 5 &&
+      analytics.SuccessRatePercentage == 83.3 && analytics.CompletionRateStatus == "Available",
+    "completion rate uses completed over all started flights instead of reports or unstarted cancellations");
+Check(analytics.ReportsAvailable == 4 && analytics.ReportsExcluded == 2 &&
+      analytics.ReportCoveragePercentage == 66.7,
     "analytics discloses report coverage and exclusions");
 Check(analytics.TotalIncidentsRecorded == 2 && analytics.IncidentSeverityBreakdown["High"] == 1 &&
       analytics.IncidentSeverityBreakdown["Low"] == 1 && analytics.CompletionTrend.Count == 1,
     "analytics includes severity breakdown and daily trend");
 Check((await db.Missions.FindAsync(overdueActiveMissionId))!.Status == "Completed" &&
       (await db.Missions.FindAsync(overdueApprovedMissionId))!.Status == "Completed",
-    "analytics synchronizes overdue active and approved missions");
+    "scheduled lifecycle synchronizes overdue active and approved missions");
 Check((await db.Missions.FindAsync(overdueDraftMissionId))!.Status == "Cancelled",
-    "analytics cancels overdue draft missions with a valid terminal status");
+    "scheduled lifecycle cancels overdue draft missions with a valid terminal status");
 var incidentReport = await service.GetReportByMissionIdAsync(overdueActiveMissionId, pilotId, false);
 var safeReport = await service.GetReportByMissionIdAsync(overdueApprovedMissionId, pilotId, false);
 var scheduledReport = await service.GetReportByMissionIdAsync(overdueNoTelemetryMissionId, pilotId, false);
@@ -207,6 +249,11 @@ var emptyAnalytics = await service.GetOperationalAnalyticsAsync(new GetOperation
 }, pilotId);
 Check(emptyAnalytics.SuccessRatePercentage == null && emptyAnalytics.ReportCoveragePercentage == null,
     "no data is not represented as 100 percent success");
+Check(emptyAnalytics.CompletionRateStatus == "Unavailable" &&
+      emptyAnalytics.Contract.WindowBasis == "Mission.StartTime" &&
+      emptyAnalytics.Contract.Units["totalDistanceKilometers"] == "kilometers" &&
+      emptyAnalytics.Contract.SourceLinks.ContainsKey("telemetry"),
+    "empty denominator and analytics metadata are explicit in the response contract");
 
 await ExpectThrowsAsync<ArgumentException>(
     () => service.GetOperationalAnalyticsAsync(new GetOperationalAnalyticsRequest
@@ -214,6 +261,33 @@ await ExpectThrowsAsync<ArgumentException>(
         FromDate = now.UtcDateTime, ToDate = now.AddDays(-1).UtcDateTime
     }, pilotId),
     "invalid analytics date range is rejected");
+
+var similarityTarget = new FlightFeature(Guid.NewGuid(), "Target", 10, 106, 20, 80, uavId, 0, []);
+var closestId = Guid.NewGuid();
+var similarityRank = HistoricalSimilarity.Rank(similarityTarget,
+[
+    new FlightFeature(closestId, "Closest", 10.001, 106.001, 21, 82, uavId, 1, [Guid.NewGuid()]),
+    new FlightFeature(Guid.NewGuid(), "Distant", 20, 116, 120, 500, Guid.NewGuid(), 4, [])
+]);
+Check(similarityRank.Count == 2 && similarityRank[0].Flight.MissionId == closestId &&
+      similarityRank[0].Score > similarityRank[1].Score,
+    "historical similarity ranking is deterministic and favors matching evidence");
+Check(HistoricalSimilarity.Rank(similarityTarget, [], 5).Count == 0,
+    "historical similarity returns explicit empty evidence without synthetic matches");
+var assessmentService = new AiAssessmentService(db);
+var assessment = await assessmentService.CreateAsync(new CreateAiAssessmentRequest
+{
+    MissionRef = missionId.ToString(), MissionVersion = 1
+}, pilotId, false, CancellationToken.None);
+Check(assessment.Status == "Available" && assessment.Result != null &&
+      assessment.Result.HistoricalFlights.Count <= 5 &&
+      await db.AiAssessments.AnyAsync(x => x.Id == assessment.Id && x.ContextHash.Length == 64),
+    "assessment persists reproducible Top-5 source and feature evidence");
+Check((await assessmentService.GetByMissionAsync(missionId.ToString(), pilotId, false, CancellationToken.None)).Count == 1,
+    "authorized assessment history returns the stored immutable result");
+await ExpectThrowsAsync<KeyNotFoundException>(
+    () => assessmentService.GetByMissionAsync(missionId.ToString(), Guid.NewGuid(), false, CancellationToken.None),
+    "out-of-scope assessment history is not disclosed");
 
 Console.WriteLine($"{passed} post-flight checks passed.");
 

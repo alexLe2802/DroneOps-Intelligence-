@@ -1,4 +1,7 @@
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Npgsql;
 using System.Text.RegularExpressions;
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.DTOs.Response.Common;
@@ -8,6 +11,8 @@ using DroneOps.Application.Interfaces.Users;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.EntityFrameworkCore;
+using DroneOps.Persistence.Data;
 using BC = BCrypt.Net.BCrypt;
 
 namespace DroneOps.Application.Services.Users;
@@ -28,17 +33,22 @@ public sealed class UserService : IUserService
     private readonly IPilotRepository _pilotRepository;
     private readonly IEmailService _emailService;
     private readonly IMemoryCache _cache;
+    private readonly AppDbContext? _db;
 
     public UserService(
         IUserRepository userRepository,
         IPilotRepository pilotRepository,
         IEmailService emailService,
         IMemoryCache cache)
+        : this(userRepository,pilotRepository,emailService,cache,null) { }
+
+    public UserService(IUserRepository userRepository,IPilotRepository pilotRepository,IEmailService emailService,IMemoryCache cache,AppDbContext? db)
     {
         _userRepository = userRepository;
         _pilotRepository = pilotRepository;
         _emailService = emailService;
         _cache = cache;
+        _db = db;
     }
 
     public async Task<UserProfileResponse?> GetProfileAsync(
@@ -81,7 +91,10 @@ public sealed class UserService : IUserService
                 "Full name cannot be empty.");
         }
 
+        if(request.ExpectedVersion!=user.ProfileVersion)
+            throw new DbUpdateConcurrencyException("Profile changed since it was loaded.");
         user.FullName = fullName;
+        user.ProfileVersion++;
 
         await _userRepository.SaveChangesAsync(
             cancellationToken);
@@ -105,6 +118,7 @@ public sealed class UserService : IUserService
         return new UserProfileResponse
         {
             AvatarUrl = user.AvatarPath is null ? null : "/api/users/avatar?v=" + Uri.EscapeDataString(user.AvatarPath),
+            ProfileVersion=user.ProfileVersion,
             Id = user.Id,
             FullName = user.FullName,
             Email = user.Email,
@@ -238,7 +252,12 @@ public sealed class UserService : IUserService
                         pilot.Id,
                         cancellationToken);
 
-            if (hasPendingRequest)
+            if (hasPendingRequest && _db is not null)
+            {
+                var prior=await _db.PilotUpdateRequests.SingleAsync(x=>x.PilotId==pilot.Id&&x.Status=="Pending",cancellationToken);
+                prior.Status="Superseded";
+            }
+            else if (hasPendingRequest)
             {
                 throw new InvalidOperationException(
                     "You already have a pending pilot update request.");
@@ -367,8 +386,9 @@ public sealed class UserService : IUserService
         // hoặc có PilotUpdateRequest mới cần insert
         if (profileChanged || hasLicenseUpdate)
         {
-            await _pilotRepository.SaveChangesAsync(
-                cancellationToken);
+            try { await _pilotRepository.SaveChangesAsync(cancellationToken); }
+            catch(DbUpdateException e) when(e.InnerException is PostgresException {SqlState:PostgresErrorCodes.UniqueViolation})
+            { throw new InvalidOperationException("A concurrent license request is already pending.",e); }
         }
 
         return new UpdatePilotProfileResponse
@@ -527,6 +547,9 @@ public sealed class UserService : IUserService
                 "Only pending pilot update requests can be approved.");
         }
 
+        if(updateRequest.Pilot.UserId==reviewerId)
+            throw new InvalidOperationException("The request author cannot review their own license change.");
+
         Pilot pilot =
             updateRequest.Pilot;
 
@@ -573,8 +596,12 @@ public sealed class UserService : IUserService
         updateRequest.ReviewedAt =
             DateTime.UtcNow;
 
-        await _pilotRepository.SaveChangesAsync(
-            cancellationToken);
+        if(_db is not null)_db.PilotUpdateDecisionAudits.Add(new PilotUpdateDecisionAudit
+        {Id=Guid.NewGuid(),RequestId=updateRequest.Id,ActorId=reviewerId,TargetUserId=pilot.UserId,Result="Approved",OccurredAt=DateTimeOffset.UtcNow});
+
+        try { await _pilotRepository.SaveChangesAsync(cancellationToken); }
+        catch(DbUpdateException e) when(e.InnerException is PostgresException {SqlState:PostgresErrorCodes.UniqueViolation})
+        {throw new InvalidOperationException("This decision is stale or was completed concurrently.",e);}
 
         return MapPilotUpdateRequestResponse(
             updateRequest);
@@ -605,6 +632,9 @@ public sealed class UserService : IUserService
                 "Only pending pilot update requests can be rejected.");
         }
 
+        if(updateRequest.Pilot.UserId==reviewerId)
+            throw new InvalidOperationException("The request author cannot review their own license change.");
+
         updateRequest.Status =
             "Rejected";
 
@@ -617,11 +647,15 @@ public sealed class UserService : IUserService
         updateRequest.ReviewedAt =
             DateTime.UtcNow;
 
+        if(_db is not null)_db.PilotUpdateDecisionAudits.Add(new PilotUpdateDecisionAudit
+        {Id=Guid.NewGuid(),RequestId=updateRequest.Id,ActorId=reviewerId,TargetUserId=updateRequest.Pilot.UserId,Result="Rejected",OccurredAt=DateTimeOffset.UtcNow});
+
         // Reject không update Pilot
         // Reject không set LicenseImage.PilotId
 
-        await _pilotRepository.SaveChangesAsync(
-            cancellationToken);
+        try { await _pilotRepository.SaveChangesAsync(cancellationToken); }
+        catch(DbUpdateException e) when(e.InnerException is PostgresException {SqlState:PostgresErrorCodes.UniqueViolation})
+        {throw new InvalidOperationException("This decision is stale or was completed concurrently.",e);}
 
         return MapPilotUpdateRequestResponse(
             updateRequest);
@@ -706,6 +740,9 @@ public sealed class UserService : IUserService
             throw new Exception("Current password is incorrect.");
         }
 
+        if(_db is not null)
+            return await RequestPersistentEmailChallengeAsync(user,cleanNewEmail,cancellationToken);
+
         var emailExists = await _userRepository.EmailExistsAsync(
             cleanNewEmail,
             cancellationToken: cancellationToken);
@@ -761,6 +798,9 @@ public sealed class UserService : IUserService
     {
         var cleanNewEmail = request.NewEmail?.Trim().ToLowerInvariant() ?? string.Empty;
         var cleanCode = request.Otp?.Trim() ?? string.Empty;
+
+        if(_db is not null)
+            return await ConfirmPersistentEmailChallengeAsync(userId,cleanNewEmail,cleanCode,cancellationToken);
 
         var cacheKey = $"CHANGE_EMAIL_OTP_{userId}";
         if (!_cache.TryGetValue(cacheKey, out PendingEmailChange? pending) || pending == null)
@@ -849,6 +889,83 @@ public sealed class UserService : IUserService
         }
 
         return new string(result);
+    }
+
+    private static string ChallengeHash(Guid id,string code)=>Convert.ToHexString(
+        SHA256.HashData(Encoding.UTF8.GetBytes($"{id:N}:{code.Trim().ToUpperInvariant()}")));
+
+    private async Task<string> RequestPersistentEmailChallengeAsync(User user,string newEmail,CancellationToken ct)
+    {
+        if(_db is null)throw new InvalidOperationException();
+        if(await _db.Users.AsNoTracking().AnyAsync(x=>x.Email.ToLower()==newEmail&&x.Id!=user.Id,ct))
+            throw new Exception("This email address is already registered by another account.");
+        var code=Generate5CharacterCode();var id=Guid.NewGuid();var now=DateTimeOffset.UtcNow;
+        await _db.EmailChangeChallenges.Where(x=>x.AccountId==user.Id&&x.Status=="Pending")
+            .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Status,"Superseded"),ct);
+        _db.EmailChangeChallenges.Add(new EmailChangeChallenge {Id=id,AccountId=user.Id,NewEmail=newEmail,
+            CodeHash=ChallengeHash(id,code),CreatedAt=now,ExpiresAt=now.AddMinutes(10),Status="Pending"});
+        _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=user.Id,TargetId=user.Id,
+            Action="email.challenge.requested",Result="Pending",OccurredAt=now,
+            DetailsJson=JsonSerializer.Serialize(new {challengeId=id,newEmail})});
+        await _db.SaveChangesAsync(ct);
+        var body=$"<span style='font-size: 28px; font-weight: bold'>{code}</span>";
+        try{await _emailService.SendEmailAsync(newEmail,"DroneOps - Email Change Verification Code",body);}
+        catch
+        {
+            var challenge=await _db.EmailChangeChallenges.SingleAsync(x=>x.Id==id,ct);challenge.Status="DeliveryFailed";
+            _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=user.Id,TargetId=user.Id,
+                Action="email.challenge.delivery",Result="Failed",OccurredAt=DateTimeOffset.UtcNow,
+                DetailsJson=JsonSerializer.Serialize(new {challengeId=id})});
+            await _db.SaveChangesAsync(ct);throw;
+        }
+        return "Verification code has been sent to your new email address.";
+    }
+
+    private async Task<bool> ConfirmPersistentEmailChallengeAsync(Guid userId,string newEmail,string code,CancellationToken ct)
+    {
+        if(_db is null)throw new InvalidOperationException();
+        string? failure=null;
+        try
+        {
+            await _db.Database.CreateExecutionStrategy().ExecuteAsync(async()=>
+            {
+                _db.ChangeTracker.Clear();
+                await using var tx=await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,ct);
+                var challenge=await _db.EmailChangeChallenges.FromSqlInterpolated(
+                    $"SELECT * FROM droneops.\"EmailChangeChallenge\" WHERE \"AccountId\"={userId} AND lower(\"NewEmail\")={newEmail} AND \"Status\"='Pending' FOR UPDATE")
+                    .SingleOrDefaultAsync(ct);
+                if(challenge is null){failure="Verification code has expired or does not exist.";await tx.CommitAsync(ct);return;}
+                if(challenge.ExpiresAt<=DateTimeOffset.UtcNow){challenge.Status="Expired";failure="Verification code has expired.";await _db.SaveChangesAsync(ct);await tx.CommitAsync(ct);return;}
+                var actual=Convert.FromHexString(ChallengeHash(challenge.Id,code));var expected=Convert.FromHexString(challenge.CodeHash);
+                if(!CryptographicOperations.FixedTimeEquals(actual,expected))
+                {
+                    challenge.FailedAttempts++;if(challenge.FailedAttempts>=5)challenge.Status="Locked";
+                    _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=userId,TargetId=userId,
+                        Action="email.challenge.confirm",Result="Failed",OccurredAt=DateTimeOffset.UtcNow,
+                        DetailsJson=JsonSerializer.Serialize(new {challengeId=challenge.Id,challenge.FailedAttempts})});
+                    failure=challenge.Status=="Locked"?"Too many incorrect attempts.":"Invalid verification code.";
+                    await _db.SaveChangesAsync(ct);await tx.CommitAsync(ct);return;
+                }
+                var account=await _db.Users.FromSqlInterpolated($"SELECT * FROM public.\"User\" WHERE \"Id\"={userId} FOR UPDATE").SingleAsync(ct);
+                if(await _db.Users.AsNoTracking().AnyAsync(x=>x.Id!=userId&&x.Email.ToLower()==newEmail,ct))
+                {
+                    _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=userId,TargetId=userId,
+                        Action="email.changed",Result="Conflict",OccurredAt=DateTimeOffset.UtcNow,
+                        DetailsJson=JsonSerializer.Serialize(new {challengeId=challenge.Id,newEmail})});
+                    failure="This email address is already registered by another account.";await _db.SaveChangesAsync(ct);await tx.CommitAsync(ct);return;
+                }
+                account.Email=newEmail;account.ProfileVersion++;challenge.Status="Consumed";challenge.ConsumedAt=DateTimeOffset.UtcNow;
+                _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=userId,TargetId=userId,
+                    Action="email.changed",Result="Succeeded",OccurredAt=DateTimeOffset.UtcNow,
+                    DetailsJson=JsonSerializer.Serialize(new {challengeId=challenge.Id,newEmail})});
+                await _db.SaveChangesAsync(ct);
+                await _db.Database.ExecuteSqlInterpolatedAsync($"UPDATE droneops.auth_sessions SET revoked_at=now() WHERE account_id={userId} AND revoked_at IS NULL",ct);
+                await tx.CommitAsync(ct);
+            });
+        }
+        catch(DbUpdateException e) when(e.InnerException is PostgresException {SqlState:PostgresErrorCodes.UniqueViolation})
+        {throw new Exception("This email address is already registered by another account.");}
+        if(failure is not null)throw new Exception(failure);return true;
     }
 
     private class PendingEmailChange
