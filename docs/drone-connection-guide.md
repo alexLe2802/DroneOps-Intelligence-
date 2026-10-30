@@ -234,6 +234,8 @@ tối đa 3 vệ tinh và `GPS UNKNOWN` màu vàng khi chưa có số liệu ph�
 Sau khi cài và pair xong, bootstrap in hai endpoint đúng một lần rồi theo dõi
 log service liên tục. Dòng GPS gồm `fix_type`, `satellites_visible`, tuổi dữ liệu
 và trạng thái tọa độ. Nhấn `Ctrl+C` chỉ thoát màn hình log; hai service vẫn chạy.
+ZIP cùng thư mục giải nén tạm được xóa trước khi bắt đầu theo dõi log; các lần
+chạy lại chỉ cập nhật cùng thư mục `/opt/droneops-gateway`, không tạo nhiều bản cài.
 
 Command chứa pairing code dùng một lần và có hạn, vì vậy không chia sẻ hoặc lưu
 nó vào tài liệu. HTTP chỉ phù hợp cho LAN phát triển tin cậy.
