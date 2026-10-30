@@ -1,0 +1,11 @@
+[Unit]
+Description=Run DroneOps backup every day at 01:15 Asia/Bangkok
+
+[Timer]
+OnCalendar=*-*-* 01:15:00 Asia/Bangkok
+Persistent=true
+RandomizedDelaySec=300
+Unit=droneops-backup.service
+
+[Install]
+WantedBy=timers.target

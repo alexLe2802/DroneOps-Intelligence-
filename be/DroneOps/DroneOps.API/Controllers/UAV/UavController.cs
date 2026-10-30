@@ -139,7 +139,8 @@ public class UavController : ControllerBase
     }
 
     /// <summary>
-    /// Pilot xóa UAV của chính mình ở mọi trạng thái; manager có thể xóa mọi UAV.
+    /// Pilot xóa UAV chưa bind của chính mình; manager có thể xóa UAV chưa bind.
+    /// UAV đã gắn flight controller phải deactivate, không được xóa để lách binding.
     /// </summary>
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "uav_operator,operation_manager,operations_manager,Admin")]
@@ -156,11 +157,19 @@ public class UavController : ControllerBase
         var canManageAll = User.IsInRole("operation_manager") ||
             User.IsInRole("operations_manager") || User.IsInRole("Admin");
 
-        var result = await _uavService.DeleteAsync(
-            userId,
-            id,
-            canManageAll,
-            cancellationToken);
+        bool result;
+        try
+        {
+            result = await _uavService.DeleteAsync(
+                userId,
+                id,
+                canManageAll,
+                cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
 
         if (!result)
         {

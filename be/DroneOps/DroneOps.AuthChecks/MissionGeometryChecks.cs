@@ -1,5 +1,9 @@
 using System.Text.Json;
 using DroneOps.Application.Services.Missions;
+using DroneOps.Application.DTOs.Request.Geofences;
+using DroneOps.Application.DTOs.Request.Missions;
+using DroneOps.Application.Validators.Geofences;
+using DroneOps.Application.Validators.Missions;
 using P = DroneOps.Application.Services.Missions.MissionRouteGeometry.Point;
 
 internal static class MissionGeometryChecks
@@ -19,6 +23,10 @@ internal static class MissionGeometryChecks
         Check(!MissionRouteGeometry.Intersects(outside,concave), "empty area within restriction bounds is not restricted");
         P[] invalid = [new(0,0),new(4,4),new(0,4),new(4,0)];
         Check(!MissionRouteGeometry.ValidPolygon(invalid), "self-intersecting polygon remains invalid");
+        var invalidZone=new CreateGeofenceRequest {Name="Invalid",Coordinates=invalid.Select(x=>new GeofenceCoordinateRequest {Latitude=(decimal)x.Latitude,Longitude=(decimal)x.Longitude}).ToList()};
+        Check(!new CreateGeofenceRequestValidator().Validate(invalidZone).IsValid,"server rejects a self-intersecting restriction polygon");
+        var invalidRoute=new CreateMissionRequest {Name="Invalid",UavId=Guid.NewGuid(),StartTime=DateTime.UtcNow.AddHours(1),EndTime=DateTime.UtcNow.AddHours(2),Waypoints=[new(){SequenceOrder=1,Latitude=91,Longitude=0},new(){SequenceOrder=3,Latitude=0,Longitude=0}]};
+        Check(!new CreateMissionRequestValidator().Validate(invalidRoute).IsValid,"server rejects waypoint range and non-contiguous sequence");
         Check(!MissionRouteGeometry.Intersects([new(0.1,1.9),new(0.1,2.1)],invalid), "unfilled area does not inherit a distant topology defect");
         Check(MissionRouteGeometry.Intersects([new(2,.2),new(2,.4)],invalid), "filled area of invalid polygon still requires data review");
         P[] square = [new(0,0),new(0,4),new(4,4),new(4,0),new(0,0)];

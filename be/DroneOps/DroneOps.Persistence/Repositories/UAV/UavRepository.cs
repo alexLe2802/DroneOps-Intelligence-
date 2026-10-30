@@ -23,13 +23,23 @@ public sealed class UavRepository
         return await DbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using var transaction = await DbContext.Database.BeginTransactionAsync(cancellationToken);
-            var canDelete = await DbSet.AsNoTracking().AnyAsync(
-                x => x.Id == uavId && (canManageAll || x.Pilot.UserId == userId),
-                cancellationToken);
-            if (!canDelete)
+            // Pairing takes the same row lock before creating a permanent hardware
+            // binding. This prevents deletion from racing a first-time claim.
+            var uav = await DbSet.FromSqlInterpolated(
+                    $"SELECT * FROM \"UAV\" WHERE \"Id\"={uavId} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken);
+            if (uav is null || (!canManageAll && !await DbContext.Pilots.AnyAsync(
+                    x => x.Id == uav.PilotId && x.UserId == userId, cancellationToken)))
             {
                 await transaction.RollbackAsync(cancellationToken);
                 return false;
+            }
+
+            if (await DbContext.DroneHardwareIdentities.AnyAsync(
+                    x => x.UavId == uavId, cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    "A UAV with a permanent flight-controller binding cannot be deleted. Deactivate it, or use the administrator-verified flight-controller replacement process.");
             }
 
             // Preserve missions and their audit history, but release the deleted aircraft assignment.
@@ -39,7 +49,6 @@ public sealed class UavRepository
 
             // These records have required UAV foreign keys and cannot survive a physical UAV deletion.
             await DbContext.DroneConnections.Where(x => x.UavId == uavId).ExecuteDeleteAsync(cancellationToken);
-            await DbContext.DroneHardwareIdentities.Where(x => x.UavId == uavId).ExecuteDeleteAsync(cancellationToken);
             await DbContext.FlightCompletionEvents.Where(x => x.UAVId == uavId).ExecuteDeleteAsync(cancellationToken);
             await DbContext.TelemetryRecords.Where(x => x.UAVId == uavId).ExecuteDeleteAsync(cancellationToken);
 

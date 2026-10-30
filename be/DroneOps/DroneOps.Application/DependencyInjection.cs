@@ -15,6 +15,7 @@ using DroneOps.Application.Interfaces.Users;
 using DroneOps.Application.Interfaces.Validators;
 using DroneOps.Application.Services;
 using DroneOps.Application.Services.Auth;
+using DroneOps.Application.Services.AI;
 using DroneOps.Application.Services.Incidents;
 using DroneOps.Application.Services.Missions;
 using DroneOps.Application.Services.Notifications;
@@ -80,6 +81,7 @@ public static class DependencyInjection
         services.AddScoped<IDroneConnectionService, DroneConnectionService>();
         services.AddScoped<IIncidentService, IncidentService>();
         services.AddScoped<IIncidentLifecycleService, IncidentLifecycleService>();
+        services.AddScoped<IAiAssessmentService, AiAssessmentService>();
         services.AddScoped<IMissionApprovalService, MissionApprovalService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IAvatarService, AvatarService>();
