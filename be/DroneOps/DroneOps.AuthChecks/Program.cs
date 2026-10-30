@@ -28,17 +28,17 @@ if (args.Length == 2 && args[0] == "--license-workflow")
     return;
 }
 
-if (args.Length == 2 && args[0] == "--mission-approval")
-{
-    await MissionApprovalChecks.RunAsync(Path.GetFullPath(args[1]));
-    return;
-}
+//if (args.Length == 2 && args[0] == "--mission-approval")
+//{
+//    await MissionApprovalChecks.RunAsync(Path.GetFullPath(args[1]));
+//    return;
+//}
 
-if (args.Length == 1 && args[0] == "--mission-weather")
-{
-    await MissionWeatherChecks.RunAsync();
-    return;
-}
+//if (args.Length == 1 && args[0] == "--mission-weather")
+//{
+//    await MissionWeatherChecks.RunAsync();
+//    return;
+//}
 
 if (args.Length >= 1 && args[0] == "--mission-geometry")
 {

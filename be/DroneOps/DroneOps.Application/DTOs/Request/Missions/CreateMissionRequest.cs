@@ -2,7 +2,6 @@
 
 public sealed class CreateMissionRequest
 {
-    public Guid? OperationId { get; set; }
     public string? AltitudeReference { get; set; }
 
     public Guid UavId { get; set; }
