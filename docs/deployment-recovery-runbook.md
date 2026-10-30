@@ -7,9 +7,12 @@ record. The application does **not** migrate a production database at startup.
 ## Recovery objectives and protected data
 
 - Daily backup, maximum RPO 24 hours; isolated restore rehearsal RTO 4 hours.
-- The PostgreSQL custom dump includes accounts, pilot/license metadata,
+- The PostgreSQL custom dump includes the DroneOps-owned `public` and `droneops`
+  schemas: accounts, pilot/license metadata,
   missions/approvals/update requests, telemetry, incidents/transitions/alerts,
-  gateway bindings and the remaining relational history.
+  gateway bindings and the remaining relational history. Supabase platform schemas
+  (`auth`, `storage`, `realtime`, and extensions) are platform-managed and are not
+  replayed; private storage objects are protected separately as described below.
 - The same backup set includes every object in the private Supabase Storage bucket
   `user-media`: license evidence, avatars and UAV images. A database-only dump is
   not a complete backup.
@@ -88,8 +91,8 @@ python scripts/recovery/restore.py `
 ```
 
 The tool rejects production/live target names, requires the isolation sentinel,
-rejects the source Storage URL, verifies every backup checksum, restores the DB in
-one `pg_restore --single-transaction`, restores private objects, compares coverage
+rejects the source Storage URL, verifies every backup checksum, requires a newly
+created empty target database, restores it in one `pg_restore --single-transaction`, restores private objects, compares coverage
 counts and records RPO/RTO. Partial media uploaded by a failed run is deleted. The
 disposable target database/project should be destroyed after evidence review.
 
