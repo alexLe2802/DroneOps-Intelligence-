@@ -5,6 +5,7 @@ namespace DroneOps.Domain.Entities;
 [Table("User")]
 public class User
 {
+    public long ProfileVersion { get; set; } = 1;
     public Guid Id { get; set; }
 
     public string? AvatarPath { get; set; }

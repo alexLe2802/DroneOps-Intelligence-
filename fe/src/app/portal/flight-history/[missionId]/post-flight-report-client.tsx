@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AccountRole } from "@/lib/auth/types";
 import { getFlightTelemetry, getPostFlightIncidents, getPostFlightReport, getPostFlightReportRevisions, regeneratePostFlightReport } from "@/lib/portal/client";
@@ -43,6 +44,12 @@ export default function PostFlightReportClient({ missionId, role }: { missionId:
     return () => window.clearTimeout(timer);
   }, [load]);
   useEffect(() => {
+    const status = data?.report.generationStatus;
+    if (status !== "Queued" && status !== "Generating") return;
+    const timer = window.setInterval(() => void load(), 5_000);
+    return () => window.clearInterval(timer);
+  }, [data?.report.generationStatus, load]);
+  useEffect(() => {
     if (!dialogOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape" && !pending.current) setDialogOpen(false); };
     window.addEventListener("keydown", close);
@@ -71,7 +78,7 @@ export default function PostFlightReportClient({ missionId, role }: { missionId:
 
   return <div className={styles.reportPage}>
     <header className={styles.reportHeading}>
-      <div><Link href="/portal/flight-history">&lt; FLIGHT ARCHIVE</Link><p>POST-FLIGHT DEBRIEF // REVISION {report.revision}</p><h1>{report.missionName}</h1><span>{report.missionDescription || "No mission description was recorded."}</span></div>
+      <div><Link className={styles.reportBackButton} href="/portal/flight-history"><ArrowLeft size={15} strokeWidth={2} aria-hidden="true" /> BACK TO FLIGHT HISTORY</Link><p>POST-FLIGHT DEBRIEF // REVISION {report.revision}</p><h1>{report.missionName}</h1><span>{report.missionDescription || "No mission description was recorded."}</span></div>
       <div className={styles.reportHeadingActions}><span className={`${styles.generationState} ${styles[report.generationStatus.toLowerCase()] ?? ""}`}>{label(report.generationStatus)}</span>{role === "operation_manager" && <button type="button" onClick={() => setDialogOpen(true)} disabled={busy}>REGENERATE REPORT</button>}</div>
     </header>
 

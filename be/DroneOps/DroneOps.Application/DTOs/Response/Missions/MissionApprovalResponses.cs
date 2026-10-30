@@ -32,7 +32,7 @@ public class PendingApprovalItemResponse
     public int WaypointCount { get; set; }
 
     /// <summary>
-    /// Tóm tắt kiểm tra kế hoạch: Passed / Incomplete / Blocked (không hard-code Passed).
+    /// Tóm tắt kiểm tra kế hoạch: Pass / Fail / Incomplete / Error.
     /// </summary>
     public string ValidationStatus { get; set; } = "Incomplete";
 

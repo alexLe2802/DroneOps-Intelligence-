@@ -1,10 +1,14 @@
 ﻿using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
+using DroneOps.Application.Interfaces;
+using DroneOps.Application.Interfaces.Geofences;
 using DroneOps.Application.Interfaces.Missions;
-using DroneOps.Application.Interfaces.PostFlight;
-using DroneOps.Domain.Entities;
-using DroneOps.Application.Services.Missions;
 using DroneOps.Application.Interfaces.Notifications;
+using DroneOps.Application.Interfaces.PostFlight;
+using DroneOps.Application.Interfaces.Validators;
+using DroneOps.Application.Services.Missions;
+using DroneOps.Application.Validators.Missions;
+using DroneOps.Domain.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace DroneOps.Application.Services;
@@ -12,35 +16,50 @@ namespace DroneOps.Application.Services;
 public sealed class MissionService : IMissionService
 {
     private readonly IMissionRepository _missionRepository;
-    private readonly MissionWorkflowService _workflow;
-    private readonly MissionValidationService _validation;
+    private readonly IMissionWorkflowService _workflow;
+    private readonly IMissionValidationService _validation;
     private readonly IPostFlightService _postFlightService;
     private readonly INotificationService _notificationService;
     private readonly ILogger<MissionService> _logger;
+    private readonly IGeofenceService _geofenceService;
 
     public MissionService(
-       IMissionRepository missionRepository,
-       MissionWorkflowService workflow,
-       MissionValidationService validation,
-       IPostFlightService postFlightService,
-       INotificationService notificationService,
-       ILogger<MissionService> logger)
+      IMissionRepository missionRepository,
+      IMissionWorkflowService workflow,
+      IMissionValidationService validation,
+      IPostFlightService postFlightService,
+      INotificationService notificationService,
+      IGeofenceService geofenceService,
+      ILogger<MissionService> logger)
     {
         _missionRepository = missionRepository;
         _workflow = workflow;
         _validation = validation;
         _postFlightService = postFlightService;
         _notificationService = notificationService;
+        _geofenceService = geofenceService;
         _logger = logger;
     }
     public async Task<MissionResponse> CreateAsync(
-        Guid pilotId,
-        CreateMissionRequest request,
-        CancellationToken cancellationToken = default)
+    Guid pilotId,
+    CreateMissionRequest request,
+    CancellationToken cancellationToken = default)
     {
-        var mission = await _workflow.SavePlanAsync(pilotId, request, null, cancellationToken);
-        await TryPublishPendingNotificationAsync(mission, pilotId, cancellationToken);
-        return await MapWithValidationAsync(mission, cancellationToken);
+        // Existing flow
+        var mission = await _workflow.SavePlanAsync(
+            pilotId,
+            request,
+            null,
+            cancellationToken);
+
+        await TryPublishPendingNotificationAsync(
+            mission,
+            pilotId,
+            cancellationToken);
+
+        return await MapWithValidationAsync(
+            mission,
+            cancellationToken);
     }
 
     public async Task<MissionResponse?> GetByIdAsync(
@@ -61,17 +80,48 @@ public sealed class MissionService : IMissionService
         return await MapWithValidationAsync(mission, cancellationToken);
     }
 
-    public async Task<List<MissionResponse>> GetAllAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<MissionPagedResponse> GetAllAsync(
+     MissionFilterRequest request,
+     CancellationToken cancellationToken = default)
     {
-        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
-        List<Mission> missions =
+        await _postFlightService.SynchronizeOverdueMissionsAsync(
+            cancellationToken);
+
+        if (request.PageNumber < 1)
+            request.PageNumber = 1;
+
+        if (request.PageSize < 1)
+            request.PageSize = 10;
+
+        var (missions, totalCount) =
             await _missionRepository.GetAllAsync(
+                request.Search,
+                request.Status,
+                request.FromDate,
+                request.ToDate,
+                request.PageNumber,
+                request.PageSize,
                 cancellationToken);
 
         var results = new List<MissionResponse>();
-        foreach (var mission in missions) results.Add(await MapWithValidationAsync(mission, cancellationToken));
-        return results;
+
+        foreach (var mission in missions)
+        {
+            results.Add(
+                await MapWithValidationAsync(
+                    mission,
+                    cancellationToken));
+        }
+
+        return new MissionPagedResponse
+        {
+            Items = results,
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(
+                totalCount / (double)request.PageSize)
+        };
     }
 
     public async Task<List<MissionResponse>> GetMyAsync(
@@ -120,18 +170,33 @@ public sealed class MissionService : IMissionService
         };
     }
 
-    private async Task<MissionResponse> MapWithValidationAsync(Mission mission, CancellationToken ct)
+    private async Task<MissionResponse> MapWithValidationAsync(
+     Mission mission,
+     CancellationToken ct)
     {
         var response = MapToResponse(mission);
-        response.Validation = await _validation.ReadAsync(mission.Id,mission.CreatedBy,false,null,ct);
-        response.LatestValidation = await _validation.ReadLatestRunAsync(mission.Id,mission.CreatedBy,false,ct);
-        response.PendingUpdate = await _validation.PendingAsync(mission.Id, ct);
-        var preflight = await _validation.LatestPreflightAsync(mission.Id, ct);
+
+        response.Validation = await _validation.ReadAsync(
+            mission.Id,
+            mission.CreatedBy,
+            false,
+            ct);
+
+        response.LatestValidation = await _validation.ReadLatestRunAsync(
+            mission.Id,
+            mission.CreatedBy,
+            false,
+            ct);
+
+        var preflight = await _validation.LatestPreflightAsync(
+            mission.Id,
+            ct);
+
         response.PreflightValidation = preflight;
         response.FlightReadiness = preflight?.Status ?? "AwaitingPreflight";
+
         return response;
     }
-
     public async Task<MissionResponse?> UpdateAsync(Guid id, Guid userId, CreateMissionRequest request, CancellationToken cancellationToken = default)
     {
         var mission = await _workflow.SavePlanAsync(userId, request, id, cancellationToken);

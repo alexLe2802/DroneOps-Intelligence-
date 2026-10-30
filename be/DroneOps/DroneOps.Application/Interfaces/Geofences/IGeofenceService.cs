@@ -5,6 +5,7 @@ namespace DroneOps.Application.Interfaces.Geofences;
 
 public interface IGeofenceService
 {
+
     Task<List<GeofenceResponse>> GetAllAsync(
         CancellationToken cancellationToken = default);
 
@@ -24,4 +25,9 @@ public interface IGeofenceService
     Task DeleteAsync(
         Guid id,
         CancellationToken cancellationToken = default);
+    Task<GeofenceCheckResult> CheckRestrictedAreaAsync(
+    decimal latitude,
+    decimal longitude,
+    decimal? altitudeMeters = null,
+    CancellationToken cancellationToken = default);
 }

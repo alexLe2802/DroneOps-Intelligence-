@@ -16,6 +16,7 @@ using DroneOps.Application;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using DroneOps.Application.Interfaces.Missions;
+using DroneOps.Application.Interfaces.Geofences;
 using DroneOps.Persistence.Repositories;
 using DroneOps.Persistence.Interfaces.Notifications;
 using DroneOps.Persistence.Repositories.Notifications;
@@ -51,8 +52,14 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 });
 builder.Services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(databaseName));
 builder.Services.AddScoped<IMissionRepository, MissionRepository>();
+builder.Services.AddScoped<IGeofenceRepository, GeofenceRepository>();
 builder.Services.AddScoped<IPostFlightRepository, PostFlightRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<IMissionWorkflowRepository, MissionWorkflowRepository>();
+builder.Services.AddScoped<IMissionValidationRepository, MissionValidationRepository>();
+builder.Services.AddScoped<IMissionApprovalRepository, MissionApprovalRepository>();
+builder.Services.AddScoped<IMissionWeatherQueryRepository, MissionWeatherQueryRepository>();
+builder.Services.AddScoped<IMissionPreflightRepository, MissionPreflightRepository>();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddSingleton<IDroneConnectionRepository,FixtureDroneConnectionRepository>();
 builder.Services.AddRateLimiter(o=>{o.AddFixedWindowLimiter("gateway-pairing",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-ingest",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-websocket",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});});
@@ -239,6 +246,15 @@ try
     var lowBatterySecond = await Json(await client.SendAsync(Ingest("low-battery-2", Sample(detectorAt.AddSeconds(1), battery: 19, sequence: 11))));
     Check(lowBatterySecond.GetProperty("raisedIncidentId").ValueKind == JsonValueKind.String, "second consecutive violating sample raises an incident");
     var lowBatteryIncidentId = lowBatterySecond.GetProperty("raisedIncidentId").GetGuid();
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Check(await db.Notifications.CountAsync(x =>
+                x.RecipientUserId == pilotId && x.Type == "IncidentRaised" &&
+                x.ReferenceId == lowBatteryIncidentId && x.ReferenceType == "Incident" &&
+                x.ActionUrl == $"/incident-management?incidentId={lowBatteryIncidentId}") == 1,
+            "new incident creates one navigable Facebook-style notification for the pilot");
+    }
 
     // Pilot nhận alert bền vững, acknowledge/resolve và lịch sử append-only qua HTTP.
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));

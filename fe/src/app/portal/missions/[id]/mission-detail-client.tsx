@@ -169,11 +169,9 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
       <div className="heading-actions"><Link className="module-secondary module-link" href={isManager ? "/portal/mission-planning" : "/portal/missions"}>&lt; {isManager ? "MISSION PLANNING" : "MY MISSIONS"}</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}{isManager && awaitingApproval && <Link className="module-primary module-link" href={`/portal/mission-approvals?missionId=${encodeURIComponent(mission.id)}`}>REVIEW REQUEST</Link>}</div>
     </header>
     {mission.detailAvailable === false && <p className="api-pending-banner" role="status"><b>MISSION DETAIL API PENDING</b> Showing the available mission summary. Route and waypoint data will appear when the backend returns a response from GET /api/missions/{mission.id}.</p>}
-    {actionError && <div className="mission-action-feedback error" role="alert"><span>{actionError}</span><button type="button" onClick={() => setActionError("")}>DISMISS</button></div>}
-    {notice && <div className="mission-action-feedback success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")}>DISMISS</button></div>}
 
     <section className="mission-action-feedback" aria-label="Persisted mission validation">
-      <b>Flight readiness: {readinessStatus === "Passed" ? "Pass" : formatStatus(readinessStatus)}</b>
+      <b>Flight readiness: {formatStatus(readinessStatus)}</b>
       <Link className="module-link" href={readinessHref}>View validation result</Link>
     </section>
 
@@ -193,6 +191,8 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
         <button type="button" className="mission-validate-button" disabled={!canValidate || busy !== null} onClick={() => void runValidation()}>{busy === "validate" ? "VALIDATING..." : "RUN VALIDATION"}</button>
         {canCancel && <button type="button" className="mission-cancel-button" disabled={busy !== null} onClick={() => setDialog("cancel")}>CANCEL MISSION</button>}
       </div>
+      {actionError && <div className="mission-action-feedback mission-command-feedback error" role="alert" aria-live="assertive"><span>{actionError}</span><button type="button" onClick={() => setActionError("")}>DISMISS</button></div>}
+      {notice && <div className="mission-action-feedback mission-command-feedback success" role="status" aria-live="polite"><span>{notice}</span><button type="button" onClick={() => setNotice("")}>DISMISS</button></div>}
     </section>
 
     <section className="mission-detail-stats" aria-label="Mission summary">
