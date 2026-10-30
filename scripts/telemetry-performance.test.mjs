@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { percentile, summarize } from "./telemetry-performance-lib.mjs";
+import { distribution, percentile, summarize } from "./telemetry-performance-lib.mjs";
 
 test("nearest-rank percentile is deterministic", () => {
   assert.equal(percentile([10, 40, 20, 30], 95), 40);
   assert.equal(percentile([], 95), null);
+});
+
+test("latency distribution reports p50, p95 and max", () => {
+  assert.deepEqual(distribution([40, 10, 30, 20]), { count: 4, p50Ms: 20, p95Ms: 40, maxMs: 40 });
 });
 
 test("summary separates accepted, lost, late and duplicate", () => {
@@ -46,4 +50,16 @@ test("late historical records are not misreported as publish loss", () => {
   assert.equal(summary.acknowledgedRecords, 1);
   assert.equal(summary.publishLost, 0);
   assert.equal(summary.browserRenderLost, 0);
+});
+
+test("diagnostics report queue, memory and subscriber cleanup", () => {
+  const summary = summarize([
+    { kind: "server-diagnostics", activeSubscribers: 2, pendingThreadPoolWorkItems: 3, managedMemoryBytes: 100 },
+    { kind: "server-diagnostics", activeSubscribers: 12, pendingThreadPoolWorkItems: 9, managedMemoryBytes: 180 },
+    { kind: "server-diagnostics", activeSubscribers: 2, pendingThreadPoolWorkItems: 4, managedMemoryBytes: 130 },
+  ], 0, 10);
+  assert.equal(summary.peakActiveSubscribers, 12);
+  assert.equal(summary.peakPendingThreadPoolWorkItems, 9);
+  assert.equal(summary.managedMemoryGrowthBytes, 30);
+  assert.equal(summary.subscriberCleanupDelta, 0);
 });
