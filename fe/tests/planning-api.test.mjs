@@ -146,6 +146,27 @@ test("manager mission registry reads mission plans and enriches assigned aircraf
   } finally { mock.mock.restore(); }
 });
 
+test("validation mission selector uses role-scoped mission registries instead of flight history", async () => {
+  const pilotMission = { id: "pilot-mission", name: "Pending route", status: "Pending Review", uavId: null, startTime: null, endTime: null, createdAt: "2026-10-29T00:00:00Z", waypoints: [] };
+  const managerMission = { ...pilotMission, id: "manager-mission", createdBy: "pilot-id" };
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async url => {
+    calls.push(String(url));
+    if (String(url) === "/api/missions/my") return Response.json([pilotMission]);
+    if (String(url) === "/api/uavs/myUAV") return Response.json([]);
+    if (String(url) === "/api/missions") return Response.json([managerMission]);
+    if (String(url).startsWith("/api/admin/uavs?")) return Response.json({ items: [], pageNumber: 1, pageSize: 100, totalItems: 0, totalPages: 0 });
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  try {
+    const pilotOptions = await client.getValidationMissionOptions("uav_operator");
+    const managerOptions = await client.getValidationMissionOptions("operation_manager");
+    assert.deepEqual(pilotOptions, [{ id: "pilot-mission", name: "Pending route", status: "Pending Review" }]);
+    assert.deepEqual(managerOptions, [{ id: "manager-mission", name: "Pending route", status: "Pending Review" }]);
+    assert.equal(calls.some(url => url.includes("flight-history")), false);
+  } finally { mock.mock.restore(); }
+});
+
 test("post-flight archive and report detail preserve backend query and mutation contracts", async () => {
   const calls = [];
   const report = { reportId: "report-id", missionId: "mission-id", generationStatus: "Available", revision: 1 };
