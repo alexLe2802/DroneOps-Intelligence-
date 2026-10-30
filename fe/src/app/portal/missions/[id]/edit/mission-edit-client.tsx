@@ -206,9 +206,9 @@ export default function MissionEditClient({ id }: { id: string }) {
       </section>
       </fieldset>
 
-      {formError && <p className="form-error" role="alert">{formError}</p>}
-      {notice && <p className="mission-edit-notice" role="status">{notice}</p>}
       <label>Altitude reference<select value={value.altitudeReference} onChange={event => setValue(current => current ? { ...current, altitudeReference: event.target.value as EditorValue["altitudeReference"] } : current)}><option value="">Not specified</option><option value="AGL">AGL</option><option value="MSL">MSL</option><option value="Relative">Relative</option></select></label>
+      {formError && <p className="form-error" role="alert" aria-live="assertive">{formError}</p>}
+      {notice && <p className="mission-edit-notice" role="status" aria-live="polite">{notice}</p>}
       <footer className="builder-footer"><p><b>{value.waypoints.length}</b> WAYPOINTS · {dirty ? "CHANGES PENDING" : "UNCHANGED"}</p><div><Link className="module-secondary module-link" href={`/portal/missions/${id}`} onClick={leave}>CANCEL</Link><button type="submit" className="module-primary" disabled={!dirty || saving}>{saving ? "VALIDATING..." : "SAVE & SEND FOR REVIEW"}</button></div></footer>
     </form>
   </>;
