@@ -1,5 +1,7 @@
 using DroneOps.Application.DTOs.Request.PostFlight;
+using DroneOps.Application.DTOs.Request.AI;
 using DroneOps.Application.Services.PostFlight;
+using DroneOps.Application.Services.AI;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Repositories;
@@ -259,6 +261,33 @@ await ExpectThrowsAsync<ArgumentException>(
         FromDate = now.UtcDateTime, ToDate = now.AddDays(-1).UtcDateTime
     }, pilotId),
     "invalid analytics date range is rejected");
+
+var similarityTarget = new FlightFeature(Guid.NewGuid(), "Target", 10, 106, 20, 80, uavId, 0, []);
+var closestId = Guid.NewGuid();
+var similarityRank = HistoricalSimilarity.Rank(similarityTarget,
+[
+    new FlightFeature(closestId, "Closest", 10.001, 106.001, 21, 82, uavId, 1, [Guid.NewGuid()]),
+    new FlightFeature(Guid.NewGuid(), "Distant", 20, 116, 120, 500, Guid.NewGuid(), 4, [])
+]);
+Check(similarityRank.Count == 2 && similarityRank[0].Flight.MissionId == closestId &&
+      similarityRank[0].Score > similarityRank[1].Score,
+    "historical similarity ranking is deterministic and favors matching evidence");
+Check(HistoricalSimilarity.Rank(similarityTarget, [], 5).Count == 0,
+    "historical similarity returns explicit empty evidence without synthetic matches");
+var assessmentService = new AiAssessmentService(db);
+var assessment = await assessmentService.CreateAsync(new CreateAiAssessmentRequest
+{
+    MissionRef = missionId.ToString(), MissionVersion = 1
+}, pilotId, false, CancellationToken.None);
+Check(assessment.Status == "Available" && assessment.Result != null &&
+      assessment.Result.HistoricalFlights.Count <= 5 &&
+      await db.AiAssessments.AnyAsync(x => x.Id == assessment.Id && x.ContextHash.Length == 64),
+    "assessment persists reproducible Top-5 source and feature evidence");
+Check((await assessmentService.GetByMissionAsync(missionId.ToString(), pilotId, false, CancellationToken.None)).Count == 1,
+    "authorized assessment history returns the stored immutable result");
+await ExpectThrowsAsync<KeyNotFoundException>(
+    () => assessmentService.GetByMissionAsync(missionId.ToString(), Guid.NewGuid(), false, CancellationToken.None),
+    "out-of-scope assessment history is not disclosed");
 
 Console.WriteLine($"{passed} post-flight checks passed.");
 

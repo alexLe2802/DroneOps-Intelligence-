@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     public DbSet<EmailChangeChallenge> EmailChangeChallenges { get; set; }
     public DbSet<AccountWorkflowAudit> AccountWorkflowAudits { get; set; }
     public DbSet<Notification> Notifications { get; set; }
+    public DbSet<AiAssessment> AiAssessments { get; set; }
 
     public DbSet<MissionUpdateRequest> MissionUpdateRequests { get; set; }
     public DbSet<GeofenceRevision> GeofenceRevisions { get; set; }
