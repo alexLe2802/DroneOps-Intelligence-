@@ -5,7 +5,7 @@ public static class MissionWorkflowSchema
 {
     public static async Task ApplyAsync(NpgsqlDataSource source)
     {
-        foreach (var resource in new[] {"DroneOps.Persistence.MissionWorkflow.sql","DroneOps.Persistence.MissionRequests.sql"})
+        foreach (var resource in new[] {"DroneOps.Persistence.MissionWorkflow.sql","DroneOps.Persistence.MissionRequests.sql","DroneOps.Persistence.MissionRestrictions.sql"})
         {
             using var stream=typeof(MissionWorkflowSchema).Assembly.GetManifestResourceStream(resource)??throw new InvalidOperationException("Workflow migration resource missing.");
             using var reader=new StreamReader(stream);
@@ -27,9 +27,10 @@ public static class MissionWorkflowSchema
             foreach (var sql in new[] {
                 "SELECT \"BasePlanJson\", \"ValidationRunId\" FROM public.\"MissionUpdateRequest\" LIMIT 0",
                 "SELECT \"UpdateRequestId\" FROM public.\"MissionValidationRun\" LIMIT 0",
+                "SELECT \"ResultStatus\", \"RestrictionRevision\", \"EvidenceJson\" FROM public.\"MissionValidationRun\" LIMIT 0",
                 "SELECT \"UpdateRequestId\" FROM public.\"MissionApproval\" LIMIT 0",
                 "SELECT \"AltitudeReference\" FROM public.\"Mission\" LIMIT 0",
-                "SELECT \"VerticalRule\", \"Revision\", \"AltitudeReference\", \"MinAltitudeMeters\", \"MaxAltitudeMeters\" FROM public.\"Geofence\" LIMIT 0",
+                "SELECT \"RestrictionType\", \"VerticalRule\", \"Revision\", \"AltitudeReference\", \"MinAltitudeMeters\", \"MaxAltitudeMeters\" FROM public.\"Geofence\" LIMIT 0",
                 "SELECT \"SnapshotJson\" FROM public.\"GeofenceRevision\" LIMIT 0",
                 "SELECT \"ForecastJson\" FROM public.\"MissionWeatherCache\" LIMIT 0"
             })

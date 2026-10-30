@@ -173,7 +173,7 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
     {notice && <div className="mission-action-feedback success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice("")}>DISMISS</button></div>}
 
     <section className="mission-action-feedback" aria-label="Persisted mission validation">
-      <b>Flight readiness: {readinessStatus === "Passed" ? "Pass" : formatStatus(readinessStatus)}</b>
+      <b>Flight readiness: {formatStatus(readinessStatus)}</b>
       <Link className="module-link" href={readinessHref}>View validation result</Link>
     </section>
 

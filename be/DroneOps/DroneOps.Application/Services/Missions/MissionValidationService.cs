@@ -10,8 +10,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DroneOps.Application.Services.Missions;
 
-public sealed class MissionValidationService(AppDbContext db, IMissionWeatherService weather)
+public sealed class MissionValidationService
 {
+    private readonly AppDbContext db;
+    private readonly IMissionWeatherService weather;
+    private readonly ITerrainElevationService terrain;
+
+    public MissionValidationService(AppDbContext db, IMissionWeatherService weather)
+        : this(db, weather, new UnavailableTerrainElevationService()) { }
+
+    public MissionValidationService(AppDbContext db, IMissionWeatherService weather, ITerrainElevationService terrain)
+    {
+        this.db = db;
+        this.weather = weather;
+        this.terrain = terrain;
+    }
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };
     public static MissionValidationResult? Decode(MissionValidationRun? run) => run is null ? null : JsonSerializer.Deserialize<MissionValidationResult>(run.ResultJson, JsonOptions);
     public Task<MissionValidationRun?> LatestRunAsync(Guid id, CancellationToken ct) => db.MissionValidationRuns.AsNoTracking().Where(x=>x.MissionId==id && x.UpdateRequestId==null).OrderByDescending(x=>x.CheckedAt).FirstOrDefaultAsync(ct);
@@ -78,7 +91,22 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
     public void Store(Mission m, Guid actor, MissionValidationResult result, bool persisted = true)
     {
         result.MissionId = persisted ? m.Id : null;
-        db.MissionValidationRuns.Add(new MissionValidationRun { Id = result.Id, MissionId = result.MissionId, ActorId = actor, UpdateRequestId=result.UpdateRequestId, Stage = result.Stage, IsValid = result.IsValid, CheckedAt = result.CheckedAt, PlanHash = Hash(m), PlanJson = JsonSerializer.Serialize(Snapshot(m), JsonOptions), ResultJson = JsonSerializer.Serialize(result, JsonOptions) });
+        var planHash=Hash(m);
+        var planJson=JsonSerializer.Serialize(Snapshot(m), JsonOptions);
+        db.MissionValidationRuns.Add(new MissionValidationRun
+        {
+            Id=result.Id, MissionId=result.MissionId, ActorId=actor, UpdateRequestId=result.UpdateRequestId,
+            Stage=result.Stage, IsValid=result.IsValid, ResultStatus=result.Outcome, CheckedAt=result.CheckedAt,
+            PlanHash=planHash, RestrictionRevision=result.RestrictionRevision, PlanJson=planJson,
+            EvidenceJson=JsonSerializer.Serialize(new
+            {
+                planHash,
+                plan=JsonSerializer.Deserialize<JsonElement>(planJson),
+                findings=result.Findings,
+                restrictions=result.RestrictionEvidence
+            },JsonOptions),
+            ResultJson=JsonSerializer.Serialize(result,JsonOptions)
+        });
     }
     public async Task<MissionValidationResult> EvaluateAsync(Mission m, string stage, CancellationToken ct)
     {
@@ -103,7 +131,51 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
         r.RestrictionRevision=RestrictionHash(zones);
         var route = orderedPoints.Select(x => new MissionRouteGeometry.Point((double)x.Latitude, (double)x.Longitude)).ToList();
         if (zones.Count == 0) {r.Incomplete=true;r.Issues.Add("No airspace restriction data is configured.");}
-        foreach (var zone in zones)
+        var operationalBoundaries=zones.Where(x=>x.RestrictionType=="OperationalBoundary").ToList();
+        if(route.Count>0&&operationalBoundaries.Count>0)
+        {
+            var containing=new List<(Geofence Zone,List<MissionRouteGeometry.Point> Polygon)>();
+            foreach(var boundary in operationalBoundaries)
+            {
+                try
+                {
+                    var polygon=JsonSerializer.Deserialize<List<MissionRouteGeometry.Point>>(boundary.Coordinates,JsonOptions);
+                    if(polygon is null||!MissionRouteGeometry.ValidPolygon(polygon))
+                    {r.Incomplete=true;r.Issues.Add($"Operational boundary '{boundary.Name}' has invalid geometry.");continue;}
+                    r.RestrictionEvidence.Add(Evidence(boundary,$"Operational boundary '{boundary.Name}' revision {boundary.Revision} was evaluated as keep-in airspace."));
+                    if(CoversRoute(route,polygon))containing.Add((boundary,polygon));
+                }
+                catch(JsonException){r.Incomplete=true;r.Issues.Add($"Operational boundary '{boundary.Name}' could not be checked.");}
+            }
+            if(containing.Count==0)
+            {
+                var boundary=operationalBoundaries[0];
+                var reason="The route leaves every configured operational boundary.";
+                r.Issues.Add(reason);r.Findings.Add(new RestrictionFinding {GeofenceId=boundary.Id,Revision=boundary.Revision,Rule="OutsideOperationalBoundary",Reason=reason});
+            }
+            else
+            {
+                var altitudePass=false;var altitudeIncomplete=false;
+                foreach(var candidate in containing)
+                {
+                    var zone=candidate.Zone;var bounded=zone.MinAltitudeMeters.HasValue||zone.MaxAltitudeMeters.HasValue;
+                    if(!bounded&&zone.VerticalRule=="AllAltitudes"){altitudePass=true;break;}
+                    if(!bounded||!(zone.AltitudeReference is "AGL" or "MSL")||!(m.AltitudeReference is "AGL" or "MSL"))
+                    {altitudeIncomplete=true;continue;}
+                    var converted=new List<decimal?>();
+                    foreach(var point in orderedPoints)converted.Add(await ConvertAltitudeAsync(point.Altitude,point.Latitude,point.Longitude,m.AltitudeReference,zone.AltitudeReference,ct));
+                    if(converted.Any(x=>!x.HasValue)){altitudeIncomplete=true;continue;}
+                    if(converted.All(x=>x>=(zone.MinAltitudeMeters??decimal.MinValue)&&x<=(zone.MaxAltitudeMeters??decimal.MaxValue))){altitudePass=true;break;}
+                }
+                if(!altitudePass)
+                {
+                    var boundary=containing[0].Zone;
+                    var reason=altitudeIncomplete?"Operational-boundary altitude clearance is incomplete because terrain, altitude, or reference data is unavailable.":"The route leaves the operational boundary altitude band.";
+                    r.Incomplete|=altitudeIncomplete;r.Issues.Add(reason);r.Findings.Add(new RestrictionFinding {GeofenceId=boundary.Id,Revision=boundary.Revision,Rule=altitudeIncomplete?"OperationalAltitudeIncomplete":"OutsideOperationalAltitude",Reason=reason});
+                }
+            }
+        }
+        foreach (var zone in zones.Where(x=>x.RestrictionType!="OperationalBoundary"))
         {
             try
             {
@@ -119,40 +191,63 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
                 // allowing unrelated topology defects to block this route. Both nodes
                 // and intervening segments, including boundary touches, are checked.
                 if (!MissionRouteGeometry.Intersects(route,polygon)) continue;
+                r.RestrictionEvidence.Add(new RestrictionEvidence
+                {
+                    GeofenceId=zone.Id, Revision=zone.Revision, Name=zone.Name, RestrictionType=zone.RestrictionType,
+                    CoordinatesJson=zone.Coordinates, VerticalRule=zone.VerticalRule,
+                    AltitudeReference=zone.AltitudeReference, MinAltitudeMeters=zone.MinAltitudeMeters,
+                    MaxAltitudeMeters=zone.MaxAltitudeMeters,
+                    Text=$"Route intersects restriction '{zone.Name}' revision {zone.Revision}."
+                });
                 if (!MissionRouteGeometry.ValidPolygon(polygon))
                 { r.Incomplete=true; r.Issues.Add($"Airspace restriction '{zone.Name}' intersects the submitted route but its geometry is invalid. Clearance is incomplete; review the restriction data."); }
                 else
                 {
                     var bounded=zone.MinAltitudeMeters.HasValue||zone.MaxAltitudeMeters.HasValue;
                     if(zone.MinAltitudeMeters>zone.MaxAltitudeMeters){r.Incomplete=true;r.Issues.Add($"Altitude rule for '{zone.Name}' is invalid.");continue;}
-                    bool unknown=(!bounded&&zone.VerticalRule!="AllAltitudes")||bounded&&(!(zone.AltitudeReference is "AGL" or "MSL" or "Relative")||string.IsNullOrWhiteSpace(zone.AltitudeReference)||string.IsNullOrWhiteSpace(m.AltitudeReference)||zone.AltitudeReference!=m.AltitudeReference);
+                    bool unknown=!bounded&&zone.VerticalRule!="AllAltitudes" ||
+                        bounded&&(!(zone.AltitudeReference is "AGL" or "MSL") || !(m.AltitudeReference is "AGL" or "MSL"));
                     void Finding(int? point,int? from,int? to,string reason,bool incomplete)
                     {
                         r.Issues.Add(reason);r.Incomplete|=incomplete;
                         r.Findings.Add(new RestrictionFinding {GeofenceId=zone.Id,Revision=zone.Revision,WaypointSequence=point,SegmentFrom=from,SegmentTo=to,Rule=incomplete?"AltitudeReferenceIncomplete":"AirspaceAltitudeIntersection",Reason=reason});
                     }
                     bool Vertical(decimal? low,decimal? high)=>!bounded || low.HasValue&&high.HasValue&&high>=(zone.MinAltitudeMeters??decimal.MinValue)&&low<=(zone.MaxAltitudeMeters??decimal.MaxValue);
+                    async Task<decimal?> ConvertAltitude(decimal? altitude,decimal latitude,decimal longitude)
+                    {
+                        if(!altitude.HasValue||!bounded||m.AltitudeReference==zone.AltitudeReference)return altitude;
+                        return await ConvertAltitudeAsync(altitude,latitude,longitude,m.AltitudeReference!,zone.AltitudeReference!,ct);
+                    }
                     foreach(var point in orderedPoints.Where(x=>MissionRouteGeometry.Inside(new((double)x.Latitude,(double)x.Longitude),polygon)))
                     {
-                        if(unknown||bounded&&!point.Altitude.HasValue) Finding(point.SequenceOrder,null,null,$"Cannot determine altitude clearance at waypoint {point.SequenceOrder} for '{zone.Name}': altitude/reference missing or incompatible.",true);
-                        else if(Vertical(point.Altitude,point.Altitude)) Finding(point.SequenceOrder,null,null,$"Waypoint {point.SequenceOrder} violates airspace restriction '{zone.Name}'.",false);
+                        var converted=await ConvertAltitude(point.Altitude,point.Latitude,point.Longitude);
+                        if(unknown||bounded&&!converted.HasValue) Finding(point.SequenceOrder,null,null,$"Cannot determine altitude clearance at waypoint {point.SequenceOrder} for '{zone.Name}': terrain, altitude, or reference data is unavailable.",true);
+                        else if(Vertical(converted,converted)) Finding(point.SequenceOrder,null,null,$"Waypoint {point.SequenceOrder} violates airspace restriction '{zone.Name}'.",false);
                     }
                     for(int i=1;i<orderedPoints.Count;i++)
                     {
                         var first=orderedPoints[i-1];var last=orderedPoints[i];
                         var intervals=MissionRouteGeometry.InsideIntervals(new((double)first.Latitude,(double)first.Longitude),new((double)last.Latitude,(double)last.Longitude),polygon);
                         if(intervals.Count==0)continue;
-                        if(unknown||bounded&&(!first.Altitude.HasValue||!last.Altitude.HasValue)) Finding(null,first.SequenceOrder,last.SequenceOrder,$"Cannot determine altitude clearance for segment {first.SequenceOrder}-{last.SequenceOrder} at '{zone.Name}'.",true);
-                        else if(intervals.Any(t=>
+                        var convertedIntervals=new List<(decimal? A,decimal? B)>();
+                        foreach(var t in intervals)
                         {
-                            decimal? a=first.Altitude+(last.Altitude-first.Altitude)*(decimal)t.Start;
-                            decimal? b=first.Altitude+(last.Altitude-first.Altitude)*(decimal)t.End;
-                            return Vertical(a.HasValue&&b.HasValue?Math.Min(a.Value,b.Value):null,a.HasValue&&b.HasValue?Math.Max(a.Value,b.Value):null);
-                        })) Finding(null,first.SequenceOrder,last.SequenceOrder,$"Segment {first.SequenceOrder}-{last.SequenceOrder} violates airspace restriction '{zone.Name}'.",false);
+                            decimal? rawA=first.Altitude+(last.Altitude-first.Altitude)*(decimal)t.Start;
+                            decimal? rawB=first.Altitude+(last.Altitude-first.Altitude)*(decimal)t.End;
+                            decimal latA=first.Latitude+(last.Latitude-first.Latitude)*(decimal)t.Start;
+                            decimal lonA=first.Longitude+(last.Longitude-first.Longitude)*(decimal)t.Start;
+                            decimal latB=first.Latitude+(last.Latitude-first.Latitude)*(decimal)t.End;
+                            decimal lonB=first.Longitude+(last.Longitude-first.Longitude)*(decimal)t.End;
+                            convertedIntervals.Add((await ConvertAltitude(rawA,latA,lonA),await ConvertAltitude(rawB,latB,lonB)));
+                        }
+                        if(unknown||bounded&&convertedIntervals.Any(x=>!x.A.HasValue||!x.B.HasValue)) Finding(null,first.SequenceOrder,last.SequenceOrder,$"Cannot determine altitude clearance for segment {first.SequenceOrder}-{last.SequenceOrder} at '{zone.Name}': terrain, altitude, or reference data is unavailable.",true);
+                        else if(convertedIntervals.Any(x=>Vertical(Math.Min(x.A!.Value,x.B!.Value),Math.Max(x.A.Value,x.B.Value)))) Finding(null,first.SequenceOrder,last.SequenceOrder,$"Segment {first.SequenceOrder}-{last.SequenceOrder} violates airspace restriction '{zone.Name}'.",false);
                     }
                 }
             }
             catch (JsonException) { r.Incomplete=true; r.Issues.Add($"Airspace restriction '{zone.Name}' could not be checked."); }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception) { r.Error=true; r.Issues.Add($"Airspace restriction '{zone.Name}' failed validation due to an internal processing error."); }
         }
         r.Weather = await weather.GetAsync(m, ct);
         r.Warnings.AddRange(r.Weather.Warnings);
@@ -195,6 +290,36 @@ public sealed class MissionValidationService(AppDbContext db, IMissionWeatherSer
             if (r.IsValid && r.Warnings.Count == 0) { existing.Status = "Resolved"; existing.ResolvedAt = DateTimeOffset.UtcNow; existing.ResolutionNotes = "A later preflight check passed without warnings."; }
             else { existing.Title = r.IsValid ? "Preflight weather advisory" : "Preflight blocked"; existing.Severity = r.IsValid ? "Medium" : "High"; existing.Description = r.Message + " " + string.Join(" ", r.Warnings); existing.Evidence = JsonSerializer.Serialize(r, JsonOptions); }
         }
+    }
+
+    private static RestrictionEvidence Evidence(Geofence zone,string text)=>new()
+    {
+        GeofenceId=zone.Id,Revision=zone.Revision,Name=zone.Name,RestrictionType=zone.RestrictionType,
+        CoordinatesJson=zone.Coordinates,VerticalRule=zone.VerticalRule,AltitudeReference=zone.AltitudeReference,
+        MinAltitudeMeters=zone.MinAltitudeMeters,MaxAltitudeMeters=zone.MaxAltitudeMeters,Text=text
+    };
+
+    private static bool CoversRoute(IReadOnlyList<MissionRouteGeometry.Point> route,IReadOnlyList<MissionRouteGeometry.Point> polygon)
+    {
+        if(route.Count==0||route.Any(x=>!MissionRouteGeometry.Inside(x,polygon)))return false;
+        for(var i=1;i<route.Count;i++)
+        {
+            var ranges=MissionRouteGeometry.InsideIntervals(route[i-1],route[i],polygon)
+                .Where(x=>x.End-x.Start>1e-10).OrderBy(x=>x.Start).ToList();
+            var covered=0d;
+            foreach(var range in ranges){if(range.Start>covered+1e-10)return false;covered=Math.Max(covered,range.End);}
+            if(covered<1-1e-10)return false;
+        }
+        return true;
+    }
+
+    private async Task<decimal?> ConvertAltitudeAsync(decimal? altitude,decimal latitude,decimal longitude,string missionReference,string restrictionReference,CancellationToken ct)
+    {
+        if(!altitude.HasValue||missionReference==restrictionReference)return altitude;
+        var ground=await terrain.GetElevationAsync(latitude,longitude,ct);
+        if(!ground.Available)return null;
+        return missionReference=="AGL"&&restrictionReference=="MSL"?altitude+ground.ElevationMslMeters:
+            missionReference=="MSL"&&restrictionReference=="AGL"?altitude-ground.ElevationMslMeters:null;
     }
 
 }

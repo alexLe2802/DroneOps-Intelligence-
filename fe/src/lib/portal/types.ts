@@ -50,8 +50,8 @@ export type ManagerMission = MissionDetail & {
   pilotName: string | null;
 };
 export type MissionValidationResult = {
-  id?: string; updateRequestId?: string | null; restrictionRevision?: string; stale?: boolean; incomplete?: boolean; findings?: { geofenceId: string; revision: number; rule: string; waypointSequence?: number; segmentFrom?: number; segmentTo?: number; reason: string }[]; missionId?: string | null; stage?: string; checkedAt?: string;
-  isValid: boolean; message: string; status?: string; issues?: string[]; warnings?: string[];
+  id?: string; updateRequestId?: string | null; restrictionRevision?: string; stale?: boolean; incomplete?: boolean; error?: boolean; outcome?: "Pass" | "Fail" | "Incomplete" | "Error"; findings?: { geofenceId: string; revision: number; rule: string; waypointSequence?: number; segmentFrom?: number; segmentTo?: number; reason: string }[]; restrictionEvidence?: { geofenceId: string; revision: number; name: string; restrictionType: "OperationalBoundary" | "Restricted" | "NoFly"; coordinatesJson: string; verticalRule: string; altitudeReference?: string | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; text: string }[]; missionId?: string | null; stage?: string; checkedAt?: string;
+  isValid: boolean; message: string; status?: "Pass" | "Fail" | "Incomplete" | "Error" | "Stale"; issues?: string[]; warnings?: string[];
   weather?: MissionWeather | null;
 };
 
@@ -280,11 +280,11 @@ export type PostFlightIncident = {
 };
 export type GeofenceCoordinate = { latitude: number; longitude: number };
 export type GeofenceRequest = {
-  altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[] };
+  restrictionType?: "OperationalBoundary" | "Restricted" | "NoFly"; altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[] };
 export type Geofence = {
-  verticalRule?: "Unspecified" | "AllAltitudes" | "Band";
+  restrictionType?: "OperationalBoundary" | "Restricted" | "NoFly"; verticalRule?: "Unspecified" | "AllAltitudes" | "Band";
   altitudeReference?: string | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; revision?: number; id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
-export type SaveGeofenceRequest = { verticalRule?: "Unspecified" | "AllAltitudes" | "Band"; altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[] };
+export type SaveGeofenceRequest = { restrictionType?: "OperationalBoundary" | "Restricted" | "NoFly"; verticalRule?: "Unspecified" | "AllAltitudes" | "Band"; altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[] };
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {
