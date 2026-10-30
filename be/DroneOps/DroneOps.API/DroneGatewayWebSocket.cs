@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Request.Telemetry;
 using DroneOps.Application.Interfaces.Telemetry;
+using FluentValidation;
 
 namespace DroneOps.API;
 
@@ -84,6 +85,10 @@ public static class DroneGatewayWebSocket
                 {
                     var key = RequiredString(message.RootElement, "idempotencyKey");
                     var sample = RequiredPayload<IngestTelemetrySampleRequest>(message.RootElement);
+                    var validation = await scope.ServiceProvider.GetRequiredService<IValidator<IngestTelemetrySampleRequest>>()
+                        .ValidateAsync(sample, context.RequestAborted);
+                    if (!validation.IsValid)
+                        throw new ArgumentException(string.Join("; ", validation.Errors.Select(x => x.ErrorMessage)));
                     var result = await service.SampleAsync(session.ConnectionId, session.Token, session.HardwareIdentity, key, sample, context.RequestAborted);
                     await SendAsync(socket, new { type = "telemetryAck", idempotencyKey = key, payload = result }, context.RequestAborted);
                 }
