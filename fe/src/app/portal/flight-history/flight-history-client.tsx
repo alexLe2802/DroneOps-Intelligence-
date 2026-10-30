@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getFlightHistory, getOperationalAnalytics } from "@/lib/portal/client";
 import type { FlightHistoryItem, OperationalAnalytics, PagedResponse } from "@/lib/portal/types";
@@ -124,7 +125,7 @@ function FlightRecord({ item }: { item: FlightHistoryItem }) {
     <header><div><b>FLT-{shortMissionId}</b><code>MS-{item.missionId.slice(0, 4).toUpperCase()}</code><span className={`${styles.outcome} ${isFailure ? styles.danger : ""}`}>{missionStatus}</span></div><time>{dateTime(item.startTime)} UTC</time></header>
     <div className={styles.recordBody}>
       <div className={styles.recordIdentity}><h3>{item.missionName}</h3><dl><div><dt>AIRFRAME</dt><dd>{item.uavCode || "N/A"}<small>{item.uavName || "Aircraft unavailable"}</small></dd></div><div><dt>PIC / OPERATOR</dt><dd>{item.pilotName || "N/A"}<small>CERTIFIED FLIGHT CREW</small></dd></div><div><dt>DURATION</dt><dd>{duration(item.durationMinutes)}<small>RECORDED FLIGHT</small></dd></div><div><dt>INCIDENTS</dt><dd className={item.totalIncidents ? styles.alertText : ""}>{item.totalIncidents}<small>{item.totalIncidents ? "REVIEW REQUIRED" : "NOMINAL"}</small></dd></div><div><dt>REPORT REV.</dt><dd>{item.reportRevision ?? "--"}<small>{reportLabel(reportStatus)}</small></dd></div></dl></div>
-      <div className={styles.reportState}><span className={`${styles.reportBadge} ${styles[reportStatus.toLowerCase()] ?? ""}`}>{reportLabel(reportStatus)}</span><small>{item.reportRevision ? `REVISION ${item.reportRevision}` : "NO REVISION"}{" // "}{item.telemetryCoverageComplete ? "TELEMETRY COVERED" : "COVERAGE INCOMPLETE"}</small>{reportAvailable ? <Link href={`/portal/flight-history/${encodeURIComponent(item.missionId)}`}>VIEW REPORT <span aria-hidden="true">&gt;</span></Link> : <button type="button" disabled>REPORT NOT QUEUED</button>}</div>
+      <div className={styles.reportState}><span className={`${styles.reportBadge} ${styles[reportStatus.toLowerCase()] ?? ""}`}>{reportLabel(reportStatus)}</span><small>{item.reportRevision ? `REVISION ${item.reportRevision}` : "NO REVISION"}{" // "}{item.telemetryCoverageComplete ? "TELEMETRY COVERED" : "COVERAGE INCOMPLETE"}</small>{reportAvailable ? <Link href={`/portal/flight-history/${encodeURIComponent(item.missionId)}`}>VIEW REPORT <ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></Link> : <button type="button" disabled>REPORT NOT QUEUED</button>}</div>
     </div>
     <footer className={styles.recordTelemetry}><span><i className={item.telemetryCoverageComplete ? styles.nominalDot : styles.mutedDot} /> TELEMETRY: {item.telemetryCoverageComplete ? "COMPLETE" : "INCOMPLETE"}</span><span>END: {dateTime(item.endTime)}</span><span>INCIDENT LEDGER: {item.totalIncidents ? `${item.totalIncidents} LINKED` : "CLEAR"}</span><b>{reportAvailable ? "POST-FLIGHT RECORD AVAILABLE" : "REPORT GENERATION PENDING"}</b></footer>
   </article>;
