@@ -245,6 +245,45 @@ Nhập mã. Helper chỉ pair, lưu credential rồi thoát; service chạy ngay
 
 ## 7. Những lần sau: bật nguồn và có mạng
 
+### Backend chạy trên laptop
+
+Backend phải chạy trong lúc sử dụng. Từ thư mục gốc repo trên laptop:
+
+```powershell
+dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --urls http://0.0.0.0:5159 --environment Development
+```
+
+`0.0.0.0` cho backend **lắng nghe kết nối LAN**, không phải IP cần đặt cho máy.
+Jetson gọi `http://IP_LAPTOP:5159`, không gọi `0.0.0.0` hay localhost của laptop.
+
+Đến lab hoặc đổi LAN: kết nối mạng mới trên cả hai máy, lấy IPv4 laptop bằng
+`ipconfig`. Không cần cài lại gateway. Trên Jetson sửa `/etc/droneops-gateway.env`
+bằng sudo, ví dụ với IP laptop mới `192.168.10.20`:
+
+```ini
+DRONEOPS_SERVER=http://192.168.10.20:5159
+DRONEOPS_TRANSPORT_FLAG=--allow-insecure-websocket
+```
+
+HTTP chỉ dành cho LAN dev tin cậy. Nếu dùng GCS, sửa `Address` trong
+`[UdpEndpoint laptop]` ở `/etc/droneops-router/main.conf` thành IP laptop mới,
+giữ port 14550 rồi `sudo systemctl restart droneops-router`. Giữ endpoint gateway
+nội bộ 127.0.0.1:14551. Sau khi đổi backend origin, tạo mã mới trên web rồi chạy
+helper pairing ở mục 6. Chỉ đổi IP Jetson không yêu cầu pair lại.
+
+Kiểm tra đường mạng từ Jetson:
+
+```bash
+curl --connect-timeout 5 -i http://192.168.10.20:5159/ws/drone-gateway
+```
+
+HTTP 426 với `Use the WebSocket protocol` nghĩa là đã tới endpoint. Timeout thì
+kiểm tra backend, firewall laptop và client isolation của LAN; không cần tắt toàn
+bộ firewall. Backend cloud có domain HTTPS cố định giúp tránh sửa backend origin
+mỗi lần đổi LAN, nhưng IP GCS LAN vẫn cần cập nhật nếu sử dụng.
+
+### Tự chạy và trạng thái phiên
+
 Không chạy lại installer/helper nếu phiên vẫn hợp lệ. Router/gateway tự chạy; mạng mất rồi trở lại sẽ reconnect có backoff, không đưa backlog cũ lên như live. Cổng serial xuất hiện muộn được service thử lại.
 
 | Trạng thái web | Ý nghĩa / thao tác |
