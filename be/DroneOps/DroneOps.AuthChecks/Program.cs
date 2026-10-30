@@ -22,6 +22,11 @@ if (args.Length == 1 && args[0] == "--license-documents")
     return;
 }
 
+if(args.Length==1&&args[0]=="--media-access")
+{
+    await UserMediaAccessChecks.RunAsync();return;
+}
+
 if (args.Length == 2 && args[0] == "--license-workflow")
 {
     await LicenseWorkflowChecks.RunAsync(Path.GetFullPath(args[1]));

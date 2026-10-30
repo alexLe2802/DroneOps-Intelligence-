@@ -31,6 +31,9 @@ public class AppDbContext : DbContext
     public DbSet<PostFlightReport> PostFlightReports { get; set; }
     public DbSet<FlightCompletionEvent> FlightCompletionEvents { get; set; }
     public DbSet<PilotUpdateRequest> PilotUpdateRequests { get; set; }
+    public DbSet<PilotUpdateDecisionAudit> PilotUpdateDecisionAudits { get; set; }
+    public DbSet<EmailChangeChallenge> EmailChangeChallenges { get; set; }
+    public DbSet<AccountWorkflowAudit> AccountWorkflowAudits { get; set; }
     public DbSet<Notification> Notifications { get; set; }
 
     public DbSet<MissionUpdateRequest> MissionUpdateRequests { get; set; }
@@ -41,6 +44,8 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<User>().Property(x=>x.ProfileVersion).IsConcurrencyToken();
+        modelBuilder.Entity<AccountWorkflowAudit>().Property(x=>x.Id).ValueGeneratedOnAdd();
         modelBuilder.Entity<MissionWeatherCache>().HasKey(x => x.Key);
         modelBuilder.Entity<DroneHardwareIdentity>().HasOne(h=>h.Uav).WithOne()
             .HasForeignKey<DroneHardwareIdentity>(h=>h.UavId).OnDelete(DeleteBehavior.Restrict);

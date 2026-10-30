@@ -288,6 +288,7 @@ export type SaveGeofenceRequest = { restrictionType?: "OperationalBoundary" | "R
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
 export type UserProfile = {
+  profileVersion: number;
   avatarUrl: string | null;
   id: string;
   fullName: string;
@@ -297,7 +298,7 @@ export type UserProfile = {
 };
 
 // Matches DroneOps.Application.DTOs.Users.UpdateProfileRequest.
-export type UpdateProfileRequest = { fullName: string };
+export type UpdateProfileRequest = { fullName: string; expectedVersion: number };
 
 export type AiAssessmentRequest = {
   missionRef: string;
