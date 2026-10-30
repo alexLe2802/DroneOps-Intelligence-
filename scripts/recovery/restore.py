@@ -5,14 +5,26 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from recovery_lib import SupabaseStorage, atomic_json, database_coverage, iso, postgres_environment, require_env, require_isolated_target, safe_object_file, utc_now, verify_manifest
+from recovery_lib import SupabaseStorage, atomic_json, database_coverage, iso, postgres_environment, require_empty_restore_database, require_env, require_isolated_target, safe_object_file, utc_now, verify_manifest
 
 
 def parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def restore_toc(pg_restore: str, dump: Path) -> Path:
+    listed = subprocess.run([pg_restore, "--list", str(dump)], text=True, capture_output=True, check=False)
+    if listed.returncode:
+        raise RuntimeError(f"pg_restore list failed ({listed.returncode}): {listed.stderr.strip()}")
+    lines = [line for line in listed.stdout.splitlines() if " SCHEMA - public " not in f" {line} "]
+    handle = tempfile.NamedTemporaryFile("w", suffix=".toc", prefix="droneops-restore-", encoding="utf-8", delete=False)
+    with handle:
+        handle.write("\n".join(lines) + "\n")
+    return Path(handle.name)
 
 
 def main() -> int:
@@ -52,9 +64,12 @@ def main() -> int:
         pg_env, database_target = postgres_environment(database_url)
         evidence["databaseTarget"] = database_target
         evidence["storageTarget"] = storage_url
-        command = [args.pg_restore, "--exit-on-error", "--single-transaction", "--clean", "--if-exists",
+        require_empty_restore_database(database_url, args.psql)
+        toc = restore_toc(args.pg_restore, backup / "database.dump")
+        command = [args.pg_restore, "--exit-on-error", "--single-transaction", "--use-list", str(toc),
                    "--no-owner", "--no-acl", "--dbname", pg_env["PGDATABASE"], str(backup / "database.dump")]
         completed = subprocess.run(command, env=pg_env, text=True, capture_output=True, check=False)
+        toc.unlink(missing_ok=True)
         if completed.returncode:
             raise RuntimeError(f"pg_restore failed ({completed.returncode}): {completed.stderr.strip()}")
         evidence["databaseRestored"] = True

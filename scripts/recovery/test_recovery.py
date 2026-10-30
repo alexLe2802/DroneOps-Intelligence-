@@ -1,6 +1,8 @@
 import json
 import tempfile
 import threading
+import subprocess
+import sys
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,6 +12,18 @@ from recovery_lib import SupabaseStorage, atomic_json, postgres_environment, req
 
 
 class RecoveryToolTests(unittest.TestCase):
+    def test_isolated_storage_fixture_accepts_restore_uploads(self):
+        script = Path(__file__).with_name("isolated_storage_fixture.py")
+        process = subprocess.Popen([sys.executable, str(script), "--port", "0"], stdout=subprocess.PIPE, text=True)
+        try:
+            line = process.stdout.readline(); endpoint = json.loads(line)["url"]
+            storage = SupabaseStorage(endpoint, "isolated-test-key")
+            storage.upload("licenses/restored.pdf", b"evidence", "application/pdf")
+        finally:
+            process.terminate(); process.wait(timeout=5)
+            if process.stdout is not None:
+                process.stdout.close()
+
     def test_restore_guard_rejects_production_and_requires_exact_confirmation(self):
         with self.assertRaises(RuntimeError):
             require_isolated_target("production", "RESTORE-PRODUCTION")

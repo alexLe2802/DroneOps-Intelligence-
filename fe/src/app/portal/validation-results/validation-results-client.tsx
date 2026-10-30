@@ -102,8 +102,8 @@ export default function ValidationResultsClient({ role, missionId, runId }: { ro
 
   const issues = unique(result.issues);
   const warnings = unique(result.warnings);
-  const passed = result.status === "Passed" || result.isValid;
-  const readiness = result.status ?? (passed ? "Passed" : "Blocked");
+  const passed = result.outcome === "Pass" || result.isValid;
+  const readiness = result.outcome ?? (passed ? "Pass" : "Fail");
   const message = result.message.replace(/\s*Weather warnings are advisory\./gi, "").trim();
 
   return <main className={styles.page}>
