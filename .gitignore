@@ -127,6 +127,7 @@ gateway/session.private.tmp
 gateway/.venv/
 __pycache__/
 *.pyc
+tmp/
 
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/

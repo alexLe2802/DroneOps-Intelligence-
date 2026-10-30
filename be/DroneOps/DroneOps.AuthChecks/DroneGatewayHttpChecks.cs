@@ -26,6 +26,7 @@ internal static class DroneGatewayHttpChecks
         var creation=await client.PostAsJsonAsync("/api/drone-connections",new CreateDroneConnection(uav,mission));
         creation.EnsureSuccessStatusCode();
         var pair=(await creation.Content.ReadFromJsonAsync<DronePairing>())!;
+        if(pair.GatewayPath!="/ws/drone-gateway"||pair.Connection.GatewayTransport!="WebSocket")throw new Exception("Pairing response does not advertise the WebSocket gateway contract.");
         Console.WriteLine("PASS: real HTTP controller creates a pilot-scoped pairing session");
         var start=new ProcessStartInfo(Environment.GetEnvironmentVariable("DRONEOPS_GATEWAY_PYTHON")??"python3")
         {RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false};

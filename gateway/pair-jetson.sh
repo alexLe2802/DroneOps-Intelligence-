@@ -23,6 +23,7 @@ if [[ "$DRONEOPS_SERVER" == http://* ]]; then
 fi
 
 systemctl stop droneops-gateway >/dev/null 2>&1 || true
+trap 'systemctl start droneops-gateway' EXIT
 sudo -u droneops /opt/droneops-gateway/.venv/bin/python \
   /opt/droneops-gateway/gateway.py \
   --server "$DRONEOPS_SERVER" \
@@ -31,7 +32,7 @@ sudo -u droneops /opt/droneops-gateway/.venv/bin/python \
   --system-id "$MAVLINK_SYSTEM_ID" \
   --component-id "$MAVLINK_COMPONENT_ID" \
   --session-file /var/lib/droneops-gateway/session.private.json \
-  --new-pairing "${extra[@]}"
+  --new-pairing --pair-only "${extra[@]}"
 
 systemctl enable --now droneops-gateway
 echo "Gateway paired and enabled for future boots."
