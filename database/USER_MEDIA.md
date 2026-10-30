@@ -50,3 +50,34 @@ still returns the official license. Pending/rejected requests do not replace it.
 License uploads now accept exactly one PDF or Word (.doc/.docx), up to 10 MB. Apply `migrations/20261023000100_license_word_documents.sql` to allow Word MIME types in the existing private bucket. Existing images and avatar uploads remain supported.
 
 The Word MIME allowlist update has also been applied to the connected DroneOps bucket; the bucket remains private with a 10 MB limit.
+
+## Versioned account workflows
+
+Apply `20261030000200_account_profile_workflows.sql` explicitly with:
+
+```sh
+dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --migrate-account-workflows --environment Development
+```
+
+Profile writes require the `profileVersion` returned by the latest profile read and
+return a conflict for stale writes. Avatar objects stay in the private bucket; reads
+require an authenticated endpoint and receive a 15-minute signed URL. Failed uploads
+do not replace the stored avatar path.
+
+Email challenges are persisted with only a salted challenge hash, scoped to account
+and normalized new email. Confirmation locks the challenge/account, rechecks the
+normalized unique-email index, updates the email, consumes the challenge, revokes all
+sessions and writes actor/target/time/result audit evidence in one transaction.
+
+License proposals remain separate from the current Pilot record. A new proposal marks
+the prior pending proposal `Superseded`; a partial unique index enforces one pending
+proposal. Authors cannot review their own request. A unique immutable decision audit
+turns stale/concurrent decisions into conflicts without duplicate decisions. Manager
+and operator notifications continue through the existing persistent notification flow.
+
+Verification:
+
+```sh
+dotnet run --project be/DroneOps/DroneOps.AuthChecks -- --license-workflow <absolute-repository-path>
+dotnet run --project be/DroneOps/DroneOps.AuthChecks -- --media-access
+```

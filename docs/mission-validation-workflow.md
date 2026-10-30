@@ -24,7 +24,7 @@
   saved plan, ignoring any supplied waypoint replacements. Operators are scoped to
   their own mission; managers can revalidate reviewed missions.
 - Pending-approval responses and mission detail include the latest stored result,
-  timestamp, blocking issues and advisory warnings. No result is shown as Passed
+  timestamp, blocking issues and advisory warnings. No result is shown as Pass
   merely because waypoints exist.
 - `POST /api/missions/{id}/approve` always performs fresh checks in its serializable
   retryable decision transaction. Failed results are saved, but no approval/audit
@@ -48,11 +48,17 @@ area or touches its boundary. Defects elsewhere in a large polygon do not block
 a disjoint route. This does not repair or certify the restriction source.
 This corrects the older telemetry convention that treated these polygons as allowed
 operating areas; telemetry monitoring is not changed by this workflow patch.
+`OperationalBoundary` polygons are evaluated as keep-in areas (boundary touch is
+allowed); the complete route and every segment must remain within at least one valid
+boundary. `Restricted` and `NoFly` polygons are keep-out areas and take precedence:
+touching either one still fails even when the route is inside an operational boundary.
 Restrictions have immutable revisions and explicit vertical rules: AllAltitudes,
 Band, or Unspecified. Bands compare waypoint/segment altitude against their bounds
 only where the route intersects the horizontal region. Missing or mismatched
-altitude references, or unspecified vertical rules in an intersected region, yield
-Incomplete evidence. Restriction changes make prior evidence Stale.
+altitude references, unavailable terrain needed for AGL/MSL conversion, or unspecified
+vertical rules in an intersected region yield Incomplete evidence. A configured terrain
+provider converts AGL and MSL at each affected waypoint and segment boundary; the
+fail-closed default never guesses elevation. Restriction changes make prior evidence Stale.
 `GET /api/geofences/{id}/revisions` exposes the recorded revision history.
 No legal altitude/wind limit is inferred. Degenerate/self-intersecting geometry and
 antimeridian crossings in the affected route area require data review.
@@ -99,8 +105,8 @@ start/end. Late API startup catches eligible flights within their unended window
 Multiple workers are bounded to four concurrent checks. Serializable transactions
 and a recent-run guard avoid duplicate checks/alerts for the same mission.
 
-Preflight results are stored separately from approval. `flightReadiness` is `Blocked`,
-`Passed` or `AwaitingPreflight`; `preflightValidation` retains its findings even after
+Preflight results are stored separately from approval. `flightReadiness` is `Fail`,
+`Pass`, `Incomplete`, `Error` or `AwaitingPreflight`; `preflightValidation` retains its findings even after
 another manual validation. `Mission.Status` stays `Approved` until actual internal
 start/cancel: approval history is not erased by failed readiness. An Incident with type
 `PreflightValidation` warns operators/managers; repeat findings update the open alert.
@@ -113,7 +119,7 @@ from taking off. Telemetry ingestion is not discarded when flight readiness fail
 
 ## Deployment and verification
 
-The two SQL migrations add validation runs, update requests, weather cache,
+The workflow SQL migrations add validation runs, update requests, weather cache,
 restriction revisions/vertical metadata and approval audit links, with private RLS
 and no anon/authenticated grants on the new evidence tables. Existing pending
 missions are backfilled with initial requests; they are not automatically approved. Apply to each environment before starting this API version:
@@ -123,7 +129,8 @@ dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --migrate-m
 ```
 
 The API checks that the migration exists before starting the monitor. Validation
-rows contain plan snapshots, hashes, actors, stages, timestamps and result JSON.
+rows contain explicit Pass/Fail/Incomplete/Error status, plan snapshots/hashes,
+restriction revision, map/text evidence, actors, stages, timestamps and result JSON.
 Historical attempts deliberately survive independently of mission existence. Use a
 retention policy for these audit rows and hourly preflight volume.
 

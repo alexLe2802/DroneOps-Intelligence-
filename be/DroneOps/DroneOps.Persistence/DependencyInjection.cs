@@ -57,6 +57,11 @@ public static class DependencyInjection
         services.AddScoped<IMissionSuggestionRepository, MissionSuggestionRepository>();
         services.AddScoped<IPostFlightRepository, PostFlightRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IMissionWorkflowRepository,MissionWorkflowRepository>();
+        services.AddScoped<IMissionValidationRepository, MissionValidationRepository>();
+        services.AddScoped<IMissionApprovalRepository, MissionApprovalRepository>();
+        services.AddScoped<IMissionWeatherQueryRepository,MissionWeatherQueryRepository>();
+        services.AddScoped<IMissionPreflightRepository, MissionPreflightRepository>();
 
 
         return services;

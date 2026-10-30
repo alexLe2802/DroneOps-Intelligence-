@@ -2,9 +2,9 @@
 
 ## Trusted completion
 
-An armed-to-disarmed telemetry transition is evidence only and never completes a mission. The configured gateway completes a flight by calling `POST /api/integrations/flight-completions` with integration credentials, an `Idempotency-Key`, and a supported event type: `MISSION_COMPLETED`, `FLIGHT_COMPLETED`, or `LANDED`.
+An armed-to-disarmed telemetry transition, disconnect, or disarm message is evidence only and never completes a mission. The configured gateway completes a flight by calling `POST /api/integrations/flight-completions` with integration credentials, an `Idempotency-Key`, and a supported event type: `MISSION_COMPLETED`, `FLIGHT_COMPLETED`, or `LANDED`. The mission must already be in a started/executing state; an `Approved` mission cannot be completed directly.
 
-The accepted event is immutable and records mission, UAV, source identity, completion time, receipt time, and optional evidence. Reusing an idempotency key with different content is rejected.
+The accepted event is immutable and records mission, UAV, source identity, completion time, receipt time, the locked execution snapshot, and optional supplied evidence. The mission update, trusted event, and initial report are committed in one serializable transaction. PostgreSQL advisory locking, a unique idempotency key, and one trusted-completion-per-mission constraint protect retries and concurrent claims across API instances. Reusing an idempotency key with different content or sending a different completion for an already completed mission is rejected.
 
 ## Report lifecycle
 
@@ -12,7 +12,7 @@ Accepting a trusted completion changes the mission to `Completed` and creates re
 
 - `Queued`: waiting for a worker.
 - `Generating`: generation is in progress. Work abandoned for more than five minutes is recoverable.
-- `Available`: the report covers stored valid telemetry through the trusted completion time.
+- `Available`: the report covers stored valid telemetry from mission start through the trusted completion time; both boundaries are stored on the revision.
 - `Failed`: generation failed; flight, telemetry, incidents, and the failure reason remain available.
 - `Outdated`: valid telemetry for the covered flight window arrived after generation.
 
@@ -20,10 +20,16 @@ Only an Operations Manager can call `POST /api/flight-history/{missionId}/regene
 
 ## Analytics formula and coverage
 
-`GET /api/flight-history/analytics` accepts `fromDate`, `toDate`, `uavId`, and `missionId`. The completion-rate denominator is every authorized terminal mission (`Completed`, `Failed`, `Aborted`, or `Cancelled`) in the selected window. The numerator is terminal missions with status `Completed`. If the denominator is zero, the rate is `null`, never 100 percent.
-
-Distance and duration totals use only current `Available` reports. The response exposes available/excluded report counts, coverage percentage, exclusion reasons, daily completion trend, and incident severity breakdown. This prevents missing or failed reports from being presented as zero risk.
+The exact role-scoped formulas, units, coverage exclusions, and source links for `GET /api/flight-history/analytics` are documented in `docs/operational-analytics-contract.md`.
 
 ## Deployment
 
-Apply `database/migrations/007_post_flight_lifecycle.sql`, or run the API once with `--migrate-postflight`, before starting the upgraded API normally. The migration preserves existing reports as revision 1 with status `Available` and replaces the legacy one-report-per-mission constraint with immutable report revisions plus one current revision.
+Apply migrations in `database/migration-order.txt`, including `007_post_flight_lifecycle.sql` and `20261029000100_post_flight_execution_snapshot.sql`, or run the API once with `--migrate-postflight`, before starting the upgraded API normally. The migrations preserve existing reports as revision 1, add immutable coverage-window starts, replace the legacy one-report-per-mission constraint with report revisions plus one current revision, and enforce one trusted completion per mission.
+
+The real PostgreSQL lifecycle fixture can be run with:
+
+```powershell
+dotnet run --project be/DroneOps/DroneOps.PostFlightChecks -- --lifecycle-postgres <absolute-repository-path>
+```
+
+It covers concurrent claims, same-key replay, ambiguous completion, pre-start rejection, authorization, late-data invalidation, revision preservation, and generation failure evidence.

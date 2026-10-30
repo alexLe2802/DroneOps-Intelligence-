@@ -136,7 +136,6 @@ export default function MissionForm() {
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
-        {error && <p className="form-error" role="alert">{error}</p>}
         <div className="mission-field-grid">
           <label>ASSIGNED UAV<select value={uavId} onChange={event => setUavId(event.target.value)} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
@@ -155,6 +154,7 @@ export default function MissionForm() {
       </section>
       </fieldset>
       <label>Altitude reference<select value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option value="AGL">AGL — above ground</option><option value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select></label>
+      {error && <p className="form-error" role="alert" aria-live="assertive">{error}</p>}
       <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mandatory checks must pass before the mission is sent for manager review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "VALIDATING…" : "CREATE & VALIDATE MISSION"}</button></div></footer>
     </form>
   </>;

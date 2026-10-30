@@ -4,7 +4,11 @@ using DroneOps.Domain.Entities;
 public interface IUavRepository
     : IGenericRepository<UAV>
 {
-    Task<bool> HasHardwareIdentityAsync(Guid id, CancellationToken ct = default);
+    Task<bool> DeleteOwnedAsync(
+        Guid uavId,
+        Guid userId,
+        bool canManageAll,
+        CancellationToken cancellationToken = default);
     Task<bool> CodeExistsAsync(
         string code,
         CancellationToken cancellationToken = default);

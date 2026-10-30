@@ -15,8 +15,14 @@ public interface IMissionRepository
     Guid missionId,
     CancellationToken cancellationToken = default);
 
-    Task<List<Mission>> GetAllAsync(
-     CancellationToken cancellationToken = default);
+    Task<(List<Mission> Items, int TotalCount)> GetAllAsync(
+        string? search,
+        string? status,
+        DateTime? fromDate,
+        DateTime? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 
     Task<List<Mission>> GetByCreatorAsync(
         Guid creatorId,
