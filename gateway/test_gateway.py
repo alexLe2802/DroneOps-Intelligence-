@@ -9,13 +9,17 @@ import queue
 import threading
 from unittest.mock import patch, Mock
 from gateway import main, forward
-from gateway import TelemetryState, websocket_endpoint, GatewayError, save_session, hardware_identity, read_identity
+from gateway import TelemetryState, websocket_endpoint, GatewayError, save_session, hardware_identity, read_identity, gps_signal_status
 
 SESSION={'sourceId':'gateway-test','uavId':'uav','missionId':'mission'}
 def message(kind, system=1, component=1, **values):
     return SimpleNamespace(get_type=lambda:kind,get_srcSystem=lambda:system,get_srcComponent=lambda:component,**values)
 
 class GatewayTests(unittest.TestCase):
+    def test_gps_terminal_status_uses_satellite_threshold(self):
+        self.assertEqual(gps_signal_status(3), ('WEAK', '31'))
+        self.assertEqual(gps_signal_status(4), ('NORMAL', '32'))
+        self.assertEqual(gps_signal_status(255), ('UNKNOWN', '33'))
     def setUp(self):
         self.now=0
         self.state=TelemetryState(1,1,lambda:self.now)
