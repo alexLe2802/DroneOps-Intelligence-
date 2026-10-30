@@ -1,4 +1,4 @@
-# KAN-80 — Telemetry throughput, latency and incident evidence
+# KAN-52 and KAN-80 telemetry latency durability evidence
 
 Runner này tạo đúng 5 UAV mô phỏng, mỗi UAV 1 sample/giây, mở mặc định 10 SSE
 session và ghi từng observation vào JSONL. Mặc định chạy 3600 giây; không giảm thời
@@ -13,6 +13,15 @@ Tạo file ngoài Git, ví dụ `telemetry-performance.private.json`:
   "apiBase": "https://backend.example.test",
   "integrationKey": "REDACTED",
   "viewerToken": "REDACTED",
+  "profile": {
+    "id": "D-10-approved-profile-id",
+    "approved": false,
+    "deployment": "Describe API, database, gateway/load and browser hosts",
+    "network": "Describe routes, regions, proxies and clock synchronization",
+    "diagnosticsIntervalSeconds": 10,
+    "maxManagedMemoryGrowthBytes": 104857600,
+    "maxPendingThreadPoolWorkItems": 100
+  },
   "vehicles": [
     { "sourceId": "perf-01", "uavId": "UUID", "missionId": "UUID" },
     { "sourceId": "perf-02", "uavId": "UUID", "missionId": "UUID" },
@@ -22,6 +31,10 @@ Tạo file ngoài Git, ví dụ `telemetry-performance.private.json`:
   ]
 }
 ```
+
+Các ngưỡng ví dụ không phải baseline được duyệt. Đặt `approved: true` và thay các
+giá trị chỉ sau khi team xác nhận D-10/profile; runner cố ý không thể PASS nếu profile
+chưa được duyệt hoặc thiếu ngưỡng queue/memory.
 
 Năm mission phải ở trạng thái active/in-progress, map đúng UAV và token người xem
 phải có quyền xem cả năm. Không commit file này hay raw evidence chứa ID nội bộ.
@@ -40,8 +53,12 @@ window.addEventListener("droneops:telemetry-rendered", event => {
     browserSession: window.__KAN80_SESSION_ID,
     missionId: detail.missionId,
     sourceTimestamp: detail.sourceTimestamp,
+    browserReceivedAt: detail.browserReceivedAt,
     renderedAt: detail.renderedAt,
-    latencyMs: Date.parse(detail.renderedAt) - Date.parse(detail.sourceTimestamp)
+    latencyMs: Date.parse(detail.renderedAt) - Date.parse(detail.sourceTimestamp),
+    browserPaintLatencyMs: detail.browserReceivedAt
+      ? Date.parse(detail.renderedAt) - Date.parse(detail.browserReceivedAt)
+      : null
   };
   console.log("KAN80_RENDER " + JSON.stringify(row));
 });
@@ -73,11 +90,18 @@ node scripts/telemetry-performance.mjs --config telemetry-performance.private.js
 Runner chủ động tạo duplicate mỗi 20 giây, late sample mỗi 30 giây, low-battery
 incident và một cửa sổ disconnect/reconnect. `raw-evidence.jsonl` giữ timestamp,
 HTTP status, latency và event; `summary.json` có accepted/lost/late/duplicate,
-acknowledged record count, persist/SSE/browser p95, stage-correlation loss,
-SSE/browser session count và incident-detection latency.
+acknowledged record count, p50/p95/max cho từng stage, network ingress,
+backend persist/publish, browser receive/paint, stage-correlation loss,
+SSE/browser session count, incident-detection latency, managed memory, pending
+ThreadPool work và subscriber cleanup.
 
 Run chỉ PASS khi không mất request đã gửi, đủ 10 session, p95 SSE và browser đều
 không quá 2000 ms, cả 10 browser session có evidence, không mất sample giữa
 accepted→publish→render và có incident evidence. Đồng bộ NTP giữa
 gateway/load host, API host và browser host; nếu không, source-to-render latency
 không có giá trị. Không tuyên bố soak 60 phút PASS dựa trên smoke ngắn.
+
+`GET /api/live/stream/diagnostics` chỉ cung cấp số liệu tiến trình tổng hợp, không
+chứa mission hay telemetry. Runner chụp baseline trước khi mở observer SSE và chụp
+lại sau khi đóng; `subscriberCleanupDelta` phải bằng 0. Báo cáo raw/summary phải
+được lưu ngoài Git nếu chứa ID hoặc thông tin deployment nội bộ.
