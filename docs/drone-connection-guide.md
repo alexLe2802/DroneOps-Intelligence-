@@ -214,6 +214,32 @@ Hướng dẫn upstream: [MAVLink Router - Compilation and Installation](https:/
 
 ### 5.2. Cài gateway và bật service
 
+### Cách khuyến nghị: một command do web tạo
+
+Khi laptop và Jetson đã vào cùng LAN, chạy backend với địa chỉ listen
+`0.0.0.0`, mở **Connect Drone**, chọn UAV/mission và tạo pairing code. Web tự
+lấy IPv4 LAN cùng port backend hiện tại rồi hiển thị một command hoàn chỉnh.
+SSH vào Jetson và dán command đó; không cần tự sửa IP hay nhập lại OTP.
+
+Bootstrap tự tải gateway, tự chọn cổng Pixhawk khi chỉ có một thiết bị trong
+`/dev/serial/by-id`, cài/cập nhật MAVLink Router, ghi backend origin, bật hai
+service và ghép đôi. Nếu có nhiều USB serial adapter, terminal hiển thị danh
+sách đánh số để người dùng chọn cổng Pixhawk. Nếu không có cổng nào, bootstrap
+dừng và yêu cầu kiểm tra kết nối phần cứng.
+
+Command cũng ghi sẵn hai MAVLink UDP endpoint về IP laptop hiện tại:
+QGroundControl dùng port `14550`, Mission Planner dùng port `14551`. Terminal
+gateway in `GPS NORMAL` màu xanh khi có từ 4 vệ tinh, `GPS WEAK` màu đỏ khi có
+tối đa 3 vệ tinh và `GPS UNKNOWN` màu vàng khi chưa có số liệu phù hợp.
+Sau khi cài và pair xong, bootstrap in hai endpoint đúng một lần rồi theo dõi
+log service liên tục. Dòng GPS gồm `fix_type`, `satellites_visible`, tuổi dữ liệu
+và trạng thái tọa độ. Nhấn `Ctrl+C` chỉ thoát màn hình log; hai service vẫn chạy.
+
+Command chứa pairing code dùng một lần và có hạn, vì vậy không chia sẻ hoặc lưu
+nó vào tài liệu. HTTP chỉ phù hợp cho LAN phát triển tin cậy.
+
+### Cách thủ công để chẩn đoán
+
 Tải **Gateway + setup guide** từ Connect Drone. Chép ZIP lên Jetson bằng USB/SCP. Mở terminal tại thư mục chứa ZIP:
 
 ```bash
@@ -226,7 +252,10 @@ sudo bash install-jetson.sh
 
 Installer hỏi: đường `/dev/serial/by-id/...` của adapter, baud, system ID và backend origin (ví dụ `https://api.example.com`, không phải frontend port 3000). Chỉ chọn HTTP khi thử LAN tin cậy và xác nhận `LAN`.
 
-Nếu cần QGroundControl, nhập IPv4 laptop cùng LAN; để trống nếu chỉ xem web. Đặt DHCP reservation cho laptop. Installer cần mạng để tải dependencies. Nếu Ubuntu không có gói router, nó build upstream và báo vị trí source để ghi lại commit.
+Nếu cần phần mềm mặt đất, nhập IPv4 laptop cùng LAN; router gửi QGroundControl
+qua UDP `14550` và Mission Planner qua UDP `14551`. Để trống nếu chỉ xem web.
+Đặt DHCP reservation cho laptop. Installer cần mạng để tải dependencies. Nếu
+Ubuntu không có gói router, nó build upstream và báo vị trí source để ghi lại commit.
 
 Sau cài, hai service `droneops-router` và `droneops-gateway` tự chạy khi boot. Chưa pair thì gateway chờ credential, không hỏi mã trong background. Tắt chương trình khác đang giữ serial. Cài lại giữ session nhưng thay server/thiết bị có thể cần pair lại.
 
@@ -235,7 +264,8 @@ Sau cài, hai service `droneops-router` và `droneops-gateway` tự chạy khi b
 1. Bật Pixhawk, Jetson, mạng; xác nhận đúng drone.
 2. Trên Connect Drone chọn UAV Active và mission Approved/InProgress của UAV.
 3. Xác nhận binding lần đầu và tạo mã khi Jetson đã sẵn sàng.
-4. Chạy trên Jetson:
+4. Cách khuyến nghị là copy command được web tạo và dán vào SSH. Nếu gateway đã
+   được cài và chỉ muốn pair thủ công, chạy trên Jetson:
 
 ```bash
 sudo /opt/droneops-gateway/pair-jetson.sh
@@ -250,8 +280,12 @@ Nhập mã. Helper chỉ pair, lưu credential rồi thoát; service chạy ngay
 Backend phải chạy trong lúc sử dụng. Từ thư mục gốc repo trên laptop:
 
 ```powershell
-dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --urls http://0.0.0.0:5159 --environment Development
+dotnet run --project ./be/DroneOps/DroneOps.API/DroneOps.API.csproj --no-launch-profile -- --urls http://0.0.0.0:5159 --environment Development
 ```
+
+Chạy command từ thư mục gốc repository `SEP490`, nơi chứa hai thư mục `be` và
+`fe`. Nếu MSBuild báo project file không tồn tại thì terminal đang đứng sai thư
+mục; `cd` đến repository root rồi chạy lại.
 
 `0.0.0.0` cho backend **lắng nghe kết nối LAN**, không phải IP cần đặt cho máy.
 Jetson gọi `http://IP_LAPTOP:5159`, không gọi `0.0.0.0` hay localhost của laptop.

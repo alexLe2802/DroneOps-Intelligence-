@@ -10,23 +10,31 @@ for file in gateway.py requirements.txt droneops-gateway.service.example droneop
 done
 echo 'Pixhawk serial adapters:'
 find /dev/serial/by-id -maxdepth 1 -type l -print 2>/dev/null || true
-read -r -p 'Pixhawk serial path (/dev/serial/by-id/...): ' serial_device
+serial_device=${DRONEOPS_INSTALL_SERIAL:-}
+[[ -n "$serial_device" ]] || read -r -p 'Pixhawk serial path (/dev/serial/by-id/...): ' serial_device
 [[ "$serial_device" =~ ^/dev/[a-zA-Z0-9_./:+-]+$ && -e "$serial_device" ]] || { echo 'Use an existing /dev serial device without spaces.'; exit 1; }
-read -r -p 'Baud matching Pixhawk TELEM2 [115200]: ' baud
+baud=${DRONEOPS_INSTALL_BAUD:-}
+[[ -n "$baud" ]] || read -r -p 'Baud matching Pixhawk TELEM2 [115200]: ' baud
 baud=${baud:-115200}
 [[ "$baud" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid baud'; exit 1; }
-read -r -p 'MAVLink system ID [1]: ' system_id
+system_id=${DRONEOPS_INSTALL_SYSTEM_ID:-}
+[[ -n "$system_id" ]] || read -r -p 'MAVLink system ID [1]: ' system_id
 system_id=${system_id:-1}
 [[ "$system_id" =~ ^[1-9][0-9]{0,2}$ ]] && (( system_id <= 255 )) || { echo 'Invalid system ID'; exit 1; }
-read -r -p 'Backend origin (https://api.example.com): ' server
+server=${DRONEOPS_INSTALL_SERVER:-}
+[[ -n "$server" ]] || read -r -p 'Backend origin (https://api.example.com): ' server
 [[ "$server" =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] || { echo 'Use an HTTP(S) origin without path, credentials or spaces.'; exit 1; }
 transport_flag=''
 if [[ "$server" == http://* ]]; then
-  read -r -p 'Unencrypted LAN development only. Type LAN to continue: ' consent
+  consent=${DRONEOPS_INSTALL_HTTP_CONSENT:-}
+  [[ -n "$consent" ]] || read -r -p 'Unencrypted LAN development only. Type LAN to continue: ' consent
   [[ "$consent" == LAN ]] || exit 1
   transport_flag=--allow-insecure-websocket
 fi
-read -r -p 'Optional laptop IPv4 for QGroundControl (blank = web only): ' laptop
+laptop=${DRONEOPS_INSTALL_GCS_IP:-}
+if [[ -z "$laptop" && "${DRONEOPS_INSTALL_NONINTERACTIVE:-}" != 1 ]]; then
+  read -r -p 'Optional laptop IPv4 for QGroundControl (blank = web only): ' laptop
+fi
 if [[ -n "$laptop" ]]; then
   [[ "$laptop" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo 'Use a laptop IPv4 address'; exit 1; }
   IFS=. read -r -a octets <<< "$laptop"
@@ -76,10 +84,14 @@ Port=14551
 EOF
 if [[ -n "$laptop" ]]; then
   cat >> /etc/droneops-router/main.conf <<EOF
-[UdpEndpoint laptop]
+[UdpEndpoint qgroundcontrol]
 Mode=Normal
 Address=$laptop
 Port=14550
+[UdpEndpoint missionplanner]
+Mode=Normal
+Address=$laptop
+Port=14551
 EOF
 fi
 chmod 0644 /etc/droneops-router/main.conf
