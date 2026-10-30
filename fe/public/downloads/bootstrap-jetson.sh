@@ -48,7 +48,8 @@ fi
 echo "Using Pixhawk serial adapter: $serial_device"
 
 work_dir=$(mktemp -d)
-trap 'rm -rf -- "$work_dir"' EXIT
+cleanup() { rm -rf -- "$work_dir"; }
+trap cleanup EXIT
 apt-get update
 apt-get install -y curl unzip
 curl --fail --silent --show-error --location "$package_url" --output "$work_dir/gateway.zip"
@@ -66,6 +67,11 @@ DRONEOPS_INSTALL_GCS_IP=$gcs_host \
   bash "$install_script"
 
 /opt/droneops-gateway/pair-jetson.sh --code "$otp"
+
+# The package has already been installed under /opt. Remove the downloaded ZIP
+# and extracted copy before following logs, which may keep this terminal open.
+cleanup
+trap - EXIT
 echo
 printf '\033[1;35m▲ DroneOps Gateway\033[0m\n'
 printf '  \033[1;32mQGroundControl\033[0m  udp://%s:14550\n' "$gcs_host"
