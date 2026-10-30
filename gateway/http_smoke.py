@@ -1,4 +1,4 @@
-"""Run a loopback MAVLink -> gateway -> HTTP smoke test. Code is supplied on stdin."""
+"""Run a loopback MAVLink -> Jetson gateway -> WebSocket smoke test. Pairing code is supplied on stdin."""
 import json
 import os
 from pathlib import Path
@@ -7,15 +7,17 @@ import subprocess
 import sys
 import tempfile
 import time
+import websocket
+import datetime as dt
 from pymavlink import mavutil
 
-api=sys.argv[1]
+server=sys.argv[1]
 code=sys.stdin.readline().strip()
 with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as probe:
     probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
 with tempfile.TemporaryDirectory() as folder:
     session=Path(folder)/'session.json'
-    command=[sys.executable,str(Path(__file__).with_name('gateway.py')),'--api',api,'--device','udpin:127.0.0.1:%d'%port,
+    command=[sys.executable,str(Path(__file__).with_name('gateway.py')),'--server',server,'--device','udpin:127.0.0.1:%d'%port,
              '--system-id','1','--pair-code-stdin','--session-file',str(session)]
     process=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
     try:
@@ -31,8 +33,20 @@ with tempfile.TemporaryDirectory() as folder:
                 for packet in packets:
                     sender.sendto(packet.pack(mav),('127.0.0.1',port));mav.seq=(mav.seq+1)%256
                 time.sleep(1)
-        if not session.exists():raise RuntimeError('Gateway did not identify and pair the drone with the HTTP API')
+        if not session.exists():raise RuntimeError('Gateway did not identify and pair the drone over WebSocket')
         if process.poll() is not None:raise RuntimeError('Gateway exited during telemetry forwarding')
+        saved=json.loads(session.read_text())
+        ws=websocket.create_connection(server.replace('http://','ws://').replace('https://','wss://')+'/ws/drone-gateway',timeout=5)
+        try:
+            ws.send(json.dumps({'type':'resume','payload':{k:saved[k] for k in ('connectionId','token','hardwareIdentity')}}))
+            assert json.loads(ws.recv())['type']=='ready'
+            invalid={k:saved[k] for k in ('sourceId','uavId','missionId')}
+            invalid.update(sourceTimestamp=dt.datetime.now(dt.timezone.utc).isoformat(),latitude=999,batteryPercent=200)
+            ws.send(json.dumps({'type':'telemetry','idempotencyKey':'invalid-sample','payload':invalid}))
+            response=json.loads(ws.recv())
+            assert response['type']=='error' and 'Latitude' in response['message'],response
+        finally:
+            ws.close()
         print('Real MAVLink frames were forwarded over UDP to the paired gateway.')
     finally:
         process.terminate()
