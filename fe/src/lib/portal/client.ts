@@ -136,6 +136,20 @@ export function getIncident(id: string): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
 }
 
+export function acknowledgeIncident(id: string, notes?: string | null): Promise<IncidentDetail> {
+  return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}/acknowledge`, {
+    method: "POST",
+    body: JSON.stringify({ notes: notes?.trim() || null }),
+  });
+}
+
+export function resolveIncident(id: string, resolutionNotes: string): Promise<IncidentDetail> {
+  return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ resolutionNotes: resolutionNotes.trim() }),
+  });
+}
+
 export function getNotificationFeed(unreadOnly = false, limit = 50): Promise<NotificationFeed> {
   const params = new URLSearchParams({ unreadOnly: String(unreadOnly), limit: String(limit) });
   return api<NotificationFeed>(`/notifications?${params}`);
