@@ -70,17 +70,18 @@ public sealed class UserMediaStorage : IUserMediaStorage
 
     public async Task ValidateAsync(IFormFile file, bool avatar, CancellationToken ct)
     {
-        if (file.Length <= 0 || file.Length > (avatar ? 5 : 10) * 1024 * 1024)
-            throw new ArgumentException(avatar ? "Avatar must be 5 MB or smaller." : "Each license file must be 10 MB or smaller.");
+        var image = file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+        if (file.Length <= 0 || file.Length > (avatar || image ? 5 : 10) * 1024 * 1024)
+            throw new ArgumentException(avatar || image ? "Images must be 5 MB or smaller." : "Each license document must be 10 MB or smaller.");
         await using var stream = file.OpenReadStream();
         var bytes = new byte[12];
         var count = await stream.ReadAtLeastAsync(bytes, 12, false, ct);
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         var valid = file.ContentType switch
         {
-            "image/jpeg" => avatar && count >= 3 && bytes[0] == 255 && bytes[1] == 216 && bytes[2] == 255,
-            "image/png" => avatar && count >= 8 && bytes.AsSpan(0, 8).SequenceEqual(new byte[] {137,80,78,71,13,10,26,10}),
-            "image/webp" => avatar && count >= 12 && bytes.AsSpan(0,4).SequenceEqual("RIFF"u8) && bytes.AsSpan(8,4).SequenceEqual("WEBP"u8),
+            "image/jpeg" => count >= 3 && bytes[0] == 255 && bytes[1] == 216 && bytes[2] == 255,
+            "image/png" => count >= 8 && bytes.AsSpan(0, 8).SequenceEqual(new byte[] {137,80,78,71,13,10,26,10}),
+            "image/webp" => count >= 12 && bytes.AsSpan(0,4).SequenceEqual("RIFF"u8) && bytes.AsSpan(8,4).SequenceEqual("WEBP"u8),
             "application/pdf" => !avatar && extension == ".pdf" && count >= 5 && bytes.AsSpan(0,5).SequenceEqual("%PDF-"u8),
             "application/msword" => !avatar && extension == ".doc" && count >= 8
                 && bytes.AsSpan(0,8).SequenceEqual(new byte[] {208,207,17,224,161,177,26,225}),
@@ -88,7 +89,7 @@ public sealed class UserMediaStorage : IUserMediaStorage
                 && await IsWordArchiveAsync(file, ct),
             _ => false
         };
-        if (!valid) throw new ArgumentException(avatar ? "Choose a valid JPEG, PNG or WebP avatar." : "Choose one valid PDF or Word (.doc, .docx) license document.");
+        if (!valid) throw new ArgumentException(avatar ? "Choose a valid JPEG, PNG or WebP avatar." : "Choose a valid JPEG, PNG, WebP, PDF or Word license file.");
     }
 
     private static async Task<bool> IsWordArchiveAsync(IFormFile file, CancellationToken ct)

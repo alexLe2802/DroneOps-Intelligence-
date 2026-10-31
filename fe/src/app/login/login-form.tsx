@@ -19,12 +19,12 @@ const roleMismatch: Record<AccessMode, string> = {
   manager: "This account belongs to Pilot Access. Use the Pilot panel to sign in.",
 };
 
-export default function LoginForm() {
+export default function LoginForm({ emailChanged = false }: { emailChanged?: boolean }) {
   const router = useRouter();
   const [mode, setMode] = useState<AccessMode>("pilot");
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(emailChanged ? "Email changed successfully. Sign in with your new email address." : "");
   const [showPassword, setShowPassword] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
