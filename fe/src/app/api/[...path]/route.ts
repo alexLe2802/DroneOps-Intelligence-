@@ -101,6 +101,11 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       return response;
     }
     const responseHeaders = new Headers({ "Cache-Control": liveStream ? "no-cache, no-transform" : "no-store", "X-Content-Type-Options": "nosniff" });
+    if (path === "users/change-email/confirm" && request.method === "POST" && upstream.ok) {
+      const response = new NextResponse(upstream.body, { status: upstream.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      response.cookies.set(accessCookie, "", { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 0 });
+      return response;
+    }
     if (upstream.headers.has("content-type")) responseHeaders.set("Content-Type", upstream.headers.get("content-type")!);
     if (liveStream) responseHeaders.set("X-Accel-Buffering", "no");
     const cookies = upstream.headers.getSetCookie();

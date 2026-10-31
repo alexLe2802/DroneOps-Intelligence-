@@ -107,7 +107,7 @@ export default function ProfileClient({ account }: { account: Account }) {
       ["Drone type", pilot.droneType], ["Drone model", pilot.droneModel],
     ].map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "Not provided"}</b></div>)}</div>}</section>}
 
-    <EmailChange onChanged={async () => { const updated = await getProfile(); setProfile(updated); router.refresh(); }} />
+    <EmailChange onChanged={async () => { window.location.replace("/login?emailChanged=1"); }} />
     {account.role === "uav_operator" && pilot && <OperatorEdit key={`${pilot.phoneNumber}-${pilot.dateOfBirth}-${pilot.experienceYears}`} pilot={pilot} onUpdated={async () => setPilot(await getPilotProfile())} />}
     {account.role === "uav_operator" && <LicenseChanges onRefresh={retryPilot} />}
   </>;
