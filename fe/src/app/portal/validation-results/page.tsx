@@ -11,6 +11,7 @@ export default async function ValidationResultsPage({ searchParams }: {
     requirePortalSession(["uav_operator", "operation_manager"]), searchParams,
   ]);
   return <PortalShell account={session.account}><ValidationResultsClient key={`${query.missionId ?? ""}:${query.runId ?? ""}`}
+    role={session.account.role}
     missionId={typeof query.missionId === "string" ? query.missionId : undefined}
     runId={typeof query.runId === "string" ? query.runId : undefined}
   /></PortalShell>;

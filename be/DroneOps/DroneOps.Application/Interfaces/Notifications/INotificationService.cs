@@ -8,6 +8,9 @@ public interface INotificationService
     Task<int> GetUnreadCountAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<NotificationResponse?> MarkAsReadAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
     Task<int> MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task PublishToManagersAsync(string type, string title, string message, Guid? actorUserId, Guid referenceId, string referenceType, string actionUrl, CancellationToken cancellationToken = default);
+    Task PublishToUserAsync(Guid recipientUserId, string type, string title, string message, Guid? actorUserId, Guid referenceId, string referenceType, string actionUrl, CancellationToken cancellationToken = default);
+    Task PublishIncidentRaisedAsync(Guid incidentId, string incidentType, Guid pilotUserId, CancellationToken cancellationToken = default);
     Task PublishPendingMissionAsync(Guid missionId, Guid actorUserId, string missionName, CancellationToken cancellationToken = default);
-    Task PublishMissionDecisionAsync(Guid missionId, Guid actorUserId, bool approved, CancellationToken cancellationToken = default);
+    Task PublishMissionDecisionAsync(Guid missionId, Guid actorUserId, bool approved, string? rejectionReason = null, CancellationToken cancellationToken = default);
 }

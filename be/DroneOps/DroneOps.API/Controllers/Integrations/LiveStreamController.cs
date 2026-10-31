@@ -84,6 +84,7 @@ public class LiveStreamController : ControllerBase
         var knownIncidentStatus = new Dictionary<Guid, string>();
         DateTimeOffset incidentWatermark = DateTimeOffset.UtcNow.AddHours(-24);
 
+        LiveStreamDiagnostics.Opened();
         try
         {
             var initialSnapshot = await _telemetryService.GetLatestMissionTelemetryAsync(
@@ -155,7 +156,14 @@ public class LiveStreamController : ControllerBase
         {
             // Client đóng tab / ngắt SSE: vòng lặp kết thúc, không giữ subscription rò rỉ giữa các scope.
         }
+        finally
+        {
+            LiveStreamDiagnostics.Closed();
+        }
     }
+
+    [HttpGet("diagnostics")]
+    public IActionResult GetDiagnostics() => Ok(LiveStreamDiagnostics.Snapshot());
 
     private async Task WriteSseEventAsync(string eventName, long id, object data, CancellationToken ct)
     {

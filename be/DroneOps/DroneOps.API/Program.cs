@@ -8,13 +8,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using DroneOps.Application.DTOs.Options;
 
 var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
     "--migrate-auth", "--bootstrap-manager",
     "--migrate-telemetry", "--check-telemetry-schema",
     "--migrate-postflight", "--check-postflight-schema",
-    "--migrate-mission-workflow", "--migrate-drone-connections"
+    "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows"
 };
 var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
@@ -42,6 +43,13 @@ if (args.Contains("--migrate-drone-connections"))
     await DroneConnectionSchema.ApplyAsync(source);
     Console.WriteLine("Drone connection schema verified.");
     return;
+}
+
+if(args.Contains("--migrate-account-workflows"))
+{
+    await using var source=PostgresDataSourceFactory.Create(connectionString);
+    await AccountWorkflowSchema.ApplyAsync(source);
+    Console.WriteLine("Account workflow schema verified.");return;
 }
 
 if (args.Contains("--migrate-mission-workflow"))
@@ -73,7 +81,7 @@ if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-s
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 //builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddControllers(options => options.Filters.Add<MissionValidationExceptionFilter>());
-builder.Services.Configure<DroneOps.Application.Services.Missions.MissionWeatherOptions>(
+builder.Services.Configure<MissionWeatherOptions>(
     builder.Configuration.GetSection("MissionWeather"));
 builder.Services.AddHostedService<MissionPreflightMonitor>();
 builder.Services.AddHttpClient<DroneOps.Application.Services.Storage.UserMediaStorage>();
@@ -193,12 +201,14 @@ builder.Services.AddRateLimiter(options =>
 var app = builder.Build();
 await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await AccountWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 // Detect a missing deployment migration before background monitoring starts.
 await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 // Notification DDL is idempotent so existing deployments become ready without a separate flag.
 await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await UavImageSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.

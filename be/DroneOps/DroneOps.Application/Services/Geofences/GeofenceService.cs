@@ -72,6 +72,7 @@ public class GeofenceService : IGeofenceService
         var geofence = new Geofence
         {
             Id = Guid.NewGuid(),
+            RestrictionType=request.RestrictionType,
             VerticalRule=request.MinAltitudeMeters.HasValue||request.MaxAltitudeMeters.HasValue?"Band":request.VerticalRule,
             AltitudeReference=request.AltitudeReference,MinAltitudeMeters=request.MinAltitudeMeters,MaxAltitudeMeters=request.MaxAltitudeMeters,
             Name = request.Name.Trim(),
@@ -125,6 +126,7 @@ public class GeofenceService : IGeofenceService
                 "Geofence name already exists.");
         }
 
+        geofence.RestrictionType=request.RestrictionType;
         geofence.VerticalRule=request.MinAltitudeMeters.HasValue||request.MaxAltitudeMeters.HasValue?"Band":request.VerticalRule;
         geofence.AltitudeReference=request.AltitudeReference;geofence.MinAltitudeMeters=request.MinAltitudeMeters;geofence.MaxAltitudeMeters=request.MaxAltitudeMeters;
         geofence.Name = request.Name.Trim();
@@ -180,6 +182,7 @@ public class GeofenceService : IGeofenceService
         return new GeofenceResponse
         {
             Id = geofence.Id,
+            RestrictionType=geofence.RestrictionType,
             VerticalRule=geofence.VerticalRule,
             AltitudeReference=geofence.AltitudeReference,MinAltitudeMeters=geofence.MinAltitudeMeters,MaxAltitudeMeters=geofence.MaxAltitudeMeters,Revision=geofence.Revision,
             Name = geofence.Name,
@@ -187,5 +190,131 @@ public class GeofenceService : IGeofenceService
             Coordinates = coordinates,
             CreatedAt = geofence.CreatedAt
         };
+    }
+    public async Task<GeofenceCheckResult> CheckRestrictedAreaAsync(
+       decimal latitude,
+       decimal longitude,
+       decimal? altitudeMeters = null,
+       CancellationToken cancellationToken = default)
+    {
+        var geofences = await _geofenceRepository
+            .GetAllAsync(cancellationToken);
+
+        foreach (var geofence in geofences)
+        {
+            if (string.IsNullOrWhiteSpace(geofence.Coordinates))
+                continue;
+
+            List<GeofenceCoordinateRequest>? polygon;
+
+            try
+            {
+                polygon = JsonSerializer.Deserialize<List<GeofenceCoordinateRequest>>(
+                    geofence.Coordinates,
+                    JsonOptions);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            if (polygon == null || polygon.Count < 3)
+                continue;
+
+            var insidePolygon = IsPointInsidePolygon(
+                latitude,
+                longitude,
+                polygon);
+
+            if (!insidePolygon)
+                continue;
+
+            // Nếu geofence không quy định độ cao
+            // thì chỉ cần nằm trong polygon là bị chặn.
+            if (geofence.MinAltitudeMeters == null &&
+                geofence.MaxAltitudeMeters == null)
+            {
+                return CreateRestrictedResult(geofence);
+            }
+
+            // Caller không truyền altitude.
+            // Không thể chứng minh điểm nằm ngoài vertical restriction,
+            // nên coi polygon match là restricted.
+            if (altitudeMeters == null)
+            {
+                return CreateRestrictedResult(geofence);
+            }
+
+            var aboveMin =
+                geofence.MinAltitudeMeters == null ||
+                altitudeMeters >= geofence.MinAltitudeMeters;
+
+            var belowMax =
+                geofence.MaxAltitudeMeters == null ||
+                altitudeMeters <= geofence.MaxAltitudeMeters;
+
+            if (aboveMin && belowMax)
+            {
+                return CreateRestrictedResult(geofence);
+            }
+        }
+
+        return new GeofenceCheckResult
+        {
+            IsRestricted = false,
+            Message = "Location is outside restricted geofences."
+        };
+    }
+
+    private static GeofenceCheckResult CreateRestrictedResult(
+        Domain.Entities.Geofence geofence)
+    {
+        return new GeofenceCheckResult
+        {
+            IsRestricted = true,
+            GeofenceId = geofence.Id,
+            GeofenceName = geofence.Name,
+            Message = $"Location is inside restricted geofence '{geofence.Name}'."
+        };
+    }
+
+    private static bool IsPointInsidePolygon(
+     decimal latitude,
+     decimal longitude,
+     List<GeofenceCoordinateRequest> polygon)
+    {
+        if (polygon is null || polygon.Count < 3)
+        {
+            return false;
+        }
+
+        var inside = false;
+        var j = polygon.Count - 1;
+
+        for (var i = 0; i < polygon.Count; i++)
+        {
+            var xi = polygon[i].Longitude;
+            var yi = polygon[i].Latitude;
+
+            var xj = polygon[j].Longitude;
+            var yj = polygon[j].Latitude;
+
+            var intersects =
+                ((yi > latitude) != (yj > latitude)) &&
+                (longitude <
+                    (xj - xi) *
+                    (latitude - yi) /
+                    (yj - yi) +
+                    xi);
+
+            if (intersects)
+            {
+                inside = !inside;
+            }
+
+            j = i;
+        }
+
+        return inside;
     }
 }

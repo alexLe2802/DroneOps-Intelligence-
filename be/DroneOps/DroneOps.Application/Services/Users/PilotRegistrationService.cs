@@ -6,6 +6,7 @@ using DroneOps.Application.DTOs.Response.Users;
 using DroneOps.Application.Interfaces.Auth;
 using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Application.Interfaces.Users;
+using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Settings;
 using DroneOps.Domain;
 using DroneOps.Domain.Entities;
@@ -36,6 +37,7 @@ public class PilotRegistrationService : IPilotRegistrationService
     private readonly IValidator<CreatePilotRegistrationRequest> _validator;
     private readonly ILogger<PilotRegistrationService> _logger;
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
     public PilotRegistrationService(
         IPilotRegistrationRepository repository,
         IEmailService emailService,
@@ -44,7 +46,8 @@ public class PilotRegistrationService : IPilotRegistrationService
         AppDbContext context,
           IUserMediaStorage storage,
     IValidator<CreatePilotRegistrationRequest> validator,
-    ILogger<PilotRegistrationService> logger)
+    ILogger<PilotRegistrationService> logger,
+    INotificationService notificationService)
     {
         _repository = repository;
         _emailService = emailService;
@@ -54,6 +57,7 @@ public class PilotRegistrationService : IPilotRegistrationService
         _storage = storage;
         _validator = validator;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     // =========================================================================
@@ -190,6 +194,19 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         await _repository.AddAsync(registration);
         await _repository.SaveChangesAsync();
+        try
+        {
+            await _notificationService.PublishToManagersAsync(
+                "NewPilotRegistration", "New Operator Registration",
+                $"A new operator registration from '{registration.FullName}' is waiting for review.",
+                null, registration.Id, "PilotRegistration",
+                $"/operators?registrationId={registration.Id}");
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception,
+                "Could not publish pilot registration notification for {RegistrationId}.", registration.Id);
+        }
     }
 
     // =========================================================================

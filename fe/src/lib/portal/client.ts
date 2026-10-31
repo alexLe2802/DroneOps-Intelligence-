@@ -1,4 +1,5 @@
 import { api, ApiError } from "@/lib/auth/client";
+import type { AccountRole } from "@/lib/auth/types";
 import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable">;
@@ -43,6 +44,15 @@ export async function getManagerMissions(): Promise<ManagerMission[]> {
       pilotName: assigned?.pilotName ?? null,
     };
   });
+}
+
+export type ValidationMissionOption = Pick<MissionDetail, "id" | "name" | "status">;
+
+export async function getValidationMissionOptions(role: AccountRole): Promise<ValidationMissionOption[]> {
+  const missions = role === "operation_manager"
+    ? await getManagerMissions()
+    : await getPilotMissions();
+  return missions.map(({ id, name, status }) => ({ id, name, status }));
 }
 
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {

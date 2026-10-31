@@ -77,8 +77,9 @@ export default function ProfileClient({ account }: { account: Account }) {
   }
   async function submit(event: FormEvent) {
     event.preventDefault(); setSaving(true); setError(null); setMessage("");
+    if (!profile) { setSaving(false); return; }
     try {
-      const updated = await updateProfile({ fullName: name.trim() });
+      const updated = await updateProfile({ fullName: name.trim(), expectedVersion: profile.profileVersion });
       setProfile(updated); setName(updated.fullName); setMessage("Profile updated successfully."); router.refresh();
     } catch (reason) { setError(reason); }
     finally { setSaving(false); }
