@@ -79,7 +79,7 @@ public sealed class MissionWorkflowService(
                     current,
                     request);
 
-                proposal.Status = "Pending Review";
+                
 
                 // =========================
                 // VALIDATE
@@ -98,17 +98,27 @@ public sealed class MissionWorkflowService(
                     throw new MissionValidationException(
                         validationResult);
                 }
+                var requiresPilotConfirmation =
+    string.Equals(
+        validationResult.Weather?.OverallRisk,
+        "High",
+        StringComparison.OrdinalIgnoreCase);
 
+                var nextStatus =
+                    requiresPilotConfirmation
+                        ? "Pending Confirm"
+                        : "Pending Review";
+
+                proposal.Status = nextStatus;
                 // =========================
                 // CREATE
                 // =========================
-
                 if (!isUpdate)
                 {
                     proposal.Id = current.Id;
                     proposal.CreatedBy = current.CreatedBy;
                     proposal.CreatedAt = current.CreatedAt;
-                    proposal.Status = "Pending Review";
+                    proposal.Status = nextStatus;
 
                     foreach (var waypoint in proposal.Waypoints)
                     {
@@ -138,7 +148,7 @@ public sealed class MissionWorkflowService(
                     proposal,
                     ct);
 
-                current.Status = "Pending Review";
+                current.Status = nextStatus;
 
                 await validation.StoreAsync(
                     current,
@@ -312,6 +322,84 @@ public sealed class MissionWorkflowService(
                 mission.Status = "InProgress";
 
                 return validationResult;
+            },
+            cancellationToken);
+    }
+    // =========================================================
+    // CONFIRM HIGH WEATHER RISK
+    // =========================================================
+
+    public async Task ConfirmHighRiskAsync(
+        Guid missionId,
+        Guid pilotId,
+        CancellationToken cancellationToken = default)
+    {
+        await missionRepository.ExecuteSerializableAsync(
+            async ct =>
+            {
+                var mission =
+                    await missionRepository
+                        .GetByIdWithWaypointsAsync(
+                            missionId,
+                            ct)
+                    ?? throw new KeyNotFoundException(
+                        "Mission not found.");
+
+                if (mission.CreatedBy != pilotId)
+                {
+                    throw new UnauthorizedAccessException(
+                        "You may only confirm your own mission.");
+                }
+
+                if (mission.Status != "Pending Confirm")
+                {
+                    throw new InvalidOperationException(
+                        "Only missions pending pilot confirmation can be confirmed.");
+                }
+
+                mission.Status = "Pending Review";
+
+                return true;
+            },
+            cancellationToken);
+    }
+    // =========================================================
+    // CANCEL HIGH WEATHER RISK
+    // =========================================================
+
+    public async Task CancelHighRiskAsync(
+        Guid missionId,
+        Guid pilotId,
+        CancellationToken cancellationToken = default)
+    {
+        await missionRepository.ExecuteSerializableAsync(
+            async ct =>
+            {
+                var mission =
+                    await missionRepository
+                        .GetByIdWithWaypointsAsync(
+                            missionId,
+                            ct)
+                    ?? throw new KeyNotFoundException(
+                        "Mission not found.");
+
+                if (mission.CreatedBy != pilotId)
+                {
+                    throw new UnauthorizedAccessException(
+                        "You may only cancel your own mission.");
+                }
+
+                if (mission.Status != "Pending Confirm")
+                {
+                    throw new InvalidOperationException(
+                        "Only missions pending pilot confirmation can be cancelled.");
+                }
+
+                await missionRepository.DeleteAsync(
+                    mission,
+                    ct);
+
+                return true;
             },
             cancellationToken);
     }
