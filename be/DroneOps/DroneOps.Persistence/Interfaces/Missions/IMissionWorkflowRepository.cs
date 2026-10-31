@@ -23,4 +23,7 @@ public interface IMissionWorkflowRepository
     Task<T> ExecuteSerializableAsync<T>(
         Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken = default);
+    Task DeleteAsync(
+    Mission mission,
+    CancellationToken cancellationToken = default);
 }

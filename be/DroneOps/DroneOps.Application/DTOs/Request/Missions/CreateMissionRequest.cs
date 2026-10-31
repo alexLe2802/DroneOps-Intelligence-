@@ -9,7 +9,9 @@ public sealed class CreateMissionRequest
     public string Name { get; set; } = string.Empty;
 
     public string? Description { get; set; }
+    public decimal AverageSpeedMetersPerSecond { get; set; }
 
+    public decimal MaxSpeedMetersPerSecond { get; set; }
     public DateTime StartTime { get; set; }
 
     public DateTime EndTime { get; set; }

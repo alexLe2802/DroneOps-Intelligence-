@@ -25,6 +25,9 @@ public sealed class MissionResponse
     public DateTime? StartTime { get; set; }
 
     public DateTime? EndTime { get; set; }
+    public decimal? AverageSpeedMetersPerSecond { get; set; }
+
+    public decimal? MaxSpeedMetersPerSecond { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

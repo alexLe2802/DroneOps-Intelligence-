@@ -153,6 +153,13 @@ public sealed class MissionService : IMissionService
             Status = mission.Status,
             StartTime = mission.StartTime,
             EndTime = mission.EndTime,
+
+            AverageSpeedMetersPerSecond =
+    mission.AverageSpeedMetersPerSecond,
+
+            MaxSpeedMetersPerSecond =
+    mission.MaxSpeedMetersPerSecond,
+
             CreatedAt = mission.CreatedAt,
 
             Waypoints = mission.Waypoints

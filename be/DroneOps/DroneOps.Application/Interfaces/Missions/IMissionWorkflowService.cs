@@ -11,7 +11,15 @@ public interface IMissionWorkflowService
         CreateMissionRequest request,
         Guid? id,
         CancellationToken cancellationToken = default);
+    Task ConfirmHighRiskAsync(
+       Guid missionId,
+       Guid pilotId,
+       CancellationToken cancellationToken = default);
 
+    Task CancelHighRiskAsync(
+        Guid missionId,
+        Guid pilotId,
+        CancellationToken cancellationToken = default);
     Task CancelAsync(
         Guid id,
         Guid actor,
