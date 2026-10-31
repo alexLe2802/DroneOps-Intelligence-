@@ -2,6 +2,7 @@ namespace DroneOps.Application.DTOs.Response.Users;
 
 public sealed class UserProfileResponse
 {
+    public long ProfileVersion { get; set; }
     public string? AvatarUrl { get; set; }
 
     public Guid Id { get; set; }

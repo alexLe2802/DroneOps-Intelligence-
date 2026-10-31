@@ -14,6 +14,19 @@ public interface IUserMediaStorage
         IFormFile file,
         CancellationToken cancellationToken = default);
 
+    Task<byte[]> ReadValidatedUavImageAsync(
+        Stream stream,
+        string fileName,
+        string contentType,
+        long fileSize,
+        CancellationToken cancellationToken = default);
+
+    Task UploadAsync(
+        string path,
+        Stream stream,
+        string contentType,
+        CancellationToken cancellationToken = default);
+
     Task<string> SignAsync(
         string path,
         CancellationToken cancellationToken = default);

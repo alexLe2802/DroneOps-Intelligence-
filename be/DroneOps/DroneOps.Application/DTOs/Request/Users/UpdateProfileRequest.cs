@@ -4,6 +4,8 @@ namespace DroneOps.Application.DTOs.Request.Users;
 
 public sealed class UpdateProfileRequest
 {
+    [Range(1,long.MaxValue)]
+    public long ExpectedVersion { get; set; }
     [Required(ErrorMessage = "Full name is required.")]
     [StringLength(
         100,

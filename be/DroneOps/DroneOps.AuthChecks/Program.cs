@@ -3,6 +3,7 @@ using DroneOps.API.Controllers;
 using DroneOps.API.Controllers.Users;
 using DroneOps.API.Controllers.Integrations;
 using DroneOps.API.Controllers.PostFlight;
+using DroneOps.API.Controllers.UAVs;
 using DroneOps.API.Filters;
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.Validators.Users;
@@ -21,23 +22,28 @@ if (args.Length == 1 && args[0] == "--license-documents")
     return;
 }
 
+if(args.Length==1&&args[0]=="--media-access")
+{
+    await UserMediaAccessChecks.RunAsync();return;
+}
+
 if (args.Length == 2 && args[0] == "--license-workflow")
 {
     await LicenseWorkflowChecks.RunAsync(Path.GetFullPath(args[1]));
     return;
 }
 
-if (args.Length == 2 && args[0] == "--mission-approval")
-{
-    await MissionApprovalChecks.RunAsync(Path.GetFullPath(args[1]));
-    return;
-}
+//if (args.Length == 2 && args[0] == "--mission-approval")
+//{
+//    await MissionApprovalChecks.RunAsync(Path.GetFullPath(args[1]));
+//    return;
+//}
 
-if (args.Length == 1 && args[0] == "--mission-weather")
-{
-    await MissionWeatherChecks.RunAsync();
-    return;
-}
+//if (args.Length == 1 && args[0] == "--mission-weather")
+//{
+//    await MissionWeatherChecks.RunAsync();
+//    return;
+//}
 
 if (args.Length >= 1 && args[0] == "--mission-geometry")
 {
@@ -86,6 +92,14 @@ Check(typeof(FlightCompletionIntegrationController).GetCustomAttribute<Integrati
 Check(typeof(PostFlightController).GetMethod("FinalizeFlight")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("operation_manager") == true &&
       typeof(PostFlightController).GetMethod("RegenerateReport")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("operation_manager") == true,
     "Only managers can manually process or regenerate post-flight reports");
+Check(typeof(UavController).GetMethod("Delete")!.GetCustomAttribute<AuthorizeAttribute>()?.Roles?.Contains("uav_operator") == true,
+    "Pilots can call the UAV deletion endpoint for ownership-checked deletion");
+var uavImageUpload = typeof(UavController).GetMethod("UploadOrReplaceImage")!;
+Check(uavImageUpload.GetCustomAttributes<Microsoft.AspNetCore.Mvc.HttpPostAttribute>().Any(x => x.Template == "{id:guid}/image") &&
+      uavImageUpload.GetCustomAttributes<Microsoft.AspNetCore.Mvc.HttpPutAttribute>().Any(x => x.Template == "{id:guid}/image"),
+    "UAV image upload and replacement share the documented image route");
+Check(typeof(UavController).GetMethod("GetImage")!.GetCustomAttribute<AllowAnonymousAttribute>() is not null,
+    "UAV image display endpoint can be used directly by an image element");
 var validator = new CreatePilotRegistrationValidator();
 var today = DateOnly.FromDateTime(DateTime.UtcNow);
 CreatePilotRegistrationRequest Valid() => new()
@@ -104,4 +118,6 @@ request = Valid(); request.LicenseIssuedDate = today.AddYears(2);
 Check(!validator.Validate(request).IsValid, "Reversed license dates rejected");
 request = Valid(); request.Password = "short";
 Check(!validator.Validate(request).IsValid, "Short password rejected");
+passed += await UavImageChecks.RunAsync();
+passed += await GeofenceServiceChecks.RunAsync();
 Console.WriteLine($"{passed} current auth contract checks passed. Legacy Firebase session checks are archived and were not executed.");

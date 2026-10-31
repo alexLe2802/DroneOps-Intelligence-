@@ -24,11 +24,19 @@ public interface IPostFlightRepository
 
     Task<List<TelemetryRecord>> GetTelemetryByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);
 
+    Task<List<TelemetryRecord>> GetTelemetryForAnalyticsAsync(Guid missionId, CancellationToken cancellationToken = default);
+
     Task<FlightCompletionEvent?> GetCompletionEventByKeyAsync(string idempotencyKey, CancellationToken cancellationToken = default);
 
     Task<FlightCompletionEvent?> GetTrustedCompletionEventAsync(Guid missionId, CancellationToken cancellationToken = default);
 
     Task AddCompletionEventAsync(FlightCompletionEvent completionEvent, CancellationToken cancellationToken = default);
+
+    Task<CompletionClaimResult> ClaimCompletionAsync(
+        FlightCompletionEvent completionEvent,
+        PostFlightReport report,
+        IReadOnlyCollection<string> finalizableStatuses,
+        CancellationToken cancellationToken = default);
 
     Task<List<Incident>> GetIncidentsByMissionIdAsync(Guid missionId, CancellationToken cancellationToken = default);
 
@@ -47,7 +55,7 @@ public interface IPostFlightRepository
 
     Task UpdateMissionAsync(Mission mission, CancellationToken cancellationToken = default);
 
-    Task<List<Mission>> GetTerminalMissionsAsync(
+    Task<List<Mission>> GetStartedMissionsAsync(
         DateTime? fromDate, DateTime? toDate, Guid? uavId, Guid? missionId,
         Guid? pilotUserId, CancellationToken cancellationToken = default);
 
@@ -57,3 +65,9 @@ public interface IPostFlightRepository
 }
 
 public sealed record OverdueMissionSyncResult(int CompletedMissions, int CancelledMissions);
+
+public sealed record CompletionClaimResult(
+    string Outcome,
+    Guid MissionId,
+    Guid? ExistingEventId = null,
+    Guid? ReportId = null);

@@ -21,6 +21,16 @@ class GatewayError(Exception):
     pass
 
 
+def gps_signal_status(satellites):
+    if satellites == 255:
+        return 'UNKNOWN', '33'
+    return ('NORMAL', '32') if satellites >= 4 else ('WEAK', '31')
+
+
+def terminal_color(text, color):
+    return text if 'NO_COLOR' in os.environ else '\033[1;%sm%s\033[0m' % (color, text)
+
+
 def websocket_endpoint(value, allow_insecure=False):
     p = urllib.parse.urlsplit(value)
     if p.scheme not in ('wss', 'ws', 'https', 'http') or not p.hostname or p.username or p.password or p.path not in ('', '/') or p.query or p.fragment:
@@ -304,12 +314,14 @@ def main():
                         streams_requested = True
                 if time.monotonic() - last_gps_report >= 10:
                     if state.gps is None:
-                        print('GPS: no GPS_RAW_INT received; waiting for receiver telemetry.', flush=True)
+                        print('%s: no GPS_RAW_INT received; waiting for receiver telemetry.' %
+                              terminal_color('GPS UNKNOWN', '33'), flush=True)
                     else:
                         lat, lon, fix, satellites, seen = state.gps
                         satellite_text = 'unknown' if satellites == 255 else str(satellites)
-                        print('GPS: fix_type=%s satellites=%s age=%.1fs coordinates=%s' %
-                              (fix, satellite_text, time.monotonic() - seen,
+                        status, color = gps_signal_status(satellites)
+                        print('%s: fix_type=%s satellites_visible=%s age=%.1fs coordinates=%s' %
+                              (terminal_color('GPS ' + status, color), fix, satellite_text, time.monotonic() - seen,
                                'available' if lat is not None else 'unavailable'), flush=True)
                     last_gps_report = time.monotonic()
                 if time.monotonic() - last_sent >= 1 and state.revision != sent_revision and time.monotonic() - identity_seen <= 15:

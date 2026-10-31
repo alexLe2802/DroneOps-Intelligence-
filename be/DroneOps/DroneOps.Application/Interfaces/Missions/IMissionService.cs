@@ -13,8 +13,9 @@ public interface IMissionService
     Task<MissionResponse?> GetByIdAsync(
     Guid missionId,
     CancellationToken cancellationToken = default);
-    Task<List<MissionResponse>> GetAllAsync(
-    CancellationToken cancellationToken = default);
+    Task<MissionPagedResponse> GetAllAsync(
+     MissionFilterRequest request,
+     CancellationToken cancellationToken = default);
 
     Task<List<MissionResponse>> GetMyAsync(
         Guid userId,

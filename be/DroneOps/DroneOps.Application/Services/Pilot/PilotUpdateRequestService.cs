@@ -2,9 +2,11 @@
 using DroneOps.Application.DTOs.Request.Users;
 using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Application.Interfaces.Users;
+using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Persistence.Interfaces;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace DroneOps.Application.Services.Users;
 
@@ -14,6 +16,8 @@ public sealed class PilotUpdateRequestService
     private readonly IPilotRepository _pilotRepository;
     private readonly IUserService _userService;
     private readonly IUserMediaStorage _storage;
+    private readonly INotificationService _notificationService;
+    private readonly ILogger<PilotUpdateRequestService> _logger;
 
     private readonly IValidator<UpdatePilotProfileRequest>
         _validator;
@@ -22,12 +26,16 @@ public sealed class PilotUpdateRequestService
         IPilotRepository pilotRepository,
         IUserService userService,
         IUserMediaStorage storage,
-        IValidator<UpdatePilotProfileRequest> validator)
+        IValidator<UpdatePilotProfileRequest> validator,
+        INotificationService notificationService,
+        ILogger<PilotUpdateRequestService> logger)
     {
         _pilotRepository = pilotRepository;
         _userService = userService;
         _storage = storage;
         _validator = validator;
+        _notificationService = notificationService;
+        _logger = logger;
     }
 
     public async Task<object> GetAllAsync(
@@ -229,18 +237,6 @@ public sealed class PilotUpdateRequestService
                 "Pilot profile not found.");
         }
 
-        bool hasPendingRequest =
-            await _pilotRepository
-                .HasPendingUpdateRequestAsync(
-                    pilot.Id,
-                    cancellationToken);
-
-        if (hasPendingRequest)
-        {
-            throw new InvalidOperationException(
-                "You already have a pending license change.");
-        }
-
         var uploadedPaths = new List<string>();
 
         try
@@ -265,12 +261,17 @@ public sealed class PilotUpdateRequestService
             request.LicenseImageUrls =
                 uploadedPaths;
 
-            return await _userService
+            var result = await _userService
                 .UpdatePilotProfileAsync(
                     userId,
                     request,
                     cancellationToken)
                 ?? throw new InvalidOperationException("Pilot update request could not be created.");
+            if (result.PilotUpdateRequestId.HasValue)
+            {
+                await TryPublishToManagersAsync(result.PilotUpdateRequestId.Value, userId, cancellationToken);
+            }
+            return result;
         }
         catch
         {
@@ -341,12 +342,14 @@ public sealed class PilotUpdateRequestService
         // - xử lý ảnh cũ
         // - gắn ảnh mới
         // - cập nhật trạng thái request
-        return await _userService
+        var result = await _userService
             .ApprovePilotUpdateRequestAsync(
                 requestId,
                 reviewedBy,
                 cancellationToken)
             ?? throw new InvalidOperationException("Pilot update request could not be approved.");
+        await TryPublishDecisionAsync(item.Pilot.UserId, requestId, reviewedBy, true, cancellationToken);
+        return result;
     }
 
     public async Task<object> RejectAsync(
@@ -398,13 +401,15 @@ public sealed class PilotUpdateRequestService
         request.RejectReason = rejectReason;
 
         // Giữ nguyên nghiệp vụ reject cũ.
-        return await _userService
+        var result = await _userService
             .RejectPilotUpdateRequestAsync(
                 requestId,
                 reviewedBy,
                 request,
                 cancellationToken)
             ?? throw new InvalidOperationException("Pilot update request could not be rejected.");
+        await TryPublishDecisionAsync(item.Pilot.UserId, requestId, reviewedBy, false, cancellationToken);
+        return result;
     }
 
     private static string GetFileExtension(
@@ -423,5 +428,40 @@ public sealed class PilotUpdateRequestService
                 .GetExtension(file.FileName)
                 .ToLowerInvariant()
         };
+    }
+
+    private async Task TryPublishToManagersAsync(Guid requestId, Guid actorUserId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificationService.PublishToManagersAsync(
+                "NewPilotUpdateRequest", "New Pilot Profile/License Update Request",
+                "A pilot submitted a new profile or license update request.", actorUserId,
+                requestId, "PilotUpdateRequest", $"/operators?requestId={requestId}", cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Could not publish pilot update request notification for {RequestId}.", requestId);
+        }
+    }
+
+    private async Task TryPublishDecisionAsync(
+        Guid recipientUserId, Guid requestId, Guid actorUserId, bool approved,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificationService.PublishToUserAsync(recipientUserId,
+                approved ? "PilotUpdateApproved" : "PilotUpdateRejected",
+                approved ? "Profile/License Update Approved" : "Profile/License Update Rejected",
+                approved
+                    ? "Your profile or license update request has been approved."
+                    : "Your profile or license update request has been rejected.",
+                actorUserId, requestId, "PilotUpdateRequest", "/profile", cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Could not publish pilot update decision notification for {RequestId}.", requestId);
+        }
     }
 }

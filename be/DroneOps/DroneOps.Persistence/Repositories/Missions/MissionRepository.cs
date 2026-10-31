@@ -44,14 +44,59 @@ public sealed class MissionRepository : IMissionRepository
                 x => x.Id == missionId,
                 cancellationToken);
     }
-    public async Task<List<Mission>> GetAllAsync(
-      CancellationToken cancellationToken = default)
+    public async Task<(List<Mission> Items, int TotalCount)> GetAllAsync(
+     string? search,
+     string? status,
+     DateTime? fromDate,
+     DateTime? toDate,
+     int pageNumber,
+     int pageSize,
+     CancellationToken cancellationToken = default)
     {
-        return await _context.Missions
+        var query = _context.Missions
             .AsNoTracking()
             .Include(x => x.Waypoints)
+            .AsQueryable();
+
+        // Search theo Name hoặc Description
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            search = search.Trim();
+
+            query = query.Where(x =>
+                x.Name.Contains(search) ||
+                (x.Description != null && x.Description.Contains(search)));
+        }
+
+        // Filter status
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            status = status.Trim();
+
+            query = query.Where(x => x.Status == status);
+        }
+
+        // Filter CreatedAt từ ngày
+        if (fromDate.HasValue)
+        {
+            query = query.Where(x => x.CreatedAt >= fromDate.Value);
+        }
+
+        // Filter CreatedAt đến ngày
+        if (toDate.HasValue)
+        {
+            query = query.Where(x => x.CreatedAt <= toDate.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
             .OrderByDescending(x => x.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
     }
     public async Task<List<Mission>> GetByCreatorAsync(
     Guid creatorId,

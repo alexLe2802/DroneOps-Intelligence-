@@ -31,7 +31,12 @@ public sealed class NotificationRepository(AppDbContext db) : GenericRepository<
 
     public Task<List<Guid>> GetActiveOperationManagerIdsAsync(CancellationToken cancellationToken = default) =>
         DbContext.Users.AsNoTracking()
-            .Where(x => x.IsActive && (x.Role.Name == "operation_manager" || x.Role.Name == "operations_manager"))
+            .Where(x => x.IsActive && (
+                x.Role.Name.ToLower() == "operation_manager" ||
+                x.Role.Name.ToLower() == "operations_manager" ||
+                x.Role.Name.ToLower() == "operationsmanager" ||
+                x.Role.Name.ToLower() == "admin" ||
+                x.Role.Name.ToLower() == "systemadmin"))
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
 }

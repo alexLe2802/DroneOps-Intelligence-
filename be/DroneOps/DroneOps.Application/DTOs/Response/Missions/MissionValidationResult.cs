@@ -7,12 +7,15 @@ public sealed class MissionValidationResult
     public string RestrictionRevision { get; set; } = "";
     public bool Stale { get; set; }
     public bool Incomplete { get; set; }
+    public bool Error { get; set; }
     public List<RestrictionFinding> Findings { get; set; } = [];
+    public List<RestrictionEvidence> RestrictionEvidence { get; set; } = [];
     public Guid? MissionId { get; set; }
     public string Stage { get; set; } = "Creation";
     public DateTimeOffset CheckedAt { get; set; } = DateTimeOffset.UtcNow;
     public bool IsValid => Issues.Count == 0 && !Incomplete && !Stale;
-    public string Status => Stale ? "Stale" : Incomplete ? "Incomplete" : IsValid ? "Passed" : "Blocked";
+    public string Outcome => Error ? "Error" : Incomplete ? "Incomplete" : IsValid ? "Pass" : "Fail";
+    public string Status => Stale ? "Stale" : Outcome;
     public string Message => IsValid ? "Mandatory checks passed." : string.Join(" ", Issues);
     public List<string> Issues { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
@@ -56,6 +59,20 @@ public sealed class RestrictionFinding
     public int? SegmentFrom { get; set; }
     public int? SegmentTo { get; set; }
     public string Reason { get; set; } = "";
+}
+
+public sealed class RestrictionEvidence
+{
+    public Guid GeofenceId { get; set; }
+    public long Revision { get; set; }
+    public string Name { get; set; } = "";
+    public string RestrictionType { get; set; } = "Restricted";
+    public string CoordinatesJson { get; set; } = "[]";
+    public string VerticalRule { get; set; } = "Unspecified";
+    public string? AltitudeReference { get; set; }
+    public decimal? MinAltitudeMeters { get; set; }
+    public decimal? MaxAltitudeMeters { get; set; }
+    public string Text { get; set; } = "";
 }
 
 public sealed class WaypointWeather

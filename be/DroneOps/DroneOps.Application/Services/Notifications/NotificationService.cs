@@ -40,46 +40,80 @@ public sealed class NotificationService(
     public Task<int> MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default) =>
         repository.MarkAllAsReadAsync(userId, DateTimeOffset.UtcNow, cancellationToken);
 
-    public async Task PublishPendingMissionAsync(Guid missionId, Guid actorUserId, string missionName, CancellationToken cancellationToken = default)
+    public async Task PublishToManagersAsync(
+        string type, string title, string message, Guid? actorUserId, Guid referenceId,
+        string referenceType, string actionUrl, CancellationToken cancellationToken = default)
     {
         var recipients = await repository.GetActiveOperationManagerIdsAsync(cancellationToken);
-        var notifications = recipients.Select(recipient => new Notification
-        {
-            Id = Guid.NewGuid(),
-            RecipientUserId = recipient,
-            ActorUserId = actorUserId,
-            Type = "NewPendingMission",
-            Title = "New Pending Mission",
-            Message = $"Mission '{missionName}' has been submitted and is waiting for approval.",
-            ReferenceId = missionId,
-            ReferenceType = "Mission",
-            ActionUrl = $"/validation-approvals?missionId={missionId}",
-            CreatedAt = DateTimeOffset.UtcNow
-        });
+        await AddForRecipientsAsync(recipients, type, title, message, actorUserId,
+            referenceId, referenceType, actionUrl, cancellationToken);
+    }
+
+    public async Task PublishToUserAsync(
+        Guid recipientUserId, string type, string title, string message, Guid? actorUserId,
+        Guid referenceId, string referenceType, string actionUrl, CancellationToken cancellationToken = default)
+    {
+        await repository.AddAsync(Create(recipientUserId, type, title, message, actorUserId,
+            referenceId, referenceType, actionUrl), cancellationToken);
+        await repository.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task PublishIncidentRaisedAsync(
+        Guid incidentId, string incidentType, Guid pilotUserId, CancellationToken cancellationToken = default)
+    {
+        var managers = await repository.GetActiveOperationManagerIdsAsync(cancellationToken);
+        var recipients = managers.Append(pilotUserId).Distinct();
+        await AddForRecipientsAsync(recipients, "IncidentRaised", $"Incident Alert: {incidentType}",
+            $"A new {incidentType} incident has been raised.", null, incidentId,
+            "Incident", $"/incident-management?incidentId={incidentId}", cancellationToken);
+    }
+
+    public async Task PublishPendingMissionAsync(Guid missionId, Guid actorUserId, string missionName, CancellationToken cancellationToken = default)
+    {
+        await PublishToManagersAsync("NewPendingMission", "New Pending Mission",
+            $"Mission '{missionName}' has been submitted and is waiting for approval.",
+            actorUserId, missionId, "Mission", $"/validation-approvals?missionId={missionId}", cancellationToken);
+    }
+
+    public async Task PublishMissionDecisionAsync(Guid missionId, Guid actorUserId, bool approved, string? rejectionReason = null, CancellationToken cancellationToken = default)
+    {
+        var mission = await missionRepository.GetByIdAsync(missionId, cancellationToken);
+        if (mission is null) return;
+        var message = approved
+            ? $"Your mission '{mission.Name}' has been approved."
+            : $"Your mission '{mission.Name}' was rejected." +
+              (string.IsNullOrWhiteSpace(rejectionReason) ? string.Empty : $" Reason: {rejectionReason.Trim()}");
+        await PublishToUserAsync(mission.CreatedBy,
+            approved ? "MissionApproved" : "MissionRejected",
+            approved ? "Mission Approved" : "Mission Rejected", message, actorUserId,
+            mission.Id, "Mission", $"/mission-planning?missionId={mission.Id}", cancellationToken);
+    }
+
+    private async Task AddForRecipientsAsync(
+        IEnumerable<Guid> recipients, string type, string title, string message, Guid? actorUserId,
+        Guid referenceId, string referenceType, string actionUrl, CancellationToken cancellationToken)
+    {
+        var notifications = recipients.Distinct().Select(recipient =>
+            Create(recipient, type, title, message, actorUserId, referenceId, referenceType, actionUrl));
         await repository.AddRangeAsync(notifications, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task PublishMissionDecisionAsync(Guid missionId, Guid actorUserId, bool approved, CancellationToken cancellationToken = default)
+    private static Notification Create(
+        Guid recipientUserId, string type, string title, string message, Guid? actorUserId,
+        Guid referenceId, string referenceType, string actionUrl) => new()
     {
-        var mission = await missionRepository.GetByIdAsync(missionId, cancellationToken);
-        if (mission is null) return;
-        var decision = approved ? "approved" : "rejected";
-        await repository.AddAsync(new Notification
-        {
-            Id = Guid.NewGuid(),
-            RecipientUserId = mission.CreatedBy,
-            ActorUserId = actorUserId,
-            Type = approved ? "MissionApproved" : "MissionRejected",
-            Title = approved ? "Mission Approved" : "Mission Rejected",
-            Message = $"Mission '{mission.Name}' has been {decision}.",
-            ReferenceId = mission.Id,
-            ReferenceType = "Mission",
-            ActionUrl = $"/missions/{mission.Id}",
-            CreatedAt = DateTimeOffset.UtcNow
-        }, cancellationToken);
-        await repository.SaveChangesAsync(cancellationToken);
-    }
+        Id = Guid.NewGuid(),
+        RecipientUserId = recipientUserId,
+        ActorUserId = actorUserId,
+        Type = type,
+        Title = title,
+        Message = message,
+        ReferenceId = referenceId,
+        ReferenceType = referenceType,
+        ActionUrl = actionUrl,
+        CreatedAt = DateTimeOffset.UtcNow
+    };
 
     private static NotificationResponse Map(Notification notification) => new()
     {

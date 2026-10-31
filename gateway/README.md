@@ -128,10 +128,12 @@ Khi chuyển sang LAN khác (ví dụ đến lab), không cần chạy lại ins
 
    HTTP chỉ dùng cho LAN dev tin cậy. Giữ port 5159 nếu backend vẫn chạy port đó.
    Không nhập `0.0.0.0`, `localhost` hoặc IP Jetson vào backend origin.
-4. Nếu dùng QGroundControl, chạy `sudo nano /etc/droneops-router/main.conf`.
-   Chỉ đổi `Address` trong `[UdpEndpoint laptop]` thành IP laptop mới, giữ port
-   `14550`, rồi chạy `sudo systemctl restart droneops-router`. Không đổi endpoint
-   gateway nội bộ `127.0.0.1:14551`. Nếu không dùng GCS thì bỏ bước này.
+4. Nếu dùng QGroundControl hoặc Mission Planner, chạy
+   `sudo nano /etc/droneops-router/main.conf`. Đổi `Address` trong hai endpoint
+   `[UdpEndpoint qgroundcontrol]` và `[UdpEndpoint missionplanner]` thành IP
+   laptop mới, giữ lần lượt port `14550` và `14551`, rồi chạy
+   `sudo systemctl restart droneops-router`. Không đổi endpoint gateway nội bộ
+   `127.0.0.1:14551`. Nếu không dùng GCS thì bỏ bước này.
 5. Kiểm tra từ Jetson bằng IP laptop mới:
 
    ```bash

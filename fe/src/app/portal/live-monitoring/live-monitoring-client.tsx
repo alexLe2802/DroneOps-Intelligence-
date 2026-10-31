@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getLatestMissionTelemetry, getLiveMissions, getMission, getMissionIncidents, liveMissionStreamUrl } from "@/lib/portal/client";
 import type { IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
 import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
@@ -30,6 +30,7 @@ export default function LiveMonitoringClient() {
   const [selectedId, setSelectedId] = useState("");
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [telemetry, setTelemetry] = useState<MissionTelemetry | null>(null);
+  const browserReceiptTimes = useRef(new Map<string, string>());
   const [incidents, setIncidents] = useState<IncidentItem[]>([]);
   const [loadingMission, setLoadingMission] = useState(false);
   const [error, setError] = useState("");
@@ -116,7 +117,11 @@ export default function LiveMonitoringClient() {
     source.onopen = () => setStreamState("live");
     source.onerror = () => setStreamState("reconnecting");
     const updateTelemetry = (event: MessageEvent<string>) => {
-      try { setTelemetry(JSON.parse(event.data) as MissionTelemetry); setStreamState("live"); }
+      try {
+        const next = JSON.parse(event.data) as MissionTelemetry;
+        if (next.sourceTimestamp) browserReceiptTimes.current.set(next.sourceTimestamp, new Date().toISOString());
+        setTelemetry(next); setStreamState("live");
+      }
       catch { setError("A telemetry packet could not be decoded."); }
     };
     const updateIncident = (event: MessageEvent<string>) => {
@@ -143,6 +148,25 @@ export default function LiveMonitoringClient() {
   const progress = Math.min(100, Math.max(0, telemetry?.progressPercent ?? selected?.progressPercent ?? (waypointTotal ? sequence / waypointTotal * 100 : 0)));
   const activeIncidents = incidents.filter(item => statusKey(item.status) !== "resolved");
   const latestIncident = activeIncidents[0];
+
+  // QA performance hook: requestAnimationFrame runs after React commits the
+  // telemetry state, so browser automation can distinguish SSE receipt from a
+  // frame that was actually ready to paint. No telemetry is sent anywhere;
+  // consumers must explicitly listen for this local browser event.
+  useEffect(() => {
+    if (!telemetry?.missionId || !telemetry.sourceTimestamp) return;
+    const sourceTimestamp = telemetry.sourceTimestamp;
+    const frame = window.requestAnimationFrame(timestamp => {
+      window.dispatchEvent(new CustomEvent("droneops:telemetry-rendered", { detail: {
+        missionId: telemetry.missionId,
+        sourceTimestamp,
+        browserReceivedAt: browserReceiptTimes.current.get(sourceTimestamp) ?? null,
+        renderedAt: new Date().toISOString(),
+        frameTimestamp: timestamp,
+      }}));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [telemetry]);
 
   if (missions === null) return <section className={styles.state}><div className={styles.spinner} /><p>ESTABLISHING LIVE OPERATIONS LINK</p></section>;
 

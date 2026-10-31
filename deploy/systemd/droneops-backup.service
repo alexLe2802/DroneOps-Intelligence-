@@ -1,0 +1,18 @@
+[Unit]
+Description=DroneOps daily PostgreSQL and private-media backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=droneops-backup
+Group=droneops-backup
+EnvironmentFile=/etc/droneops/backup.env
+WorkingDirectory=/opt/droneops
+ExecStart=/usr/bin/python3 /opt/droneops/recovery-tools/backup.py --target-environment production --output-root /var/backups/droneops
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/droneops

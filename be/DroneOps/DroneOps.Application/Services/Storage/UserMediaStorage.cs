@@ -139,13 +139,79 @@ public sealed class UserMediaStorage : IUserMediaStorage
         }
     }
 
+    public async Task<byte[]> ReadValidatedUavImageAsync(
+        Stream stream,
+        string fileName,
+        string contentType,
+        long fileSize,
+        CancellationToken cancellationToken = default)
+    {
+        const long maximumSize = 5 * 1024 * 1024;
+        if (fileSize <= 0 || fileSize > maximumSize)
+        {
+            throw new ArgumentException("UAV image must be 5 MB or smaller.");
+        }
+
+        var normalizedContentType = contentType.Trim().ToLowerInvariant();
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        var validExtension = normalizedContentType switch
+        {
+            "image/jpeg" => extension is ".jpg" or ".jpeg",
+            "image/png" => extension == ".png",
+            "image/webp" => extension == ".webp",
+            _ => false
+        };
+        if (!validExtension)
+        {
+            throw new ArgumentException("Choose a JPEG, PNG or WebP UAV image with a matching file extension.");
+        }
+
+        using var buffer = new MemoryStream((int)fileSize);
+        await stream.CopyToAsync(buffer, cancellationToken);
+        if (buffer.Length != fileSize || buffer.Length > maximumSize)
+        {
+            throw new ArgumentException("The UAV image payload size is invalid.");
+        }
+
+        var bytes = buffer.ToArray();
+        var signatureMatches = normalizedContentType switch
+        {
+            "image/jpeg" => bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF,
+            "image/png" => bytes.Length >= 8 && bytes.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
+            "image/webp" => bytes.Length >= 12 && bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) && bytes.AsSpan(8, 4).SequenceEqual("WEBP"u8),
+            _ => false
+        };
+        if (!signatureMatches)
+        {
+            throw new ArgumentException("The uploaded file signature does not match a valid JPEG, PNG or WebP image.");
+        }
+
+        return bytes;
+    }
+
+    public async Task UploadAsync(
+        string path,
+        Stream stream,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage request = CreateRequest(HttpMethod.Post, $"/object/{Bucket}/{path}");
+        request.Content = new StreamContent(stream);
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        using HttpResponseMessage response = await _client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException("Unable to upload file to Supabase Storage.");
+        }
+    }
+
     public async Task<string> SignAsync(
         string path,
         CancellationToken cancellationToken = default)
     {
         bool isValidPath = Regex.IsMatch(
             path,
-            @"^(licenses|avatars)/" +
+            @"^(licenses|avatars|uavs)/" +
             @"[a-fA-F0-9-]+/" +
             @"[a-fA-F0-9]+" +
             @"(\.(pdf|doc|docx|png|webp|jpg))?$");
