@@ -18,6 +18,55 @@
   font-family: Consolas, monospace;
 }
 
+.detailNavigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.detailNavigation a {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid #385064;
+  border-radius: 3px;
+  background: #151e29;
+  color: #82ddfc;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-decoration: none;
+  transition: border-color .16s ease, background-color .16s ease, color .16s ease;
+}
+
+.detailNavigation a:hover {
+  border-color: #82ddfc;
+  background: #1c2b39;
+  color: #e7f8ff;
+}
+
+.detailNavigation a:focus-visible {
+  outline: 2px solid #82ddfc;
+  outline-offset: 2px;
+}
+
+.detailNavigation a span {
+  font: 14px/1 Arial, sans-serif;
+}
+
+.detailNavigation > span {
+  min-width: 0;
+  overflow: hidden;
+  color: #778899;
+  font-size: 8px;
+  letter-spacing: .8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -743,43 +792,83 @@
   cursor: not-allowed;
 }
 
-.actionUnavailable,
+.actionControls,
 .readOnlyNotice {
   margin-top: auto;
   padding: 12px;
   border-top: 1px solid var(--line);
 }
 
-.actionUnavailable button {
+.actionControls button {
   width: 100%;
   min-height: 46px;
-  border: 1px solid #4a5664;
+  border: 1px solid #526474;
   border-radius: 2px;
-  background: #2a3039;
-  color: #8d969f;
+  background: #202b36;
+  color: #d7e2eb;
   font-size: 9px;
   letter-spacing: .8px;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
-.actionUnavailable > div {
+.actionControls > div {
   display: grid;
   grid-template-columns: 1fr 1.15fr;
   gap: 8px;
 }
 
-.actionUnavailable button.primaryAction {
+.actionControls button.primaryAction {
   border-color: #217da4;
   background: #1685b2;
   color: #07131b;
   font-weight: 700;
 }
 
-.actionUnavailable p {
+.actionControls button:hover:not(:disabled) {
+  border-color: var(--cyan);
+  background: #293c49;
+  color: #f2fbff;
+}
+
+.actionControls button.primaryAction:hover:not(:disabled) {
+  border-color: #77ddff;
+  background: #35b8e8;
+  color: #06131b;
+}
+
+.actionControls button:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.actionControls button:disabled {
+  border-color: #394553;
+  background: #252c35;
+  color: #77838f;
+  cursor: not-allowed;
+}
+
+.actionControls > p {
   margin: 9px 0 0;
   color: #8c99a6;
   font-size: 8px;
   line-height: 1.5;
+}
+
+.actionControls > p.actionError,
+.actionControls > p.actionSuccess {
+  margin: 0 0 9px;
+  padding: 9px 10px;
+  border: 1px solid #773d46;
+  background: #3d2026;
+  color: #ffb2b5;
+  font-size: 9px;
+}
+
+.actionControls > p.actionSuccess {
+  border-color: #286452;
+  background: #15352d;
+  color: #72e1bb;
 }
 
 .readOnlyNotice {
@@ -896,7 +985,7 @@
   .actionPanel > .panelHeader { grid-column: 1 / -1; }
   .timeline { grid-row: 2 / 5; }
   .notesPanel { margin-top: 12px; }
-  .actionUnavailable,
+  .actionControls,
   .readOnlyNotice { margin-top: 0; }
 }
 
@@ -962,6 +1051,15 @@
 }
 
 @media (max-width: 480px) {
+  .detailNavigation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detailNavigation a {
+    justify-content: center;
+  }
+
   .alertBand { grid-template-columns: 1fr; }
   .alertState,
   .elapsed,
@@ -969,5 +1067,5 @@
   .identityChips { grid-template-columns: 1fr; }
   .streamPanel p { grid-template-columns: 1fr; }
   .panelHeader { align-items: flex-start; flex-direction: column; }
-  .actionUnavailable > div { grid-template-columns: 1fr; }
+  .actionControls > div { grid-template-columns: 1fr; }
 }
