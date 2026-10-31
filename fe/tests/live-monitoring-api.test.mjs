@@ -65,3 +65,32 @@ test("incident registry and detail clients preserve the backend filter contract"
     mock.mock.restore();
   }
 });
+
+test("incident actions acknowledge and resolve through the exact backend contracts", async () => {
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    calls.push([url, options.method, JSON.parse(options.body)]);
+    return Response.json({ id: "incident-id", status: url.endsWith("/resolve") ? "Resolved" : "Acknowledged" });
+  });
+  try {
+    assert.equal((await client.acknowledgeIncident("incident-id")).status, "Acknowledged");
+    assert.equal((await client.resolveIncident("incident-id", "  Link restored and verified.  ")).status, "Resolved");
+    assert.deepEqual(calls, [
+      ["/api/incidents/incident-id/acknowledge", "POST", { notes: null }],
+      ["/api/incidents/incident-id/resolve", "POST", { resolutionNotes: "Link restored and verified." }],
+    ]);
+  } finally {
+    mock.mock.restore();
+  }
+});
+
+test("proxy permits incident lifecycle actions and rejects invented actions", async () => {
+  const source = await readFile(new URL("../src/app/api/[...path]/route.ts", import.meta.url), "utf8");
+  const regex = source.match(/const allowed = (\/.*\/);/)[1];
+  const allowed = Function(`return ${regex}`)();
+  const id = "11111111-1111-1111-1111-111111111111";
+  assert.equal(allowed.test(`incidents/${id}/acknowledge`), true);
+  assert.equal(allowed.test(`incidents/${id}/resolve`), true);
+  assert.equal(allowed.test(`incidents/${id}/history`), false);
+  assert.equal(allowed.test(`incidents/${id}/delete`), false);
+});
