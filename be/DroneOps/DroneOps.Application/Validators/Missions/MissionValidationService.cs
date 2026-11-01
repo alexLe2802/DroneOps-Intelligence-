@@ -301,12 +301,25 @@ public sealed class MissionValidationService(
         {
             Id = result.Id,
             MissionId = result.MissionId,
+            UpdateRequestId = result.UpdateRequestId,
             ActorId = actor,
             Stage = result.Stage,
             IsValid = result.IsValid,
+            ResultStatus = result.Outcome,
             CheckedAt = result.CheckedAt,
 
             PlanHash = Hash(mission),
+            RestrictionRevision = result.RestrictionRevision,
+
+            EvidenceJson = JsonSerializer.Serialize(
+                new
+                {
+                    planHash = Hash(mission),
+                    plan = Snapshot(mission),
+                    findings = result.Findings,
+                    restrictions = result.RestrictionEvidence
+                },
+                JsonOptions),
 
             PlanJson = JsonSerializer.Serialize(
                 Snapshot(mission),
