@@ -4,12 +4,14 @@ import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
-import type { AssignedUav, Geofence, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
+import { cancelHighRiskMission, confirmHighRiskMission, createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
+import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
+import HighRiskConfirmation from "./high-risk-confirmation";
 
-import { routeError } from "@/lib/maps/planning-validation";
+import { appendLandingWaypoint } from "@/lib/maps/mission-waypoints";
+import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 import { useUnsavedChanges } from "@/lib/maps/use-unsaved-changes";
 
 const actions: WaypointAction[] = ["TakeOff", "FlyThrough", "Hover", "CapturePhoto", "Land"];
@@ -36,6 +38,8 @@ export default function MissionForm() {
   const operation = useRef<{ signature: string; id: string } | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [averageSpeed, setAverageSpeed] = useState("");
+  const [maxSpeed, setMaxSpeed] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [waypoints, setWaypoints] = useState<MissionWaypoint[]>([]);
@@ -43,7 +47,10 @@ export default function MissionForm() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  useUnsavedChanges(!saved && Boolean(name || description || uavId || startTime || endTime || waypoints.length));
+  const [highRiskMission, setHighRiskMission] = useState<MissionDetail | null>(null);
+  const [riskBusy, setRiskBusy] = useState<"confirm" | "cancel" | null>(null);
+  const [riskError, setRiskError] = useState("");
+  useUnsavedChanges(!saved && Boolean(name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
   function load() {
     setAircraft(null); setLoadError(null);
     void Promise.allSettled([getAssignedUavs(), getGeofences()]).then(([uavs, zones]) => {
@@ -69,13 +76,11 @@ export default function MissionForm() {
       const last = current[current.length - 1];
       const nextLatitude = latitude ?? (last && Number.isFinite(last.latitude) ? last.latitude : 10.8231);
       const nextLongitude = longitude ?? (last && Number.isFinite(last.longitude) ? last.longitude : 106.6297);
-      return [...current, {
-        sequenceOrder: current.length + 1,
+      return appendLandingWaypoint(current, {
         latitude: Number(nextLatitude.toFixed(6)),
         longitude: Number(nextLongitude.toFixed(6)),
         altitude: 50,
-        actionType: current.length === 0 ? "TakeOff" : "FlyThrough",
-      }];
+      });
     });
   }
   function updateWaypoint(index: number, patch: Partial<MissionWaypoint>) {
@@ -101,17 +106,49 @@ export default function MissionForm() {
     const start = new Date(startTime), end = new Date(endTime);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) { setError("Enter a valid schedule with the end time later than the start time."); return; }
     if (start.getTime() <= Date.now()) { setError("Flight start time must be in the future. Update the start date and time."); return; }
+    const averageSpeedMetersPerSecond = Number(averageSpeed);
+    const maxSpeedMetersPerSecond = Number(maxSpeed);
+    const invalidSpeed = missionSpeedError(averageSpeedMetersPerSecond, maxSpeedMetersPerSecond);
+    if (invalidSpeed) { setError(invalidSpeed); return; }
     pending.current = true;
     setSaving(true);
     try {
-      const payload = { altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints };
+      const payload = { altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints };
       const signature = JSON.stringify(payload);
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
       const created = await createMission({ ...payload, operationId: operation.current.id });
       setSaved(true);
+      if (created.status.trim().toLowerCase() === "pending confirm") {
+        setHighRiskMission(created);
+        return;
+      }
       router.push(`/portal/missions/${created.id}`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to create the mission."); }
     finally { pending.current = false; setSaving(false); }
+  }
+  async function confirmHighRisk() {
+    if (!highRiskMission || riskBusy) return;
+    setRiskBusy("confirm"); setRiskError("");
+    try {
+      await confirmHighRiskMission(highRiskMission.id);
+      router.replace(`/portal/missions/${highRiskMission.id}`);
+      router.refresh();
+    } catch (reason) {
+      setRiskError(reason instanceof Error ? reason.message : "Unable to confirm the high-risk mission.");
+      setRiskBusy(null);
+    }
+  }
+  async function cancelHighRisk() {
+    if (!highRiskMission || riskBusy) return;
+    setRiskBusy("cancel"); setRiskError("");
+    try {
+      await cancelHighRiskMission(highRiskMission.id);
+      router.replace("/portal/missions");
+      router.refresh();
+    } catch (reason) {
+      setRiskError(reason instanceof Error ? reason.message : "Unable to cancel the high-risk mission.");
+      setRiskBusy(null);
+    }
   }
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!aircraft) return <ModuleLoading label="Loading mission resources" />;
@@ -140,6 +177,8 @@ export default function MissionForm() {
           <label>ASSIGNED UAV<select value={uavId} onChange={event => setUavId(event.target.value)} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
           <label className="full-field">DESCRIPTION<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
+          <label>AVERAGE SPEED (M/S)<input id="mission-average-speed" type="number" min="0.1" step="0.1" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder="10.0" required /></label>
+          <label>MAXIMUM SPEED (M/S)<input id="mission-max-speed" type="number" min="0.1" step="0.1" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder="15.0" required /></label>
           <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setStartTime(event.target.value)} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">LOCAL TIME / START MUST BE IN THE FUTURE</small></div>
           <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setEndTime(event.target.value)} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">MUST BE LATER THAN START</small></div>
         </div>
@@ -157,5 +196,6 @@ export default function MissionForm() {
       {error && <p className="form-error" role="alert" aria-live="assertive">{error}</p>}
       <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mandatory checks must pass before the mission is sent for manager review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "VALIDATING…" : "CREATE & VALIDATE MISSION"}</button></div></footer>
     </form>
+    {highRiskMission && <HighRiskConfirmation mission={highRiskMission} busy={riskBusy} error={riskError} onConfirm={() => void confirmHighRisk()} onCancel={() => void cancelHighRisk()} />}
   </>;
 }
