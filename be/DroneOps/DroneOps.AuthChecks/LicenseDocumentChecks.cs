@@ -31,8 +31,10 @@ internal static class LicenseDocumentChecks
         await Check("license.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer.ToArray(), true);
         await Check("fake.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "not a document"u8.ToArray(), false);
         await Check("fake.pdf", "application/pdf", buffer.ToArray(), false);
-        await Check("photo.png", "image/png", new byte[] {137,80,78,71,13,10,26,10,0,0,0,0}, false);
+        await Check("photo.png", "image/png", new byte[] {137,80,78,71,13,10,26,10,0,0,0,0}, true);
         await Check("avatar.png", "image/png", new byte[] {137,80,78,71,13,10,26,10,0,0,0,0}, true, true);
+        await Check("large.png", "image/png", new byte[5 * 1024 * 1024 + 1], false);
+        await Check("fake.png", "image/png", "not an image"u8.ToArray(), false);
         await Check("empty.pdf", "application/pdf", Array.Empty<byte>(), false);
         await Check("large.pdf", "application/pdf", new byte[10 * 1024 * 1024 + 1], false);
     }

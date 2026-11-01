@@ -23,3 +23,5 @@ with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
         info.external_attr=mode<<16
         archive.writestr(info,source.read_bytes().replace(b'\r\n', b'\n'))
 print('Gateway source download generated.')
+(output.parent/'bootstrap-jetson.sh').write_bytes((root/'bootstrap-jetson.sh').read_bytes().replace(b'\r\n', b'\n'))
+print('Jetson bootstrap download generated.')

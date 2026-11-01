@@ -8,6 +8,7 @@ import styles from "./drone-connection.module.css";
 
 const labels: Record<DroneConnection["status"],string> = {AwaitingGateway:"Waiting for gateway",PairingExpired:"Pairing code expired",Expired:"Session expired",Revoked:"Disconnected",Offline:"Gateway offline",GatewayConnected:"Gateway online · waiting for drone",ReceivingTelemetry:"Receiving drone telemetry"};
 type Pairing = {connection:DroneConnection;pairingCode:string;gatewayPath:"/ws/drone-gateway"};
+type BootstrapInfo = {backendOrigin:string;downloadOrigin:string;laptopHost:string};
 
 export default function DroneConnectionClient() {
   const [bindings,setBindings]=useState<DroneBinding[]>([]);
@@ -20,13 +21,18 @@ export default function DroneConnectionClient() {
   const [pairing,setPairing]=useState<Pairing|null>(null);
   const [busy,setBusy]=useState(false); const [loading,setLoading]=useState(true);
   const [statusError,setStatusError]=useState("");
+  const [bootstrapInfo,setBootstrapInfo]=useState<BootstrapInfo|null>(null);
   const [error,setError]=useState(""); const [notice,setNotice]=useState("");
   const [now,setNow]=useState(()=>Date.now());
   useEffect(()=>{let active=true;void Promise.all([getAssignedUavs(),getPilotMissions(),getDroneConnections(),getDroneBindings()]).then(([a,m,c,b])=>{if(!active)return;setAircraft(a.filter(x=>x.status.toLowerCase()==="active"));setMissions(m.filter(x=>["approved","inprogress"].includes(x.status.toLowerCase().replaceAll(" ",""))));setConnections(c);setBindings(b);}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
+  useEffect(()=>{let active=true;void fetch("/api/gateway-bootstrap",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error("Unable to determine the LAN backend address.");return response.json() as Promise<BootstrapInfo>;}).then(info=>{if(active)setBootstrapInfo(info);}).catch(e=>{if(active)setError(e instanceof Error?e.message:"Unable to prepare the Jetson command.");});return()=>{active=false;};},[]);
   useEffect(()=>{let active=true;const timer=setInterval(()=>{setNow(Date.now());void Promise.all([getDroneConnections(),getDroneBindings()]).then(([c,b])=>{if(active){setConnections(c);setBindings(b);setStatusError("");}}).catch(()=>{if(active)setStatusError("Connection status could not be refreshed. Check your network and reload.");});},5000);return()=>{active=false;clearInterval(timer);};},[]);
   const eligible=missions.filter(m=>m.uavId===uav);
   const pairedState=pairing?connections.find(c=>c.id===pairing.connection.id):null;
   const codeVisible=pairing && !pairedState?.pairedAt && !pairedState?.revokedAt && new Date(pairing.connection.codeExpiresAt).getTime()>now;
+  const jetsonCommand=pairing&&bootstrapInfo?`curl -fsSL '${bootstrapInfo.downloadOrigin}/downloads/bootstrap-jetson.sh' -o /tmp/droneops-bootstrap.sh && sudo bash /tmp/droneops-bootstrap.sh --server '${bootstrapInfo.backendOrigin}' --package-url '${bootstrapInfo.downloadOrigin}/downloads/droneops-gateway.zip' --gcs-host '${bootstrapInfo.laptopHost}' --otp '${pairing.pairingCode}'`:"";
+  const radioWindowsCommand=bootstrapInfo?`.venv\\Scripts\\python.exe gateway.py --server ${bootstrapInfo.backendOrigin} --device COM5 --baud 57600 --system-id 1 --new-pairing`:"Detecting backend address…";
+  const radioUnixCommand=bootstrapInfo?`.venv/bin/python gateway.py --server ${bootstrapInfo.backendOrigin} --device /dev/ttyUSB0 --baud 57600 --system-id 1 --new-pairing`:"Detecting backend address…";
   async function connect(){setBusy(true);setError("");setNotice("");try{const result=await createDroneConnection(uav,mission);setPairing(result);setConnections(await getDroneConnections());}catch(e){setError(e instanceof Error?e.message:"Unable to create pairing.");}finally{setBusy(false);}}
   async function disconnect(id:string){setBusy(true);setError("");try{await revokeDroneConnection(id);if(pairing?.connection.id===id)setPairing(null);setConnections(await getDroneConnections());setNotice("Connection revoked. The gateway can no longer send telemetry through this session.");}catch(e){setError(e instanceof Error?e.message:"Unable to disconnect.");}finally{setBusy(false);}}
   return <div className={styles.page}>
@@ -40,13 +46,17 @@ export default function DroneConnectionClient() {
         </div>
         <a className="module-secondary module-link" href="/downloads/droneops-gateway.zip" download>DOWNLOAD GATEWAY + SETUP GUIDE</a>
         {profile==="jetson"?<>
-          <h3>One-time Jetson setup</h3>
-          <p>Connect Pixhawk TELEM2 through a 3.3 V USB-UART adapter. Save your Wi-Fi connection on the Jetson, then copy and extract the download there. Open CONNECTION_SETUP.md for wiring and firmware settings.</p>
-          <pre>{`unzip droneops-gateway.zip -d ~/droneops-package
-cd ~/droneops-package/droneops-gateway
-sudo bash install-jetson.sh`}</pre>
-          <p>The installer asks for the Pixhawk port, matching baud rate, system ID and backend address. Optionally enter your laptop IP for QGroundControl. Internet is needed during installation.</p>
-          <p>Both background services start automatically. Before pairing, the Jetson waits for setup; no terminal needs to remain open afterward.</p>
+          <h3>Start the backend for LAN access</h3>
+          <p>Before creating a pairing code, open a terminal at the DroneOps repository root—the folder containing <code>be</code> and <code>fe</code>—then start the backend with LAN binding. Binding only to <code>localhost</code> prevents the Jetson from connecting.</p>
+          <pre>{`dotnet run --project ./be/DroneOps/DroneOps.API/DroneOps.API.csproj \\
+  --no-launch-profile \\
+  --urls http://0.0.0.0:5159 \\
+  --environment Development`}</pre>
+          <p>If MSBuild reports that the project file does not exist, the terminal is not at the repository root. Change to the cloned <code>SEP490</code> folder and run the command again.</p>
+          <p><code>0.0.0.0</code> is the listen address, not the address stored on the Jetson. The generated command replaces it with this laptop&apos;s current LAN IP and port <code>5159</code>. Keep the backend running while receiving telemetry.</p>
+          <h3>Automatic Jetson setup</h3>
+          <p>Connect Pixhawk TELEM2 through one 3.3 V USB-UART adapter and save this LAN on the Jetson. After creating a pairing code, step 03 generates one complete SSH command with the current laptop IP and backend port.</p>
+          <p>The command installs or updates the gateway, configures both services, pairs the drone and enables automatic startup. If the Jetson exposes multiple USB serial ports, choose the Pixhawk port by number in the terminal.</p>
         </>:<>
           <h3>Telemetry radio via laptop</h3><p>Connect the air radio to the flight controller TELEM2 port. Plug its paired ground radio into your laptop by USB. Match the radio serial baud and configure the flight controller port for MAVLink.</p>
           <p>Extract the download on your laptop and install Python 3.9+. Run these commands inside the extracted droneops-gateway folder:</p>
@@ -67,12 +77,13 @@ sudo bash install-jetson.sh`}</pre>
         <p>Creating a new code revokes any existing connection for this UAV.</p><button className="module-primary" disabled={busy||loading||!uav||!mission||(!bindings.some(b=>b.uavId===uav)&&!bindingConfirmed)} onClick={()=>void connect()}>{busy?"PLEASE WAIT…":"CREATE PAIRING CODE"}</button>
       </section>
     </div>
-    <section className={styles.card}><span className={styles.step}>03 · PAIR THIS MISSION</span><h2>{profile==="jetson"?"Enter the code on your Jetson":"Enter the code on your laptop"}</h2>
-      {profile==="jetson"?<><p>Run this helper on the Jetson and enter the code below. It verifies the Pixhawk identity, saves the session and returns to the background service. You can close the terminal once it succeeds.</p>
-      <pre>sudo /opt/droneops-gateway/pair-jetson.sh</pre>
-      <p>For later boots, just supply power and your saved network.</p></>:<><p>Replace the backend address, radio serial port, baud and system ID with your values. Enter the code when prompted. Windows example (COM5 and 57600 are placeholders):</p>
-      <pre>{`.venv\\Scripts\\python.exe gateway.py --server https://YOUR-BACKEND --device COM5 --baud 57600 --system-id 1 --new-pairing`}</pre>
-      <p>On Linux/macOS use <code>.venv/bin/python</code> and the radio device path, such as <code>/dev/ttyUSB0</code>. Keep this process running to send telemetry. To restart the same session, omit <code>--new-pairing</code>.</p></>}
+    <section className={styles.card}><span className={styles.step}>03 · PAIR THIS MISSION</span><h2>{profile==="jetson"?"Copy one command to your Jetson":"Enter the code on your laptop"}</h2>
+      {profile==="jetson"?<><p>Create a code below, SSH into the Jetson and paste the generated command. It uses the current LAN address, installs or updates the gateway, enables its services and pairs the selected mission. After setup, the same terminal continuously shows gateway and GPS logs; press Ctrl+C to stop viewing logs without stopping the background service.</p>
+      {codeVisible&&jetsonCommand?<div className={styles.code}><pre>{jetsonCommand}</pre><button type="button" onClick={()=>void navigator.clipboard.writeText(jetsonCommand).then(()=>setNotice("Jetson setup command copied.")).catch(()=>setNotice("Select and copy the command manually."))}>COPY JETSON COMMAND</button></div>:<div className={styles.empty}>Create a pairing code to generate the Jetson command.</div>}
+      <p>For later boots, just supply power and your saved network.</p></>:<><p>Run the command for your laptop operating system. Replace the serial port, baud and system ID with the real values, then enter the pairing code when prompted.</p>
+      <h3>Windows PowerShell or Command Prompt</h3><pre>{radioWindowsCommand}</pre>
+      <h3>Linux or macOS terminal</h3><pre>{radioUnixCommand}</pre>
+      <p><code>COM5</code>, <code>/dev/ttyUSB0</code> and <code>57600</code> are examples. On macOS the device normally starts with <code>/dev/cu.</code>. Keep this process running to send telemetry. To restart the same session, omit <code>--new-pairing</code>.</p></>}
       <p>A new code is needed after the 12-hour session expires, after Disconnect, or when changing mission. Network recovery alone does not require pairing again. Switching this setup profile does not revoke or change an existing session.</p>
       {pairing&&<p>Gateway endpoint: <code>{pairing.gatewayPath}</code> · Transport: <code>{pairing.connection.gatewayTransport}</code></p>}
       {codeVisible?<div className={styles.code}><span>ONE-TIME CODE · EXPIRES IN {Math.max(0,Math.ceil((new Date(pairing.connection.codeExpiresAt).getTime()-now)/1000))}s</span><strong>{pairing.pairingCode.match(/.{1,4}/g)?.join("-")}</strong><button type="button" onClick={()=>void navigator.clipboard.writeText(pairing.pairingCode).then(()=>setNotice("Pairing code copied.")).catch(()=>setNotice("Select and copy the code manually."))}>Copy code</button></div>:<div className={styles.empty}>{pairing?"Code used or expired. Check the session below or create a new code.":"Prepare your chosen gateway, then select a UAV and mission to create a code."}</div>}
