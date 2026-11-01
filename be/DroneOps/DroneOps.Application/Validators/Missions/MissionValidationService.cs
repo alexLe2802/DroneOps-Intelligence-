@@ -301,6 +301,7 @@ public sealed class MissionValidationService(
         {
             Id = result.Id,
             MissionId = result.MissionId,
+            UpdateRequestId = result.UpdateRequestId,
             ActorId = actor,
             Stage = result.Stage,
             IsValid = result.IsValid,

@@ -2,14 +2,18 @@
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces;
 using DroneOps.Application.Interfaces.Validators;
+using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
+using DroneOps.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace DroneOps.Application.Services.Missions;
 
 public sealed class MissionWorkflowService(
     IMissionWorkflowRepository missionRepository,
-    IMissionValidationService validation)
+    IMissionValidationService validation,
+    AppDbContext db)
     : IMissionWorkflowService
 {
     // =========================================================
@@ -22,6 +26,8 @@ public sealed class MissionWorkflowService(
         Guid? id,
         CancellationToken cancellationToken = default)
     {
+        var updateRequestId = Guid.NewGuid();
+
         return await missionRepository.ExecuteSerializableAsync(
             async ct =>
             {
@@ -98,6 +104,7 @@ public sealed class MissionWorkflowService(
                     throw new MissionValidationException(
                         validationResult);
                 }
+                validationResult.UpdateRequestId = updateRequestId;
                 var requiresPilotConfirmation =
     string.Equals(
         validationResult.Weather?.OverallRisk,
@@ -136,6 +143,21 @@ public sealed class MissionWorkflowService(
                         true,
                         ct);
 
+                    db.MissionUpdateRequests.Add(new MissionUpdateRequest
+                    {
+                        Id = updateRequestId,
+                        MissionId = proposal.Id,
+                        ActorId = actor,
+                        IsInitial = true,
+                        Status = "Pending",
+                        BasePlanHash = MissionValidationService.Hash(proposal),
+                        BasePlanJson = "{}",
+                        ProposedPlanJson = System.Text.Json.JsonSerializer.Serialize(
+                            MissionPlans.Dto(proposal), MissionValidationService.JsonOptions),
+                        ValidationRunId = validationResult.Id,
+                        CreatedAt = DateTimeOffset.UtcNow
+                    });
+
                     return proposal;
                 }
 
@@ -143,19 +165,35 @@ public sealed class MissionWorkflowService(
                 // UPDATE
                 // =========================
 
-                await missionRepository.UpdatePlanAsync(
-                    current,
-                    proposal,
-                    ct);
-
                 current.Status = nextStatus;
 
                 await validation.StoreAsync(
-                    current,
+                    proposal,
                     actor,
                     validationResult,
                     true,
                     ct);
+
+                await db.MissionUpdateRequests
+                    .Where(x => x.MissionId == current.Id && x.Status == "Pending")
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(x => x.Status, "Superseded"), ct);
+
+                db.MissionUpdateRequests.Add(new MissionUpdateRequest
+                {
+                    Id = updateRequestId,
+                    MissionId = current.Id,
+                    ActorId = actor,
+                    IsInitial = false,
+                    Status = "Pending",
+                    BasePlanHash = MissionValidationService.Hash(current),
+                    BasePlanJson = System.Text.Json.JsonSerializer.Serialize(
+                        MissionPlans.Dto(current), MissionValidationService.JsonOptions),
+                    ProposedPlanJson = System.Text.Json.JsonSerializer.Serialize(
+                        MissionPlans.Dto(proposal), MissionValidationService.JsonOptions),
+                    ValidationRunId = validationResult.Id,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
 
                 return current;
             },

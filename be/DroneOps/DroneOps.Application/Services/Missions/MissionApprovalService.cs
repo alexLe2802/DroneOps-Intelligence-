@@ -5,6 +5,8 @@ using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Interfaces.Validators;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
+using DroneOps.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace DroneOps.Application.Services.Missions;
@@ -12,6 +14,7 @@ namespace DroneOps.Application.Services.Missions;
 public sealed class MissionApprovalService(
     IMissionApprovalRepository approvalRepository,
     IMissionValidationService validation,
+    AppDbContext db,
     INotificationService? notificationService = null,
     ILogger<MissionApprovalService>? logger = null)
     : IMissionApprovalService
@@ -35,39 +38,58 @@ public sealed class MissionApprovalService(
             1,
             100);
 
-        var (missions, totalCount) =
-            await approvalRepository
-                .GetPendingApprovalsAsync(
-                    filter.Search,
-                    filter.UavId,
-                    filter.FromDate,
-                    filter.ToDate,
-                    page,
-                    size,
-                    ct);
+        var query =
+            from request in db.MissionUpdateRequests.AsNoTracking()
+            join mission in db.Missions.AsNoTracking() on request.MissionId equals mission.Id
+            where request.Status == "Pending" &&
+                  (mission.Status == "Pending Review" || mission.Status == "Pending" ||
+                   mission.Status == "PendingApproval" || mission.Status == "Submitted")
+            select new { Request = request, Mission = mission };
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim();
+            query = query.Where(x => x.Mission.Name.Contains(search));
+        }
+        if (filter.UavId.HasValue) query = query.Where(x => x.Mission.UAVId == filter.UavId);
+        if (filter.FromDate.HasValue) query = query.Where(x => x.Request.CreatedAt >= filter.FromDate.Value);
+        if (filter.ToDate.HasValue) query = query.Where(x => x.Request.CreatedAt <= filter.ToDate.Value);
+
+        var totalCount = await query.CountAsync(ct);
+        var rows = await query.OrderBy(x => x.Request.CreatedAt)
+            .Skip((page - 1) * size).Take(size).ToListAsync(ct);
 
         var items =
             new List<PendingApprovalItemResponse>();
 
-        foreach (var mission in missions)
+        foreach (var row in rows)
         {
-            var evidence =
-                await validation.ReadAsync(
-                    mission.Id,
-                    managerId,
-                    true,
-                    ct);
+            var mission = await db.Missions.AsNoTracking()
+                .Include(x => x.Waypoints).Include(x => x.Creator).Include(x => x.UAV)
+                .SingleAsync(x => x.Id == row.Mission.Id, ct);
+            var proposedDto = System.Text.Json.JsonSerializer.Deserialize<CreateMissionRequest>(
+                row.Request.ProposedPlanJson,
+                DroneOps.Application.Validators.Missions.MissionValidationService.JsonOptions)
+                ?? throw new InvalidOperationException("Proposed mission plan is missing.");
+            var proposed = MissionPlans.Propose(mission, proposedDto);
+            var evidence = row.Request.ValidationRunId.HasValue
+                ? await validation.ReadRunAsync(mission.Id, row.Request.ValidationRunId.Value, managerId, true, ct)
+                : await validation.ReadLatestRunAsync(mission.Id, managerId, true, ct);
 
             items.Add(
                 new PendingApprovalItemResponse
                 {
+                    IsInitial = row.Request.IsInitial,
+                    UpdateRequestId = row.Request.Id,
+                    CurrentPlan = MissionPlans.Dto(mission),
+                    ProposedPlan = MissionPlans.Dto(proposed),
                     MissionId = mission.Id,
-                    MissionName = mission.Name,
-                    Description = mission.Description,
+                    MissionName = proposed.Name,
+                    Description = proposed.Description,
                     Status = mission.Status,
-                    CreatedAt = mission.CreatedAt,
-                    StartTime = mission.StartTime,
-                    EndTime = mission.EndTime,
+                    CreatedAt = row.Request.CreatedAt.UtcDateTime,
+                    StartTime = proposed.StartTime,
+                    EndTime = proposed.EndTime,
 
                     PilotId = mission.CreatedBy,
                     PilotName =
@@ -75,12 +97,12 @@ public sealed class MissionApprovalService(
                     PilotEmail =
                         mission.Creator?.Email,
 
-                    UavId = mission.UAVId,
+                    UavId = proposed.UAVId,
                     UavCode = mission.UAV?.Code,
                     UavName = mission.UAV?.Name,
 
                     WaypointCount =
-                        mission.Waypoints.Count,
+                        proposed.Waypoints.Count,
 
                     Validation = evidence,
 
@@ -119,6 +141,8 @@ public sealed class MissionApprovalService(
      manager,
      "Approved",
      request.Comment,
+     request.UpdateRequestId,
+     request.ValidationRunId,
      ct);
 
         await TryPublishDecisionNotificationAsync(
@@ -155,6 +179,8 @@ public sealed class MissionApprovalService(
      manager,
      "Rejected",
      reason,
+     request.UpdateRequestId,
+     null,
      ct);
 
         await TryPublishDecisionNotificationAsync(
@@ -176,6 +202,8 @@ public sealed class MissionApprovalService(
 Guid managerId,
 string decision,
 string? comment,
+Guid? updateRequestId,
+Guid? reviewedValidationRunId,
 CancellationToken ct)
     {
         var outcome =
@@ -238,6 +266,29 @@ CancellationToken ct)
 
                     var previousStatus = mission.Status;
 
+                    var updateRequest = updateRequestId.HasValue
+                        ? await db.MissionUpdateRequests.SingleOrDefaultAsync(
+                            x => x.Id == updateRequestId.Value && x.MissionId == missionId,
+                            transactionCt)
+                        : await db.MissionUpdateRequests.SingleOrDefaultAsync(
+                            x => x.MissionId == missionId && x.Status == "Pending",
+                            transactionCt);
+
+                    if (updateRequest is null)
+                    {
+                        throw new KeyNotFoundException("Mission review request not found.");
+                    }
+                    if (updateRequest.Status != "Pending")
+                    {
+                        throw new InvalidOperationException("This mission review request has already been processed.");
+                    }
+
+                    var proposedDto = System.Text.Json.JsonSerializer.Deserialize<CreateMissionRequest>(
+                        updateRequest.ProposedPlanJson,
+                        DroneOps.Application.Validators.Missions.MissionValidationService.JsonOptions)
+                        ?? throw new InvalidOperationException("Proposed mission plan is missing.");
+                    var proposedMission = MissionPlans.Propose(mission, proposedDto);
+
                     Guid? actualValidationRunId = null;
 
                     // =========================================
@@ -246,14 +297,20 @@ CancellationToken ct)
 
                     if (decision == "Approved")
                     {
-                        var freshValidation =
-                            await validation.EvaluateAsync(
-                                mission,
+                        if (reviewedValidationRunId.HasValue &&
+                            reviewedValidationRunId != updateRequest.ValidationRunId)
+                        {
+                            throw new InvalidOperationException("Reviewed validation does not belong to this request.");
+                        }
+
+                        var freshValidation = await validation.EvaluateAsync(
+                                proposedMission,
                                 "Approval",
                                 transactionCt);
+                        freshValidation.UpdateRequestId = updateRequest.Id;
 
                         await validation.StoreAsync(
-                            mission,
+                            proposedMission,
                             managerId,
                             freshValidation,
                             true,
@@ -267,6 +324,18 @@ CancellationToken ct)
                             return DecisionOutcome.ValidationFailed(
                                 freshValidation);
                         }
+
+                        db.Waypoints.RemoveRange(mission.Waypoints);
+                        mission.Name = proposedMission.Name;
+                        mission.Description = proposedMission.Description;
+                        mission.UAVId = proposedMission.UAVId;
+                        mission.AltitudeReference = proposedMission.AltitudeReference;
+                        mission.StartTime = proposedMission.StartTime;
+                        mission.EndTime = proposedMission.EndTime;
+                        mission.AverageSpeedMetersPerSecond = proposedMission.AverageSpeedMetersPerSecond;
+                        mission.MaxSpeedMetersPerSecond = proposedMission.MaxSpeedMetersPerSecond;
+                        mission.Waypoints = proposedMission.Waypoints;
+                        db.Waypoints.AddRange(proposedMission.Waypoints);
 
                         mission.Status = "Approved";
                     }
@@ -287,7 +356,7 @@ CancellationToken ct)
                         Id = Guid.NewGuid(),
                         MissionId = mission.Id,
 
-                        UpdateRequestId = null,
+                        UpdateRequestId = updateRequest.Id,
 
                         UserId = managerId,
                         Status = decision,
@@ -303,6 +372,12 @@ CancellationToken ct)
                     await approvalRepository.AddApprovalAsync(
                         approval,
                         transactionCt);
+
+                    updateRequest.Status = decision;
+                    updateRequest.ReviewedBy = managerId;
+                    updateRequest.ReviewedAt = decidedAt;
+                    updateRequest.Reason = comment;
+                    updateRequest.ValidationRunId = actualValidationRunId ?? updateRequest.ValidationRunId;
 
                     var response = BuildResponse(
                         approval,
@@ -338,6 +413,7 @@ CancellationToken ct)
         return new MissionDecisionResponse
         {
             MissionId = approval.MissionId,
+            UpdateRequestId = approval.UpdateRequestId,
             Decision = approval.Status,
             PreviousStatus = previousStatus,
             NewStatus = newStatus,
