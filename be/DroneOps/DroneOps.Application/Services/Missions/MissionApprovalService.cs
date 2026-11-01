@@ -38,6 +38,8 @@ public sealed class MissionApprovalService(
             1,
             100);
 
+        await RepairMissingPendingRequestsAsync(ct);
+
         var query =
             from request in db.MissionUpdateRequests.AsNoTracking()
             join mission in db.Missions.AsNoTracking() on request.MissionId equals mission.Id
@@ -59,22 +61,86 @@ public sealed class MissionApprovalService(
         var rows = await query.OrderBy(x => x.Request.CreatedAt)
             .Skip((page - 1) * size).Take(size).ToListAsync(ct);
 
+        var missionIds = rows.Select(x => x.Mission.Id).ToArray();
+        var missionsById = await db.Missions.AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.Waypoints)
+            .Include(x => x.Creator)
+            .Include(x => x.UAV)
+            .Where(x => missionIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var requestedRunIds = rows
+            .Where(x => x.Request.ValidationRunId.HasValue)
+            .Select(x => x.Request.ValidationRunId!.Value)
+            .Distinct()
+            .ToArray();
+        var runsById = await db.MissionValidationRuns.AsNoTracking()
+            .Where(x => requestedRunIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var fallbackMissionIds = rows
+            .Where(x => !x.Request.ValidationRunId.HasValue)
+            .Select(x => x.Mission.Id)
+            .Distinct()
+            .ToArray();
+        var latestRuns = await db.MissionValidationRuns.AsNoTracking()
+            .Where(x => x.MissionId.HasValue && fallbackMissionIds.Contains(x.MissionId.Value))
+            .GroupBy(x => x.MissionId)
+            .Select(group => group
+                .OrderByDescending(x => x.CheckedAt)
+                .ThenByDescending(x => x.Id)
+                .First())
+            .ToListAsync(ct);
+        var latestRunsByMission = latestRuns
+            .Where(x => x.MissionId.HasValue)
+            .ToDictionary(x => x.MissionId!.Value);
+
         var items =
             new List<PendingApprovalItemResponse>();
 
         foreach (var row in rows)
         {
-            var mission = await db.Missions.AsNoTracking()
-                .Include(x => x.Waypoints).Include(x => x.Creator).Include(x => x.UAV)
-                .SingleAsync(x => x.Id == row.Mission.Id, ct);
-            var proposedDto = System.Text.Json.JsonSerializer.Deserialize<CreateMissionRequest>(
-                row.Request.ProposedPlanJson,
-                DroneOps.Application.Validators.Missions.MissionValidationService.JsonOptions)
-                ?? throw new InvalidOperationException("Proposed mission plan is missing.");
+            if (!missionsById.TryGetValue(row.Mission.Id, out var mission))
+            {
+                logger?.LogWarning(
+                    "Pending review request {RequestId} references a missing mission {MissionId}.",
+                    row.Request.Id,
+                    row.Mission.Id);
+                continue;
+            }
+            CreateMissionRequest proposedDto;
+            try
+            {
+                proposedDto = System.Text.Json.JsonSerializer.Deserialize<CreateMissionRequest>(
+                    row.Request.ProposedPlanJson,
+                    DroneOps.Application.Validators.Missions.MissionValidationService.JsonOptions)
+                    ?? throw new System.Text.Json.JsonException("Proposed mission plan is missing.");
+            }
+            catch (System.Text.Json.JsonException ex) when (row.Request.IsInitial)
+            {
+                // Legacy backfills could persist nullable speed values even though
+                // CreateMissionRequest uses non-nullable decimals. For an initial
+                // submission the saved mission is the submitted plan, so it is the
+                // safe canonical fallback.
+                logger?.LogWarning(
+                    ex,
+                    "Using saved mission plan for legacy initial review request {RequestId}.",
+                    row.Request.Id);
+                proposedDto = MissionPlans.Dto(mission);
+            }
             var proposed = MissionPlans.Propose(mission, proposedDto);
-            var evidence = row.Request.ValidationRunId.HasValue
-                ? await validation.ReadRunAsync(mission.Id, row.Request.ValidationRunId.Value, managerId, true, ct)
-                : await validation.ReadLatestRunAsync(mission.Id, managerId, true, ct);
+            MissionValidationRun? validationRun = null;
+            if (row.Request.ValidationRunId.HasValue)
+            {
+                runsById.TryGetValue(row.Request.ValidationRunId.Value, out validationRun);
+            }
+            else
+            {
+                latestRunsByMission.TryGetValue(mission.Id, out validationRun);
+            }
+            var evidence =
+                DroneOps.Application.Validators.Missions.MissionValidationService.Decode(validationRun);
 
             items.Add(
                 new PendingApprovalItemResponse
@@ -123,6 +189,61 @@ public sealed class MissionApprovalService(
             PageNumber = page,
             PageSize = size
         };
+    }
+
+    /// <summary>
+    /// Repairs legacy/incomplete submissions that reached Pending Review before
+    /// a MissionUpdateRequest was written. The approval queue is request-based,
+    /// so leaving those rows incomplete makes valid missions invisible forever.
+    /// </summary>
+    private async Task RepairMissingPendingRequestsAsync(CancellationToken ct)
+    {
+        var pendingStatuses = new[] { "Pending Review", "Pending", "PendingApproval", "Submitted" };
+        var missions = await db.Missions
+            .Include(x => x.Waypoints)
+            .Where(m => pendingStatuses.Contains(m.Status) &&
+                        !db.MissionUpdateRequests.Any(r =>
+                            r.MissionId == m.Id && r.Status == "Pending"))
+            .ToListAsync(ct);
+
+        foreach (var mission in missions)
+        {
+            var validationRun = await db.MissionValidationRuns
+                .Where(x => x.MissionId == mission.Id)
+                .OrderByDescending(x => x.CheckedAt)
+                .ThenByDescending(x => x.Id)
+                .FirstOrDefaultAsync(ct);
+            var requestId = Guid.NewGuid();
+
+            db.MissionUpdateRequests.Add(new MissionUpdateRequest
+            {
+                Id = requestId,
+                MissionId = mission.Id,
+                ActorId = mission.CreatedBy,
+                IsInitial = true,
+                Status = "Pending",
+                BasePlanHash = DroneOps.Application.Validators.Missions.MissionValidationService.Hash(mission),
+                BasePlanJson = "{}",
+                ProposedPlanJson = System.Text.Json.JsonSerializer.Serialize(
+                    MissionPlans.Dto(mission),
+                    DroneOps.Application.Validators.Missions.MissionValidationService.JsonOptions),
+                ValidationRunId = validationRun?.Id,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+
+            if (validationRun is not null && validationRun.UpdateRequestId is null)
+            {
+                validationRun.UpdateRequestId = requestId;
+            }
+        }
+
+        if (missions.Count > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            logger?.LogWarning(
+                "Repaired {Count} pending missions that were missing review requests.",
+                missions.Count);
+        }
     }
 
     // =========================================================
@@ -297,10 +418,32 @@ CancellationToken ct)
 
                     if (decision == "Approved")
                     {
-                        if (reviewedValidationRunId.HasValue &&
-                            reviewedValidationRunId != updateRequest.ValidationRunId)
+                        if (reviewedValidationRunId.HasValue)
                         {
-                            throw new InvalidOperationException("Reviewed validation does not belong to this request.");
+                            var reviewedRun = await db.MissionValidationRuns
+                                .SingleOrDefaultAsync(
+                                    x => x.Id == reviewedValidationRunId.Value &&
+                                         x.MissionId == missionId,
+                                    transactionCt);
+
+                            var proposalHash =
+                                DroneOps.Application.Validators.Missions.MissionValidationService.Hash(
+                                    proposedMission);
+
+                            if (reviewedRun is null ||
+                                reviewedRun.PlanHash != proposalHash ||
+                                (reviewedRun.UpdateRequestId.HasValue &&
+                                 reviewedRun.UpdateRequestId != updateRequest.Id))
+                            {
+                                throw new InvalidOperationException(
+                                    "Reviewed validation does not belong to this request or proposal.");
+                            }
+
+                            // Legacy requests may have been backfilled after the
+                            // validation was stored. Once mission ownership and the
+                            // immutable plan hash match, repair both sides atomically.
+                            reviewedRun.UpdateRequestId ??= updateRequest.Id;
+                            updateRequest.ValidationRunId ??= reviewedRun.Id;
                         }
 
                         var freshValidation = await validation.EvaluateAsync(
