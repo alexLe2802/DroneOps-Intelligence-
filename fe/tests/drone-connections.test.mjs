@@ -17,7 +17,7 @@ test('connect-drone generates one complete Jetson bootstrap command and keeps th
  const source=await readFile(new URL('../src/app/portal/drone-connection/drone-connection-client.tsx',import.meta.url),'utf8');
  assert.match(source,/JETSON ONBOARD/);assert.match(source,/bootstrap-jetson\.sh/);assert.match(source,/--server/);assert.match(source,/--package-url/);assert.match(source,/--otp/);assert.match(source,/COPY JETSON COMMAND/);
  assert.match(source,/choose the Pixhawk port by number/);
- assert.match(source,/DroneOps\.API\.csproj/);assert.match(source,/repository root/);assert.match(source,/--urls http:\/\/0\.0\.0\.0:5159/);
+ assert.match(source,/containing <code>DroneOps\.API\.csproj/);assert.doesNotMatch(source,/dotnet run --project/);assert.match(source,/dotnet run --no-launch-profile/);assert.match(source,/-- \\/);assert.match(source,/--urls http:\/\/0\.0\.0\.0:5159/);
  assert.match(source,/--gcs-host/);assert.match(source,/continuously shows gateway and GPS logs/);assert.doesNotMatch(source,/QGroundControl · UDP 14550/);assert.doesNotMatch(source,/After deployment has a domain/);
  assert.match(source,/12-hour session expires/);assert.match(source,/Network recovery alone does not require pairing again/);
  assert.match(source,/RADIO TELEMETRY/);assert.match(source,/aria-pressed=\{profile===/);

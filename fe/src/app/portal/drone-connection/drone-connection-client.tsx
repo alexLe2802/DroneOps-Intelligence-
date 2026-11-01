@@ -47,12 +47,12 @@ export default function DroneConnectionClient() {
         <a className="module-secondary module-link" href="/downloads/droneops-gateway.zip" download>DOWNLOAD GATEWAY + SETUP GUIDE</a>
         {profile==="jetson"?<>
           <h3>Start the backend for LAN access</h3>
-          <p>Before creating a pairing code, open a terminal at the DroneOps repository root—the folder containing <code>be</code> and <code>fe</code>—then start the backend with LAN binding. Binding only to <code>localhost</code> prevents the Jetson from connecting.</p>
-          <pre>{`dotnet run --project ./be/DroneOps/DroneOps.API/DroneOps.API.csproj \\
-  --no-launch-profile \\
+          <p>Before creating a pairing code, open a terminal in the backend folder containing <code>DroneOps.API.csproj</code>, then start the backend with LAN binding. Binding only to <code>localhost</code> prevents the Jetson from connecting.</p>
+          <pre>{`dotnet run --no-launch-profile \\
+  -- \\
   --urls http://0.0.0.0:5159 \\
   --environment Development`}</pre>
-          <p>If MSBuild reports that the project file does not exist, the terminal is not at the repository root. Change to the cloned <code>SEP490</code> folder and run the command again.</p>
+          <p>If MSBuild reports that no project was found, change to the folder containing <code>DroneOps.API.csproj</code> and run the command again.</p>
           <p><code>0.0.0.0</code> is the listen address, not the address stored on the Jetson. The generated command replaces it with this laptop&apos;s current LAN IP and port <code>5159</code>. Keep the backend running while receiving telemetry.</p>
           <h3>Automatic Jetson setup</h3>
           <p>Connect Pixhawk TELEM2 through one 3.3 V USB-UART adapter and save this LAN on the Jetson. After creating a pairing code, step 03 generates one complete SSH command with the current laptop IP and backend port.</p>

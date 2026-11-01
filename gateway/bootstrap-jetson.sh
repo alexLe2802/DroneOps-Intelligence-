@@ -52,6 +52,12 @@ cleanup() { rm -rf -- "$work_dir"; }
 trap cleanup EXIT
 apt-get update
 apt-get install -y curl unzip
+if ! curl --silent --show-error --output /dev/null --connect-timeout 5 "$server/ws/drone-gateway"; then
+  echo "Cannot reach the DroneOps backend at $server from this Jetson." >&2
+  echo 'Start the backend with LAN binding (--urls http://0.0.0.0:5159), check the laptop IP/firewall, then run a newly generated command.' >&2
+  exit 1
+fi
+echo "Backend reachable: $server"
 curl --fail --silent --show-error --location "$package_url" --output "$work_dir/gateway.zip"
 unzip -q "$work_dir/gateway.zip" -d "$work_dir/package"
 install_script="$work_dir/package/droneops-gateway/install-jetson.sh"
