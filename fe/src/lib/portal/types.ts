@@ -1,6 +1,6 @@
 import type { AccountRole } from "@/lib/auth/types";
 
-export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
+export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Pending Confirm" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
 
 export type PilotMission = {
   id: string;
@@ -10,6 +10,8 @@ export type PilotMission = {
   status: MissionStatus;
   uavId: string | null;
   uavCode: string | null;
+  averageSpeedMetersPerSecond: number | null;
+  maxSpeedMetersPerSecond: number | null;
   startTime: string | null;
   endTime: string | null;
   createdAt: string;
@@ -37,6 +39,8 @@ export type CreateMissionRequest = {
   uavId: string;
   name: string;
   description: string | null;
+  averageSpeedMetersPerSecond: number;
+  maxSpeedMetersPerSecond: number;
   startTime: string;
   endTime: string;
   waypoints: MissionWaypoint[];

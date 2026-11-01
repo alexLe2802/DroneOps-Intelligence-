@@ -13,7 +13,7 @@ const client = await import(clientUrl);
 
 // Mock the HTTP boundary only: exercise actual API helper serialization and failures.
 test("mission creation preserves UTC schedule and ordered waypoints in a single POST", async () => {
-  const input = { name: "Survey", uavId: "uav-id", description: null, startTime: "2026-10-17T01:00:00.000Z", endTime: "2026-10-17T02:00:00.000Z", waypoints: [1, 2].map(i => ({ sequenceOrder: i, latitude: 10 + i, longitude: 106, altitude: 50, actionType: "FlyThrough" })) };
+  const input = { name: "Survey", uavId: "uav-id", description: null, averageSpeedMetersPerSecond: 10, maxSpeedMetersPerSecond: 15, startTime: "2026-10-17T01:00:00.000Z", endTime: "2026-10-17T02:00:00.000Z", waypoints: [1, 2].map(i => ({ sequenceOrder: i, latitude: 10 + i, longitude: 106, altitude: 50, actionType: "FlyThrough" })) };
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, "/api/missions"); assert.equal(options.method, "POST");
     assert.deepEqual(JSON.parse(options.body), input);
@@ -25,7 +25,7 @@ test("mission creation preserves UTC schedule and ordered waypoints in a single 
 });
 
 test("mission update sends the complete draft to the mission PUT endpoint", async () => {
-  const input = { name: "Updated survey", uavId: "uav-id", description: "Revised route", startTime: "2026-10-17T01:00:00.000Z", endTime: "2026-10-17T02:00:00.000Z", waypoints: [1, 2].map(i => ({ sequenceOrder: i, latitude: 10 + i, longitude: 106, altitude: 50, actionType: "FlyThrough" })) };
+  const input = { name: "Updated survey", uavId: "uav-id", description: "Revised route", averageSpeedMetersPerSecond: 11, maxSpeedMetersPerSecond: 16, startTime: "2026-10-17T01:00:00.000Z", endTime: "2026-10-17T02:00:00.000Z", waypoints: [1, 2].map(i => ({ sequenceOrder: i, latitude: 10 + i, longitude: 106, altitude: 50, actionType: "FlyThrough" })) };
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, "/api/missions/mission-id");
     assert.equal(options.method, "PUT");
@@ -37,6 +37,24 @@ test("mission update sends the complete draft to the mission PUT endpoint", asyn
     assert.equal(saved.name, input.name);
     assert.equal(saved.detailAvailable, true);
     assert.equal(mock.mock.calls.length, 1);
+  } finally { mock.mock.restore(); }
+});
+
+test("high-risk mission decision uses the exact confirm and cancellation contracts", async () => {
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push([url, options.method, options.body ?? null]);
+    return Response.json(options.method === "DELETE"
+      ? { missionId: "mission-id", message: "The high-risk mission has been cancelled and deleted." }
+      : { missionId: "mission-id", status: "Pending Review", message: "High weather risk confirmed." });
+  });
+  try {
+    assert.equal((await client.confirmHighRiskMission("mission-id")).status, "Pending Review");
+    assert.match((await client.cancelHighRiskMission("mission-id")).message, /cancelled and deleted/i);
+    assert.deepEqual(calls, [
+      ["/api/missions/mission-id/confirm-high-risk", "POST", null],
+      ["/api/missions/mission-id/cancel-high-risk", "DELETE", null],
+    ]);
   } finally { mock.mock.restore(); }
 });
 
@@ -213,4 +231,15 @@ test("proxy allows post-flight regeneration and report revision routes", async (
   for (const path of [`flight-history/${id}/regenerate/delete`, "flight-history/not-a-guid/regenerate"]) {
     assert.equal(allowed.test(path), false, path);
   }
+});
+
+test("proxy allows only the exact high-risk mission decision routes", async () => {
+  const source = await readFile(new URL("../src/app/api/[...path]/route.ts", import.meta.url), "utf8");
+  const declaration = source.split("\n").find(line => line.startsWith("const allowed = "));
+  const allowed = Function(`${declaration} return allowed;`)();
+  const id = "12345678-1234-1234-1234-123456789abc";
+  assert.equal(allowed.test(`missions/${id}/confirm-high-risk`), true);
+  assert.equal(allowed.test(`missions/${id}/cancel-high-risk`), true);
+  assert.equal(allowed.test(`missions/${id}/confirm-high-risk/delete`), false);
+  assert.equal(allowed.test("missions/not-a-guid/confirm-high-risk"), false);
 });
