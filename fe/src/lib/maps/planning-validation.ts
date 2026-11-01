@@ -40,3 +40,10 @@ export function routeError(waypoints: MissionWaypoint[]): string | null {
   if (waypoints.some(point => point.altitude == null || !Number.isFinite(point.altitude) || point.altitude < 0)) return "Waypoint altitude must be a finite, non-negative number.";
   return null;
 }
+
+export function missionSpeedError(averageMetersPerSecond: number, maxMetersPerSecond: number): string | null {
+  if (!Number.isFinite(averageMetersPerSecond) || averageMetersPerSecond <= 0) return "Average speed must be greater than 0 m/s.";
+  if (!Number.isFinite(maxMetersPerSecond) || maxMetersPerSecond <= 0) return "Maximum speed must be greater than 0 m/s.";
+  if (averageMetersPerSecond > maxMetersPerSecond) return "Average speed cannot exceed maximum speed.";
+  return null;
+}

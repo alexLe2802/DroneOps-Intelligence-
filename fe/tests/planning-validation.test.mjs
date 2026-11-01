@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import ts from "typescript";
 const source = await readFile(new URL("../src/lib/maps/planning-validation.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-const { polygonError, routeError, validCoordinate } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { missionSpeedError, polygonError, routeError, validCoordinate } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 
 const point = (longitude, latitude) => ({ latitude, longitude });
 const triangle = [point(106, 10), point(107, 10), point(107, 11)];
@@ -39,4 +39,12 @@ test("route validation rejects incomplete routes and non-finite altitude", () =>
   assert.equal(routeError([{ ...route[0], altitude: 0 }, route[1]]), null);
   // The backend contract has no 500m maximum; don't invent an aviation limit.
   assert.equal(routeError([{ ...route[0], altitude: 501 }, route[1]]), null);
+});
+
+test("mission speed validation matches the backend contract", () => {
+  assert.equal(missionSpeedError(10, 15), null);
+  assert.match(missionSpeedError(0, 15), /Average speed/);
+  assert.match(missionSpeedError(10, 0), /Maximum speed/);
+  assert.match(missionSpeedError(16, 15), /cannot exceed/);
+  assert.ok(missionSpeedError(NaN, 15));
 });
