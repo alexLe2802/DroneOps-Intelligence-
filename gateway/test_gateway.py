@@ -9,7 +9,7 @@ import queue
 import threading
 from unittest.mock import patch, Mock
 from gateway import main, forward
-from gateway import TelemetryState, websocket_endpoint, GatewayError, save_session, hardware_identity, read_identity, gps_signal_status
+from gateway import TelemetryState, websocket_endpoint, GatewayError, save_session, hardware_identity, read_identity, gps_signal_status, request_required_streams
 
 SESSION={'sourceId':'gateway-test','uavId':'uav','missionId':'mission'}
 def message(kind, system=1, component=1, **values):
@@ -20,6 +20,15 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(gps_signal_status(3), ('WEAK', '31'))
         self.assertEqual(gps_signal_status(4), ('NORMAL', '32'))
         self.assertEqual(gps_signal_status(255), ('UNKNOWN', '33'))
+    def test_required_streams_use_explicit_message_intervals(self):
+        sent=[]
+        ids=SimpleNamespace(MAVLINK_MSG_ID_GPS_RAW_INT=24,MAVLINK_MSG_ID_GLOBAL_POSITION_INT=33,
+            MAVLINK_MSG_ID_SYS_STATUS=1,MAVLINK_MSG_ID_BATTERY_STATUS=147,
+            MAVLINK_MSG_ID_MISSION_CURRENT=42,MAV_CMD_SET_MESSAGE_INTERVAL=511)
+        link=SimpleNamespace(mav=SimpleNamespace(command_long_send=lambda *args:sent.append(args)))
+        intervals=request_required_streams(link,1,1,SimpleNamespace(mavlink=ids))
+        self.assertEqual(intervals,((24,500000),(33,200000),(1,1000000),(147,1000000),(42,1000000)))
+        self.assertEqual([args[:6] for args in sent],[(1,1,511,0,message_id,interval) for message_id,interval in intervals])
     def setUp(self):
         self.now=0
         self.state=TelemetryState(1,1,lambda:self.now)

@@ -31,6 +31,22 @@ def terminal_color(text, color):
     return text if 'NO_COLOR' in os.environ else '\033[1;%sm%s\033[0m' % (color, text)
 
 
+def request_required_streams(link, system_id, component_id, mavutil):
+    """Request the telemetry used by DroneOps through serial or MAVLink Router."""
+    intervals = (
+        (mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT, 500000),
+        (mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 200000),
+        (mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 1000000),
+        (mavutil.mavlink.MAVLINK_MSG_ID_BATTERY_STATUS, 1000000),
+        (mavutil.mavlink.MAVLINK_MSG_ID_MISSION_CURRENT, 1000000),
+    )
+    for message_id, interval_us in intervals:
+        link.mav.command_long_send(
+            system_id, component_id, mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+            0, message_id, interval_us, 0, 0, 0, 0, 0)
+    return intervals
+
+
 def websocket_endpoint(value, allow_insecure=False):
     p = urllib.parse.urlsplit(value)
     if p.scheme not in ('wss', 'ws', 'https', 'http') or not p.hostname or p.username or p.password or p.path not in ('', '/') or p.query or p.fragment:
@@ -306,12 +322,13 @@ def main():
                                 0,mavutil.mavlink.MAVLINK_MSG_ID_AUTOPILOT_VERSION,0,0,0,0,0,0)
                             version_requested = time.monotonic()
                     accepted = state.accept(message, mavutil.mode_string_v10)
-                    if accepted and message.get_type() == 'HEARTBEAT' and not streams_requested and not args.device.startswith('udpin:'):
-                        # Request telemetry rates on a direct serial link. This is a
-                        # data-stream request, not arm/takeoff/mission control.
-                        link.mav.request_data_stream_send(args.system_id, args.component_id,
-                                                          mavutil.mavlink.MAV_DATA_STREAM_ALL, 2, 1)
+                    if accepted and message.get_type() == 'HEARTBEAT' and not streams_requested:
+                        # MAVLink Router is bidirectional, so interval requests work
+                        # for both direct serial and the Jetson udpin endpoint.
+                        request_required_streams(link, args.system_id, args.component_id, mavutil)
                         streams_requested = True
+                        print('Requested MAVLink streams: GPS_RAW_INT 2Hz, GLOBAL_POSITION_INT 5Hz, '
+                              'SYS_STATUS 1Hz, BATTERY_STATUS 1Hz, MISSION_CURRENT 1Hz.', flush=True)
                 if time.monotonic() - last_gps_report >= 10:
                     if state.gps is None:
                         print('%s: no GPS_RAW_INT received; waiting for receiver telemetry.' %
