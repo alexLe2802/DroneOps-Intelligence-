@@ -8,6 +8,12 @@ function normalizeMission(mission: MissionApiRecord, uavCode: string | null): Mi
   return {
     ...mission,
     uavCode,
+    averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond == null
+      ? null
+      : Number(mission.averageSpeedMetersPerSecond),
+    maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond == null
+      ? null
+      : Number(mission.maxSpeedMetersPerSecond),
     detailAvailable: true,
     waypoints: Array.isArray(mission.waypoints) ? mission.waypoints.map((point, index) => ({
       sequenceOrder: point.sequenceOrder ?? index + 1,
@@ -58,6 +64,14 @@ export async function getValidationMissionOptions(role: AccountRole): Promise<Va
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
   const result = await api<Omit<MissionDetail, "uavCode">>("/missions", { method: "POST", body: JSON.stringify(request) });
   return { ...result, uavCode: null };
+}
+
+export function confirmHighRiskMission(id: string): Promise<{ missionId: string; status: string; message: string }> {
+  return api<{ missionId: string; status: string; message: string }>(`/missions/${encodeURIComponent(id)}/confirm-high-risk`, { method: "POST" });
+}
+
+export function cancelHighRiskMission(id: string): Promise<{ missionId: string; message: string }> {
+  return api<{ missionId: string; message: string }>(`/missions/${encodeURIComponent(id)}/cancel-high-risk`, { method: "DELETE" });
 }
 
 export async function updateMission(id: string, request: CreateMissionRequest): Promise<MissionDetail> {
@@ -215,6 +229,12 @@ export async function getMission(id: string): Promise<MissionDetail> {
     status: result.status,
     uavId: result.uavId ?? null,
     uavCode: result.uavCode ?? null,
+    averageSpeedMetersPerSecond: result.averageSpeedMetersPerSecond == null
+      ? null
+      : Number(result.averageSpeedMetersPerSecond),
+    maxSpeedMetersPerSecond: result.maxSpeedMetersPerSecond == null
+      ? null
+      : Number(result.maxSpeedMetersPerSecond),
     startTime: result.startTime ?? null,
     endTime: result.endTime ?? null,
     createdAt: result.createdAt ?? "",

@@ -11,10 +11,11 @@ const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transp
 const helper = compile(await readFile(new URL('../src/lib/portal/plan-review.ts', import.meta.url), 'utf8'));
 const { planFieldChanges, waypointReviewRows } = await import(helper);
 const point = (sequenceOrder, overrides = {}) => ({ sequenceOrder, latitude:10.8, longitude:106.8, altitude:30, actionType:'FlyThrough', ...overrides });
-const plan = { name:'Survey', description:null, uavId:'uav', startTime:'2026-10-24T01:00:00Z', endTime:'2026-10-24T02:00:00Z', altitudeReference:'Relative', waypoints:[point(1)] };
+const plan = { name:'Survey', description:null, uavId:'uav', averageSpeedMetersPerSecond:10, maxSpeedMetersPerSecond:15, startTime:'2026-10-24T01:00:00Z', endTime:'2026-10-24T02:00:00Z', altitudeReference:'Relative', waypoints:[point(1)] };
 test('compares timestamps by instant and flags actual field edits', () => {
   assert.deepEqual(planFieldChanges(plan, {...plan,startTime:'2026-10-24T08:00:00+07:00'}), []);
   assert.deepEqual(planFieldChanges(plan, {...plan,name:'Changed'}), ['name']);
+  assert.deepEqual(planFieldChanges(plan, {...plan,maxSpeedMetersPerSecond:18}), ['maxSpeedMetersPerSecond']);
 });
 test('matches waypoint sequence and identifies added, removed and action-only edits', () => {
   const rows=waypointReviewRows([point(2),point(1),point(4)], [point(1),point(2,{actionType:'Hover'}),point(3)]);

@@ -6,6 +6,8 @@ import { getAssignedUavs, getGeofences, getMission, updateMission } from "@/lib/
 import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../../module-state";
 import MissionMap from "../../mission-map";
+import { appendLandingWaypoint } from "@/lib/maps/mission-waypoints";
+import { missionSpeedError } from "@/lib/maps/planning-validation";
 
 const actions: WaypointAction[] = ["TakeOff", "FlyThrough", "Hover", "CapturePhoto", "Land"];
 const editableStatuses = new Set(["draft", "rejected", "pending", "pendingreview", "submitted", "approved"]);
@@ -22,6 +24,8 @@ type EditorValue = {
   uavId: string;
   name: string;
   description: string;
+  averageSpeedMetersPerSecond: string;
+  maxSpeedMetersPerSecond: string;
   startTime: string;
   endTime: string;
   waypoints: MissionWaypoint[];
@@ -32,6 +36,8 @@ const editorValue = (saved: MissionDetail): EditorValue => { const mission = sav
   uavId: mission.uavId ?? "",
   name: mission.name,
   description: mission.description ?? "",
+  averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond?.toString() ?? "",
+  maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond?.toString() ?? "",
   startTime: toLocalInput(mission.startTime),
   endTime: toLocalInput(mission.endTime),
   waypoints: mission.waypoints.map(point => ({ ...point })),
@@ -103,7 +109,7 @@ export default function MissionEditClient({ id }: { id: string }) {
 
   function addWaypoint(longitude: number, latitude: number) {
     if (!value) return;
-    patchValue({ waypoints: [...value.waypoints, { sequenceOrder: value.waypoints.length + 1, latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: 50, actionType: value.waypoints.length ? "FlyThrough" : "TakeOff" }] });
+    patchValue({ waypoints: appendLandingWaypoint(value.waypoints, { latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: 50 }) });
   }
 
   function updateWaypoint(index: number, patch: Partial<MissionWaypoint>) {
@@ -143,6 +149,10 @@ export default function MissionEditClient({ id }: { id: string }) {
     setNotice("");
     if (value.waypoints.length < 2) { setFormError("Keep at least two waypoints in the flight route."); return; }
     if (new Date(value.endTime) <= new Date(value.startTime)) { setFormError("End time must be later than start time."); return; }
+    const averageSpeedMetersPerSecond = Number(value.averageSpeedMetersPerSecond);
+    const maxSpeedMetersPerSecond = Number(value.maxSpeedMetersPerSecond);
+    const invalidSpeed = missionSpeedError(averageSpeedMetersPerSecond, maxSpeedMetersPerSecond);
+    if (invalidSpeed) { setFormError(invalidSpeed); return; }
     if (value.waypoints.some(point => point.latitude < -90 || point.latitude > 90 || point.longitude < -180 || point.longitude > 180)) { setFormError("A waypoint is outside the valid latitude or longitude range."); return; }
     if (value.waypoints.some(point => point.altitude != null && point.altitude < 0)) { setFormError("Waypoint altitude must not be negative."); return; }
     savePending.current = true;
@@ -153,6 +163,8 @@ export default function MissionEditClient({ id }: { id: string }) {
         uavId: value.uavId,
         name: value.name.trim(),
         description: value.description.trim() || null,
+        averageSpeedMetersPerSecond,
+        maxSpeedMetersPerSecond,
         startTime: new Date(value.startTime).toISOString(),
         endTime: new Date(value.endTime).toISOString(),
         waypoints: value.waypoints.map((point, index) => ({ ...point, sequenceOrder: index + 1 })),
@@ -194,6 +206,8 @@ export default function MissionEditClient({ id }: { id: string }) {
           <label>ASSIGNED UAV<select value={value.uavId} onChange={event => patchValue({ uavId: event.target.value })} required><option value="">Select an active UAV</option>{approvedAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME<input value={value.name} onChange={event => patchValue({ name: event.target.value })} minLength={2} maxLength={200} required /></label>
           <label className="full-field">DESCRIPTION<textarea value={value.description} onChange={event => patchValue({ description: event.target.value })} maxLength={2000} /></label>
+          <label>AVERAGE SPEED (M/S)<input type="number" min="0.1" step="0.1" value={value.averageSpeedMetersPerSecond} onChange={event => patchValue({ averageSpeedMetersPerSecond: event.target.value })} required /></label>
+          <label>MAXIMUM SPEED (M/S)<input type="number" min="0.1" step="0.1" value={value.maxSpeedMetersPerSecond} onChange={event => patchValue({ maxSpeedMetersPerSecond: event.target.value })} required /></label>
           <label>START TIME<input type="datetime-local" value={value.startTime} onChange={event => patchValue({ startTime: event.target.value })} required /></label>
           <label>END TIME<input type="datetime-local" value={value.endTime} onChange={event => patchValue({ endTime: event.target.value })} required /></label>
         </div>

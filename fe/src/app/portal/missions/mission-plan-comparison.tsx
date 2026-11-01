@@ -21,10 +21,13 @@ export default function MissionPlanComparison({ current, proposed, validation, i
   const displayRoute = isInitial ? "proposed" : routeView;
   const fields = [
     ["Name", "name"], ["Description", "description"], ["UAV", "uavId"],
+    ["Average speed", "averageSpeedMetersPerSecond"], ["Maximum speed", "maxSpeedMetersPerSecond"],
     ["Start", "startTime"], ["End", "endTime"], ["Altitude reference", "altitudeReference"],
   ] as const;
   const fieldValue = (plan: CreateMissionRequest, key: typeof fields[number][1]) =>
-    key === "startTime" || key === "endTime" ? formatWeatherTime(plan[key]) : plan[key] || "Not specified";
+    key === "startTime" || key === "endTime" ? formatWeatherTime(plan[key])
+      : key === "averageSpeedMetersPerSecond" || key === "maxSpeedMetersPerSecond" ? `${plan[key]} m/s`
+        : plan[key] || "Not specified";
   const waypointValue = (point: typeof proposed.waypoints[number] | undefined) => point
     ? `${point.latitude}, ${point.longitude} / ${point.altitude ?? "unknown"} m · ${point.actionType}` : "—";
   const passed = validation?.isValid === true && !validation.stale && !validation.incomplete;
