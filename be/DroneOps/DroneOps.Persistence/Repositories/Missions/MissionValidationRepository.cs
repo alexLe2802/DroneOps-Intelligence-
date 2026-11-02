@@ -74,6 +74,34 @@ public sealed class MissionValidationRepository(
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<List<MissionValidationRun>> GetLatestRunsAsync(
+        IReadOnlyCollection<Guid> missionIds,
+        bool preflightOnly,
+        CancellationToken cancellationToken = default)
+    {
+        if (missionIds.Count == 0)
+        {
+            return [];
+        }
+
+        var query = db.MissionValidationRuns
+            .AsNoTracking()
+            .Where(x => x.MissionId.HasValue && missionIds.Contains(x.MissionId.Value));
+
+        if (preflightOnly)
+        {
+            query = query.Where(x => x.Stage == "Preflight");
+        }
+
+        return await query
+            .GroupBy(x => x.MissionId)
+            .Select(group => group
+                .OrderByDescending(x => x.CheckedAt)
+                .ThenByDescending(x => x.Id)
+                .First())
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<MissionValidationRun?> GetRunAsync(
         Guid missionId,
         Guid runId,

@@ -22,6 +22,11 @@ public interface IMissionValidationRepository
         Guid missionId,
         CancellationToken cancellationToken = default);
 
+    Task<List<MissionValidationRun>> GetLatestRunsAsync(
+        IReadOnlyCollection<Guid> missionIds,
+        bool preflightOnly,
+        CancellationToken cancellationToken = default);
+
     Task<MissionValidationRun?> GetRunAsync(
         Guid missionId,
         Guid runId,

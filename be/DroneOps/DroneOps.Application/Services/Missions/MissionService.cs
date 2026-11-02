@@ -66,7 +66,6 @@ public sealed class MissionService : IMissionService
         Guid missionId,
         CancellationToken cancellationToken = default)
     {
-        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
         Mission? mission =
             await _missionRepository.GetByIdAsync(
                 missionId,
@@ -84,9 +83,6 @@ public sealed class MissionService : IMissionService
      MissionFilterRequest request,
      CancellationToken cancellationToken = default)
     {
-        await _postFlightService.SynchronizeOverdueMissionsAsync(
-            cancellationToken);
-
         if (request.PageNumber < 1)
             request.PageNumber = 1;
 
@@ -103,15 +99,11 @@ public sealed class MissionService : IMissionService
                 request.PageSize,
                 cancellationToken);
 
-        var results = new List<MissionResponse>();
-
-        foreach (var mission in missions)
-        {
-            results.Add(
-                await MapWithValidationAsync(
-                    mission,
-                    cancellationToken));
-        }
+        var results = await MapManyWithValidationAsync(
+            missions,
+            missions.Select(mission => mission.CreatedBy).FirstOrDefault(),
+            true,
+            cancellationToken);
 
         return new MissionPagedResponse
         {
@@ -128,15 +120,44 @@ public sealed class MissionService : IMissionService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        await _postFlightService.SynchronizeOverdueMissionsAsync(cancellationToken);
         List<Mission> missions =
             await _missionRepository.GetByCreatorAsync(
                 userId,
                 cancellationToken);
 
-        var results = new List<MissionResponse>();
-        foreach (var mission in missions) results.Add(await MapWithValidationAsync(mission, cancellationToken));
-        return results;
+        return await MapManyWithValidationAsync(
+            missions,
+            userId,
+            false,
+            cancellationToken);
+    }
+
+    private async Task<List<MissionResponse>> MapManyWithValidationAsync(
+        IReadOnlyCollection<Mission> missions,
+        Guid actor,
+        bool manager,
+        CancellationToken cancellationToken)
+    {
+        var snapshots = await _validation.ReadManyAsync(
+            missions,
+            actor,
+            manager,
+            cancellationToken);
+
+        return missions.Select(mission =>
+        {
+            var response = MapToResponse(mission);
+            if (!snapshots.TryGetValue(mission.Id, out var snapshot))
+            {
+                return response;
+            }
+
+            response.Validation = snapshot.Validation;
+            response.LatestValidation = snapshot.LatestValidation;
+            response.PreflightValidation = snapshot.PreflightValidation;
+            response.FlightReadiness = snapshot.PreflightValidation?.Status ?? "AwaitingPreflight";
+            return response;
+        }).ToList();
     }
 
     private static MissionResponse MapToResponse(
