@@ -6,9 +6,11 @@ using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Application.Interfaces.Incidents;
 using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Settings;
+using DroneOps.Domain.Constants;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -34,24 +36,29 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         PropertyNameCaseInsensitive = true
     };
 
+    private static readonly SemaphoreSlim GeofenceCacheLock = new(1, 1);
+
     private readonly AppDbContext _context;
     private readonly ILogger<TelemetryIngestionService> _logger;
     private readonly TelemetryMonitoringOptions _monitoring;
     private readonly IIncidentLifecycleService _incidentLifecycle;
     private readonly INotificationService? _notificationService;
+    private readonly IMemoryCache? _cache;
 
     public TelemetryIngestionService(
         AppDbContext context,
         ILogger<TelemetryIngestionService> logger,
         IOptions<TelemetryMonitoringOptions> monitoring,
         IIncidentLifecycleService incidentLifecycle,
-        INotificationService? notificationService = null)
+        INotificationService? notificationService = null,
+        IMemoryCache? cache = null)
     {
         _context = context;
         _logger = logger;
         _monitoring = monitoring.Value;
         _incidentLifecycle = incidentLifecycle;
         _notificationService = notificationService;
+        _cache = cache;
     }
 
     public async Task<TelemetryIngestResult> IngestSampleAsync(
@@ -448,9 +455,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
         if (record.Latitude.HasValue && record.Longitude.HasValue)
         {
-            var geofences = await _context.Geofences
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
+            var geofences = await GetGeofenceSnapshotAsync(cancellationToken);
 
             var validPolygons = new List<(string Name, List<GeofenceCoordinateResponse> Polygon)>();
             foreach (var geofence in geofences)
@@ -506,6 +511,50 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
         return raisedIncidentIds;
     }
+
+    private async Task<IReadOnlyList<Geofence>> GetGeofenceSnapshotAsync(
+        CancellationToken cancellationToken)
+    {
+        if (_cache is null)
+        {
+            return await LoadGeofenceSnapshotAsync(cancellationToken);
+        }
+
+        if (_cache.TryGetValue(
+                GeofenceCacheKeys.Snapshot,
+                out IReadOnlyList<Geofence>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        await GeofenceCacheLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_cache.TryGetValue(
+                    GeofenceCacheKeys.Snapshot,
+                    out cached) && cached is not null)
+            {
+                return cached;
+            }
+
+            var snapshot = await LoadGeofenceSnapshotAsync(cancellationToken);
+            _cache.Set(
+                GeofenceCacheKeys.Snapshot,
+                snapshot,
+                GeofenceCacheKeys.SnapshotLifetime);
+            return snapshot;
+        }
+        finally
+        {
+            GeofenceCacheLock.Release();
+        }
+    }
+
+    private async Task<IReadOnlyList<Geofence>> LoadGeofenceSnapshotAsync(
+        CancellationToken cancellationToken) =>
+        await _context.Geofences
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
 
     private async Task TryPublishIncidentNotificationsAsync(
         IReadOnlyCollection<Guid> incidentIds, CancellationToken cancellationToken)

@@ -2,13 +2,16 @@
 using DroneOps.Application.DTOs.Request.Geofences;
 using DroneOps.Application.DTOs.Response.Geofences;
 using DroneOps.Application.Interfaces.Geofences;
+using DroneOps.Domain.Constants;
 using DroneOps.Domain.Entities;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace DroneOps.Application.Services;
 
 public class GeofenceService : IGeofenceService
 {
     private readonly IGeofenceRepository _geofenceRepository;
+    private readonly IMemoryCache? _cache;
 
     private static readonly JsonSerializerOptions JsonOptions =
         new()
@@ -18,9 +21,11 @@ public class GeofenceService : IGeofenceService
         };
 
     public GeofenceService(
-        IGeofenceRepository geofenceRepository)
+        IGeofenceRepository geofenceRepository,
+        IMemoryCache? cache = null)
     {
         _geofenceRepository = geofenceRepository;
+        _cache = cache;
     }
 
     public async Task<List<GeofenceResponse>> GetAllAsync(
@@ -95,6 +100,8 @@ public class GeofenceService : IGeofenceService
         await _geofenceRepository.SaveChangesAsync(
             cancellationToken);
 
+        _cache?.Remove(GeofenceCacheKeys.Snapshot);
+
         return MapToResponse(geofence);
     }
 
@@ -145,6 +152,8 @@ public class GeofenceService : IGeofenceService
         await _geofenceRepository.SaveChangesAsync(
             cancellationToken);
 
+        _cache?.Remove(GeofenceCacheKeys.Snapshot);
+
         return MapToResponse(geofence);
     }
 
@@ -167,6 +176,8 @@ public class GeofenceService : IGeofenceService
 
         await _geofenceRepository.SaveChangesAsync(
             cancellationToken);
+
+        _cache?.Remove(GeofenceCacheKeys.Snapshot);
     }
 
     private static GeofenceResponse MapToResponse(
