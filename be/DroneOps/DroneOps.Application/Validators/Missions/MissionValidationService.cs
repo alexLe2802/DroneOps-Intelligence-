@@ -1067,4 +1067,92 @@ public sealed class MissionValidationService(
                 result,
                 JsonOptions);
     }
+    // =========================================================
+    // Route distance
+    // =========================================================
+
+    private static double CalculateRouteDistanceMeters(
+        IReadOnlyList<Waypoint> waypoints)
+    {
+        var totalDistanceMeters = 0d;
+
+        for (var index = 1;
+             index < waypoints.Count;
+             index++)
+        {
+            var previous =
+                waypoints[index - 1];
+
+            var current =
+                waypoints[index];
+
+            totalDistanceMeters +=
+                HaversineDistanceMeters(
+                    previous.Latitude,
+                    previous.Longitude,
+                    current.Latitude,
+                    current.Longitude);
+        }
+
+        return totalDistanceMeters;
+    }
+
+    private static double HaversineDistanceMeters(
+        decimal latitudeA,
+        decimal longitudeA,
+        decimal latitudeB,
+        decimal longitudeB)
+    {
+        const double earthRadiusMeters =
+            6_371_000d;
+
+        static double ToRadians(
+            double degrees)
+        {
+            return degrees *
+                   Math.PI /
+                   180d;
+        }
+
+        var latitude1 =
+            ToRadians(
+                (double)latitudeA);
+
+        var latitude2 =
+            ToRadians(
+                (double)latitudeB);
+
+        var latitudeDifference =
+            ToRadians(
+                (double)(
+                    latitudeB -
+                    latitudeA));
+
+        var longitudeDifference =
+            ToRadians(
+                (double)(
+                    longitudeB -
+                    longitudeA));
+
+        var haversine =
+            Math.Sin(
+                latitudeDifference / 2d) *
+            Math.Sin(
+                latitudeDifference / 2d) +
+            Math.Cos(latitude1) *
+            Math.Cos(latitude2) *
+            Math.Sin(
+                longitudeDifference / 2d) *
+            Math.Sin(
+                longitudeDifference / 2d);
+
+        var centralAngle =
+            2d *
+            Math.Atan2(
+                Math.Sqrt(haversine),
+                Math.Sqrt(1d - haversine));
+
+        return earthRadiusMeters *
+               centralAngle;
+    }
 }
