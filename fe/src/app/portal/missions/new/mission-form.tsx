@@ -10,11 +10,11 @@ import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 import HighRiskConfirmation from "./high-risk-confirmation";
 
-import { appendLandingWaypoint } from "@/lib/maps/mission-waypoints";
+import { appendLandingWaypoint, normalizeWaypointActions } from "@/lib/maps/mission-waypoints";
 import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 import { useUnsavedChanges } from "@/lib/maps/use-unsaved-changes";
 
-const actions: WaypointAction[] = ["TakeOff", "FlyThrough", "Hover", "CapturePhoto", "Land"];
+const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover", "CapturePhoto"];
 
 function localDateTimeMinimum() {
   const interval = 60_000;
@@ -84,16 +84,16 @@ export default function MissionForm() {
     });
   }
   function updateWaypoint(index: number, patch: Partial<MissionWaypoint>) {
-    setWaypoints(current => current.map((point, currentIndex) => currentIndex === index ? { ...point, ...patch } : point));
+    setWaypoints(current => normalizeWaypointActions(current.map((point, currentIndex) => currentIndex === index ? { ...point, ...patch } : point)));
   }
   function removeWaypoint(index: number) {
-    setWaypoints(current => current.filter((_, currentIndex) => currentIndex !== index).map((point, sequenceOrder) => ({ ...point, sequenceOrder: sequenceOrder + 1 })));
+    setWaypoints(current => normalizeWaypointActions(current.filter((_, currentIndex) => currentIndex !== index)));
   }
   function moveWaypoint(index: number, offset: number) {
     setWaypoints(current => {
       const next = [...current];
       [next[index], next[index + offset]] = [next[index + offset], next[index]];
-      return next.map((point, i) => ({ ...point, sequenceOrder: i + 1 }));
+      return normalizeWaypointActions(next);
     });
   }
   async function submit(event: FormEvent) {
@@ -101,7 +101,8 @@ export default function MissionForm() {
     if (pending.current) return;
     if (!name.trim()) { setError("Enter a mission name."); return; }
     if (!aircraft?.some(item => item.id === uavId && item.status.toLowerCase() === "active")) { setError("Select an active UAV assigned to you."); return; }
-    const invalidRoute = routeError(waypoints);
+    const normalizedWaypoints = normalizeWaypointActions(waypoints);
+    const invalidRoute = routeError(normalizedWaypoints);
     if (invalidRoute) { setError(invalidRoute); return; }
     const start = new Date(startTime), end = new Date(endTime);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) { setError("Enter a valid schedule with the end time later than the start time."); return; }
@@ -113,7 +114,7 @@ export default function MissionForm() {
     pending.current = true;
     setSaving(true);
     try {
-      const payload = { altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints };
+      const payload = { altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints: normalizedWaypoints };
       const signature = JSON.stringify(payload);
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
       const created = await createMission({ ...payload, operationId: operation.current.id });
@@ -143,8 +144,10 @@ export default function MissionForm() {
     setRiskBusy("cancel"); setRiskError("");
     try {
       await cancelHighRiskMission(highRiskMission.id);
-      router.replace("/portal/missions");
-      router.refresh();
+      operation.current = null;
+      setHighRiskMission(null);
+      setSaved(false);
+      setRiskBusy(null);
     } catch (reason) {
       setRiskError(reason instanceof Error ? reason.message : "Unable to cancel the high-risk mission.");
       setRiskBusy(null);
@@ -189,7 +192,10 @@ export default function MissionForm() {
         {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
         <MissionMap waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
         <button type="button" className="module-secondary" onClick={() => addWaypoint()}>ADD WAYPOINT MANUALLY</button>
-        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></article>)}</div>
+        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => {
+          const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : index === waypoints.length - 1 ? "Land" : null;
+          return <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M)<input type="number" min="10.1" step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option>{endpointAction}</option> : intermediateActions.map(action => <option key={action}>{action}</option>)}</select></label><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></article>;
+        })}</div>
       </section>
       </fieldset>
       <label>Altitude reference<select value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option value="AGL">AGL — above ground</option><option value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select></label>
