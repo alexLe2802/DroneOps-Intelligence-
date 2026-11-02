@@ -37,6 +37,16 @@ export function polygonError(points: GeofenceCoordinate[]): string | null {
 export function routeError(waypoints: MissionWaypoint[]): string | null {
   if (waypoints.length < 2) return "Add at least two waypoints to define a flight route.";
   if (waypoints.some(point => !validCoordinate(point))) return "Waypoint coordinates are outside the valid latitude or longitude range.";
-  if (waypoints.some(point => point.altitude == null || !Number.isFinite(point.altitude) || point.altitude < 0)) return "Waypoint altitude must be a finite, non-negative number.";
+  if (waypoints.some(point => point.altitude == null || !Number.isFinite(point.altitude) || point.altitude <= 10)) return "Every waypoint altitude must be greater than 10 m.";
+  if (waypoints[0].actionType !== "TakeOff") return "The first waypoint action must be TakeOff.";
+  if (waypoints[waypoints.length - 1].actionType !== "Land") return "The final waypoint action must be Land.";
+  if (waypoints.slice(1, -1).some(point => point.actionType === "TakeOff" || point.actionType === "Land")) return "TakeOff and Land actions are reserved for the route endpoints.";
+  return null;
+}
+
+export function missionSpeedError(averageMetersPerSecond: number, maxMetersPerSecond: number): string | null {
+  if (!Number.isFinite(averageMetersPerSecond) || averageMetersPerSecond <= 0) return "Average speed must be greater than 0 m/s.";
+  if (!Number.isFinite(maxMetersPerSecond) || maxMetersPerSecond <= 0) return "Maximum speed must be greater than 0 m/s.";
+  if (averageMetersPerSecond > maxMetersPerSecond) return "Average speed cannot exceed maximum speed.";
   return null;
 }

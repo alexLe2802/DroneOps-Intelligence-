@@ -1,14 +1,15 @@
-using System.Security.Claims;
+using DroneOps.Application.DTOs.Request.UAV;
 using DroneOps.Application.DTOs.Request.UAVs;
 using DroneOps.Application.Interfaces.UAVs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace DroneOps.API.Controllers.UAVs;
 
 [ApiController]
 [Route("api/uavs")]
-[Authorize(Roles = "uav_operator,operation_manager,operations_manager,Admin")]
+[Authorize(Roles = "uav_operator")]
 public class UavController : ControllerBase
 {
     private readonly IUavService _uavService;
@@ -23,18 +24,44 @@ public class UavController : ControllerBase
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Create(
-        [FromBody] CreateUavRequest request,
-        CancellationToken cancellationToken)
+     [FromBody] CreateUavRequest request,
+     CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(
-            User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var userIdValue =
+            User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub");
 
-        var result = await _uavService.CreateAsync(
-            userId,
-            request,
-            cancellationToken);
+        if (!Guid.TryParse(userIdValue, out var userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid authenticated user."
+            });
+        }
 
-        return Ok(result);
+        try
+        {
+            var result = await _uavService.CreateAsync(
+                userId,
+                request,
+                cancellationToken);
+
+            return Ok(result);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new
+            {
+                message = exception.Message
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new
+            {
+                message = exception.Message
+            });
+        }
     }
 
     /// <summary>
@@ -42,13 +69,24 @@ public class UavController : ControllerBase
     /// </summary>
     [HttpGet("myUAV")]
     public async Task<IActionResult> GetMyUavs(
-        CancellationToken cancellationToken)
+      [FromQuery] GetAllUavsRequest request,
+      CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(
-            User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var userIdValue =
+            User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub");
+
+        if (!Guid.TryParse(userIdValue, out var userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid authenticated user."
+            });
+        }
 
         var result = await _uavService.GetMyUavsAsync(
             userId,
+            request,
             cancellationToken);
 
         return Ok(result);
@@ -117,25 +155,57 @@ public class UavController : ControllerBase
     /// </summary>
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(
-        Guid id,
-        [FromBody] UpdateUavRequest request,
-        CancellationToken cancellationToken)
+     Guid id,
+     [FromBody] UpdateUavRequest request,
+     CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(
-            User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var userIdValue =
+            User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub");
 
-        var result = await _uavService.UpdateAsync(
-            userId,
-            id,
-            request,
-            cancellationToken);
-
-        if (!result)
+        if (!Guid.TryParse(userIdValue, out var userId))
         {
-            return NotFound(new { message = "UAV not found or unauthorized." });
+            return Unauthorized(new
+            {
+                message = "Invalid authenticated user."
+            });
         }
 
-        return Ok(new { message = "UAV updated successfully." });
+        try
+        {
+            var result = await _uavService.UpdateAsync(
+                userId,
+                id,
+                request,
+                cancellationToken);
+
+            if (!result)
+            {
+                return NotFound(new
+                {
+                    message = "UAV not found or unauthorized."
+                });
+            }
+
+            return Ok(new
+            {
+                message = "UAV updated successfully and is pending approval."
+            });
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new
+            {
+                message = exception.Message
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new
+            {
+                message = exception.Message
+            });
+        }
     }
 
     /// <summary>

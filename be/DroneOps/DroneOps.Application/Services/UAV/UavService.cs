@@ -7,6 +7,7 @@ using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
+using DroneOps.Application.Validators;
 using Microsoft.Extensions.Logging;
 
 namespace DroneOps.Application.Services.UAVs;
@@ -38,9 +39,9 @@ public sealed class UavService : IUavService
 
     // 1. Tạo mới UAV: Trạng thái mặc định là "Pending" (chờ duyệt)
     public async Task<UavResponse> CreateAsync(
-        Guid userId,
-        CreateUavRequest request,
-        CancellationToken cancellationToken = default)
+    Guid userId,
+    CreateUavRequest request,
+    CancellationToken cancellationToken = default)
     {
         var pilot = await _pilotRepository.GetByUserIdAsync(
             userId,
@@ -51,8 +52,10 @@ public sealed class UavService : IUavService
             throw new InvalidOperationException("Pilot profile not found.");
         }
 
+        var code = request.Code.Trim();
+
         var codeExists = await _uavRepository.CodeExistsAsync(
-            request.Code.Trim(),
+            code,
             cancellationToken);
 
         if (codeExists)
@@ -60,70 +63,257 @@ public sealed class UavService : IUavService
             throw new InvalidOperationException("UAV code already exists.");
         }
 
+        // Validate technical specifications
+        UavSpecificationValidator.Validate(
+            request.EmptyWeightKg,
+            request.MaxTakeoffWeightKg,
+            request.MaxPayloadKg,
+            request.BatteryCapacityMah,
+            request.BatteryVoltage,
+            request.BatteryCellCount,
+            request.MaxFlightTimeMinutes,
+            request.MaxRangeKm,
+            request.MaxSpeedKmh,
+            request.MaxWindSpeedMps,
+            request.MaxOperatingAltitudeMeters);
+
         var uav = new UAV
         {
             Id = Guid.NewGuid(),
             PilotId = pilot.Id,
-            Code = request.Code.Trim(),
+
+            // Basic information
+            Code = code,
             Name = request.Name.Trim(),
-            Model = request.Model?.Trim(),
-            Status = "Pending", // Đã đồng bộ thành "Pending" thay vì "Pending Review"
-            CreatedAt = DateTime.UtcNow
+            Manufacturer = Normalize(request.Manufacturer),
+            Model = Normalize(request.Model),
+            SerialNumber = Normalize(request.SerialNumber),
+
+            // Physical specifications
+            EmptyWeightKg = request.EmptyWeightKg,
+            MaxTakeoffWeightKg = request.MaxTakeoffWeightKg,
+            MaxPayloadKg = request.MaxPayloadKg,
+
+            // Battery specifications
+            BatteryType = Normalize(request.BatteryType),
+            BatteryCapacityMah = request.BatteryCapacityMah,
+            BatteryVoltage = request.BatteryVoltage,
+            BatteryCellCount = request.BatteryCellCount,
+
+            // Flight capabilities
+            MaxFlightTimeMinutes = request.MaxFlightTimeMinutes,
+            MaxRangeKm = request.MaxRangeKm,
+            MaxSpeedKmh = request.MaxSpeedKmh,
+            MaxWindSpeedMps = request.MaxWindSpeedMps,
+            MaxOperatingAltitudeMeters = request.MaxOperatingAltitudeMeters,
+
+            // Operational information
+            PurchaseDate = request.PurchaseDate,
+
+            // System-managed fields
+            TotalFlightHours = 0,
+            TotalFlights = 0,
+
+            // Must be approved by admin/manager
+            Status = "Pending",
+
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
-        await _uavRepository.AddAsync(uav, cancellationToken);
-        await _uavRepository.SaveChangesAsync(cancellationToken);
+        await _uavRepository.AddAsync(
+            uav,
+            cancellationToken);
+
+        await _uavRepository.SaveChangesAsync(
+            cancellationToken);
+
         await TryPublishToManagersAsync(
-            "NewPendingUav", "New UAV Pending Approval",
+            "NewPendingUav",
+            "New UAV Pending Approval",
             $"UAV '{uav.Code} - {uav.Name}' ({uav.Model ?? "unspecified model"}) has been submitted for approval.",
-            userId, uav.Id, cancellationToken);
+            userId,
+            uav.Id,
+            cancellationToken);
 
-        return MapToResponse(uav, pilot.User?.FullName ?? string.Empty);
+        return MapToResponse(
+            uav,
+            pilot.User?.FullName ?? string.Empty);
     }
-
+    private static string? Normalize(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
+    }
     // 2. Lấy danh sách UAV của Pilot đang đăng nhập
-    public async Task<List<UavResponse>> GetMyUavsAsync(
-        Guid userId,
-        CancellationToken cancellationToken = default)
+    public async Task<PagedResponse<UavResponse>> GetMyUavsAsync(
+     Guid userId,
+     GetAllUavsRequest request,
+     CancellationToken cancellationToken = default)
     {
         var pilot = await _pilotRepository.GetByUserIdAsync(
             userId,
             cancellationToken);
 
+        var pageNumber = request.PageNumber < 1
+            ? 1
+            : request.PageNumber;
+
+        var pageSize = request.PageSize switch
+        {
+            < 1 => 10,
+            > 100 => 100,
+            _ => request.PageSize
+        };
+
         if (pilot is null)
         {
-            return [];
+            return new PagedResponse<UavResponse>
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalItems = 0,
+                TotalPages = 0,
+                Items = []
+            };
         }
 
-        var uavs = await _uavRepository.GetByPilotIdAsync(
+        var keyword = string.IsNullOrWhiteSpace(request.Keyword)
+            ? null
+            : request.Keyword.Trim();
+
+        var status = string.IsNullOrWhiteSpace(request.Status)
+            ? null
+            : request.Status.Trim();
+
+        var result = await _uavRepository.GetByPilotIdAsync(
             pilot.Id,
+            keyword,
+            status,
+            pageNumber,
+            pageSize,
             cancellationToken);
 
-        return uavs
-            .Select(x => MapToResponse(x, pilot.User?.FullName ?? string.Empty))
+        var items = result.Items
+            .Select(x => MapToResponse(
+                x,
+                x.Pilot?.User?.FullName ??
+                pilot.User?.FullName ??
+                string.Empty))
             .ToList();
+
+        var totalPages = result.TotalCount == 0
+            ? 0
+            : (int)Math.Ceiling(
+                result.TotalCount / (double)pageSize);
+
+        return new PagedResponse<UavResponse>
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalItems = result.TotalCount,
+            TotalPages = totalPages,
+            Items = items
+        };
     }
 
     // 3. Cập nhật thông tin UAV
     public async Task<bool> UpdateAsync(
-        Guid userId,
-        Guid uavId,
-        UpdateUavRequest request,
-        CancellationToken cancellationToken = default)
+     Guid userId,
+     Guid uavId,
+     UpdateUavRequest request,
+     CancellationToken cancellationToken = default)
     {
-        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
+        var uav = await _uavRepository.GetDetailAsync(
+            uavId,
+            cancellationToken);
+
         if (uav is null)
         {
             return false;
         }
 
-        uav.Code = request.Code.Trim();
-        uav.Name = request.Name.Trim();
-        uav.Model = string.IsNullOrWhiteSpace(request.Model)
-            ? null
-            : request.Model.Trim();
+        // Pilot chỉ được update UAV của mình
+        if (uav.Pilot.UserId != userId)
+        {
+            return false;
+        }
 
-        await _uavRepository.SaveChangesAsync(cancellationToken);
+        var newCode = request.Code.Trim();
+
+        // Nếu đổi Code thì mới cần check duplicate
+        if (!string.Equals(
+            uav.Code,
+            newCode,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            var codeExists = await _uavRepository.CodeExistsAsync(
+                newCode,
+                cancellationToken);
+
+            if (codeExists)
+            {
+                throw new InvalidOperationException(
+                    "UAV code already exists.");
+            }
+        }
+
+        // Dùng chung validator với Create
+        UavSpecificationValidator.Validate(
+            request.EmptyWeightKg,
+            request.MaxTakeoffWeightKg,
+            request.MaxPayloadKg,
+            request.BatteryCapacityMah,
+            request.BatteryVoltage,
+            request.BatteryCellCount,
+            request.MaxFlightTimeMinutes,
+            request.MaxRangeKm,
+            request.MaxSpeedKmh,
+            request.MaxWindSpeedMps,
+            request.MaxOperatingAltitudeMeters);
+
+        // Basic information
+        uav.Code = newCode;
+        uav.Name = request.Name.Trim();
+        uav.Manufacturer = Normalize(request.Manufacturer);
+        uav.Model = Normalize(request.Model);
+        uav.SerialNumber = Normalize(request.SerialNumber);
+
+        // Physical
+        uav.EmptyWeightKg = request.EmptyWeightKg;
+        uav.MaxTakeoffWeightKg = request.MaxTakeoffWeightKg;
+        uav.MaxPayloadKg = request.MaxPayloadKg;
+
+        // Battery
+        uav.BatteryType = Normalize(request.BatteryType);
+        uav.BatteryCapacityMah = request.BatteryCapacityMah;
+        uav.BatteryVoltage = request.BatteryVoltage;
+        uav.BatteryCellCount = request.BatteryCellCount;
+
+        // Flight capability
+        uav.MaxFlightTimeMinutes = request.MaxFlightTimeMinutes;
+        uav.MaxRangeKm = request.MaxRangeKm;
+        uav.MaxSpeedKmh = request.MaxSpeedKmh;
+        uav.MaxWindSpeedMps = request.MaxWindSpeedMps;
+        uav.MaxOperatingAltitudeMeters =
+            request.MaxOperatingAltitudeMeters;
+
+        uav.PurchaseDate = request.PurchaseDate;
+
+        // Pilot thay đổi thông tin UAV => cần duyệt lại
+        uav.Status = "Pending";
+
+        await _uavRepository.SaveChangesAsync(
+            cancellationToken);
+
+        await TryPublishToManagersAsync(
+            "UavUpdatePending",
+            "UAV Update Pending Approval",
+            $"UAV '{uav.Code} - {uav.Name}' has been updated and requires approval.",
+            userId,
+            uav.Id,
+            cancellationToken);
+
         return true;
     }
 
@@ -184,23 +374,42 @@ public sealed class UavService : IUavService
     }
 
     public async Task<UavResponse> UploadOrReplaceUavImageAsync(
-        Guid uavId,
-        Guid actorUserId,
-        string actorRole,
-        Stream fileStream,
-        string fileName,
-        string contentType,
-        long fileSize,
-        CancellationToken cancellationToken = default)
+    Guid uavId,
+    Guid actorUserId,
+    string actorRole,
+    Stream fileStream,
+    string fileName,
+    string contentType,
+    long fileSize,
+    CancellationToken cancellationToken = default)
     {
-        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken)
+        var uav = await _uavRepository.GetDetailAsync(
+            uavId,
+            cancellationToken)
             ?? throw new KeyNotFoundException("UAV not found.");
-        EnsureImagePermission(uav, actorUserId, actorRole);
 
-        var normalizedContentType = contentType.Trim().ToLowerInvariant();
+        EnsureImagePermission(
+            uav,
+            actorUserId,
+            actorRole);
+
+        var normalizedContentType = contentType
+            .Trim()
+            .ToLowerInvariant();
+
         var imageBytes = await _storage.ReadValidatedUavImageAsync(
-            fileStream, fileName, normalizedContentType, fileSize, cancellationToken);
-        if (!await _imageModeration.IsAllowedAsync(imageBytes, normalizedContentType, cancellationToken))
+            fileStream,
+            fileName,
+            normalizedContentType,
+            fileSize,
+            cancellationToken);
+
+        var isAllowed = await _imageModeration.IsAllowedAsync(
+            imageBytes,
+            normalizedContentType,
+            cancellationToken);
+
+        if (!isAllowed)
         {
             throw new ArgumentException(
                 "Invalid image content: The uploaded photo must be a valid UAV/Drone image and must not contain inappropriate content.");
@@ -211,34 +420,68 @@ public sealed class UavService : IUavService
             "image/jpeg" => ".jpg",
             "image/png" => ".png",
             "image/webp" => ".webp",
-            _ => throw new ArgumentException("Unsupported UAV image type.")
+            _ => throw new ArgumentException(
+                "Unsupported UAV image type.")
         };
-        var newPath = $"uavs/{uav.Id:N}/{Guid.NewGuid():N}{extension}";
-        await using (var uploadStream = new MemoryStream(imageBytes, writable: false))
+
+        var newPath =
+            $"uavs/{uav.Id:N}/{Guid.NewGuid():N}{extension}";
+
+        // Upload ảnh mới trước
+        await using (var uploadStream =
+            new MemoryStream(imageBytes, writable: false))
         {
-            await _storage.UploadAsync(newPath, uploadStream, normalizedContentType, cancellationToken);
+            await _storage.UploadAsync(
+                newPath,
+                uploadStream,
+                normalizedContentType,
+                cancellationToken);
         }
 
         var oldPath = uav.ImageStoragePath;
+
+        // Update UAV
         uav.ImageStoragePath = newPath;
         uav.ImageContentType = normalizedContentType;
         uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+
+        // Bất kỳ thay đổi nào của UAV cũng cần duyệt lại
+        uav.Status = "Pending";
+
         try
         {
-            await _uavRepository.SaveChangesAsync(cancellationToken);
+            await _uavRepository.SaveChangesAsync(
+                cancellationToken);
         }
         catch
         {
+            // DB save fail thì xóa ảnh mới vừa upload
             await CleanupImageAsync(newPath);
             throw;
         }
 
-        if (!string.IsNullOrWhiteSpace(oldPath) && !string.Equals(oldPath, newPath, StringComparison.Ordinal))
+        // DB đã lưu path mới thành công thì mới xóa ảnh cũ
+        if (!string.IsNullOrWhiteSpace(oldPath) &&
+            !string.Equals(
+                oldPath,
+                newPath,
+                StringComparison.Ordinal))
         {
             await CleanupImageAsync(oldPath);
         }
 
-        return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
+        // Thông báo cho manager/admin rằng UAV cần được duyệt lại
+        await TryPublishToManagersAsync(
+            "UavUpdatePending",
+            "UAV Update Pending Approval",
+            $"UAV '{uav.Code} - {uav.Name}' image has been updated and requires approval.",
+            actorUserId,
+            uav.Id,
+            cancellationToken);
+
+        return MapToResponse(
+            uav,
+            uav.Pilot?.User?.FullName ?? string.Empty);
     }
 
     public async Task<(string Url, string ContentType)?> GetUavImageAsync(
@@ -252,22 +495,58 @@ public sealed class UavService : IUavService
     }
 
     public async Task<bool> DeleteUavImageAsync(
-        Guid uavId,
-        Guid actorUserId,
-        string actorRole,
-        CancellationToken cancellationToken = default)
+    Guid uavId,
+    Guid actorUserId,
+    string actorRole,
+    CancellationToken cancellationToken = default)
     {
-        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
-        if (uav is null) return false;
-        EnsureImagePermission(uav, actorUserId, actorRole);
-        var oldPath = uav.ImageStoragePath;
-        if (string.IsNullOrWhiteSpace(oldPath)) return true;
+        var uav = await _uavRepository.GetDetailAsync(
+            uavId,
+            cancellationToken);
 
+        if (uav is null)
+        {
+            return false;
+        }
+
+        // Check pilot/manager có quyền thao tác UAV này
+        EnsureImagePermission(
+            uav,
+            actorUserId,
+            actorRole);
+
+        var oldPath = uav.ImageStoragePath;
+
+        // UAV vốn không có ảnh -> không có gì thay đổi
+        if (string.IsNullOrWhiteSpace(oldPath))
+        {
+            return true;
+        }
+
+        // Remove image information
         uav.ImageStoragePath = null;
         uav.ImageContentType = null;
         uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
-        await _uavRepository.SaveChangesAsync(cancellationToken);
+
+        // Có thay đổi thông tin UAV -> cần duyệt lại
+        uav.Status = "Pending";
+
+        // Save DB trước
+        await _uavRepository.SaveChangesAsync(
+            cancellationToken);
+
+        // DB thành công rồi mới xóa file trên storage
         await CleanupImageAsync(oldPath);
+
+        // Notify manager/admin để duyệt lại
+        await TryPublishToManagersAsync(
+            "UavUpdatePending",
+            "UAV Update Pending Approval",
+            $"UAV '{uav.Code} - {uav.Name}' image has been removed and requires approval.",
+            actorUserId,
+            uav.Id,
+            cancellationToken);
+
         return true;
     }
 
@@ -428,23 +707,7 @@ public sealed class UavService : IUavService
         };
     }
 
-    private static UavResponse MapToResponse(UAV uav, string pilotName)
-    {
-        return new UavResponse
-        {
-            Id = uav.Id,
-            PilotId = uav.PilotId,
-            PilotName = pilotName,
-            Code = uav.Code,
-            Name = uav.Name,
-            Model = uav.Model,
-            Status = uav.Status,
-            ImageUrl = string.IsNullOrWhiteSpace(uav.ImageStoragePath)
-                ? null
-                : $"/api/uavs/{uav.Id}/image?v={Uri.EscapeDataString(uav.ImageStoragePath)}",
-            CreatedAt = uav.CreatedAt
-        };
-    }
+   
 
     private static void EnsureStatus(UAV uav, string expectedStatus, string action)
     {
@@ -510,5 +773,54 @@ public sealed class UavService : IUavService
         {
             _logger.LogWarning(exception, "Could not publish UAV decision notification for {UavId}.", uav.Id);
         }
+    }
+    private static UavResponse MapToResponse(UAV uav, string pilotName)
+    {
+        return new UavResponse
+        {
+            Id = uav.Id,
+            PilotId = uav.PilotId,
+            PilotName = pilotName,
+
+            // Basic information
+            Code = uav.Code,
+            Name = uav.Name,
+            Manufacturer = uav.Manufacturer,
+            Model = uav.Model,
+            SerialNumber = uav.SerialNumber,
+            Status = uav.Status,
+
+            // Physical specifications
+            EmptyWeightKg = uav.EmptyWeightKg,
+            MaxTakeoffWeightKg = uav.MaxTakeoffWeightKg,
+            MaxPayloadKg = uav.MaxPayloadKg,
+
+            // Battery specifications
+            BatteryType = uav.BatteryType,
+            BatteryCapacityMah = uav.BatteryCapacityMah,
+            BatteryVoltage = uav.BatteryVoltage,
+            BatteryCellCount = uav.BatteryCellCount,
+
+            // Flight capabilities
+            MaxFlightTimeMinutes = uav.MaxFlightTimeMinutes,
+            MaxRangeKm = uav.MaxRangeKm,
+            MaxSpeedKmh = uav.MaxSpeedKmh,
+            MaxWindSpeedMps = uav.MaxWindSpeedMps,
+            MaxOperatingAltitudeMeters = uav.MaxOperatingAltitudeMeters,
+
+            // Operational information
+            PurchaseDate = uav.PurchaseDate,
+            LastMaintenanceAt = uav.LastMaintenanceAt,
+            NextMaintenanceAt = uav.NextMaintenanceAt,
+            TotalFlightHours = uav.TotalFlightHours,
+            TotalFlights = uav.TotalFlights,
+
+            // Media
+            ImageUrl = string.IsNullOrWhiteSpace(uav.ImageStoragePath)
+                ? null
+                : $"/api/uavs/{uav.Id}/image?v={Uri.EscapeDataString(uav.ImageStoragePath)}",
+
+            CreatedAt = uav.CreatedAt
+        };
     }
 }

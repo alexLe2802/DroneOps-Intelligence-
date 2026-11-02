@@ -59,6 +59,25 @@ public sealed class CreateMissionRequestValidator
             .Must(HaveContinuousSequenceOrders)
             .WithMessage(
                 "Waypoint sequence orders must start at 1 and be continuous.");
+        RuleFor(x => x.AverageSpeedMetersPerSecond)
+    .GreaterThan(0)
+    .WithMessage(
+        "Average speed must be greater than 0 m/s.");
+
+        RuleFor(x => x.MaxSpeedMetersPerSecond)
+            .GreaterThan(0)
+            .WithMessage(
+                "Maximum speed must be greater than 0 m/s.");
+
+        RuleFor(x => x)
+            .Must(x =>
+                x.AverageSpeedMetersPerSecond <=
+                x.MaxSpeedMetersPerSecond)
+            .When(x =>
+                x.AverageSpeedMetersPerSecond > 0 &&
+                x.MaxSpeedMetersPerSecond > 0)
+            .WithMessage(
+                "Average speed cannot exceed maximum speed.");
     }
 
     private static bool HaveUniqueSequenceOrders(

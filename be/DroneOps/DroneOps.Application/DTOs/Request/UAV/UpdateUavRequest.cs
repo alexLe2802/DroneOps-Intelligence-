@@ -4,14 +4,61 @@ namespace DroneOps.Application.DTOs.Request.UAVs;
 
 public sealed class UpdateUavRequest
 {
-    [Required(ErrorMessage = "UAV code is required.")]
-    [StringLength(50, ErrorMessage = "UAV code must not exceed 50 characters.")]
+    [Required]
+    [MaxLength(50)]
     public string Code { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "UAV name is required.")]
-    [StringLength(100, ErrorMessage = "UAV name must not exceed 100 characters.")]
+    [Required]
+    [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 
-    [StringLength(100, ErrorMessage = "UAV model must not exceed 100 characters.")]
+    [MaxLength(100)]
+    public string? Manufacturer { get; set; }
+
+    [MaxLength(100)]
     public string? Model { get; set; }
+
+    [MaxLength(100)]
+    public string? SerialNumber { get; set; }
+
+    // Physical
+    [Range(0.001, double.MaxValue)]
+    public decimal? EmptyWeightKg { get; set; }
+
+    [Range(0.001, double.MaxValue)]
+    public decimal? MaxTakeoffWeightKg { get; set; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? MaxPayloadKg { get; set; }
+
+    // Battery
+    [MaxLength(50)]
+    public string? BatteryType { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int? BatteryCapacityMah { get; set; }
+
+    [Range(0.01, double.MaxValue)]
+    public decimal? BatteryVoltage { get; set; }
+
+    [Range(1, 100)]
+    public int? BatteryCellCount { get; set; }
+
+    // Flight capability
+    [Range(1, int.MaxValue)]
+    public int? MaxFlightTimeMinutes { get; set; }
+
+    [Range(0.01, double.MaxValue)]
+    public decimal? MaxRangeKm { get; set; }
+
+    [Range(0.01, double.MaxValue)]
+    public decimal? MaxSpeedKmh { get; set; }
+
+    [Range(0.01, double.MaxValue)]
+    public decimal? MaxWindSpeedMps { get; set; }
+
+    [Range(0.01, double.MaxValue)]
+    public decimal? MaxOperatingAltitudeMeters { get; set; }
+
+    public DateTimeOffset? PurchaseDate { get; set; }
 }

@@ -30,6 +30,69 @@ internal static class PostFlightPostgresChecks
         PostFlightReport Report(Guid mission)=>new(){Id=Guid.NewGuid(),MissionId=mission,Revision=1,IsCurrent=true,GenerationStatus="Queued",Status="Completed",CoveredTelemetryFrom=start,CoveredTelemetryThrough=completedAt,CreatedAt=DateTimeOffset.UtcNow,GenerationReason="PostgreSQL concurrency fixture"};
         TelemetryRecord Sample(Guid mission,int seconds)=>new(){Id=Guid.NewGuid(),MissionId=mission,UAVId=uav,SourceId="lifecycle-fixture",SourceTimestamp=start.AddSeconds(seconds),ReceivedAt=start.AddSeconds(seconds),RecordedAt=start.AddSeconds(seconds),Latitude=10m+seconds/100000m,Longitude=106m+seconds/100000m,Altitude=20,Speed=5,BatteryLevel=80,IsValid=true};
         async Task Denied(Func<Task> action,string label){try{await action();throw new Exception("Expected rejection");}catch(UnauthorizedAccessException){Check(true,label);}}
+        async Task CleanupFixturesAsync()
+        {
+            // IncidentTransition is intentionally append-only for application traffic.
+            // Fixture cleanup therefore uses a transaction-local replication role on
+            // this dedicated connection. Triggers remain enabled for every other
+            // session and are restored automatically when the transaction ends.
+            await using var connection=await source.OpenConnectionAsync();
+            await using var transaction=await connection.BeginTransactionAsync();
+            await using var command=connection.CreateCommand();
+            command.Transaction=transaction;
+            command.CommandText="""
+                SET LOCAL session_replication_role = replica;
+
+                DELETE FROM "IncidentAlertDelivery"
+                WHERE "IncidentId" IN (
+                    SELECT i."Id" FROM "Incident" i
+                    JOIN "Mission" m ON m."Id" = i."MissionId"
+                    JOIN "User" u ON u."Id" = m."CreatedBy"
+                    WHERE u."Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "IncidentTransition"
+                WHERE "IncidentId" IN (
+                    SELECT i."Id" FROM "Incident" i
+                    JOIN "Mission" m ON m."Id" = i."MissionId"
+                    JOIN "User" u ON u."Id" = m."CreatedBy"
+                    WHERE u."Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "Incident" WHERE "MissionId" IN (
+                    SELECT m."Id" FROM "Mission" m
+                    JOIN "User" u ON u."Id" = m."CreatedBy"
+                    WHERE u."Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "TelemetryRecord" WHERE "MissionId" IN (
+                    SELECT m."Id" FROM "Mission" m
+                    JOIN "User" u ON u."Id" = m."CreatedBy"
+                    WHERE u."Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "PostFlightReport" WHERE "MissionId" IN (
+                    SELECT m."Id" FROM "Mission" m
+                    JOIN "User" u ON u."Id" = m."CreatedBy"
+                    WHERE u."Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "FlightCompletionEvent" WHERE "MissionId" IN (
+                    SELECT m."Id" FROM "Mission" m
+                    JOIN "User" u ON u."Id" = m."CreatedBy"
+                    WHERE u."Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "Mission" WHERE "CreatedBy" IN (
+                    SELECT "Id" FROM "User" WHERE "Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "UAV" WHERE "PilotId" IN (
+                    SELECT p."Id" FROM "Pilot" p
+                    JOIN "User" u ON u."Id" = p."UserId"
+                    WHERE u."Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "Pilot" WHERE "UserId" IN (
+                    SELECT "Id" FROM "User" WHERE "Email" LIKE 'lifecycle-%@test.invalid'
+                );
+                DELETE FROM "User" WHERE "Email" LIKE 'lifecycle-%@test.invalid';
+                """;
+            await command.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+        }
         try
         {
             db.Users.AddRange(
@@ -106,14 +169,7 @@ internal static class PostFlightPostgresChecks
         finally
         {
             db.ChangeTracker.Clear();
-            await db.TelemetryRecords.Where(x=>x.MissionId.HasValue&&fixtureMissions.Contains(x.MissionId.Value)).ExecuteDeleteAsync();
-            await db.PostFlightReports.Where(x=>fixtureMissions.Contains(x.MissionId)).ExecuteDeleteAsync();
-            await db.FlightCompletionEvents.Where(x=>fixtureMissions.Contains(x.MissionId)).ExecuteDeleteAsync();
-            await db.Incidents.Where(x=>fixtureMissions.Contains(x.MissionId)).ExecuteDeleteAsync();
-            await db.Missions.Where(x=>fixtureMissions.Contains(x.Id)).ExecuteDeleteAsync();
-            await db.UAVs.Where(x=>x.Id==uav).ExecuteDeleteAsync();
-            await db.Pilots.Where(x=>x.Id==pilot).ExecuteDeleteAsync();
-            await db.Users.Where(x=>new[]{owner,outsider}.Contains(x.Id)).ExecuteDeleteAsync();
+            await CleanupFixturesAsync();
             Console.WriteLine("Temporary lifecycle records removed.");
         }
     }

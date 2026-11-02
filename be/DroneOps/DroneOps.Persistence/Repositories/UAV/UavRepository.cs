@@ -90,10 +90,15 @@ public sealed class UavRepository
             keyword = keyword.Trim().ToLower();
 
             query = query.Where(x =>
-                x.Code.ToLower().Contains(keyword) ||
-                x.Name.ToLower().Contains(keyword) ||
-                (x.Model != null && x.Model.ToLower().Contains(keyword)) ||
-                x.Pilot.User.FullName.ToLower().Contains(keyword));
+      x.Code.ToLower().Contains(keyword) ||
+      x.Name.ToLower().Contains(keyword) ||
+      (x.Manufacturer != null &&
+          x.Manufacturer.ToLower().Contains(keyword)) ||
+      (x.Model != null &&
+          x.Model.ToLower().Contains(keyword)) ||
+      (x.SerialNumber != null &&
+          x.SerialNumber.ToLower().Contains(keyword)) ||
+      x.Pilot.User.FullName.ToLower().Contains(keyword));
         }
 
         int safePage = page < 1 ? 1 : page;
@@ -106,16 +111,62 @@ public sealed class UavRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<List<UAV>> GetByPilotIdAsync(
-        Guid pilotId,
-        CancellationToken cancellationToken = default)
+    public async Task<(IReadOnlyList<UAV> Items, int TotalCount)> GetByPilotIdAsync(
+     Guid pilotId,
+     string? keyword,
+     string? status,
+     int pageNumber,
+     int pageSize,
+     CancellationToken cancellationToken = default)
     {
-        return await DbSet
+        IQueryable<UAV> query = DbSet
             .AsNoTracking()
             .Include(x => x.Pilot)
             .ThenInclude(x => x.User)
-            .Where(x => x.PilotId == pilotId)
+            .Where(x => x.PilotId == pilotId);
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var normalizedKeyword = keyword.Trim().ToLowerInvariant();
+
+            query = query.Where(x =>
+                x.Code.ToLower().Contains(normalizedKeyword) ||
+                x.Name.ToLower().Contains(normalizedKeyword) ||
+                (x.Manufacturer != null &&
+                 x.Manufacturer.ToLower().Contains(normalizedKeyword)) ||
+                (x.Model != null &&
+                 x.Model.ToLower().Contains(normalizedKeyword)) ||
+                (x.SerialNumber != null &&
+                 x.SerialNumber.ToLower().Contains(normalizedKeyword)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            var normalizedStatus = status.Trim().ToLowerInvariant();
+
+            if (normalizedStatus is "pending" or "pending review")
+            {
+                query = query.Where(x =>
+                    x.Status.ToLower() == "pending" ||
+                    x.Status.ToLower() == "pending review");
+            }
+            else
+            {
+                query = query.Where(x =>
+                    x.Status.ToLower() == normalizedStatus);
+            }
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenBy(x => x.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
     }
 
     public async Task<UAV?> GetDetailAsync(
@@ -147,9 +198,14 @@ public sealed class UavRepository
             string normalizedKeyword = keyword.Trim().ToLowerInvariant();
 
             query = query.Where(uav =>
-                uav.Code.ToLower().Contains(normalizedKeyword) ||
-                uav.Name.ToLower().Contains(normalizedKeyword) ||
-                (uav.Model != null && uav.Model.ToLower().Contains(normalizedKeyword)));
+       uav.Code.ToLower().Contains(normalizedKeyword) ||
+       uav.Name.ToLower().Contains(normalizedKeyword) ||
+       (uav.Manufacturer != null &&
+           uav.Manufacturer.ToLower().Contains(normalizedKeyword)) ||
+       (uav.Model != null &&
+           uav.Model.ToLower().Contains(normalizedKeyword)) ||
+       (uav.SerialNumber != null &&
+           uav.SerialNumber.ToLower().Contains(normalizedKeyword)));
         }
 
         if (!string.IsNullOrWhiteSpace(status))
