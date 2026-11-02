@@ -1,26 +1,48 @@
 ﻿using DroneOps.Application.Interfaces.Geofences;
+using DroneOps.Domain.Constants;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace DroneOps.Persistence.Repositories;
 
 public class GeofenceRepository : IGeofenceRepository
 {
     private readonly AppDbContext _context;
+    private readonly IMemoryCache _cache;
 
-    public GeofenceRepository(AppDbContext context)
+    public GeofenceRepository(
+        AppDbContext context,
+        IMemoryCache cache)
     {
         _context = context;
+        _cache = cache;
     }
 
-    public Task<List<Geofence>> GetAllAsync(
+    public async Task<List<Geofence>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
-        return _context.Geofences
+        if (_cache.TryGetValue(
+                GeofenceCacheKeys.Snapshot,
+                out IReadOnlyList<Geofence>? cached) && cached is not null)
+        {
+            return cached
+                .OrderByDescending(x => x.CreatedAt)
+                .ToList();
+        }
+
+        var snapshot = await _context.Geofences
             .AsNoTracking()
-            .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
+
+        _cache.Set(
+            GeofenceCacheKeys.Snapshot,
+            (IReadOnlyList<Geofence>)snapshot,
+            GeofenceCacheKeys.SnapshotLifetime);
+        return snapshot
+            .OrderByDescending(x => x.CreatedAt)
+            .ToList();
     }
 
     public Task<Geofence?> GetByIdAsync(
