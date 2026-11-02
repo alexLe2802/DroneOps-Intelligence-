@@ -39,6 +39,12 @@ public static class MissionPlans
             EndTime =
                 StoredTime(request.EndTime),
 
+            AverageSpeedMetersPerSecond =
+    request.AverageSpeedMetersPerSecond,
+
+            MaxSpeedMetersPerSecond =
+    request.MaxSpeedMetersPerSecond,
+
             Waypoints = request.Waypoints
                 .Select(x => new Waypoint
                 {
@@ -98,6 +104,12 @@ public static class MissionPlans
 
             EndTime =
                 mission.EndTime ?? default,
+
+            AverageSpeedMetersPerSecond =
+    mission.AverageSpeedMetersPerSecond ?? 0,
+
+            MaxSpeedMetersPerSecond =
+    mission.MaxSpeedMetersPerSecond ?? 0,
 
             Waypoints = mission.Waypoints
                 .OrderBy(x => x.SequenceOrder)

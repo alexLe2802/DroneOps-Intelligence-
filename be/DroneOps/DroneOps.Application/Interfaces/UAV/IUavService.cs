@@ -13,9 +13,10 @@ public interface IUavService
         CreateUavRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<List<UavResponse>> GetMyUavsAsync(
-        Guid userId,
-        CancellationToken cancellationToken = default);
+    Task<PagedResponse<UavResponse>> GetMyUavsAsync(
+    Guid userId,
+    GetAllUavsRequest request,
+    CancellationToken cancellationToken = default);
 
     Task<List<UavResponse>> GetPendingAsync(
         string? keyword = null,

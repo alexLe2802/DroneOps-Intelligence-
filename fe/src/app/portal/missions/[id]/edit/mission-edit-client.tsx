@@ -6,8 +6,10 @@ import { getAssignedUavs, getGeofences, getMission, updateMission } from "@/lib/
 import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../../module-state";
 import MissionMap from "../../mission-map";
+import { appendLandingWaypoint, normalizeWaypointActions } from "@/lib/maps/mission-waypoints";
+import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 
-const actions: WaypointAction[] = ["TakeOff", "FlyThrough", "Hover", "CapturePhoto", "Land"];
+const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover", "CapturePhoto"];
 const editableStatuses = new Set(["draft", "rejected", "pending", "pendingreview", "submitted", "approved"]);
 
 const toLocalInput = (value: string | null) => {
@@ -22,6 +24,8 @@ type EditorValue = {
   uavId: string;
   name: string;
   description: string;
+  averageSpeedMetersPerSecond: string;
+  maxSpeedMetersPerSecond: string;
   startTime: string;
   endTime: string;
   waypoints: MissionWaypoint[];
@@ -32,9 +36,11 @@ const editorValue = (saved: MissionDetail): EditorValue => { const mission = sav
   uavId: mission.uavId ?? "",
   name: mission.name,
   description: mission.description ?? "",
+  averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond?.toString() ?? "",
+  maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond?.toString() ?? "",
   startTime: toLocalInput(mission.startTime),
   endTime: toLocalInput(mission.endTime),
-  waypoints: mission.waypoints.map(point => ({ ...point })),
+  waypoints: normalizeWaypointActions(mission.waypoints.map(point => ({ ...point }))),
 }); };
 
 export default function MissionEditClient({ id }: { id: string }) {
@@ -103,17 +109,17 @@ export default function MissionEditClient({ id }: { id: string }) {
 
   function addWaypoint(longitude: number, latitude: number) {
     if (!value) return;
-    patchValue({ waypoints: [...value.waypoints, { sequenceOrder: value.waypoints.length + 1, latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: 50, actionType: value.waypoints.length ? "FlyThrough" : "TakeOff" }] });
+    patchValue({ waypoints: appendLandingWaypoint(value.waypoints, { latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: 50 }) });
   }
 
   function updateWaypoint(index: number, patch: Partial<MissionWaypoint>) {
     if (!value) return;
-    patchValue({ waypoints: value.waypoints.map((point, current) => current === index ? { ...point, ...patch } : point) });
+    patchValue({ waypoints: normalizeWaypointActions(value.waypoints.map((point, current) => current === index ? { ...point, ...patch } : point)) });
   }
 
   function removeWaypoint(index: number) {
     if (!value) return;
-    patchValue({ waypoints: value.waypoints.filter((_, current) => current !== index).map((point, current) => ({ ...point, sequenceOrder: current + 1 })) });
+    patchValue({ waypoints: normalizeWaypointActions(value.waypoints.filter((_, current) => current !== index)) });
   }
 
   function moveWaypoint(index: number, direction: -1 | 1) {
@@ -122,7 +128,7 @@ export default function MissionEditClient({ id }: { id: string }) {
     if (target < 0 || target >= value.waypoints.length) return;
     const next = [...value.waypoints];
     [next[index], next[target]] = [next[target], next[index]];
-    patchValue({ waypoints: next.map((point, current) => ({ ...point, sequenceOrder: current + 1 })) });
+    patchValue({ waypoints: normalizeWaypointActions(next) });
   }
 
   function resetChanges() {
@@ -141,10 +147,14 @@ export default function MissionEditClient({ id }: { id: string }) {
     if (!value || savePending.current) return;
     setFormError("");
     setNotice("");
-    if (value.waypoints.length < 2) { setFormError("Keep at least two waypoints in the flight route."); return; }
+    const normalizedWaypoints = normalizeWaypointActions(value.waypoints);
+    const invalidRoute = routeError(normalizedWaypoints);
+    if (invalidRoute) { setFormError(invalidRoute); return; }
     if (new Date(value.endTime) <= new Date(value.startTime)) { setFormError("End time must be later than start time."); return; }
-    if (value.waypoints.some(point => point.latitude < -90 || point.latitude > 90 || point.longitude < -180 || point.longitude > 180)) { setFormError("A waypoint is outside the valid latitude or longitude range."); return; }
-    if (value.waypoints.some(point => point.altitude != null && point.altitude < 0)) { setFormError("Waypoint altitude must not be negative."); return; }
+    const averageSpeedMetersPerSecond = Number(value.averageSpeedMetersPerSecond);
+    const maxSpeedMetersPerSecond = Number(value.maxSpeedMetersPerSecond);
+    const invalidSpeed = missionSpeedError(averageSpeedMetersPerSecond, maxSpeedMetersPerSecond);
+    if (invalidSpeed) { setFormError(invalidSpeed); return; }
     savePending.current = true;
     setSaving(true);
     try {
@@ -153,9 +163,11 @@ export default function MissionEditClient({ id }: { id: string }) {
         uavId: value.uavId,
         name: value.name.trim(),
         description: value.description.trim() || null,
+        averageSpeedMetersPerSecond,
+        maxSpeedMetersPerSecond,
         startTime: new Date(value.startTime).toISOString(),
         endTime: new Date(value.endTime).toISOString(),
-        waypoints: value.waypoints.map((point, index) => ({ ...point, sequenceOrder: index + 1 })),
+        waypoints: normalizedWaypoints,
       };
       const signature = JSON.stringify(payload);
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
@@ -194,6 +206,8 @@ export default function MissionEditClient({ id }: { id: string }) {
           <label>ASSIGNED UAV<select value={value.uavId} onChange={event => patchValue({ uavId: event.target.value })} required><option value="">Select an active UAV</option>{approvedAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME<input value={value.name} onChange={event => patchValue({ name: event.target.value })} minLength={2} maxLength={200} required /></label>
           <label className="full-field">DESCRIPTION<textarea value={value.description} onChange={event => patchValue({ description: event.target.value })} maxLength={2000} /></label>
+          <label>AVERAGE SPEED (M/S)<input type="number" min="0.1" step="0.1" value={value.averageSpeedMetersPerSecond} onChange={event => patchValue({ averageSpeedMetersPerSecond: event.target.value })} required /></label>
+          <label>MAXIMUM SPEED (M/S)<input type="number" min="0.1" step="0.1" value={value.maxSpeedMetersPerSecond} onChange={event => patchValue({ maxSpeedMetersPerSecond: event.target.value })} required /></label>
           <label>START TIME<input type="datetime-local" value={value.startTime} onChange={event => patchValue({ startTime: event.target.value })} required /></label>
           <label>END TIME<input type="datetime-local" value={value.endTime} onChange={event => patchValue({ endTime: event.target.value })} required /></label>
         </div>
@@ -202,7 +216,10 @@ export default function MissionEditClient({ id }: { id: string }) {
       <section className="route-builder">
         <div className="builder-section-title"><span>02</span><div><h2>Route and waypoint sequence</h2><p>Drag route nodes, click the map to add one, or edit exact values below.</p></div><button type="button" className="text-action" disabled={!value.waypoints.length} onClick={() => patchValue({ waypoints: [] })}>CLEAR ROUTE</button></div>
         <MissionMap waypoints={value.waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
-        <div className="waypoint-list mission-edit-waypoint-list">{value.waypoints.length === 0 ? <div className="waypoint-empty">Click the map to add the first route waypoint.</div> : value.waypoints.map((point, index) => <article key={`${point.sequenceOrder}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (M)<input type="number" min="0" max="500" value={point.altitude ?? ""} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{actions.map(action => <option key={action}>{action}</option>)}</select></label><div className="waypoint-order-actions"><button type="button" title="Move waypoint up" aria-label={`Move waypoint ${index + 1} up`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" title="Move waypoint down" aria-label={`Move waypoint ${index + 1} down`} disabled={index === value.waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" title="Remove waypoint" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div></article>)}</div>
+        <div className="waypoint-list mission-edit-waypoint-list">{value.waypoints.length === 0 ? <div className="waypoint-empty">Click the map to add the first route waypoint.</div> : value.waypoints.map((point, index) => {
+          const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : index === value.waypoints.length - 1 ? "Land" : null;
+          return <article key={`${point.sequenceOrder}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M)<input type="number" min="10.1" step="any" value={point.altitude ?? ""} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option>{endpointAction}</option> : intermediateActions.map(action => <option key={action}>{action}</option>)}</select></label><div className="waypoint-order-actions"><button type="button" title="Move waypoint up" aria-label={`Move waypoint ${index + 1} up`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" title="Move waypoint down" aria-label={`Move waypoint ${index + 1} down`} disabled={index === value.waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" title="Remove waypoint" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div></article>;
+        })}</div>
       </section>
       </fieldset>
 

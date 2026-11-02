@@ -177,7 +177,7 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
 
     {mission.pendingUpdate && <>
       <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
-      <MissionPlanComparison isInitial={mission.pendingUpdate.isInitial} current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
+      <MissionPlanComparison isInitial={mission.pendingUpdate.isInitial} current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
     </>}
     <MissionEvidencePanel key={id} id={id} />
     <section className="mission-command-panel" aria-label="Mission lifecycle actions">
@@ -213,6 +213,8 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
           <div><dt>Status</dt><dd>{formatStatus(mission.status)}</dd></div>
           <div><dt>Start time</dt><dd>{formatDate(mission.startTime)}</dd></div>
           <div><dt>End time</dt><dd>{formatDate(mission.endTime)}</dd></div>
+          <div><dt>Average speed</dt><dd>{mission.averageSpeedMetersPerSecond == null ? "Not provided" : `${mission.averageSpeedMetersPerSecond} m/s`}</dd></div>
+          <div><dt>Maximum speed</dt><dd>{mission.maxSpeedMetersPerSecond == null ? "Not provided" : `${mission.maxSpeedMetersPerSecond} m/s`}</dd></div>
           <div><dt>Created</dt><dd>{mission.createdAt ? formatDate(mission.createdAt) : "Not provided"}</dd></div>
           <div><dt>Mission ID</dt><dd className="mission-id-value">{mission.id}</dd></div>
         </dl>

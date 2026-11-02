@@ -305,6 +305,13 @@ public sealed class MissionValidationService(
 
             StartTime = CanonicalTime(mission.StartTime),
             EndTime = CanonicalTime(mission.EndTime),
+            AverageSpeedMetersPerSecond =
+    CanonicalNumber(
+        mission.AverageSpeedMetersPerSecond),
+
+            MaxSpeedMetersPerSecond =
+    CanonicalNumber(
+        mission.MaxSpeedMetersPerSecond),
 
             Waypoints = mission.Waypoints
                 .OrderBy(x => x.SequenceOrder)
@@ -349,12 +356,25 @@ public sealed class MissionValidationService(
         {
             Id = result.Id,
             MissionId = result.MissionId,
+            UpdateRequestId = result.UpdateRequestId,
             ActorId = actor,
             Stage = result.Stage,
             IsValid = result.IsValid,
+            ResultStatus = result.Outcome,
             CheckedAt = result.CheckedAt,
 
             PlanHash = Hash(mission),
+            RestrictionRevision = result.RestrictionRevision,
+
+            EvidenceJson = JsonSerializer.Serialize(
+                new
+                {
+                    planHash = Hash(mission),
+                    plan = Snapshot(mission),
+                    findings = result.Findings,
+                    restrictions = result.RestrictionEvidence
+                },
+                JsonOptions),
 
             PlanJson = JsonSerializer.Serialize(
                 Snapshot(mission),
@@ -397,6 +417,11 @@ public sealed class MissionValidationService(
             UavId = mission.UAVId ?? Guid.Empty,
             StartTime = mission.StartTime ?? default,
             EndTime = mission.EndTime ?? default,
+            AverageSpeedMetersPerSecond =
+    mission.AverageSpeedMetersPerSecond ?? 0,
+
+            MaxSpeedMetersPerSecond =
+    mission.MaxSpeedMetersPerSecond ?? 0,
 
             Waypoints = mission.Waypoints
                 .Select(x => new CreateWaypointRequest
@@ -582,7 +607,44 @@ public sealed class MissionValidationService(
         var orderedPoints = mission.Waypoints
             .OrderBy(x => x.SequenceOrder)
             .ToList();
+        // -----------------------------------------------------
+        // Route duration / average speed validation
+        // -----------------------------------------------------
 
+        if (mission.AverageSpeedMetersPerSecond.HasValue &&
+            mission.AverageSpeedMetersPerSecond.Value > 0 &&
+            mission.StartTime.HasValue &&
+            mission.EndTime.HasValue &&
+            orderedPoints.Count >= 2)
+        {
+            var routeDistanceMeters =
+                CalculateRouteDistanceMeters(
+                    orderedPoints);
+
+            var requiredFlightSeconds =
+                routeDistanceMeters /
+                (double)mission
+                    .AverageSpeedMetersPerSecond
+                    .Value;
+
+            var availableFlightSeconds =
+                (mission.EndTime.Value -
+                 mission.StartTime.Value)
+                .TotalSeconds;
+
+            if (requiredFlightSeconds >
+                availableFlightSeconds)
+            {
+                result.Issues.Add(
+                    "The scheduled flight window is too short " +
+                    "for the route at the configured average speed.");
+            }
+        }
+
+        if (result.Issues.Count > 0)
+        {
+            return result;
+        }
         if (orderedPoints
             .Zip(orderedPoints.Skip(1))
             .Any(x =>
