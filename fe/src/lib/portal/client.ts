@@ -266,6 +266,12 @@ export async function updateAssignedUav(id: string, request: UpdateUavRequest): 
   await api(`/uavs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(request) });
 }
 
+export async function uploadOrReplaceUavImage(id: string, file: File): Promise<AssignedUav> {
+  const body = new FormData();
+  body.set("file", file);
+  return api<AssignedUav>(`/uavs/${encodeURIComponent(id)}/image`, { method: "PUT", body });
+}
+
 export async function deleteAssignedUav(id: string): Promise<void> {
   await api(`/uavs/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

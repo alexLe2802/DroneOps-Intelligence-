@@ -228,6 +228,7 @@ export type AssignedUav = {
   status: UavStatus;
   pilotId: string;
   pilotName: string;
+  imageUrl?: string | null;
   createdAt: string;
 };
 
