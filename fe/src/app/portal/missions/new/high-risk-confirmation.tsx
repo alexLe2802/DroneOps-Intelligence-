@@ -36,7 +36,7 @@ export default function HighRiskConfirmation({ mission, busy, error, onConfirm, 
       </div>
       <footer>
         <button type="button" className={styles.cancel} disabled={busy !== null} onClick={onCancel}>{busy === "cancel" ? "CANCELLING..." : "CANCEL MISSION"}</button>
-        <button type="button" className={styles.confirm} disabled={busy !== null} onClick={onConfirm}>{busy === "confirm" ? "CONFIRMING..." : "OK — CONFIRM HIGH RISK"}</button>
+        <button type="button" className={styles.confirm} disabled={busy !== null} onClick={onConfirm}>{busy === "confirm" ? "CONFIRMING..." : "CONFIRM HIGH RISK"}</button>
       </footer>
     </section>
   </div>;
