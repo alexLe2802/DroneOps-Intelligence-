@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { getAssignedUav } from "@/lib/portal/client";
@@ -30,7 +31,7 @@ export default function UavDetailClient({ id }: { id: string }) {
     <header className="module-heading"><div><p className="module-kicker">PILOT / UAV DETAILS</p><h1>{aircraft.code}</h1><p>Registration and operational status from the backend registry.</p></div><div className="heading-actions"><Link className="module-secondary module-link" href="/portal/uav">← ALL UAV</Link></div></header>
 
     <section className="uav-detail">
-      <div className="uav-visual"><span>⌁</span><b>{aircraft.code}</b></div>
+      <div className="uav-visual">{aircraft.imageUrl ? <Image unoptimized src={aircraft.imageUrl} alt={`${aircraft.code} UAV`} width={720} height={720} /> : <><span>⌁</span><b>{aircraft.code}</b></>}</div>
       <div className="uav-detail-info"><header><span className={`status status-${aircraft.status.toLowerCase()}`}>{aircraft.status}</span><small className={aircraft.status.toLowerCase() === "active" ? "approval-approved" : "approval-pending"}>{aircraft.status.toLowerCase() === "active" ? "ADMIN APPROVED" : (aircraft.status.toLowerCase() === "pending" ? "AWAITING APPROVAL" : aircraft.status.toLowerCase() === "rejected" ? "REGISTRATION REJECTED" : "NOT OPERATIONAL")}</small></header><h2>{aircraft.name}</h2><p>{aircraft.model ?? "Model not specified"}</p><dl><div><dt>Code</dt><dd>{aircraft.code}</dd></div><div><dt>Name</dt><dd>{aircraft.name}</dd></div><div><dt>Model</dt><dd>{aircraft.model ?? "Not specified"}</dd></div><div><dt>Status</dt><dd>{aircraft.status}</dd></div><div><dt>Created at</dt><dd>{aircraft.createdAt.slice(0, 10)}</dd></div><div><dt>Pilot</dt><dd>{aircraft.pilotName || "Current pilot"}</dd></div></dl>{submitted && <p className="approval-banner" role="status" aria-live="polite">{submitted === "create" ? "UAV registration submitted. Waiting for manager approval." : "UAV changes saved successfully."}</p>}<div className="uav-actions"><Link className="module-secondary module-link" href={`/portal/uav/${aircraft.id}/edit`}>EDIT UAV</Link><DeleteUavButton id={aircraft.id} code={aircraft.code} /></div></div>
     </section>
   </>;
