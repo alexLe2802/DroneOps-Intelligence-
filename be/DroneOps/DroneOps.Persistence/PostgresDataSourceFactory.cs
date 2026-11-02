@@ -33,6 +33,17 @@ public static class PostgresDataSourceFactory
 
         // Keep automatic prepared statements disabled so either pooler mode is safe.
         settings.MaxAutoPrepare = 0;
+        settings.Pooling = true;
+        // A Free Plan database has a small connection budget. Npgsql defaults to
+        // 100 pooled connections per process, which can overwhelm Supavisor's
+        // session pool during concurrent API/background requests and leave new
+        // requests waiting in SCRAM authentication until the BFF times out.
+        settings.MinPoolSize = 0;
+        settings.MaxPoolSize = Math.Min(settings.MaxPoolSize, 8);
+        settings.ConnectionIdleLifetime = Math.Min(settings.ConnectionIdleLifetime, 60);
+        settings.ConnectionPruningInterval = Math.Min(settings.ConnectionPruningInterval, 10);
+        settings.Timeout = Math.Min(settings.Timeout, 8);
+        settings.ApplicationName = "DroneOps.API";
         settings.IncludeErrorDetail = false;
         settings.LogParameters = false;
 
