@@ -5,7 +5,7 @@ import ts from "typescript";
 
 const source = await readFile(new URL("../src/lib/maps/mission-waypoints.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-const { appendLandingWaypoint } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { appendLandingWaypoint, normalizeWaypointActions } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 
 const position = (latitude, longitude) => ({ latitude, longitude, altitude: 50 });
 
@@ -35,4 +35,18 @@ test("adding an endpoint preserves actions before the former endpoint", () => {
   assert.equal(next[0].actionType, "TakeOff");
   assert.equal(next[1].actionType, "FlyThrough");
   assert.equal(next[2].actionType, "Land");
+});
+
+test("route normalization hard-locks endpoint actions after reorder or removal", () => {
+  const route = normalizeWaypointActions([
+    { ...position(11, 107), sequenceOrder: 9, actionType: "Land" },
+    { ...position(10, 106), sequenceOrder: 4, actionType: "TakeOff" },
+    { ...position(12, 108), sequenceOrder: 2, actionType: "TakeOff" },
+  ]);
+
+  assert.deepEqual(route.map(point => point.sequenceOrder), [1, 2, 3]);
+  assert.deepEqual(route.map(point => point.actionType), ["TakeOff", "FlyThrough", "Land"]);
+
+  const afterRemoval = normalizeWaypointActions(route.slice(1));
+  assert.deepEqual(afterRemoval.map(point => point.actionType), ["TakeOff", "Land"]);
 });
