@@ -106,6 +106,7 @@ public sealed class MissionRepository : IMissionRepository
             .AsNoTracking()
             .Include(x => x.Waypoints)
             .Where(x => x.CreatedBy == creatorId)
+            .Include(x => x.UAV)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
     }

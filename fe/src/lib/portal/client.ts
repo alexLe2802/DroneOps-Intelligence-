@@ -2,7 +2,7 @@ import { api, ApiError } from "@/lib/auth/client";
 import type { AccountRole } from "@/lib/auth/types";
 import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
-type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable">;
+type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable"> & { uavCode?: string | null };
 
 function normalizeMission(mission: MissionApiRecord, uavCode: string | null): MissionDetail {
   return {
@@ -20,12 +20,8 @@ function normalizeMission(mission: MissionApiRecord, uavCode: string | null): Mi
 }
 
 export async function getPilotMissions(): Promise<MissionDetail[]> {
-  const [missions, aircraft] = await Promise.all([
-    api<MissionApiRecord[]>("/missions/my"),
-    getAssignedUavs().catch(() => [] as AssignedUav[]),
-  ]);
-  const uavCodes = new Map(aircraft.map(item => [item.id, item.code]));
-  return missions.map(mission => normalizeMission(mission, mission.uavId ? uavCodes.get(mission.uavId) ?? null : null));
+  const missions = await api<MissionApiRecord[]>("/missions/my");
+  return missions.map(mission => normalizeMission(mission, mission.uavCode ?? null));
 }
 
 export async function getManagerMissions(): Promise<ManagerMission[]> {
