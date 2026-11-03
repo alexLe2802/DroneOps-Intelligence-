@@ -20,6 +20,7 @@ public sealed class MissionValidationResult
     public List<string> Issues { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
     public WeatherAdvisory? Weather { get; set; }
+    public BatteryRiskResult? Battery { get; set; }
 }
 
 public sealed class WeatherAdvisory
@@ -167,6 +168,45 @@ public sealed class WaypointWeather
     public string RiskLevel { get; set; } = "Unknown";
 
     public List<string> RiskReasons { get; set; } = [];
+
+    public List<string> Warnings { get; set; } = [];
+}
+
+
+public sealed class BatteryRiskResult
+{
+    public string Status { get; set; } = "Unavailable";
+
+    public string RiskLevel { get; set; } = "Unknown";
+
+    public bool RequiresConfirmation { get; set; }
+
+    public double RouteDistanceMeters { get; set; }
+
+    public decimal EstimatedFlightMinutes { get; set; }
+
+    public decimal? UavMaxFlightTimeMinutes { get; set; }
+
+    public int? BatteryCapacityMah { get; set; }
+
+    public decimal? BatteryVoltage { get; set; }
+
+    public decimal? BatteryEnergyWh { get; set; }
+
+    public decimal BaseBatteryPercent { get; set; }
+
+    public decimal WeatherMultiplier { get; set; } = 1m;
+
+    public decimal WeatherAdjustmentPercent { get; set; }
+
+    public decimal SafetyReservePercent { get; set; }
+
+    // Không clamp về 100
+    public decimal RequiredBatteryPercent { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public List<string> Reasons { get; set; } = [];
 
     public List<string> Warnings { get; set; } = [];
 }

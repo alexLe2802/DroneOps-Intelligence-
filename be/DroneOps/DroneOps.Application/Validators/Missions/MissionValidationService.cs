@@ -798,12 +798,25 @@ public sealed class MissionValidationService(
         // -----------------------------------------------------
 
         result.Weather =
-            await weather.GetAsync(
-                mission,
-                cancellationToken);
+        await weather.GetAsync(
+            mission,
+            cancellationToken);
 
         result.Warnings.AddRange(
             result.Weather.Warnings);
+
+        // -----------------------------------------------------
+        // Battery risk validation
+        // -----------------------------------------------------
+
+        result.Battery =
+            MissionBatteryRiskCalculator.Calculate(
+                mission,
+                uav!,
+                result.Weather);
+
+        result.Warnings.AddRange(
+            result.Battery.Warnings);
 
         return result;
     }
