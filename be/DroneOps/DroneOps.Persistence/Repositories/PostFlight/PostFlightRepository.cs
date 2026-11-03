@@ -11,6 +11,32 @@ namespace DroneOps.Persistence.Repositories;
 /// </summary>
 public class PostFlightRepository : IPostFlightRepository
 {
+    public Task<List<Incident>> GetIncidentsForMissionsAsync(Guid[] missionIds, CancellationToken cancellationToken = default) =>
+        _context.Incidents.AsNoTracking().Where(x => missionIds.Contains(x.MissionId)).ToListAsync(cancellationToken);
+
+    public Task<List<TelemetryRecord>> GetAnalyticsTelemetryForMissionsAsync(Guid[] missionIds, CancellationToken cancellationToken = default) =>
+        _context.TelemetryRecords.AsNoTracking()
+            .Where(x => x.MissionId.HasValue && missionIds.Contains(x.MissionId.Value))
+            .OrderBy(x => x.SourceTimestamp).ThenBy(x => x.ReceivedAt)
+            .Select(x => new TelemetryRecord
+            {
+                MissionId = x.MissionId, SourceTimestamp = x.SourceTimestamp, ReceivedAt = x.ReceivedAt,
+                Latitude = x.Latitude, Longitude = x.Longitude, IsValid = x.IsValid
+            })
+            .ToListAsync(cancellationToken);
+
+    public Task<List<PostFlightReport>> GetCurrentReportsAsync(Guid[] missionIds, CancellationToken cancellationToken = default) =>
+        _context.PostFlightReports.AsNoTracking()
+            .Where(x => x.IsCurrent && missionIds.Contains(x.MissionId))
+            .ToListAsync(cancellationToken);
+
+    public Task<Dictionary<Guid, int>> GetIncidentCountsAsync(Guid[] missionIds, CancellationToken cancellationToken = default) =>
+        _context.Incidents.AsNoTracking()
+            .Where(x => missionIds.Contains(x.MissionId))
+            .GroupBy(x => x.MissionId)
+            .Select(group => new { MissionId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(x => x.MissionId, x => x.Count, cancellationToken);
+
     private readonly AppDbContext _context;
 
     public PostFlightRepository(AppDbContext context)

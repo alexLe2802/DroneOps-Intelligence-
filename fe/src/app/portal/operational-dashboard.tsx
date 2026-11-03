@@ -28,23 +28,22 @@ export default function OperationalDashboard({ account }: { account: Account }) 
 
   const load = useCallback(async () => {
     setError(null);
+    void getGeofences().then(setZones).catch(() => {
+      setWarnings(current => [...current, "Geofence API is currently unavailable for this session."]);
+    });
+    if (!manager) void getAssignedUavs().then(setAircraft).catch(() => {
+      setWarnings(current => [...current, "Assigned UAV API is currently unavailable for this session."]);
+    });
+    setWarnings([]);
     const results = await Promise.allSettled([
       getOperationalAnalytics(),
       getFlightHistory({ pageSize: 100 }),
-      getGeofences(),
-      manager ? Promise.resolve([] as AssignedUav[]) : getAssignedUavs(),
     ]);
-    const [summary, history, geofences, uavs] = results;
+    const [summary, history] = results;
     if (summary.status === "rejected") return setError(summary.reason);
     if (history.status === "rejected") return setError(history.reason);
     setAnalytics(summary.value);
     setMissions(history.value.items);
-    setZones(geofences.status === "fulfilled" ? geofences.value : []);
-    setAircraft(uavs.status === "fulfilled" ? uavs.value : []);
-    const nextWarnings: string[] = [];
-    if (geofences.status === "rejected") nextWarnings.push("Geofence API is currently unavailable for this session.");
-    if (uavs.status === "rejected") nextWarnings.push("Assigned UAV API is currently unavailable for this session.");
-    setWarnings(nextWarnings);
   }, [manager]);
 
   useEffect(() => {
