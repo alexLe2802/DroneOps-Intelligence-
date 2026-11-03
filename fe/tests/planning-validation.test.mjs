@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import ts from "typescript";
 const source = await readFile(new URL("../src/lib/maps/planning-validation.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-const { polygonError, routeError, validCoordinate } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { missionSpeedError, polygonError, routeError, validCoordinate } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 
 const point = (longitude, latitude) => ({ latitude, longitude });
 const triangle = [point(106, 10), point(107, 10), point(107, 11)];
@@ -30,13 +30,24 @@ test("out-of-range or cleared polygon coordinates cannot be saved", () => {
   assert.ok(polygonError([triangle[0], triangle[1], point(NaN, 10)]));
 });
 test("route validation rejects incomplete routes and non-finite altitude", () => {
-  const route = triangle.slice(0, 2).map((p, i) => ({ ...p, altitude: 50, sequenceOrder: i + 1, actionType: "FlyThrough" }));
+  const route = triangle.slice(0, 2).map((p, i) => ({ ...p, altitude: 50, sequenceOrder: i + 1, actionType: i === 0 ? "TakeOff" : "Land" }));
   assert.equal(routeError(route), null);
   assert.ok(routeError(route.slice(0, 1)));
   assert.ok(routeError([{ ...route[0], altitude: NaN }, route[1]]));
   assert.ok(routeError([{ ...route[0], altitude: -1 }, route[1]]));
   assert.ok(routeError([{ ...route[0], latitude: NaN }, route[1]]));
-  assert.equal(routeError([{ ...route[0], altitude: 0 }, route[1]]), null);
+  assert.match(routeError([{ ...route[0], altitude: 10 }, route[1]]), /greater than 10 m/);
+  assert.equal(routeError([{ ...route[0], altitude: 10.1 }, route[1]]), null);
+  assert.match(routeError([{ ...route[0], actionType: "FlyThrough" }, route[1]]), /first waypoint/);
+  assert.match(routeError([route[0], { ...route[1], actionType: "Hover" }]), /final waypoint/);
   // The backend contract has no 500m maximum; don't invent an aviation limit.
   assert.equal(routeError([{ ...route[0], altitude: 501 }, route[1]]), null);
+});
+
+test("mission speed validation matches the backend contract", () => {
+  assert.equal(missionSpeedError(10, 15), null);
+  assert.match(missionSpeedError(0, 15), /Average speed/);
+  assert.match(missionSpeedError(10, 0), /Maximum speed/);
+  assert.match(missionSpeedError(16, 15), /cannot exceed/);
+  assert.ok(missionSpeedError(NaN, 15));
 });

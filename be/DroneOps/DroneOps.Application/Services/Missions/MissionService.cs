@@ -52,10 +52,13 @@ public sealed class MissionService : IMissionService
             null,
             cancellationToken);
 
-        await TryPublishPendingNotificationAsync(
-            mission,
-            pilotId,
-            cancellationToken);
+        if (mission.Status == "Pending Review")
+        {
+            await TryPublishPendingNotificationAsync(
+                mission,
+                pilotId,
+                cancellationToken);
+        }
 
         return await MapWithValidationAsync(
             mission,
@@ -175,6 +178,13 @@ public sealed class MissionService : IMissionService
             Status = mission.Status,
             StartTime = mission.StartTime,
             EndTime = mission.EndTime,
+
+            AverageSpeedMetersPerSecond =
+    mission.AverageSpeedMetersPerSecond,
+
+            MaxSpeedMetersPerSecond =
+    mission.MaxSpeedMetersPerSecond,
+
             CreatedAt = mission.CreatedAt,
 
             Waypoints = mission.Waypoints
@@ -222,7 +232,10 @@ public sealed class MissionService : IMissionService
     public async Task<MissionResponse?> UpdateAsync(Guid id, Guid userId, CreateMissionRequest request, CancellationToken cancellationToken = default)
     {
         var mission = await _workflow.SavePlanAsync(userId, request, id, cancellationToken);
-        await TryPublishPendingNotificationAsync(mission, userId, cancellationToken);
+        if (mission.Status == "Pending Review")
+        {
+            await TryPublishPendingNotificationAsync(mission, userId, cancellationToken);
+        }
         return await MapWithValidationAsync(mission, cancellationToken);
     }
 
