@@ -5,9 +5,11 @@ import { getGeofences } from "@/lib/portal/client";
 import { formatWeatherTime } from "@/lib/portal/weather-display";
 import { planFieldChanges, waypointReviewRows } from "@/lib/portal/plan-review";
 import MissionMap from "./mission-map";
+import MissionValidationEvidence from "./mission-validation-evidence";
+import { validationState } from "@/lib/portal/mission-review";
 import styles from "./mission-evidence.module.css";
 
-export default function MissionPlanComparison({ current, proposed, validation, isInitial = false }: { isInitial?: boolean; current?: CreateMissionRequest | null; proposed?: CreateMissionRequest | null; validation?: MissionValidationResult | null }) {
+export default function MissionPlanComparison({ current, proposed, validation, isInitial = false, missionId, historical = false }: { missionId?: string; historical?: boolean; isInitial?: boolean; current?: CreateMissionRequest | null; proposed?: CreateMissionRequest | null; validation?: MissionValidationResult | null }) {
   const [routeView, setRouteView] = useState<"current" | "proposed">("proposed");
   const [showMap, setShowMap] = useState(false);
   const [zones, setZones] = useState<Geofence[]>([]);
@@ -30,9 +32,9 @@ export default function MissionPlanComparison({ current, proposed, validation, i
         : plan[key] || "Not specified";
   const waypointValue = (point: typeof proposed.waypoints[number] | undefined) => point
     ? `${point.latitude}, ${point.longitude} / ${point.altitude ?? "unknown"} m · ${point.actionType}` : "—";
-  const passed = validation?.isValid === true && !validation.stale && !validation.incomplete;
+  const passed = validationState(validation) === "Pass";
   const hasFindings = !!validation?.findings?.length;
-  const uncertain = !validation || validation.stale || validation.incomplete || validation.status === "Incomplete";
+  const uncertain = ["Unavailable", "Stale", "Incomplete", "Error"].includes(validationState(validation));
   return <section className={`${styles.panel} ${styles.comparison}`}>
     <header className={styles.heading}><div><span className={styles.kicker}>{isInitial ? "NEW MISSION / INITIAL REVIEW" : "PLAN COMPARISON"}</span><h2>{isInitial ? "Submitted plan" : "Review proposed changes"}</h2>{!isInitial && <p>Compare the saved plan with the submitted proposal. Changes are highlighted below.</p>}</div></header>
     {!isInitial && <p className={styles.changeSummary}>{changedFields.length || waypointRows.some(row => row.changed) ? `${changedFields.length} fields and ${waypointRows.filter(row => row.changed).length} waypoints changed.` : "No changes from the saved plan."}</p>}
@@ -48,7 +50,6 @@ export default function MissionPlanComparison({ current, proposed, validation, i
       <MissionMap waypoints={displayRoute === "proposed" ? proposed.waypoints : saved.waypoints} geofences={zones} readOnly findings={displayRoute === "proposed" ? validation?.findings : undefined} />
       <p>{displayRoute === "proposed" ? "Submitted route · red markers and segments identify restriction findings. Incomplete findings require data review and do not establish a confirmed violation." : "Saved plan · the proposal validation applies to the submitted route, not this view."}</p></>}
     <details className={styles.waypointDetails}><summary>{isInitial ? "View submitted plan waypoints" : "Compare waypoint coordinates, altitude and action"}</summary><div className="mission-waypoint-table-wrap"><table className="mission-waypoint-table"><thead><tr><th>Waypoint</th>{!isInitial && <th>Current coordinates / altitude / action</th>}<th>{isInitial ? "Submitted coordinates / altitude / action" : "Proposed coordinates / altitude / action"}</th></tr></thead><tbody>{waypointRows.map(row => <tr key={row.sequence} className={!isInitial && row.changed ? styles.changedRow : undefined}><th>WP{row.sequence}{!isInitial && row.changed && <small className={styles.changeBadge}>{row.status}</small>}</th>{!isInitial && <td>{waypointValue(row.before)}</td>}<td>{waypointValue(row.after)}</td></tr>)}</tbody></table></div></details>
-    <p>Validation: {validation?.status ?? "Incomplete"}. Checked: {formatWeatherTime(validation?.checkedAt)}</p>
-    {validation?.findings?.map((finding, i) => <p role="alert" key={i}>{finding.reason} · Restriction revision {finding.revision}</p>)}
+    <MissionValidationEvidence missionId={missionId} validation={validation} historical={historical} />
   </section>;
 }

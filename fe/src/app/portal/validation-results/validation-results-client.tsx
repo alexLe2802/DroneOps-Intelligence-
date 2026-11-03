@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { validationState } from "@/lib/portal/mission-review";
 import type { AccountRole } from "@/lib/auth/types";
 import { getLatestMissionValidation, getMissionValidationRun, getValidationMissionOptions } from "@/lib/portal/client";
 import type { ValidationMissionOption } from "@/lib/portal/client";
@@ -102,8 +103,8 @@ export default function ValidationResultsClient({ role, missionId, runId }: { ro
 
   const issues = unique(result.issues);
   const warnings = unique(result.warnings);
-  const passed = result.outcome === "Pass" || result.isValid;
-  const readiness = result.outcome ?? (passed ? "Pass" : "Fail");
+  const readiness = validationState(result);
+  const passed = readiness === "Pass";
   const message = result.message.replace(/\s*Weather warnings are advisory\./gi, "").trim();
 
   return <main className={styles.page}>
@@ -114,10 +115,12 @@ export default function ValidationResultsClient({ role, missionId, runId }: { ro
 
     <header className={`${styles.readiness} ${passed ? styles.readinessPassed : styles.readinessBlocked}`}>
       <span className={styles.readinessIcon}>{passed ? <CheckCircle2 size={27} /> : <ShieldAlert size={27} />}</span>
-      <div className={styles.readinessCopy}><p>FLIGHT READINESS / {runId ? "SAVED RUN" : "LATEST CHECK"}</p><h1>{passed ? "Cleared for operational review" : "Action required before flight"}</h1><span>{message || (passed ? "All mandatory validation checks passed." : "One or more mandatory checks require attention.")}</span></div>
+      <div className={styles.readinessCopy}><p>FLIGHT READINESS / {runId ? "SAVED RUN" : "LATEST CHECK"}</p><h1>{passed ? runId ? "Saved validation passed" : "Cleared for operational review" : "Action required before flight"}</h1><span>{message || (passed ? "All mandatory validation checks passed." : "One or more mandatory checks require attention.")}</span></div>
       <div className={styles.readinessState}><small>VALIDATION STATE</small><strong>{normalizeStatus(readiness).toUpperCase()}</strong><span>{result.stage || "Pre-flight"}</span></div>
     </header>
 
+    {readiness === "Stale" && <p role="alert">Outdated validation evidence. Revalidate the mission before approval.</p>}
+    {runId && <p role="status">Historical saved run. A recorded pass does not establish current flight clearance.</p>}
     <dl className={styles.evidenceMeta}>
       <div><dt>MISSION ID</dt><dd>{missionId}</dd></div>
       <div><dt>VALIDATION ID</dt><dd>{result.id ?? "Not recorded"}</dd></div>
@@ -127,9 +130,9 @@ export default function ValidationResultsClient({ role, missionId, runId }: { ro
 
     <section className={styles.findingsGrid}>
       <article className={`${styles.findingPanel} ${issues.length ? styles.findingDanger : styles.findingClear}`}>
-        <header><div>{issues.length ? <TriangleAlert size={18} /> : <CheckCircle2 size={18} />}<span>MANDATORY CHECKS</span></div><b>{issues.length ? `${issues.length} BLOCKING` : "CLEAR"}</b></header>
+        <header><div>{issues.length ? <TriangleAlert size={18} /> : <CheckCircle2 size={18} />}<span>MANDATORY CHECKS</span></div><b>{issues.length ? `${issues.length} BLOCKING` : passed ? "CLEAR" : "NOT CLEARED"}</b></header>
         {issues.length ? <ol>{issues.map((issue, index) => <li key={issue}><span>{String(index + 1).padStart(2, "0")}</span><p>{issue}</p></li>)}</ol>
-          : <div className={styles.clearState}><ClipboardCheck size={27} /><div><strong>No blocking issues</strong><span>Route, aircraft and operational rules passed the mandatory checks recorded in this run.</span></div></div>}
+          : passed ? <div className={styles.clearState}><ClipboardCheck size={27} /><div><strong>No blocking issues</strong><span>Route, aircraft and operational rules passed the mandatory checks recorded in this run.</span></div></div> : <p>Mandatory clearance is not established. Review the validation state and revalidate.</p>}
       </article>
 
       <article className={`${styles.findingPanel} ${warnings.length ? styles.findingWarning : styles.findingClear}`}>
