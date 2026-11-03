@@ -1,4 +1,4 @@
-namespace DroneOps.Application.DTOs.Response.Missions;
+﻿namespace DroneOps.Application.DTOs.Response.Missions;
 
 public sealed class MissionValidationResult
 {
@@ -25,23 +25,49 @@ public sealed class MissionValidationResult
 public sealed class WeatherAdvisory
 {
     public Guid? MissionId { get; set; }
+
     public Guid? UpdateRequestId { get; set; }
+
     public string PlanHash { get; set; } = "";
+
     public string Status { get; set; } = "Unavailable";
-    public DateTimeOffset GeneratedAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset ExpiresAt { get; set; } = DateTimeOffset.UtcNow.AddMinutes(10);
+
+    public DateTimeOffset GeneratedAt { get; set; } =
+        DateTimeOffset.UtcNow;
+
+    public DateTimeOffset ExpiresAt { get; set; } =
+        DateTimeOffset.UtcNow.AddMinutes(10);
+
     public DateTime? FlightStartTime { get; set; }
+
     public DateTime? FlightEndTime { get; set; }
+
+   
     public List<WaypointWeather> Waypoints { get; set; } = [];
+
     public string OverallRisk { get; set; } = "Unknown";
+
+    public int OverallRiskScore { get; set; }
+
     public string? ModelRun { get; set; }
+
     public string Provider { get; set; } = "Open-Meteo";
-    public DateTimeOffset FetchedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset FetchedAt { get; set; } =
+        DateTimeOffset.UtcNow;
+
     public bool Available { get; set; }
+
     public decimal? MaxWindMetersPerSecond { get; set; }
+
     public decimal? MaxGustMetersPerSecond { get; set; }
+
+    public decimal? MaxCrosswindMetersPerSecond { get; set; }
+
     public decimal? MaxRainMillimetersPerHour { get; set; }
+
     public bool ThunderstormForecast { get; set; }
+
     public List<string> Warnings { get; set; } = [];
 }
 
@@ -78,25 +104,69 @@ public sealed class RestrictionEvidence
 public sealed class WaypointWeather
 {
     public int SequenceOrder { get; set; }
+
+    /*
+     * false: waypoint thật
+     * true: điểm được tạo thêm dọc segment
+     */
+    public bool IsRouteSample { get; set; }
+
+    public int SampleOrder { get; set; }
+
+    public int? SegmentFrom { get; set; }
+
+    public int? SegmentTo { get; set; }
+
+    public decimal? SegmentBearingDegrees { get; set; }
+
     public decimal Latitude { get; set; }
+
     public decimal Longitude { get; set; }
+
     public decimal? AltitudeMeters { get; set; }
+
     public DateTime? EstimatedArrivalTime { get; set; }
+
     public string? ArrivalTimeReason { get; set; }
+
     public DateTime? ForecastTime { get; set; }
+
     public DateTimeOffset? SourceFetchedAt { get; set; }
+
     public decimal? TemperatureCelsius { get; set; }
+
     public decimal? RelativeHumidityPercent { get; set; }
+
     public decimal? WindSpeedMetersPerSecond { get; set; }
+
     public decimal? WindDirectionDegrees { get; set; }
+
     public decimal? WindGustMetersPerSecond { get; set; }
+
+    public decimal? CrosswindMetersPerSecond { get; set; }
+
+   
+    public decimal? HeadwindMetersPerSecond { get; set; }
+
     public int WindReferenceHeightMeters { get; set; } = 10;
+
     public decimal? PrecipitationProbabilityPercent { get; set; }
+
     public decimal? PrecipitationMillimeters { get; set; }
+
     public decimal? VisibilityMeters { get; set; }
+
     public decimal? CloudCoverPercent { get; set; }
+
     public int? WeatherCode { get; set; }
+
     public string Status { get; set; } = "Unavailable";
+
+    public int RiskScore { get; set; }
+
     public string RiskLevel { get; set; } = "Unknown";
+
+    public List<string> RiskReasons { get; set; } = [];
+
     public List<string> Warnings { get; set; } = [];
 }

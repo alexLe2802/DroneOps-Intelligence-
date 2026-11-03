@@ -2,14 +2,18 @@
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces;
 using DroneOps.Application.Interfaces.Validators;
+using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
+using DroneOps.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace DroneOps.Application.Services.Missions;
 
 public sealed class MissionWorkflowService(
     IMissionWorkflowRepository missionRepository,
-    IMissionValidationService validation)
+    IMissionValidationService validation,
+    AppDbContext db)
     : IMissionWorkflowService
 {
     // =========================================================
@@ -22,6 +26,8 @@ public sealed class MissionWorkflowService(
         Guid? id,
         CancellationToken cancellationToken = default)
     {
+        var updateRequestId = Guid.NewGuid();
+
         return await missionRepository.ExecuteSerializableAsync(
             async ct =>
             {
@@ -79,7 +85,7 @@ public sealed class MissionWorkflowService(
                     current,
                     request);
 
-                proposal.Status = "Pending Review";
+                
 
                 // =========================
                 // VALIDATE
@@ -98,17 +104,28 @@ public sealed class MissionWorkflowService(
                     throw new MissionValidationException(
                         validationResult);
                 }
+                validationResult.UpdateRequestId = updateRequestId;
+                var requiresPilotConfirmation =
+    string.Equals(
+        validationResult.Weather?.OverallRisk,
+        "High",
+        StringComparison.OrdinalIgnoreCase);
 
+                var nextStatus =
+                    requiresPilotConfirmation
+                        ? "Pending Confirm"
+                        : "Pending Review";
+
+                proposal.Status = nextStatus;
                 // =========================
                 // CREATE
                 // =========================
-
                 if (!isUpdate)
                 {
                     proposal.Id = current.Id;
                     proposal.CreatedBy = current.CreatedBy;
                     proposal.CreatedAt = current.CreatedAt;
-                    proposal.Status = "Pending Review";
+                    proposal.Status = nextStatus;
 
                     foreach (var waypoint in proposal.Waypoints)
                     {
@@ -126,6 +143,21 @@ public sealed class MissionWorkflowService(
                         true,
                         ct);
 
+                    db.MissionUpdateRequests.Add(new MissionUpdateRequest
+                    {
+                        Id = updateRequestId,
+                        MissionId = proposal.Id,
+                        ActorId = actor,
+                        IsInitial = true,
+                        Status = "Pending",
+                        BasePlanHash = MissionValidationService.Hash(proposal),
+                        BasePlanJson = "{}",
+                        ProposedPlanJson = System.Text.Json.JsonSerializer.Serialize(
+                            MissionPlans.Dto(proposal), MissionValidationService.JsonOptions),
+                        ValidationRunId = validationResult.Id,
+                        CreatedAt = DateTimeOffset.UtcNow
+                    });
+
                     return proposal;
                 }
 
@@ -133,19 +165,35 @@ public sealed class MissionWorkflowService(
                 // UPDATE
                 // =========================
 
-                await missionRepository.UpdatePlanAsync(
-                    current,
-                    proposal,
-                    ct);
-
-                current.Status = "Pending Review";
+                current.Status = nextStatus;
 
                 await validation.StoreAsync(
-                    current,
+                    proposal,
                     actor,
                     validationResult,
                     true,
                     ct);
+
+                await db.MissionUpdateRequests
+                    .Where(x => x.MissionId == current.Id && x.Status == "Pending")
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(x => x.Status, "Superseded"), ct);
+
+                db.MissionUpdateRequests.Add(new MissionUpdateRequest
+                {
+                    Id = updateRequestId,
+                    MissionId = current.Id,
+                    ActorId = actor,
+                    IsInitial = false,
+                    Status = "Pending",
+                    BasePlanHash = MissionValidationService.Hash(current),
+                    BasePlanJson = System.Text.Json.JsonSerializer.Serialize(
+                        MissionPlans.Dto(current), MissionValidationService.JsonOptions),
+                    ProposedPlanJson = System.Text.Json.JsonSerializer.Serialize(
+                        MissionPlans.Dto(proposal), MissionValidationService.JsonOptions),
+                    ValidationRunId = validationResult.Id,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
 
                 return current;
             },
@@ -312,6 +360,84 @@ public sealed class MissionWorkflowService(
                 mission.Status = "InProgress";
 
                 return validationResult;
+            },
+            cancellationToken);
+    }
+    // =========================================================
+    // CONFIRM HIGH WEATHER RISK
+    // =========================================================
+
+    public async Task ConfirmHighRiskAsync(
+        Guid missionId,
+        Guid pilotId,
+        CancellationToken cancellationToken = default)
+    {
+        await missionRepository.ExecuteSerializableAsync(
+            async ct =>
+            {
+                var mission =
+                    await missionRepository
+                        .GetByIdWithWaypointsAsync(
+                            missionId,
+                            ct)
+                    ?? throw new KeyNotFoundException(
+                        "Mission not found.");
+
+                if (mission.CreatedBy != pilotId)
+                {
+                    throw new UnauthorizedAccessException(
+                        "You may only confirm your own mission.");
+                }
+
+                if (mission.Status != "Pending Confirm")
+                {
+                    throw new InvalidOperationException(
+                        "Only missions pending pilot confirmation can be confirmed.");
+                }
+
+                mission.Status = "Pending Review";
+
+                return true;
+            },
+            cancellationToken);
+    }
+    // =========================================================
+    // CANCEL HIGH WEATHER RISK
+    // =========================================================
+
+    public async Task CancelHighRiskAsync(
+        Guid missionId,
+        Guid pilotId,
+        CancellationToken cancellationToken = default)
+    {
+        await missionRepository.ExecuteSerializableAsync(
+            async ct =>
+            {
+                var mission =
+                    await missionRepository
+                        .GetByIdWithWaypointsAsync(
+                            missionId,
+                            ct)
+                    ?? throw new KeyNotFoundException(
+                        "Mission not found.");
+
+                if (mission.CreatedBy != pilotId)
+                {
+                    throw new UnauthorizedAccessException(
+                        "You may only cancel your own mission.");
+                }
+
+                if (mission.Status != "Pending Confirm")
+                {
+                    throw new InvalidOperationException(
+                        "Only missions pending pilot confirmation can be cancelled.");
+                }
+
+                await missionRepository.DeleteAsync(
+                    mission,
+                    ct);
+
+                return true;
             },
             cancellationToken);
     }

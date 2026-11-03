@@ -305,6 +305,13 @@ public sealed class MissionValidationService(
 
             StartTime = CanonicalTime(mission.StartTime),
             EndTime = CanonicalTime(mission.EndTime),
+            AverageSpeedMetersPerSecond =
+    CanonicalNumber(
+        mission.AverageSpeedMetersPerSecond),
+
+            MaxSpeedMetersPerSecond =
+    CanonicalNumber(
+        mission.MaxSpeedMetersPerSecond),
 
             Waypoints = mission.Waypoints
                 .OrderBy(x => x.SequenceOrder)
@@ -349,12 +356,25 @@ public sealed class MissionValidationService(
         {
             Id = result.Id,
             MissionId = result.MissionId,
+            UpdateRequestId = result.UpdateRequestId,
             ActorId = actor,
             Stage = result.Stage,
             IsValid = result.IsValid,
+            ResultStatus = result.Outcome,
             CheckedAt = result.CheckedAt,
 
             PlanHash = Hash(mission),
+            RestrictionRevision = result.RestrictionRevision,
+
+            EvidenceJson = JsonSerializer.Serialize(
+                new
+                {
+                    planHash = Hash(mission),
+                    plan = Snapshot(mission),
+                    findings = result.Findings,
+                    restrictions = result.RestrictionEvidence
+                },
+                JsonOptions),
 
             PlanJson = JsonSerializer.Serialize(
                 Snapshot(mission),
@@ -397,6 +417,11 @@ public sealed class MissionValidationService(
             UavId = mission.UAVId ?? Guid.Empty,
             StartTime = mission.StartTime ?? default,
             EndTime = mission.EndTime ?? default,
+            AverageSpeedMetersPerSecond =
+    mission.AverageSpeedMetersPerSecond ?? 0,
+
+            MaxSpeedMetersPerSecond =
+    mission.MaxSpeedMetersPerSecond ?? 0,
 
             Waypoints = mission.Waypoints
                 .Select(x => new CreateWaypointRequest
@@ -582,7 +607,44 @@ public sealed class MissionValidationService(
         var orderedPoints = mission.Waypoints
             .OrderBy(x => x.SequenceOrder)
             .ToList();
+        // -----------------------------------------------------
+        // Route duration / average speed validation
+        // -----------------------------------------------------
 
+        if (mission.AverageSpeedMetersPerSecond.HasValue &&
+            mission.AverageSpeedMetersPerSecond.Value > 0 &&
+            mission.StartTime.HasValue &&
+            mission.EndTime.HasValue &&
+            orderedPoints.Count >= 2)
+        {
+            var routeDistanceMeters =
+                CalculateRouteDistanceMeters(
+                    orderedPoints);
+
+            var requiredFlightSeconds =
+                routeDistanceMeters /
+                (double)mission
+                    .AverageSpeedMetersPerSecond
+                    .Value;
+
+            var availableFlightSeconds =
+                (mission.EndTime.Value -
+                 mission.StartTime.Value)
+                .TotalSeconds;
+
+            if (requiredFlightSeconds >
+                availableFlightSeconds)
+            {
+                result.Issues.Add(
+                    "The scheduled flight window is too short " +
+                    "for the route at the configured average speed.");
+            }
+        }
+
+        if (result.Issues.Count > 0)
+        {
+            return result;
+        }
         if (orderedPoints
             .Zip(orderedPoints.Skip(1))
             .Any(x =>
@@ -1004,5 +1066,93 @@ public sealed class MissionValidationService(
             JsonSerializer.Serialize(
                 result,
                 JsonOptions);
+    }
+    // =========================================================
+    // Route distance
+    // =========================================================
+
+    private static double CalculateRouteDistanceMeters(
+        IReadOnlyList<Waypoint> waypoints)
+    {
+        var totalDistanceMeters = 0d;
+
+        for (var index = 1;
+             index < waypoints.Count;
+             index++)
+        {
+            var previous =
+                waypoints[index - 1];
+
+            var current =
+                waypoints[index];
+
+            totalDistanceMeters +=
+                HaversineDistanceMeters(
+                    previous.Latitude,
+                    previous.Longitude,
+                    current.Latitude,
+                    current.Longitude);
+        }
+
+        return totalDistanceMeters;
+    }
+
+    private static double HaversineDistanceMeters(
+        decimal latitudeA,
+        decimal longitudeA,
+        decimal latitudeB,
+        decimal longitudeB)
+    {
+        const double earthRadiusMeters =
+            6_371_000d;
+
+        static double ToRadians(
+            double degrees)
+        {
+            return degrees *
+                   Math.PI /
+                   180d;
+        }
+
+        var latitude1 =
+            ToRadians(
+                (double)latitudeA);
+
+        var latitude2 =
+            ToRadians(
+                (double)latitudeB);
+
+        var latitudeDifference =
+            ToRadians(
+                (double)(
+                    latitudeB -
+                    latitudeA));
+
+        var longitudeDifference =
+            ToRadians(
+                (double)(
+                    longitudeB -
+                    longitudeA));
+
+        var haversine =
+            Math.Sin(
+                latitudeDifference / 2d) *
+            Math.Sin(
+                latitudeDifference / 2d) +
+            Math.Cos(latitude1) *
+            Math.Cos(latitude2) *
+            Math.Sin(
+                longitudeDifference / 2d) *
+            Math.Sin(
+                longitudeDifference / 2d);
+
+        var centralAngle =
+            2d *
+            Math.Atan2(
+                Math.Sqrt(haversine),
+                Math.Sqrt(1d - haversine));
+
+        return earthRadiusMeters *
+               centralAngle;
     }
 }

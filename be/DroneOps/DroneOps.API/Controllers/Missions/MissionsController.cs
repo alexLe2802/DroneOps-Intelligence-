@@ -265,7 +265,55 @@ public sealed class MissionsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+    [HttpPost("{id:guid}/confirm-high-risk")]
+    [Authorize(Roles = "uav_operator")]
+    public async Task<IActionResult> ConfirmHighRiskAsync(
+    Guid id,
+    CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var pilotId))
+        {
+            return Unauthorized();
+        }
 
+        await _workflow.ConfirmHighRiskAsync(
+            id,
+            pilotId,
+            cancellationToken);
+
+        return Ok(new
+        {
+            missionId = id,
+            status = "Pending Review",
+            message =
+                "High weather risk confirmed. " +
+                "The mission has been submitted for review."
+        });
+    }
+
+    [HttpDelete("{id:guid}/cancel-high-risk")]
+    [Authorize(Roles = "uav_operator")]
+    public async Task<IActionResult> CancelHighRiskAsync(
+    Guid id,
+    CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var pilotId))
+        {
+            return Unauthorized();
+        }
+
+        await _workflow.CancelHighRiskAsync(
+            id,
+            pilotId,
+            cancellationToken);
+
+        return Ok(new
+        {
+            missionId = id,
+            message =
+                "The high-risk mission has been cancelled and deleted."
+        });
+    }
     private bool TryGetUserId(out Guid userId)
     {
         userId = Guid.Empty;

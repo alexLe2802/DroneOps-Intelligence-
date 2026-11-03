@@ -51,7 +51,7 @@ public sealed class MissionWorkflowRepository(
         current.Id = currentId;
         current.CreatedBy = createdBy;
         current.CreatedAt = createdAt;
-        current.Status = "Pending Review";
+        current.Status = proposal.Status;
 
         /*
          * Thay toàn bộ waypoint cũ bằng waypoint mới.
@@ -72,7 +72,17 @@ public sealed class MissionWorkflowRepository(
 
         await Task.CompletedTask;
     }
+    public Task DeleteAsync(
+      Mission mission,
+      CancellationToken cancellationToken = default)
+    {
+        db.Set<Waypoint>()
+            .RemoveRange(mission.Waypoints);
 
+        db.Missions.Remove(mission);
+
+        return Task.CompletedTask;
+    }
     public async Task SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {

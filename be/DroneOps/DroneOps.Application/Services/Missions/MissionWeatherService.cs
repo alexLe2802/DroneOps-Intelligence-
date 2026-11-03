@@ -17,9 +17,24 @@ public sealed class MissionWeatherService(
     IMemoryCache cache)
     : IMissionWeatherService
 {
+    private const string ProviderUrl =
+        "https://api.open-meteo.com/v1/forecast";
+
     private sealed record CachedHours(
         JsonElement Hours,
         DateTimeOffset FetchedAt);
+
+    private sealed record RoutePoint(
+        int SequenceOrder,
+        bool IsRouteSample,
+        int SampleOrder,
+        int? SegmentFrom,
+        int? SegmentTo,
+        decimal Latitude,
+        decimal Longitude,
+        decimal? Altitude,
+        decimal? BearingDegrees,
+        double DistanceFromStartMeters);
 
     private static readonly string[] Variables =
     [
@@ -50,6 +65,8 @@ public sealed class MissionWeatherService(
         bool force,
         CancellationToken cancellationToken = default)
     {
+        var policy = options.Value;
+
         var result = new WeatherAdvisory
         {
             MissionId = mission.Id,
@@ -63,182 +80,127 @@ public sealed class MissionWeatherService(
                 cancellationToken);
 
         budget.CancelAfter(
-            TimeSpan.FromSeconds(12));
+            TimeSpan.FromSeconds(
+                Math.Max(5, policy.RequestBudgetSeconds)));
 
-        var points = mission.Waypoints
+        var orderedWaypoints = mission.Waypoints
             .OrderBy(x => x.SequenceOrder)
             .ToList();
+
+        var routePoints =
+            BuildRoutePoints(
+                orderedWaypoints,
+                policy);
+
+        var totalDistance =
+            routePoints.Count == 0
+                ? 0
+                : routePoints.Max(x =>
+                    x.DistanceFromStartMeters);
 
         var fetched =
             new Dictionary<
                 string,
                 (CachedHours? Data, bool Stale)>();
 
-        foreach (var point in points)
+        foreach (var routePoint in routePoints)
         {
-           
-            var latitude =
-                Math.Round(point.Latitude, 2);
+            var raw = await GetForecastAsync(
+                routePoint,
+                fetched,
+                force,
+                policy,
+                budget.Token,
+                cancellationToken);
 
-            var longitude =
-                Math.Round(point.Longitude, 2);
+            var estimatedArrival =
+                EstimateArrivalTime(
+                    mission,
+                    routePoint.DistanceFromStartMeters,
+                    totalDistance);
 
-            var latitudeText =
-                latitude.ToString(
-                    "F2",
-                    CultureInfo.InvariantCulture);
-
-            var longitudeText =
-                longitude.ToString(
-                    "F2",
-                    CultureInfo.InvariantCulture);
-
-            var cacheKey =
-                $"open-meteo-v2:{latitudeText}:{longitudeText}";
-
-            if (!fetched.TryGetValue(
-                    cacheKey,
-                    out var raw))
+            var weatherPoint = new WaypointWeather
             {
-                cache.TryGetValue<CachedHours>(
-                    cacheKey,
-                    out var stored);
+                SequenceOrder =
+                    routePoint.SequenceOrder,
 
-                raw = (stored, false);
+                IsRouteSample =
+                    routePoint.IsRouteSample,
 
-                var cacheExpired =
-                    stored is null ||
-                    stored.FetchedAt <
-                    DateTimeOffset.UtcNow.AddMinutes(-10);
+                SampleOrder =
+                    routePoint.SampleOrder,
 
-                if (force || cacheExpired)
-                {
-                    try
-                    {
-                        var hourlyVariables =
-                            string.Join(
-                                ",",
-                                Variables);
+                SegmentFrom =
+                    routePoint.SegmentFrom,
 
-                        var uri =
-                            $"https://api.open-meteo.com/v1/forecast" +
-                            $"?latitude={latitudeText}" +
-                            $"&longitude={longitudeText}" +
-                            $"&hourly={hourlyVariables}" +
-                            $"&wind_speed_unit=ms" +
-                            $"&timezone=GMT" +
-                            $"&forecast_days=16";
+                SegmentTo =
+                    routePoint.SegmentTo,
 
-                        using var document =
-                            await http.GetFromJsonAsync<JsonDocument>(
-                                uri,
-                                budget.Token)
-                            ?? throw new JsonException(
-                                "Weather provider returned an empty response.");
+                SegmentBearingDegrees =
+                    routePoint.BearingDegrees,
 
-                        var hours = document.RootElement
-                            .GetProperty("hourly")
-                            .Clone();
+                Latitude =
+                    routePoint.Latitude,
 
-                        if (!hours.TryGetProperty(
-                                "time",
-                                out var times) ||
-                            times.ValueKind !=
-                            JsonValueKind.Array)
-                        {
-                            throw new JsonException(
-                                "Weather provider response does not contain hourly time data.");
-                        }
+                Longitude =
+                    routePoint.Longitude,
 
-                        var newCache = new CachedHours(
-                            hours,
-                            DateTimeOffset.UtcNow);
+                AltitudeMeters =
+                    routePoint.Altitude,
 
-                        raw = (
-                            newCache,
-                            false);
+                EstimatedArrivalTime =
+                    estimatedArrival,
 
-                        cache.Set(
-                            cacheKey,
-                            newCache,
-                            TimeSpan.FromHours(24));
-                    }
-                    catch (Exception)
-                        when (!cancellationToken
-                            .IsCancellationRequested)
-                    {
-                       
-                        raw = (
-                            stored,
-                            stored is not null);
-                    }
-                }
+                ArrivalTimeReason =
+                    estimatedArrival.HasValue
+                        ? "Estimated from route distance and the scheduled mission flight window."
+                        : "Flight window or route distance is unavailable.",
 
-                fetched[cacheKey] = raw;
-            }
-
-            var waypointWeather =
-                new WaypointWeather
-                {
-                    SequenceOrder =
-                        point.SequenceOrder,
-
-                    Latitude =
-                        point.Latitude,
-
-                    Longitude =
-                        point.Longitude,
-
-                    AltitudeMeters =
-                        point.Altitude,
-
-                    EstimatedArrivalTime =
-                        null,
-
-                    ArrivalTimeReason =
-                        "Forecast based on the scheduled mission flight window.",
-
-                    SourceFetchedAt =
-                        raw.Data?.FetchedAt
-                };
+                SourceFetchedAt =
+                    raw.Data?.FetchedAt
+            };
 
             if (raw.Data is not null &&
                 mission.StartTime.HasValue &&
                 mission.EndTime.HasValue)
             {
-                MapForecastToWaypoint(
-                    waypointWeather,
+                MapForecastToPoint(
+                    weatherPoint,
                     raw.Data,
                     raw.Stale,
                     mission.StartTime.Value,
                     mission.EndTime.Value);
             }
 
-            if (waypointWeather.Status == "Unavailable")
+            CalculateWindComponents(
+                weatherPoint);
+
+            CalculateRisk(
+                weatherPoint,
+                policy);
+
+            if (weatherPoint.Status == "Unavailable")
             {
-                waypointWeather.Warnings.Add(
-                    $"WP{point.SequenceOrder}: forecast unavailable " +
-                    "(provider error, missing data or outside forecast horizon).");
+                var warning =
+                    $"{PointLabel(weatherPoint)}: forecast unavailable " +
+                    "(provider error, missing data or outside forecast horizon).";
+
+                weatherPoint.Warnings.Add(warning);
+
+                weatherPoint.RiskLevel = "Unknown";
+                weatherPoint.RiskScore = 0;
             }
 
-            waypointWeather.RiskLevel =
-                waypointWeather.WeatherCode is
-                    95 or 96 or 99
-                    ? "High"
-                    : waypointWeather.Warnings.Count > 0
-                        ? "Review"
-                        : "Low";
-
             result.Waypoints.Add(
-                waypointWeather);
+                weatherPoint);
 
             result.Warnings.AddRange(
-                waypointWeather.Warnings);
+                weatherPoint.Warnings);
         }
 
         result.Status =
             CalculateOverallStatus(
-                points.Count,
+                routePoints.Count,
                 result.Waypoints);
 
         result.Available =
@@ -246,6 +208,15 @@ public sealed class MissionWeatherService(
 
         result.OverallRisk =
             CalculateOverallRisk(result);
+
+        result.OverallRiskScore =
+            result.Waypoints
+                .Where(x =>
+                    x.RiskLevel != "Unknown")
+                .Select(x =>
+                    x.RiskScore)
+                .DefaultIfEmpty(0)
+                .Max();
 
         result.FetchedAt =
             result.Waypoints
@@ -258,34 +229,28 @@ public sealed class MissionWeatherService(
                 .Min();
 
         result.ExpiresAt =
-            result.FetchedAt.AddMinutes(10);
+            result.FetchedAt.AddMinutes(
+                Math.Max(1, policy.CacheMinutes));
 
         result.MaxWindMetersPerSecond =
-            result.Waypoints
-                .Select(x =>
-                    x.WindSpeedMetersPerSecond)
-                .Where(x => x.HasValue)
-                .Select(x => x!.Value)
-                .DefaultIfEmpty()
-                .Max();
+            Maximum(
+                result.Waypoints.Select(x =>
+                    x.WindSpeedMetersPerSecond));
 
         result.MaxGustMetersPerSecond =
-            result.Waypoints
-                .Select(x =>
-                    x.WindGustMetersPerSecond)
-                .Where(x => x.HasValue)
-                .Select(x => x!.Value)
-                .DefaultIfEmpty()
-                .Max();
+            Maximum(
+                result.Waypoints.Select(x =>
+                    x.WindGustMetersPerSecond));
+
+        result.MaxCrosswindMetersPerSecond =
+            Maximum(
+                result.Waypoints.Select(x =>
+                    x.CrosswindMetersPerSecond));
 
         result.MaxRainMillimetersPerHour =
-            result.Waypoints
-                .Select(x =>
-                    x.PrecipitationMillimeters)
-                .Where(x => x.HasValue)
-                .Select(x => x!.Value)
-                .DefaultIfEmpty()
-                .Max();
+            Maximum(
+                result.Waypoints.Select(x =>
+                    x.PrecipitationMillimeters));
 
         result.ThunderstormForecast =
             result.Waypoints.Any(x =>
@@ -295,8 +260,376 @@ public sealed class MissionWeatherService(
         return result;
     }
 
-    private void MapForecastToWaypoint(
-        WaypointWeather waypointWeather,
+    // =========================================================
+    // ROUTE SAMPLING
+    // =========================================================
+
+    private static List<RoutePoint> BuildRoutePoints(
+        List<Waypoint> waypoints,
+        MissionWeatherOptions policy)
+    {
+        var result = new List<RoutePoint>();
+
+        if (waypoints.Count == 0)
+        {
+            return result;
+        }
+
+        if (waypoints.Count == 1)
+        {
+            var point = waypoints[0];
+
+            result.Add(
+                new RoutePoint(
+                    point.SequenceOrder,
+                    false,
+                    0,
+                    null,
+                    null,
+                    point.Latitude,
+                    point.Longitude,
+                    point.Altitude,
+                    null,
+                    0));
+
+            return result;
+        }
+
+        var segments =
+            new List<(
+                Waypoint From,
+                Waypoint To,
+                double Distance,
+                decimal Bearing)>();
+
+        var totalDistance = 0d;
+
+        for (var index = 1;
+             index < waypoints.Count;
+             index++)
+        {
+            var from = waypoints[index - 1];
+            var to = waypoints[index];
+
+            var distance =
+                HaversineDistanceMeters(
+                    from.Latitude,
+                    from.Longitude,
+                    to.Latitude,
+                    to.Longitude);
+
+            var bearing =
+                CalculateBearingDegrees(
+                    from.Latitude,
+                    from.Longitude,
+                    to.Latitude,
+                    to.Longitude);
+
+            segments.Add(
+                (from, to, distance, bearing));
+
+            totalDistance += distance;
+        }
+
+        var configuredSpacing =
+            Math.Max(
+                100d,
+                (double)policy.RouteSampleDistanceMeters);
+
+        var maxSamples =
+            Math.Max(
+                1,
+                policy.MaxRouteSamples);
+
+        /*
+         * Nếu tuyến quá dài, tự tăng khoảng cách sample để toàn bộ
+         * route vẫn được phủ mà không tạo quá nhiều HTTP locations.
+         */
+        var adaptiveSpacing =
+            Math.Max(
+                configuredSpacing,
+                totalDistance / maxSamples);
+
+        var cumulativeDistance = 0d;
+        var sampleOrder = 1;
+
+        foreach (var segment in segments)
+        {
+            result.Add(
+                new RoutePoint(
+                    segment.From.SequenceOrder,
+                    false,
+                    0,
+                    segment.From.SequenceOrder,
+                    segment.To.SequenceOrder,
+                    segment.From.Latitude,
+                    segment.From.Longitude,
+                    segment.From.Altitude,
+                    segment.Bearing,
+                    cumulativeDistance));
+
+            var sampleCount =
+                (int)Math.Floor(
+                    segment.Distance /
+                    adaptiveSpacing);
+
+            for (var sampleIndex = 1;
+                 sampleIndex <= sampleCount;
+                 sampleIndex++)
+            {
+                var distanceOnSegment =
+                    sampleIndex *
+                    adaptiveSpacing;
+
+                if (distanceOnSegment >=
+                    segment.Distance)
+                {
+                    break;
+                }
+
+                var fraction =
+                    distanceOnSegment /
+                    segment.Distance;
+
+                var latitude =
+                    Interpolate(
+                        segment.From.Latitude,
+                        segment.To.Latitude,
+                        fraction);
+
+                var longitude =
+                    InterpolateLongitude(
+                        segment.From.Longitude,
+                        segment.To.Longitude,
+                        fraction);
+
+                decimal? altitude = null;
+
+                if (segment.From.Altitude.HasValue &&
+                    segment.To.Altitude.HasValue)
+                {
+                    altitude = Interpolate(
+                        segment.From.Altitude.Value,
+                        segment.To.Altitude.Value,
+                        fraction);
+                }
+
+                result.Add(
+                    new RoutePoint(
+                        segment.From.SequenceOrder,
+                        true,
+                        sampleOrder++,
+                        segment.From.SequenceOrder,
+                        segment.To.SequenceOrder,
+                        latitude,
+                        longitude,
+                        altitude,
+                        segment.Bearing,
+                        cumulativeDistance +
+                        distanceOnSegment));
+            }
+
+            cumulativeDistance +=
+                segment.Distance;
+        }
+
+        var lastSegment = segments[^1];
+        var lastWaypoint = waypoints[^1];
+
+        result.Add(
+            new RoutePoint(
+                lastWaypoint.SequenceOrder,
+                false,
+                0,
+                lastSegment.From.SequenceOrder,
+                lastSegment.To.SequenceOrder,
+                lastWaypoint.Latitude,
+                lastWaypoint.Longitude,
+                lastWaypoint.Altitude,
+                lastSegment.Bearing,
+                cumulativeDistance));
+
+        return result
+            .OrderBy(x =>
+                x.DistanceFromStartMeters)
+            .ToList();
+    }
+
+    private static decimal Interpolate(
+        decimal from,
+        decimal to,
+        double fraction)
+    {
+        return from +
+               (to - from) *
+               (decimal)fraction;
+    }
+
+    private static decimal InterpolateLongitude(
+        decimal from,
+        decimal to,
+        double fraction)
+    {
+        var difference = to - from;
+
+        if (difference > 180)
+        {
+            difference -= 360;
+        }
+        else if (difference < -180)
+        {
+            difference += 360;
+        }
+
+        var value =
+            from +
+            difference *
+            (decimal)fraction;
+
+        if (value > 180)
+        {
+            value -= 360;
+        }
+        else if (value < -180)
+        {
+            value += 360;
+        }
+
+        return value;
+    }
+
+    // =========================================================
+    // FORECAST PROVIDER / CACHE
+    // =========================================================
+
+    private async Task<(CachedHours? Data, bool Stale)>
+        GetForecastAsync(
+            RoutePoint routePoint,
+            Dictionary<
+                string,
+                (CachedHours? Data, bool Stale)> fetched,
+            bool force,
+            MissionWeatherOptions policy,
+            CancellationToken budgetToken,
+            CancellationToken cancellationToken)
+    {
+        var latitude =
+            Math.Round(routePoint.Latitude, 2);
+
+        var longitude =
+            Math.Round(routePoint.Longitude, 2);
+
+        var latitudeText =
+            latitude.ToString(
+                "F2",
+                CultureInfo.InvariantCulture);
+
+        var longitudeText =
+            longitude.ToString(
+                "F2",
+                CultureInfo.InvariantCulture);
+
+        var cacheKey =
+            $"open-meteo-v3:{latitudeText}:{longitudeText}";
+
+        if (fetched.TryGetValue(
+                cacheKey,
+                out var existing))
+        {
+            return existing;
+        }
+
+        cache.TryGetValue<CachedHours>(
+            cacheKey,
+            out var stored);
+
+        var result =
+            (Data: stored, Stale: false);
+
+        var cacheExpired =
+            stored is null ||
+            stored.FetchedAt <
+            DateTimeOffset.UtcNow.AddMinutes(
+                -Math.Max(1, policy.CacheMinutes));
+
+        if (force || cacheExpired)
+        {
+            try
+            {
+                var hourlyVariables =
+                    string.Join(
+                        ",",
+                        Variables);
+
+                var forecastDays =
+                    Math.Clamp(
+                        policy.ForecastDays,
+                        1,
+                        16);
+
+                var uri =
+                    $"{ProviderUrl}" +
+                    $"?latitude={latitudeText}" +
+                    $"&longitude={longitudeText}" +
+                    $"&hourly={hourlyVariables}" +
+                    $"&wind_speed_unit=ms" +
+                    $"&timezone=GMT" +
+                    $"&forecast_days={forecastDays}";
+
+                using var document =
+                    await http.GetFromJsonAsync<JsonDocument>(
+                        uri,
+                        budgetToken)
+                    ?? throw new JsonException(
+                        "Weather provider returned an empty response.");
+
+                var hours = document.RootElement
+                    .GetProperty("hourly")
+                    .Clone();
+
+                if (!hours.TryGetProperty(
+                        "time",
+                        out var times) ||
+                    times.ValueKind !=
+                    JsonValueKind.Array)
+                {
+                    throw new JsonException(
+                        "Weather provider response does not contain hourly time data.");
+                }
+
+                var newCache =
+                    new CachedHours(
+                        hours,
+                        DateTimeOffset.UtcNow);
+
+                result =
+                    (newCache, false);
+
+                cache.Set(
+                    cacheKey,
+                    newCache,
+                    TimeSpan.FromHours(24));
+            }
+            catch (Exception)
+                when (!cancellationToken
+                    .IsCancellationRequested)
+            {
+                result =
+                    (stored, stored is not null);
+            }
+        }
+
+        fetched[cacheKey] = result;
+
+        return result;
+    }
+
+    // =========================================================
+    // FORECAST MAPPING
+    // =========================================================
+
+    private static void MapForecastToPoint(
+        WaypointWeather weatherPoint,
         CachedHours cachedHours,
         bool stale,
         DateTime flightStart,
@@ -313,18 +646,18 @@ public sealed class MissionWeatherService(
             return;
         }
 
+        var targetTime =
+            weatherPoint.EstimatedArrivalTime
+            ?? flightStart;
+
         var selectedIndex = -1;
-        var coveredIndexes = new List<int>();
 
         for (var index = 0;
              index < times.GetArrayLength();
              index++)
         {
-            var timeText =
-                times[index].GetString();
-
             if (!DateTime.TryParse(
-                    timeText,
+                    times[index].GetString(),
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal |
                     DateTimeStyles.AdjustToUniversal,
@@ -333,266 +666,519 @@ public sealed class MissionWeatherService(
                 continue;
             }
 
-            var overlapsFlightWindow =
-                forecastTime < flightEnd &&
+            if (forecastTime <= targetTime &&
                 forecastTime.AddHours(1) >
-                flightStart;
-
-            if (!overlapsFlightWindow)
-            {
-                continue;
-            }
-
-            coveredIndexes.Add(index);
-
-            if (selectedIndex < 0)
+                targetTime)
             {
                 selectedIndex = index;
+                break;
             }
         }
 
-        if (selectedIndex < 0 ||
-            coveredIndexes.Count == 0)
+        if (selectedIndex < 0)
         {
             return;
         }
 
-        decimal? Metric(
-            string name,
-            int index)
+        decimal? Metric(string name)
         {
             if (!hours.TryGetProperty(
                     name,
                     out var values) ||
                 values.ValueKind !=
                 JsonValueKind.Array ||
-                index >= values.GetArrayLength())
+                selectedIndex >=
+                values.GetArrayLength())
             {
                 return null;
             }
 
-            var value = values[index];
+            var value =
+                values[selectedIndex];
 
-            if (value.ValueKind !=
-                JsonValueKind.Number)
-            {
-                return null;
-            }
-
-            return value.TryGetDecimal(
-                out var number)
+            return value.ValueKind ==
+                   JsonValueKind.Number &&
+                   value.TryGetDecimal(
+                       out var number)
                 ? number
                 : null;
         }
 
-        var selectedTimeText =
-            times[selectedIndex].GetString();
-
         if (DateTime.TryParse(
-                selectedTimeText,
+                times[selectedIndex].GetString(),
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal |
                 DateTimeStyles.AdjustToUniversal,
-                out var selectedForecastTime))
+                out var forecastAt))
         {
-            waypointWeather.ForecastTime =
-                selectedForecastTime;
+            weatherPoint.ForecastTime =
+                forecastAt;
         }
 
-        waypointWeather.TemperatureCelsius =
-            Metric(
-                "temperature_2m",
-                selectedIndex);
+        weatherPoint.TemperatureCelsius =
+            Metric("temperature_2m");
 
-        waypointWeather.RelativeHumidityPercent =
-            Metric(
-                "relative_humidity_2m",
-                selectedIndex);
+        weatherPoint.RelativeHumidityPercent =
+            Metric("relative_humidity_2m");
 
-        waypointWeather.WindDirectionDegrees =
-            Metric(
-                "wind_direction_10m",
-                selectedIndex);
+        weatherPoint.WindSpeedMetersPerSecond =
+            Metric("wind_speed_10m");
 
-        waypointWeather.CloudCoverPercent =
-            Metric(
-                "cloud_cover",
-                selectedIndex);
+        weatherPoint.WindDirectionDegrees =
+            Metric("wind_direction_10m");
 
-        waypointWeather.PrecipitationProbabilityPercent =
-            MaximumMetric(
-                coveredIndexes,
-                index => Metric(
-                    "precipitation_probability",
-                    index));
+        weatherPoint.WindGustMetersPerSecond =
+            Metric("wind_gusts_10m");
 
-        waypointWeather.VisibilityMeters =
-            MinimumMetric(
-                coveredIndexes,
-                index => Metric(
-                    "visibility",
-                    index));
+        weatherPoint.PrecipitationProbabilityPercent =
+            Metric("precipitation_probability");
 
-        waypointWeather.WindSpeedMetersPerSecond =
-            MaximumMetric(
-                coveredIndexes,
-                index => Metric(
-                    "wind_speed_10m",
-                    index));
+        weatherPoint.PrecipitationMillimeters =
+            Metric("rain");
 
-        waypointWeather.WindGustMetersPerSecond =
-            MaximumMetric(
-                coveredIndexes,
-                index => Metric(
-                    "wind_gusts_10m",
-                    index));
+        weatherPoint.VisibilityMeters =
+            Metric("visibility");
 
-        waypointWeather.PrecipitationMillimeters =
-            MaximumMetric(
-                coveredIndexes,
-                index => Metric(
-                    "rain",
-                    index));
+        weatherPoint.CloudCoverPercent =
+            Metric("cloud_cover");
 
-        var thunderstormCode =
-            coveredIndexes
-                .Select(index =>
-                    (int?)Metric(
-                        "weather_code",
-                        index))
-                .FirstOrDefault(code =>
-                    code is 95 or 96 or 99);
-
-        waypointWeather.WeatherCode =
-            thunderstormCode ??
-            (int?)Metric(
-                "weather_code",
-                selectedIndex);
-
-        var coveredTimes =
-            coveredIndexes
-                .Select(index =>
-                {
-                    var timeText =
-                        times[index].GetString();
-
-                    return DateTime.Parse(
-                        timeText!,
-                        CultureInfo.InvariantCulture,
-                        DateTimeStyles.AssumeUniversal |
-                        DateTimeStyles.AdjustToUniversal);
-                })
-                .Order()
-                .ToList();
-
-        var allMetricsAvailable =
-            coveredIndexes.All(index =>
-                Variables.All(variable =>
-                    Metric(
-                        variable,
-                        index)
-                    .HasValue));
-
-        var timeSeriesContinuous =
-            coveredTimes
-                .Zip(coveredTimes.Skip(1))
-                .All(pair =>
-                    pair.Second -
-                    pair.First <=
-                    TimeSpan.FromHours(1));
+        weatherPoint.WeatherCode =
+            (int?)Metric("weather_code");
 
         var complete =
-            allMetricsAvailable &&
-            timeSeriesContinuous;
-
-        var finalCoveredTime =
-            DateTime.Parse(
-                    times[coveredIndexes[^1]]
-                        .GetString()!,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal |
-                    DateTimeStyles.AdjustToUniversal)
-                .AddHours(1);
+            Variables.All(variable =>
+                Metric(variable).HasValue);
 
         if (stale)
         {
-            waypointWeather.Status = "Stale";
-        }
-        else if (
-            complete &&
-            waypointWeather.ForecastTime <=
-            flightStart &&
-            finalCoveredTime >= flightEnd)
-        {
-            waypointWeather.Status = "Available";
+            weatherPoint.Status = "Stale";
         }
         else
         {
-            waypointWeather.Status = "Partial";
+            weatherPoint.Status =
+                complete
+                    ? "Available"
+                    : "Partial";
         }
 
-        if (waypointWeather.Status != "Available")
+        if (weatherPoint.Status != "Available")
         {
-            waypointWeather.Warnings.Add(
-                $"WP{waypointWeather.SequenceOrder}: " +
+            weatherPoint.Warnings.Add(
+                $"{PointLabel(weatherPoint)}: " +
                 $"forecast is " +
-                $"{waypointWeather.Status.ToLowerInvariant()} " +
-                "for the requested flight window.");
+                $"{weatherPoint.Status.ToLowerInvariant()}.");
+        }
+    }
+
+    // =========================================================
+    // ETA
+    // =========================================================
+
+    private static DateTime? EstimateArrivalTime(
+        Mission mission,
+        double distanceFromStart,
+        double totalDistance)
+    {
+        if (!mission.StartTime.HasValue ||
+            !mission.EndTime.HasValue)
+        {
+            return null;
         }
 
-        AddWarnings(
-            waypointWeather,
-            options.Value);
+        if (totalDistance <= 0)
+        {
+            return mission.StartTime.Value;
+        }
+
+        var fraction =
+            Math.Clamp(
+                distanceFromStart /
+                totalDistance,
+                0,
+                1);
+
+        var duration =
+            mission.EndTime.Value -
+            mission.StartTime.Value;
+
+        return mission.StartTime.Value +
+               TimeSpan.FromTicks(
+                   (long)(
+                       duration.Ticks *
+                       fraction));
     }
 
-    private static decimal? MaximumMetric(
-        IEnumerable<int> indexes,
-        Func<int, decimal?> selector)
+    // =========================================================
+    // WIND COMPONENTS
+    // =========================================================
+
+    private static void CalculateWindComponents(
+        WaypointWeather weatherPoint)
     {
-        var values = indexes
-            .Select(selector)
-            .Where(x => x.HasValue)
-            .Select(x => x!.Value)
-            .ToList();
+        if (!weatherPoint
+                .WindSpeedMetersPerSecond
+                .HasValue ||
+            !weatherPoint
+                .WindDirectionDegrees
+                .HasValue ||
+            !weatherPoint
+                .SegmentBearingDegrees
+                .HasValue)
+        {
+            return;
+        }
 
-        return values.Count == 0
-            ? null
-            : values.Max();
+        var windSpeed =
+            (double)weatherPoint
+                .WindSpeedMetersPerSecond.Value;
+
+        /*
+         * Open-Meteo wind direction là hướng gió thổi đến từ đâu.
+         * So trực tiếp với bearing để tính headwind/crosswind.
+         */
+        var difference =
+            NormalizeSignedDegrees(
+                (double)weatherPoint
+                    .WindDirectionDegrees.Value -
+                (double)weatherPoint
+                    .SegmentBearingDegrees.Value);
+
+        var radians =
+            DegreesToRadians(
+                difference);
+
+        weatherPoint.CrosswindMetersPerSecond =
+            (decimal)Math.Abs(
+                windSpeed *
+                Math.Sin(radians));
+
+        weatherPoint.HeadwindMetersPerSecond =
+            (decimal)(
+                windSpeed *
+                Math.Cos(radians));
     }
 
-    private static decimal? MinimumMetric(
-        IEnumerable<int> indexes,
-        Func<int, decimal?> selector)
+    // =========================================================
+    // RISK ENGINE
+    // =========================================================
+
+    private static void CalculateRisk(
+        WaypointWeather weather,
+        MissionWeatherOptions policy)
     {
-        var values = indexes
-            .Select(selector)
-            .Where(x => x.HasValue)
-            .Select(x => x!.Value)
-            .ToList();
+        if (weather.Status == "Unavailable")
+        {
+            weather.RiskLevel = "Unknown";
+            weather.RiskScore = 0;
+            return;
+        }
 
-        return values.Count == 0
-            ? null
-            : values.Min();
+        var score = 0;
+        var autoHigh = false;
+
+        void AddReason(string reason)
+        {
+            weather.RiskReasons.Add(reason);
+            weather.Warnings.Add(reason);
+        }
+
+        void AddIncreasingMetric(
+            string name,
+            decimal? value,
+            decimal reviewThreshold,
+            decimal highThreshold,
+            int weight,
+            string unit,
+            bool highAutomatically)
+        {
+            if (!value.HasValue)
+            {
+                return;
+            }
+
+            if (value >= highThreshold)
+            {
+                score += weight;
+
+                AddReason(
+                    $"{PointLabel(weather)}: {name} " +
+                    $"{value:0.##} {unit} reaches the high-risk " +
+                    $"threshold {highThreshold:0.##} {unit}.");
+
+                autoHigh |= highAutomatically;
+                return;
+            }
+
+            if (value < reviewThreshold)
+            {
+                return;
+            }
+
+            var range =
+                highThreshold -
+                reviewThreshold;
+
+            var ratio =
+                range <= 0
+                    ? 1
+                    : (value.Value -
+                       reviewThreshold) /
+                      range;
+
+            var contribution =
+                (int)Math.Ceiling(
+                    weight *
+                    (0.5m +
+                     0.5m *
+                     Math.Clamp(
+                         ratio,
+                         0,
+                         1)));
+
+            score += contribution;
+
+            AddReason(
+                $"{PointLabel(weather)}: {name} " +
+                $"{value:0.##} {unit} exceeds the review " +
+                $"threshold {reviewThreshold:0.##} {unit}.");
+        }
+
+        AddIncreasingMetric(
+            "wind",
+            weather.WindSpeedMetersPerSecond,
+            policy.WindReviewMetersPerSecond,
+            policy.WindHighMetersPerSecond,
+            policy.WindWeight,
+            "m/s",
+            true);
+
+        AddIncreasingMetric(
+            "gust",
+            weather.WindGustMetersPerSecond,
+            policy.GustReviewMetersPerSecond,
+            policy.GustHighMetersPerSecond,
+            policy.GustWeight,
+            "m/s",
+            true);
+
+        AddIncreasingMetric(
+            "crosswind",
+            weather.CrosswindMetersPerSecond,
+            policy.CrosswindReviewMetersPerSecond,
+            policy.CrosswindHighMetersPerSecond,
+            policy.CrosswindWeight,
+            "m/s",
+            true);
+
+        AddIncreasingMetric(
+            "rain",
+            weather.PrecipitationMillimeters,
+            policy.RainReviewMillimetersPerHour,
+            policy.RainHighMillimetersPerHour,
+            policy.RainWeight,
+            "mm/hour",
+            true);
+
+        AddIncreasingMetric(
+            "rain probability",
+            weather.PrecipitationProbabilityPercent,
+            policy.RainProbabilityReviewPercent,
+            policy.RainProbabilityHighPercent,
+            policy.RainProbabilityWeight,
+            "%",
+            true);
+
+        // Visibility: càng thấp càng nguy hiểm.
+        if (weather.VisibilityMeters.HasValue)
+        {
+            if (weather.VisibilityMeters <=
+                policy.VisibilityHighMeters)
+            {
+                score += policy.VisibilityWeight;
+                autoHigh = true;
+
+                AddReason(
+                    $"{PointLabel(weather)}: visibility " +
+                    $"{weather.VisibilityMeters:0} m is below " +
+                    $"the high-risk limit " +
+                    $"{policy.VisibilityHighMeters:0} m.");
+            }
+            else if (weather.VisibilityMeters <=
+                     policy.VisibilityReviewMeters)
+            {
+                score +=
+                    (int)Math.Ceiling(
+                        policy.VisibilityWeight *
+                        0.6m);
+
+                AddReason(
+                    $"{PointLabel(weather)}: visibility " +
+                    $"{weather.VisibilityMeters:0} m requires review.");
+            }
+        }
+
+        // Temperature.
+        if (weather.TemperatureCelsius.HasValue)
+        {
+            var temperature =
+                weather.TemperatureCelsius.Value;
+
+            if (temperature <
+                    policy.OperatingMinTemperatureCelsius ||
+                temperature >
+                    policy.OperatingMaxTemperatureCelsius)
+            {
+                score += policy.TemperatureWeight;
+                autoHigh = true;
+
+                AddReason(
+                    $"{PointLabel(weather)}: temperature " +
+                    $"{temperature:0.##}°C is outside the configured " +
+                    "operating range.");
+            }
+            else if (
+                temperature <
+                    policy.RecommendedMinTemperatureCelsius ||
+                temperature >
+                    policy.RecommendedMaxTemperatureCelsius)
+            {
+                score += policy.TemperatureWeight;
+
+                AddReason(
+                    $"{PointLabel(weather)}: temperature " +
+                    $"{temperature:0.##}°C is outside the recommended range.");
+            }
+        }
+
+        AddIncreasingMetric(
+            "humidity",
+            weather.RelativeHumidityPercent,
+            policy.HumidityReviewPercent,
+            policy.HumidityHighPercent,
+            policy.HumidityWeight,
+            "%",
+            false);
+
+        AddIncreasingMetric(
+            "cloud cover",
+            weather.CloudCoverPercent,
+            policy.CloudCoverReviewPercent,
+            policy.CloudCoverHighPercent,
+            policy.CloudCoverWeight,
+            "%",
+            false);
+
+        ApplyWeatherCodeRisk(
+            weather,
+            policy,
+            ref score,
+            ref autoHigh);
+
+        weather.RiskScore =
+            Math.Clamp(
+                score,
+                0,
+                100);
+
+        weather.RiskLevel =
+            autoHigh ||
+            weather.RiskScore >=
+            policy.HighRiskScore
+                ? "High"
+                : weather.RiskScore >=
+                  policy.ReviewRiskScore
+                    ? "Review"
+                    : "Low";
     }
+
+    private static void ApplyWeatherCodeRisk(
+        WaypointWeather weather,
+        MissionWeatherOptions policy,
+        ref int score,
+        ref bool autoHigh)
+    {
+        if (!weather.WeatherCode.HasValue)
+        {
+            return;
+        }
+
+        var code =
+            weather.WeatherCode.Value;
+
+        string? reason = null;
+        var high = false;
+
+        if (code is 95 or 96 or 99)
+        {
+            reason = "thunderstorm forecast";
+            high = true;
+        }
+        else if (code is 66 or 67)
+        {
+            reason = "freezing rain forecast";
+            high = true;
+        }
+        else if (code is 75 or 77 or 82 or 86)
+        {
+            reason = "severe precipitation forecast";
+            high = true;
+        }
+        else if (code is 45 or 48)
+        {
+            reason = "fog forecast";
+        }
+        else if (
+            code is >= 51 and <= 65 ||
+            code is >= 71 and <= 73 ||
+            code is 80 or 81 or 85)
+        {
+            reason = "adverse precipitation forecast";
+        }
+
+        if (reason is null)
+        {
+            return;
+        }
+
+        score +=
+            high
+                ? policy.WeatherCodeWeight
+                : (int)Math.Ceiling(
+                    policy.WeatherCodeWeight *
+                    0.6m);
+
+        autoHigh |= high;
+
+        var message =
+            $"{PointLabel(weather)}: {reason} " +
+            $"(WMO code {code}).";
+
+        weather.RiskReasons.Add(message);
+        weather.Warnings.Add(message);
+    }
+
+    // =========================================================
+    // OVERALL RESULT
+    // =========================================================
 
     private static string CalculateOverallStatus(
-        int waypointCount,
-        List<WaypointWeather> waypointWeather)
+        int routePointCount,
+        List<WaypointWeather> weatherPoints)
     {
-        if (waypointCount == 0 ||
-            waypointWeather.All(x =>
+        if (routePointCount == 0 ||
+            weatherPoints.All(x =>
                 x.Status == "Unavailable"))
         {
             return "Unavailable";
         }
 
-        if (waypointWeather.Any(x =>
+        if (weatherPoints.Any(x =>
                 x.Status == "Stale"))
         {
             return "Stale";
         }
 
-        if (waypointWeather.All(x =>
+        if (weatherPoints.All(x =>
                 x.Status == "Available"))
         {
             return "Available";
@@ -615,71 +1201,171 @@ public sealed class MissionWeatherService(
             return "High";
         }
 
-        return result.Warnings.Count > 0
-            ? "Review"
-            : "Low";
+        if (result.Waypoints.Any(x =>
+                x.RiskLevel == "Review"))
+        {
+            return "Review";
+        }
+
+        if (result.Waypoints.All(x =>
+                x.RiskLevel == "Unknown"))
+        {
+            return "Unknown";
+        }
+
+        return "Low";
     }
 
-    private static void AddWarnings(
-        WaypointWeather waypointWeather,
-        MissionWeatherOptions policy)
+    // =========================================================
+    // GEOMETRY
+    // =========================================================
+
+    private static double HaversineDistanceMeters(
+        decimal latitudeA,
+        decimal longitudeA,
+        decimal latitudeB,
+        decimal longitudeB)
     {
-        void AddThresholdWarning(
-            string name,
-            decimal? value,
-            decimal? threshold,
-            string unit)
-        {
-            if (!value.HasValue ||
-                !threshold.HasValue ||
-                value < threshold)
-            {
-                return;
-            }
+        const double earthRadiusMeters =
+            6_371_000;
 
-            waypointWeather.Warnings.Add(
-                $"WP{waypointWeather.SequenceOrder}: " +
-                $"{name} {value} {unit} >= configured " +
-                $"advisory threshold {threshold} {unit}.");
+        var lat1 =
+            DegreesToRadians(
+                (double)latitudeA);
+
+        var lat2 =
+            DegreesToRadians(
+                (double)latitudeB);
+
+        var deltaLatitude =
+            DegreesToRadians(
+                (double)(
+                    latitudeB -
+                    latitudeA));
+
+        var deltaLongitude =
+            DegreesToRadians(
+                (double)(
+                    longitudeB -
+                    longitudeA));
+
+        var value =
+            Math.Sin(deltaLatitude / 2) *
+            Math.Sin(deltaLatitude / 2) +
+            Math.Cos(lat1) *
+            Math.Cos(lat2) *
+            Math.Sin(deltaLongitude / 2) *
+            Math.Sin(deltaLongitude / 2);
+
+        var centralAngle =
+            2 *
+            Math.Atan2(
+                Math.Sqrt(value),
+                Math.Sqrt(1 - value));
+
+        return earthRadiusMeters *
+               centralAngle;
+    }
+
+    private static decimal CalculateBearingDegrees(
+        decimal latitudeA,
+        decimal longitudeA,
+        decimal latitudeB,
+        decimal longitudeB)
+    {
+        var lat1 =
+            DegreesToRadians(
+                (double)latitudeA);
+
+        var lat2 =
+            DegreesToRadians(
+                (double)latitudeB);
+
+        var deltaLongitude =
+            DegreesToRadians(
+                (double)(
+                    longitudeB -
+                    longitudeA));
+
+        var y =
+            Math.Sin(deltaLongitude) *
+            Math.Cos(lat2);
+
+        var x =
+            Math.Cos(lat1) *
+            Math.Sin(lat2) -
+            Math.Sin(lat1) *
+            Math.Cos(lat2) *
+            Math.Cos(deltaLongitude);
+
+        var bearing =
+            RadiansToDegrees(
+                Math.Atan2(y, x));
+
+        return (decimal)(
+            (bearing + 360) % 360);
+    }
+
+    private static double DegreesToRadians(
+        double value)
+    {
+        return value *
+               Math.PI /
+               180;
+    }
+
+    private static double RadiansToDegrees(
+        double value)
+    {
+        return value *
+               180 /
+               Math.PI;
+    }
+
+    private static double NormalizeSignedDegrees(
+        double value)
+    {
+        value %= 360;
+
+        if (value > 180)
+        {
+            value -= 360;
+        }
+        else if (value < -180)
+        {
+            value += 360;
         }
 
-        AddThresholdWarning(
-            "wind",
-            waypointWeather.WindSpeedMetersPerSecond,
-            policy.WindWarningMetersPerSecond,
-            "m/s");
+        return value;
+    }
 
-        AddThresholdWarning(
-            "gust",
-            waypointWeather.WindGustMetersPerSecond,
-            policy.GustWarningMetersPerSecond,
-            "m/s");
+    // =========================================================
+    // HELPERS
+    // =========================================================
 
-        if (waypointWeather.PrecipitationMillimeters > 0)
+    private static decimal? Maximum(
+        IEnumerable<decimal?> values)
+    {
+        var available = values
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .ToList();
+
+        return available.Count == 0
+            ? null
+            : available.Max();
+    }
+
+    private static string PointLabel(
+        WaypointWeather point)
+    {
+        if (point.IsRouteSample)
         {
-            AddThresholdWarning(
-                "rain",
-                waypointWeather.PrecipitationMillimeters,
-                policy.RainWarningMillimetersPerHour ?? 0,
-                "mm/hour");
+            return
+                $"Route sample {point.SampleOrder} " +
+                $"on segment {point.SegmentFrom}-{point.SegmentTo}";
         }
 
-        if (waypointWeather.WeatherCode is
-            95 or 96 or 99)
-        {
-            waypointWeather.Warnings.Add(
-                $"WP{waypointWeather.SequenceOrder}: " +
-                $"thunderstorm forecast " +
-                $"(WMO {waypointWeather.WeatherCode}).");
-        }
-
-        if (!policy.WindWarningMetersPerSecond.HasValue ||
-            !policy.GustWarningMetersPerSecond.HasValue)
-        {
-            waypointWeather.Warnings.Add(
-                $"WP{waypointWeather.SequenceOrder}: " +
-                "wind/gust advisory thresholds not configured; " +
-                "review reported values manually.");
-        }
+        return $"WP{point.SequenceOrder}";
     }
 }
