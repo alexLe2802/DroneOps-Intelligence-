@@ -249,8 +249,42 @@ export async function getMission(id: string): Promise<MissionDetail> {
   };
 }
 
+type UavApiRecord = Partial<AssignedUav> & Pick<AssignedUav, "id" | "code" | "name" | "status">;
+
+function normalizeUav(record: UavApiRecord): AssignedUav {
+  const numberOrNull = (value: number | null | undefined) => value == null ? null : Number(value);
+  return {
+    ...record,
+    manufacturer: record.manufacturer ?? null,
+    model: record.model ?? null,
+    serialNumber: record.serialNumber ?? null,
+    pilotId: record.pilotId ?? "",
+    pilotName: record.pilotName ?? "",
+    emptyWeightKg: numberOrNull(record.emptyWeightKg),
+    maxTakeoffWeightKg: numberOrNull(record.maxTakeoffWeightKg),
+    maxPayloadKg: numberOrNull(record.maxPayloadKg),
+    batteryType: record.batteryType ?? null,
+    batteryCapacityMah: numberOrNull(record.batteryCapacityMah),
+    batteryVoltage: numberOrNull(record.batteryVoltage),
+    batteryCellCount: numberOrNull(record.batteryCellCount),
+    maxFlightTimeMinutes: numberOrNull(record.maxFlightTimeMinutes),
+    maxRangeKm: numberOrNull(record.maxRangeKm),
+    maxSpeedKmh: numberOrNull(record.maxSpeedKmh),
+    maxWindSpeedMps: numberOrNull(record.maxWindSpeedMps),
+    maxOperatingAltitudeMeters: numberOrNull(record.maxOperatingAltitudeMeters),
+    purchaseDate: record.purchaseDate ?? null,
+    lastMaintenanceAt: record.lastMaintenanceAt ?? null,
+    nextMaintenanceAt: record.nextMaintenanceAt ?? null,
+    totalFlightHours: Number(record.totalFlightHours ?? 0),
+    totalFlights: Number(record.totalFlights ?? 0),
+    imageUrl: record.imageUrl ?? null,
+    createdAt: record.createdAt ?? "",
+  };
+}
+
 export async function getAssignedUavs(): Promise<AssignedUav[]> {
-  return api<AssignedUav[]>("/uavs/myUAV");
+  const result = await api<PagedResponse<UavApiRecord> | UavApiRecord[]>("/uavs/myUAV?PageNumber=1&PageSize=100");
+  return (Array.isArray(result) ? result : result.items).map(normalizeUav);
 }
 
 export async function getAssignedUav(id: string): Promise<AssignedUav | null> {
@@ -259,36 +293,46 @@ export async function getAssignedUav(id: string): Promise<AssignedUav | null> {
 }
 
 export async function createUav(request: CreateUavRequest): Promise<AssignedUav> {
-  return api<AssignedUav>("/uavs", { method: "POST", body: JSON.stringify(request) });
+  return normalizeUav(await api<UavApiRecord>("/uavs", { method: "POST", body: JSON.stringify(request) }));
 }
 
 export async function updateAssignedUav(id: string, request: UpdateUavRequest): Promise<void> {
   await api(`/uavs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(request) });
 }
 
+export async function uploadUavImage(id: string, file: File): Promise<AssignedUav> {
+  const body = new FormData();
+  body.set("file", file);
+  return normalizeUav(await api<UavApiRecord>(`/uavs/${encodeURIComponent(id)}/image`, {
+    method: "PUT",
+    body,
+  }));
+}
+
 export async function deleteAssignedUav(id: string): Promise<void> {
   await api(`/uavs/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export function getManagedUavs(filters: { pageNumber?: number; pageSize?: number; keyword?: string; status?: string } = {}): Promise<PagedResponse<AssignedUav>> {
+export async function getManagedUavs(filters: { pageNumber?: number; pageSize?: number; keyword?: string; status?: string } = {}): Promise<PagedResponse<AssignedUav>> {
   const params = new URLSearchParams({ PageNumber: String(filters.pageNumber ?? 1), PageSize: String(filters.pageSize ?? 20) });
   if (filters.keyword?.trim()) params.set("Keyword", filters.keyword.trim());
   if (filters.status) params.set("Status", filters.status);
-  return api<PagedResponse<AssignedUav>>(`/admin/uavs?${params}`);
+  const result = await api<PagedResponse<UavApiRecord>>(`/admin/uavs?${params}`);
+  return { ...result, items: result.items.map(normalizeUav) };
 }
 
 export async function getPendingUavs(keyword = ""): Promise<AssignedUav[]> {
   const params = new URLSearchParams({ page: "1", pageSize: "100" });
   if (keyword.trim()) params.set("keyword", keyword.trim());
-  return api<AssignedUav[]>(`/admin/uavs/pending?${params}`);
+  return (await api<UavApiRecord[]>(`/admin/uavs/pending?${params}`)).map(normalizeUav);
 }
 
-export function getManagedUav(id: string): Promise<AssignedUav> {
-  return api<AssignedUav>(`/admin/uavs/${encodeURIComponent(id)}`);
+export async function getManagedUav(id: string): Promise<AssignedUav> {
+  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}`));
 }
 
-export function setManagedUavStatus(id: string, action: "approve" | "activate" | "reject" | "deactivate"): Promise<AssignedUav> {
-  return api<AssignedUav>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" });
+export async function setManagedUavStatus(id: string, action: "approve" | "activate" | "reject" | "deactivate"): Promise<AssignedUav> {
+  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" }));
 }
 
 export type FlightHistoryFilters = { pageNumber?: number; pageSize?: number; search?: string; status?: string; uavId?: string; fromDate?: string; toDate?: string };
