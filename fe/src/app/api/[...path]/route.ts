@@ -4,7 +4,7 @@ import { accessCookie, backendUrl, sessionFromToken } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a-f-]{36}\/(avatar|credentials)|users\/pilot-update-requests(?:\/[0-9a-f-]{36}(?:\/(?:approve|reject))?)?|users\/change-email\/(request|confirm)|auth\/(login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|notifications(?:\/unread-count|\/read-all|\/[0-9a-f-]{36}\/(?:read|seen))?|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/with-files|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users(?:\/(profile|pilot-profile|avatar))?|uavs(?:\/myUAV|\/[0-9a-f-]{36})?|admin\/uavs(?:\/(?:pending|[0-9a-f-]{36}(?:\/(?:approve|activate|reject|deactivate))?))?|missions(?:\/my|\/validate|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject|submit|cancel|confirm-high-risk|cancel-high-risk|telemetry\/latest|start|history|validation|weather(?:\/refresh)?))?)?|live\/(?:missions|stream)|incidents(?:\/[0-9a-f-]{36}(?:\/(?:acknowledge|resolve))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36}(?:\/revisions)?)?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|regenerate|report(?:\/revisions)?|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
+const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a-f-]{36}\/(avatar|credentials)|users\/pilot-update-requests(?:\/[0-9a-f-]{36}(?:\/(?:approve|reject))?)?|users\/change-email\/(request|confirm)|auth\/(login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|notifications(?:\/unread-count|\/read-all|\/[0-9a-f-]{36}\/(?:read|seen))?|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/with-files|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users(?:\/(profile|pilot-profile|avatar))?|uavs(?:\/myUAV|\/[0-9a-f-]{36}(?:\/image)?)?|admin\/uavs(?:\/(?:pending|[0-9a-f-]{36}(?:\/(?:approve|activate|reject|deactivate))?))?|missions(?:\/my|\/validate|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject|submit|cancel|confirm-high-risk|cancel-high-risk|telemetry\/latest|start|history|validation|weather(?:\/refresh)?))?)?|live\/(?:missions|stream)|incidents(?:\/[0-9a-f-]{36}(?:\/(?:acknowledge|resolve))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36}(?:\/revisions)?)?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|regenerate|report(?:\/revisions)?|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
@@ -37,7 +37,8 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   if (path === "auth/sessions" || path.startsWith("auth/sessions/") || path === "auth/logout-all")
     return NextResponse.json({ message: "The PostgreSQL login API does not support session listing or revoking all JWTs yet. Sign out of this browser instead." }, { status: 501 });
   const aiRequest = path === "ai/assessments" || path.startsWith("ai/assessments/mission/");
-  const mediaUpload = request.method === "POST" && ["pilot-registrations/with-files", "users/avatar", "users/pilot-update-requests"].includes(path);
+  const uavImageUpload = ["POST", "PUT"].includes(request.method) && /^uavs\/[0-9a-f-]{36}\/image$/.test(path);
+  const mediaUpload = uavImageUpload || (request.method === "POST" && ["pilot-registrations/with-files", "users/avatar", "users/pilot-update-requests"].includes(path));
   const liveStream = request.method === "GET" && path === "live/stream";
   const missionWorkflow = path.startsWith("missions") && ["POST", "PUT"].includes(request.method);
   const timeoutMs = missionWorkflow ? 60000 : mediaUpload ? 180000 : (path === "ai/assessments" || path === "mission-suggestions") && request.method === "POST" ? 60000 : 20000;
@@ -59,7 +60,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > (mediaUpload ? (path === "users/avatar" ? 6 : 106) * 1024 * 1024 : 16384)) { await reader.cancel(); return NextResponse.json({ message: "Request is too large." }, { status: 413 }); }
+        if (size > (mediaUpload ? (path === "users/avatar" || uavImageUpload ? 6 : 106) * 1024 * 1024 : 16384)) { await reader.cancel(); return NextResponse.json({ message: "Request is too large." }, { status: 413 }); }
         chunks.push(value);
       }
     }
@@ -76,7 +77,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       method: request.method, headers, body,
       cache: "no-store", redirect: "manual", signal: liveStream ? request.signal : AbortSignal.timeout(timeoutMs),
     });
-    if ((path === "users/avatar" || /^users\/[0-9a-f-]{36}\/avatar$/.test(path)) && request.method === "GET" && upstream.status === 302) {
+    if ((path === "users/avatar" || /^users\/[0-9a-f-]{36}\/avatar$/.test(path) || /^uavs\/[0-9a-f-]{36}\/image$/.test(path)) && request.method === "GET" && upstream.status === 302) {
       const location = upstream.headers.get("location");
       if (!location || !location.startsWith("https://diaswbzjhvzwxcadlias.supabase.co/storage/v1/")) throw new Error("Invalid media redirect");
       return new NextResponse(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });

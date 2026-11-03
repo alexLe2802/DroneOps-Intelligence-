@@ -171,7 +171,7 @@ test("validation mission selector uses role-scoped mission registries instead of
   const mock = test.mock.method(globalThis, "fetch", async url => {
     calls.push(String(url));
     if (String(url) === "/api/missions/my") return Response.json([pilotMission]);
-    if (String(url) === "/api/uavs/myUAV") return Response.json([]);
+    if (String(url) === "/api/uavs/myUAV?PageNumber=1&PageSize=100") return Response.json({ items: [], pageNumber: 1, pageSize: 100, totalItems: 0, totalPages: 0 });
     if (String(url) === "/api/missions") return Response.json([managerMission]);
     if (String(url).startsWith("/api/admin/uavs?")) return Response.json({ items: [], pageNumber: 1, pageSize: 100, totalItems: 0, totalPages: 0 });
     throw new Error(`Unexpected request: ${url}`);
