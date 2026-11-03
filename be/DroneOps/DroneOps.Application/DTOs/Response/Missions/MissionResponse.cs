@@ -15,6 +15,7 @@ public sealed class MissionResponse
     public Guid CreatedBy { get; set; }
 
     public Guid? UavId { get; set; }
+    public string? UavCode { get; set; }
 
     public string Name { get; set; } = string.Empty;
 

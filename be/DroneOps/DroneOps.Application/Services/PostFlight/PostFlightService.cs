@@ -46,7 +46,6 @@ public sealed class PostFlightService : IPostFlightService
         Guid? pilotUserId = null,
         CancellationToken cancellationToken = default)
     {
-        await SynchronizeOverdueMissionsAsync(cancellationToken);
         ValidateDateRange(request.FromDate, request.ToDate);
         var inclusiveToDate = NormalizeInclusiveToDate(request.ToDate);
         var pageNumber = Math.Max(1, request.PageNumber);
@@ -56,10 +55,13 @@ public sealed class PostFlightService : IPostFlightService
             request.FromDate, inclusiveToDate, pilotUserId, cancellationToken);
 
         var items = new List<FlightHistoryItemResponse>(missions.Count);
+        var missionIds = missions.Select(mission => mission.Id).ToArray();
+        var reports = (await _repository.GetCurrentReportsAsync(missionIds, cancellationToken))
+            .ToDictionary(report => report.MissionId);
+        var incidentCounts = await _repository.GetIncidentCountsAsync(missionIds, cancellationToken);
         foreach (var mission in missions)
         {
-            var report = await _repository.GetReportByMissionIdAsync(mission.Id, cancellationToken);
-            var incidents = await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken);
+            reports.TryGetValue(mission.Id, out var report);
             items.Add(new FlightHistoryItemResponse
             {
                 MissionId = mission.Id,
@@ -72,7 +74,7 @@ public sealed class PostFlightService : IPostFlightService
                 StartTime = mission.StartTime,
                 EndTime = mission.EndTime,
                 DurationMinutes = report?.TotalFlightDurationMinutes ?? CalculateScheduledDuration(mission),
-                TotalIncidents = incidents.Count,
+                TotalIncidents = incidentCounts.GetValueOrDefault(mission.Id),
                 HasReport = report?.GenerationStatus is "Available" or "Outdated",
                 ReportStatus = report?.GenerationStatus ?? "NotQueued",
                 ReportRevision = report?.Revision,
@@ -361,8 +363,11 @@ public sealed class PostFlightService : IPostFlightService
         var missions = await _repository.GetStartedMissionsAsync(
             request.FromDate, inclusiveToDate, request.UavId, request.MissionId,
             pilotUserId, cancellationToken);
-        var reports = new List<PostFlightReport>();
-        var incidents = new List<Incident>();
+        var missionIds = missions.Select(mission => mission.Id).ToArray();
+        var reports = await _repository.GetCurrentReportsAsync(missionIds, cancellationToken);
+        var incidents = await _repository.GetIncidentsForMissionsAsync(missionIds, cancellationToken);
+        var telemetry = (await _repository.GetAnalyticsTelemetryForMissionsAsync(missionIds, cancellationToken))
+            .ToLookup(sample => sample.MissionId);
         decimal recordedDistanceMeters = 0;
         var validDistanceSegments = 0;
         var excludedDistanceSegments = 0;
@@ -372,11 +377,8 @@ public sealed class PostFlightService : IPostFlightService
         var missionsWithoutGpsCoverage = 0;
         foreach (var mission in missions)
         {
-            var report = await _repository.GetReportByMissionIdAsync(mission.Id, cancellationToken);
-            if (report != null) reports.Add(report);
-            incidents.AddRange(await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken));
             var distance = CalculateRecordedDistance(
-                await _repository.GetTelemetryForAnalyticsAsync(mission.Id, cancellationToken),
+                telemetry[mission.Id].ToList(),
                 _communicationLossSeconds);
             recordedDistanceMeters += distance.Meters;
             validDistanceSegments += distance.ValidSegments;

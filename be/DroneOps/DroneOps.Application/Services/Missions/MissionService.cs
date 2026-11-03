@@ -168,6 +168,7 @@ public sealed class MissionService : IMissionService
             Id = mission.Id,
             CreatedBy = mission.CreatedBy,
             UavId = mission.UAVId,
+            UavCode = mission.UAV?.Code,
             Name = mission.Name,
             AltitudeReference=mission.AltitudeReference,
             Description = mission.Description,
