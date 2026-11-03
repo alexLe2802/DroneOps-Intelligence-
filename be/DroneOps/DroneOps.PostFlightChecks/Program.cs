@@ -7,6 +7,12 @@ using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 
+if (args.Length == 2 && args[0] == "--read-performance")
+{
+    await ReadPerformanceChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--analytics-postgres")
 {
     await AnalyticsPostgresChecks.RunAsync(Path.GetFullPath(args[1]));
@@ -205,9 +211,13 @@ var history = await service.GetFlightHistoryAsync(new GetFlightHistoryRequest
 {
     Search = "History synchronization"
 }, pilotId);
-Check(history.Items.Single().Status == "Completed" &&
-      history.Items.Single().ReportStatus == "Available",
-    "flight history synchronizes overdue mission and report before returning");
+Check(history.Items.Single().Status == "Active" &&
+      history.Items.Single().ReportStatus == "NotQueued",
+    "flight history reads without running scheduled synchronization");
+await service.SynchronizeOverdueMissionsAsync();
+history = await service.GetFlightHistoryAsync(new GetFlightHistoryRequest { Search = "History synchronization" }, pilotId);
+Check(history.Items.Single().Status == "Completed" && history.Items.Single().ReportStatus == "Available",
+    "flight history reflects scheduled worker completion");
 
 db.Missions.Add(OverdueMission(
     legacyAvailableReportMissionId, "Legacy active mission with available report", " Active "));
@@ -230,6 +240,7 @@ db.Incidents.AddRange(
         Type = "Safety", Severity = "Low", Status = "Resolved", CreatedAt = now.AddMinutes(-14)
     });
 await db.SaveChangesAsync();
+await service.SynchronizeOverdueMissionsAsync();
 var legacyHistory = await service.GetFlightHistoryAsync(new GetFlightHistoryRequest
 {
     Search = "Legacy active mission"
