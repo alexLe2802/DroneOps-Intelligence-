@@ -224,15 +224,53 @@ export type AssignedUav = {
   id: string;
   code: string;
   name: string;
+  manufacturer: string | null;
   model: string | null;
+  serialNumber: string | null;
   status: UavStatus;
   pilotId: string;
   pilotName: string;
+  emptyWeightKg: number | null;
+  maxTakeoffWeightKg: number | null;
+  maxPayloadKg: number | null;
+  batteryType: string | null;
+  batteryCapacityMah: number | null;
+  batteryVoltage: number | null;
+  batteryCellCount: number | null;
+  maxFlightTimeMinutes: number | null;
+  maxRangeKm: number | null;
+  maxSpeedKmh: number | null;
+  maxWindSpeedMps: number | null;
+  maxOperatingAltitudeMeters: number | null;
+  purchaseDate: string | null;
+  lastMaintenanceAt: string | null;
+  nextMaintenanceAt: string | null;
+  totalFlightHours: number;
+  totalFlights: number;
+  imageUrl: string | null;
   createdAt: string;
 };
 
-// Mirrors the writable fields on DroneOps.Domain.Entities.UAV.
-export type CreateUavRequest = { code: string; name: string; model: string | null };
+export type CreateUavRequest = {
+  code: string;
+  name: string;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  emptyWeightKg: number | null;
+  maxTakeoffWeightKg: number | null;
+  maxPayloadKg: number | null;
+  batteryType: string | null;
+  batteryCapacityMah: number | null;
+  batteryVoltage: number | null;
+  batteryCellCount: number | null;
+  maxFlightTimeMinutes: number | null;
+  maxRangeKm: number | null;
+  maxSpeedKmh: number | null;
+  maxWindSpeedMps: number | null;
+  maxOperatingAltitudeMeters: number | null;
+  purchaseDate: string | null;
+};
 export type UpdateUavRequest = CreateUavRequest;
 
 export type FlightHistoryItem = {
