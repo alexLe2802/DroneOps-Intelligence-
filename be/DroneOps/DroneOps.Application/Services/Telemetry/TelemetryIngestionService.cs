@@ -163,6 +163,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             HeadingDegrees = request.HeadingDegrees,
             BatteryLevel = request.BatteryPercent,
             BatteryVoltageVolts = request.BatteryVoltageVolts,
+            BatteryCurrentAmps = request.BatteryCurrentAmps,
+            BatteryTemperatureCelsius = request.BatteryTemperatureCelsius,
+            BatteryConsumedMah = request.BatteryConsumedMah,
+            BatteryCellVoltagesVolts = request.BatteryCellVoltagesVolts,
             BoardTemperatureCelsius = request.BoardTemperatureCelsius,
             FlightMode = string.IsNullOrWhiteSpace(request.FlightMode) ? null : request.FlightMode.Trim(),
             Armed = request.Armed,
@@ -287,6 +291,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         response.HeadingDegrees = latestRecord.HeadingDegrees;
         response.BatteryPercent = latestRecord.BatteryLevel;
         response.BatteryVoltageVolts = latestRecord.BatteryVoltageVolts;
+        response.BatteryCurrentAmps = latestRecord.BatteryCurrentAmps;
+        response.BatteryTemperatureCelsius = latestRecord.BatteryTemperatureCelsius;
+        response.BatteryConsumedMah = latestRecord.BatteryConsumedMah;
+        response.BatteryCellVoltagesVolts = latestRecord.BatteryCellVoltagesVolts;
         response.BoardTemperatureCelsius = latestRecord.BoardTemperatureCelsius;
         response.FlightMode = latestRecord.FlightMode;
         response.Armed = latestRecord.Armed;

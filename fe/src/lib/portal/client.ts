@@ -279,8 +279,23 @@ function normalizeUav(record: UavApiRecord): AssignedUav {
 }
 
 export async function getAssignedUavs(): Promise<AssignedUav[]> {
-  const result = await api<PagedResponse<UavApiRecord> | UavApiRecord[]>("/uavs/myUAV?PageNumber=1&PageSize=100");
-  return (Array.isArray(result) ? result : result.items).map(normalizeUav);
+  const aircraft: AssignedUav[] = [];
+  let pageNumber = 1;
+  let totalPages = 1;
+  do {
+    const result = await api<PagedResponse<UavApiRecord> | UavApiRecord[]>(
+      `/uavs/myUAV?PageNumber=${pageNumber}&PageSize=100`,
+    );
+    // Keep compatibility with backends that still return the original array contract.
+    if (Array.isArray(result)) return result.map(normalizeUav);
+    if (!result || !Array.isArray(result.items) || !Number.isInteger(result.totalPages) || result.totalPages < 0) {
+      throw new Error("Assigned UAV API returned an invalid paginated response.");
+    }
+    aircraft.push(...result.items.map(normalizeUav));
+    totalPages = result.totalPages;
+    pageNumber++;
+  } while (pageNumber <= totalPages);
+  return aircraft;
 }
 
 export async function getAssignedUav(id: string): Promise<AssignedUav | null> {

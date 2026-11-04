@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { getAssignedUavs, getGeofences, getMission, updateMission } from "@/lib/portal/client";
+import { missionActions } from "@/lib/portal/mission-review";
 import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../../module-state";
 import MissionMap from "../../mission-map";
@@ -10,7 +11,6 @@ import { appendLandingWaypoint, normalizeWaypointActions } from "@/lib/maps/miss
 import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 
 const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover", "CapturePhoto"];
-const editableStatuses = new Set(["draft", "rejected", "pending", "pendingreview", "submitted", "approved"]);
 
 const toLocalInput = (value: string | null) => {
   if (!value) return "";
@@ -43,7 +43,7 @@ const editorValue = (saved: MissionDetail): EditorValue => { const mission = sav
   waypoints: normalizeWaypointActions(mission.waypoints.map(point => ({ ...point }))),
 }); };
 
-export default function MissionEditClient({ id }: { id: string }) {
+export default function MissionEditClient({ id, actorId }: { id: string; actorId: string }) {
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [aircraft, setAircraft] = useState<AssignedUav[]>([]);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
@@ -144,7 +144,7 @@ export default function MissionEditClient({ id }: { id: string }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!value || savePending.current) return;
+    if (!value || !mission || !missionActions(mission, "uav_operator", actorId).edit || savePending.current) return;
     setFormError("");
     setNotice("");
     const normalizedWaypoints = normalizeWaypointActions(value.waypoints);
@@ -188,7 +188,7 @@ export default function MissionEditClient({ id }: { id: string }) {
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!mission || !value) return <ModuleLoading label="Loading mission editor" />;
 
-  const canEdit = editableStatuses.has(mission.status.toLowerCase().replaceAll(" ", ""));
+  const canEdit = missionActions(mission, "uav_operator", actorId).edit;
   if (!canEdit) return <section className="module-state error"><span className="state-symbol">!</span><p className="module-kicker">MISSION LOCKED</p><h2>This plan cannot be edited</h2><p>Only pre-flight missions can be proposed for editing. The current mission status is {mission.status}.</p><Link className="module-primary module-link" href={`/portal/missions/${id}`}>BACK TO MISSION</Link></section>;
 
   const approvedAircraft = aircraft.filter(item => item.status.toLowerCase() === "active" || item.id === mission.uavId);
@@ -198,6 +198,7 @@ export default function MissionEditClient({ id }: { id: string }) {
       <div><p className="module-kicker">PILOT / MY MISSIONS / EDIT PLAN</p><div className="mission-title-line"><h1>Edit Mission Plan</h1><span className={`status status-${mission.status.toLowerCase()}`}>{mission.status}</span></div><p>Update mission details and refine the planned flight path.</p></div>
       <div className="heading-actions"><span className={`edit-dirty-state${dirty ? " changed" : ""}`}>{dirty ? "UNSAVED CHANGES" : "NO CHANGES"}</span><Link className="module-secondary module-link" href={`/portal/missions/${id}`} onClick={leave}>BACK TO MISSION</Link></div>
     </header>
+    {mission.pendingUpdate && <p role="status">Editing the pending proposal. The current mission remains unchanged until approval.</p>}
     <form className="mission-builder mission-edit-form" onSubmit={submit}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
       <section className="mission-fields">
