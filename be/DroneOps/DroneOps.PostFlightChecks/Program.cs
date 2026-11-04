@@ -300,6 +300,30 @@ await ExpectThrowsAsync<KeyNotFoundException>(
     () => assessmentService.GetByMissionAsync(missionId.ToString(), Guid.NewGuid(), false, CancellationToken.None),
     "out-of-scope assessment history is not disclosed");
 
+var planned = Mission(Guid.NewGuid(), "Battery planning fixture", "Approved");
+planned.StartTime = DateTime.UtcNow.AddMinutes(5); planned.EndTime = DateTime.UtcNow.AddMinutes(30);
+planned.AverageSpeedMetersPerSecond = 5;
+planned.Waypoints = [new Waypoint { Id = Guid.NewGuid(), MissionId = planned.Id, SequenceOrder = 1, Latitude = 10, Longitude = 106 },
+    new Waypoint { Id = Guid.NewGuid(), MissionId = planned.Id, SequenceOrder = 2, Latitude = 10.001m, Longitude = 106 }];
+var configuredUav = await db.UAVs.SingleAsync(u => u.Id == uavId);
+configuredUav.BatteryCapacityMah = 5200; configuredUav.MaxFlightTimeMinutes = 30;
+db.Missions.Add(planned);
+var batterySample = Sample(planned.Id, DateTimeOffset.UtcNow, false, 0, 0, 70);
+batterySample.BatteryConsumedMah = 300;
+db.TelemetryRecords.Add(batterySample);
+await db.SaveChangesAsync();
+var withBattery = await assessmentService.CreateAsync(new CreateAiAssessmentRequest { MissionRef = planned.Id.ToString() }, pilotId, false, default);
+Check(withBattery.Result?.Battery is { Status: "EstimateOnly", CurrentBatteryPercent: 70, ConsumedMah: 300, EstimatedRemainingChargeMah: 3640 },
+    "assessment uses backend-owned planned waypoints, configured capacity and fresh FC battery evidence");
+Check((await db.AiAssessments.SingleAsync(a => a.Id == withBattery.Id)).ContextSnapshot.Contains("configuredCapacityMah"),
+    "battery provenance and calculation inputs are preserved in immutable assessment evidence");
+var unknownBattery = Sample(planned.Id, DateTimeOffset.UtcNow.AddSeconds(1), false, 0, 0, 0);
+unknownBattery.BatteryLevel = null;
+db.TelemetryRecords.Add(unknownBattery); await db.SaveChangesAsync();
+var unknownAssessment = await assessmentService.CreateAsync(new CreateAiAssessmentRequest { MissionRef = planned.Id.ToString() }, pilotId, false, default);
+Check(unknownAssessment.Result?.Battery is { Status: "MissingData", CurrentBatteryPercent: null, RequiredBatteryPercent: null },
+    "newer unknown battery sample cannot fall back to an older plausible percentage");
+
 Console.WriteLine($"{passed} post-flight checks passed.");
 
 Mission Mission(Guid id, string name, string status) => new()

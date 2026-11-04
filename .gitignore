@@ -32,7 +32,6 @@ database/*.local.json
 
 # Local certificates
 *.crt
-!database/certificates/prod-ca-2021.crt
 
 # Visual Studio
 .vs/
@@ -128,9 +127,10 @@ gateway/session.private.tmp
 gateway/.venv/
 __pycache__/
 *.pyc
-tmp/
-.vercel
 
-# Persistent gateway credentials
-gateway/.sessions/
-**/*.private.json
+# Generated document authoring and visual QA files
+tmp/doc-refresh/
+tmp/final-submission/
+*.xlsx.inspect.ndjson
+outputs/final-submission/
+tmp/submission-review/

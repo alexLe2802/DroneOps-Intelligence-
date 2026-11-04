@@ -471,6 +471,7 @@ CancellationToken ct)
                         db.Waypoints.RemoveRange(mission.Waypoints);
                         mission.Name = proposedMission.Name;
                         mission.AutomaticFlightRequested = proposedMission.AutomaticFlightRequested;
+                        mission.AutomaticFlightLimits = proposedMission.AutomaticFlightLimits;
                         mission.Description = proposedMission.Description;
                         mission.UAVId = proposedMission.UAVId;
                         mission.AltitudeReference = proposedMission.AltitudeReference;
