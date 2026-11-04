@@ -19,6 +19,13 @@ public sealed class Mission
 
     public string? AltitudeReference { get; set; }
     public bool AutomaticFlightRequested { get; set; }
+    public string? AutomaticFlightLimitsJson { get; set; }
+    [NotMapped]
+    public AutomaticFlightLimits? AutomaticFlightLimits
+    {
+        get => AutomaticFlightLimitsJson == null ? null : System.Text.Json.JsonSerializer.Deserialize<AutomaticFlightLimits>(AutomaticFlightLimitsJson);
+        set => AutomaticFlightLimitsJson = value == null ? null : System.Text.Json.JsonSerializer.Serialize(value);
+    }
 
     public DateTime? StartTime { get; set; }
 

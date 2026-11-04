@@ -1,7 +1,8 @@
-﻿namespace DroneOps.Application.DTOs.Response.Missions;
+namespace DroneOps.Application.DTOs.Response.Missions;
 
 public sealed class MissionValidationResult
 {
+    public DroneOps.Domain.Entities.AutomaticFlightLimits? AutomaticFlightLimits { get; set; }
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid? UpdateRequestId { get; set; }
     public string RestrictionRevision { get; set; } = "";

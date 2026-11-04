@@ -61,6 +61,29 @@ class FlightControlTests(unittest.TestCase):
         self.assertIsNone(value['landedState'])
         self.assertFalse(value['navigationReady'])
 
+    def test_fc_parameters_are_read_only_and_source_bound(self):
+        self.control.tick(self.link)
+        self.link.mav.param_request_read_send.assert_called()
+        self.link.mav.param_set_send.assert_not_called()
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=(1 << 24) | (17 << 16)), self.link)
+        self.control.accept(message('PARAM_VALUE', param_id=b'MPC_XY_CRUISE\x00', param_value=3.0), self.link)
+        snapshot = self.control.evidence()['firmwareParameters']
+        self.assertEqual(snapshot['firmwareVersion'], '1.17.0')
+        self.assertEqual(snapshot['values']['MPC_XY_CRUISE'], 3)
+        wrong = message('PARAM_VALUE', param_id='NAV_ACC_RAD', param_value=100)
+        wrong.get_srcSystem = lambda: 42
+        self.control.accept(wrong, self.link)
+        self.assertNotIn('NAV_ACC_RAD', self.control.evidence()['firmwareParameters']['values'])
+
+    def test_nonfinite_or_stale_fc_parameters_are_not_defaults(self):
+        self.control.accept(message('PARAM_VALUE', param_id='NAV_ACC_RAD', param_value=float('nan')), self.link)
+        self.assertIsNone(self.control.evidence()['firmwareParameters'])
+        self.control.accept(message('PARAM_VALUE', param_id='NAV_ACC_RAD', param_value=2), self.link)
+        self.now += 61
+        self.feed()
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=(1 << 24) | (17 << 16)), self.link)
+        self.assertIsNone(self.control.evidence()['firmwareParameters'])
+
     def test_arm_is_not_retried_or_counted_down_on_ack_alone(self):
         self.response('Arm', stage='Arming')
         self.assertEqual(self.link.mav.command_long_send.call_args.args, (1, 1, 400, 0, 1, 0, 0, 0, 0, 0, 0))
@@ -167,6 +190,13 @@ class FlightControlTests(unittest.TestCase):
         item = dict(seq=0, command=22, frame=3, param1=0, param2=0, param3=0, param4=None, x=1, y=2, z=20)
         self.response('Upload', mission=dict(firmwareTarget='PX4', items=[item]), stage='Uploading')
         self.control.accept(message('MISSION_ACK', type=0), self.link)
+        self.assertFalse(self.bridge.report['succeeded'])
+
+    def test_operational_policy_is_not_mistaken_for_verified_fc_parameters(self):
+        self.response('Upload', mission=dict(firmwareTarget='PX4', items=[],
+            operationalEnvelope=dict(fcParameterVerificationRequired=True)), stage='Uploading')
+        self.link.mav.mission_count_send.assert_not_called()
+        self.link.mav.command_long_send.assert_not_called()
         self.assertFalse(self.bridge.report['succeeded'])
 
     def test_readback_mismatch_and_nonfinite_values_rejected(self):

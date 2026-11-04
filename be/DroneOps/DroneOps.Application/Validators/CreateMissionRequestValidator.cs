@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.Missions;
+using DroneOps.Application.DTOs.Request.Missions;
 using FluentValidation;
 
 namespace DroneOps.Application.Validators.Missions;
@@ -16,6 +16,16 @@ public sealed class CreateMissionRequestValidator
 
     public CreateMissionRequestValidator()
     {
+        RuleFor(x => x).Custom((x, context) => {
+            foreach (var error in DroneOps.Application.Services.Missions.AutomaticFlightPolicy.Errors(
+                x.AutomaticFlightRequested, x.AltitudeReference, x.AverageSpeedMetersPerSecond, x.MaxSpeedMetersPerSecond,
+                x.AutomaticFlightLimits ?? new DroneOps.Domain.Entities.AutomaticFlightLimits(), (x.Waypoints ?? []).Select(w => (w.Altitude, w.ActionType))))
+                context.AddFailure("AutomaticFlightLimits", error);
+            if (x.AutomaticFlightRequested)
+                foreach (var error in DroneOps.Application.Services.Missions.AutomaticFlightPolicy.NavigationErrors(
+                    (x.Waypoints ?? []).Select(w => (w.Navigation, w.ActionType)), x.MaxSpeedMetersPerSecond))
+                    context.AddFailure("Waypoints.Navigation", error);
+        });
         RuleFor(x=>x.AltitudeReference).Must(x=>x is null or "AGL" or "MSL" or "Relative").WithMessage("Altitude reference must be AGL, MSL or Relative.");
         RuleFor(x => x.UavId)
             .NotEmpty()

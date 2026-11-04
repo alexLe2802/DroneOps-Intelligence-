@@ -167,6 +167,8 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
             planHash = MissionValidationService.Hash(mission), dispatchEnabled = false,
             scheduledStartUtc = mission.StartTime, scheduledEndUtc = mission.EndTime,
             altitudeReference = mission.AltitudeReference, averageSpeedMetersPerSecond = mission.AverageSpeedMetersPerSecond,
+            automaticFlightLimits = mission.AutomaticFlightLimits,
+            recoveryPolicy = mission.AutomaticFlightRequested ? AutomaticFailsafePolicy.Contract(mission.MaxSpeedMetersPerSecond ?? 0) : null,
             maxSpeedMetersPerSecond = mission.MaxSpeedMetersPerSecond,
             supportedFirmwareTargets = new[] { "ArduPilot", "PX4" },
             compilationPreviews = new[] { "ArduPilot", "PX4" }.Select(firmware =>
