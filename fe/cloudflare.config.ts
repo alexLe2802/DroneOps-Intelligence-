@@ -7,6 +7,7 @@ export default defineConfig({
     entrypoint: "vinext/server/fetch-handler",
     compatibilityDate: "2026-11-04",
     compatibilityFlags: ["nodejs_compat"],
+    domains: ["droneops.click", "www.droneops.click"],
     observability: { enabled: true, traces: { enabled: true } },
     assets: {
       htmlHandling: "none",
