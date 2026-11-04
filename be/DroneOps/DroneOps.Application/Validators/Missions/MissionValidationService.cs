@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Request.Missions;
@@ -331,6 +331,9 @@ public sealed class MissionValidationService(
         var json = JsonSerializer.Serialize(
             Snapshot(mission),
             JsonOptions);
+
+        // Preserve existing manual-plan evidence; opt-in changes invalidate approval evidence.
+        if (mission.AutomaticFlightRequested) json += "|automatic-flight-v1";
 
         return Convert.ToHexString(
             SHA256.HashData(
@@ -853,12 +856,25 @@ public sealed class MissionValidationService(
         // -----------------------------------------------------
 
         result.Weather =
-            await weather.GetAsync(
-                mission,
-                cancellationToken);
+        await weather.GetAsync(
+            mission,
+            cancellationToken);
 
         result.Warnings.AddRange(
             result.Weather.Warnings);
+
+        // -----------------------------------------------------
+        // Battery risk validation
+        // -----------------------------------------------------
+
+        result.Battery =
+            MissionBatteryRiskCalculator.Calculate(
+                mission,
+                uav!,
+                result.Weather);
+
+        result.Warnings.AddRange(
+            result.Battery.Warnings);
 
         return result;
     }

@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.Missions;
+using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Interfaces.Notifications;
@@ -470,6 +470,7 @@ CancellationToken ct)
 
                         db.Waypoints.RemoveRange(mission.Waypoints);
                         mission.Name = proposedMission.Name;
+                        mission.AutomaticFlightRequested = proposedMission.AutomaticFlightRequested;
                         mission.Description = proposedMission.Description;
                         mission.UAVId = proposedMission.UAVId;
                         mission.AltitudeReference = proposedMission.AltitudeReference;

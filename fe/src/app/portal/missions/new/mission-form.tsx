@@ -37,6 +37,7 @@ export default function MissionForm() {
   const [altitudeReference, setAltitudeReference] = useState<"AGL" | "MSL" | "Relative" | "">("");
   const operation = useRef<{ signature: string; id: string } | null>(null);
   const [name, setName] = useState("");
+  const [automaticFlightRequested, setAutomaticFlightRequested] = useState(false);
   const [description, setDescription] = useState("");
   const [averageSpeed, setAverageSpeed] = useState("");
   const [maxSpeed, setMaxSpeed] = useState("");
@@ -50,7 +51,7 @@ export default function MissionForm() {
   const [highRiskMission, setHighRiskMission] = useState<MissionDetail | null>(null);
   const [riskBusy, setRiskBusy] = useState<"confirm" | "cancel" | null>(null);
   const [riskError, setRiskError] = useState("");
-  useUnsavedChanges(!saved && Boolean(name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
+  useUnsavedChanges(!saved && Boolean(automaticFlightRequested || name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
   function load() {
     setAircraft(null); setLoadError(null);
     void Promise.allSettled([getAssignedUavs(), getGeofences()]).then(([uavs, zones]) => {
@@ -114,7 +115,7 @@ export default function MissionForm() {
     pending.current = true;
     setSaving(true);
     try {
-      const payload = { altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints: normalizedWaypoints };
+      const payload = { automaticFlightRequested, altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints: normalizedWaypoints };
       const signature = JSON.stringify(payload);
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
       const created = await createMission({ ...payload, operationId: operation.current.id });
@@ -179,6 +180,7 @@ export default function MissionForm() {
         <div className="mission-field-grid">
           <label>ASSIGNED UAV<select value={uavId} onChange={event => setUavId(event.target.value)} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
+          <label className="full-field"><span><input type="checkbox" checked={automaticFlightRequested} onChange={event => setAutomaticFlightRequested(event.target.checked)} /> Request automatic flight preparation</span><small>Confirm readiness five minutes before departure while online with this drone connected. Aircraft command execution is not enabled yet; selecting this option does not launch the drone.</small></label>
           <label className="full-field">DESCRIPTION<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
           <label>AVERAGE SPEED (M/S)<input id="mission-average-speed" type="number" min="0.1" step="0.1" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder="10.0" required /></label>
           <label>MAXIMUM SPEED (M/S)<input id="mission-max-speed" type="number" min="0.1" step="0.1" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder="15.0" required /></label>
