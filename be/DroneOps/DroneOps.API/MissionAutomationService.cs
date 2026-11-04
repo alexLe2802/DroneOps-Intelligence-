@@ -178,7 +178,7 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
                 sequenceOrder = w.SequenceOrder, latitudeDegrees = w.Latitude, longitudeDegrees = w.Longitude,
                 latitudeE7 = (int)decimal.Round(w.Latitude * 10000000m, 0, MidpointRounding.AwayFromZero),
                 longitudeE7 = (int)decimal.Round(w.Longitude * 10000000m, 0, MidpointRounding.AwayFromZero),
-                altitudeMeters = w.Altitude, action = w.ActionType
+                altitudeMeters = w.Altitude, action = w.ActionType, navigation = w.Navigation
             }),
             requiredBeforeDispatch = new[] { "Detected firmware/version/vehicle type and capabilities", "Explicit altitude frame and home/terrain data",
                 "Per-action yaw/hold parameters", "Failsafe/RTL configuration", "Upload ACK and read-back plan hash", "Fresh pre-arm checks and command acknowledgements" }
