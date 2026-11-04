@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDate } from "@/lib/portal/vietnam-time";
+
 import { licenseDocumentLabel } from "@/lib/license-document";
 import Image from "next/image";
 import { useEffect, useState } from "react";
@@ -16,7 +18,7 @@ export default function OperatorCredentials({ userId }: { userId: string }) {
     void api<Credentials>(`/users/${userId}/credentials`).then(value => { if (active) setData(value); }).catch(e => { if (active) setError(e instanceof Error ? e.message : "Unable to load credentials."); });
     return () => { active = false; };
   }, [userId, revision]);
-  const date = (value: string | null) => value ? new Date(`${value}T00:00:00`).toLocaleDateString("en-GB") : "Not provided";
+  const date = (value: string | null) => value ? formatVietnamDate(value) : "Not provided";
   if (error) return <div className={styles.directive} role="alert"><div><b>Credentials unavailable</b><p>{error}</p><button type="button" className={styles.refresh} onClick={() => { setError(""); setRevision(v => v + 1); }}>Retry</button></div></div>;
   if (!data) return <p className={styles.credentialsLoading} role="status">Loading flight credentials…</p>;
   const expiry = data.licenseExpiredDate ? new Date(`${data.licenseExpiredDate}T23:59:59`) : null;

@@ -1,16 +1,19 @@
 "use client";
 
+import { formatVietnamDateTime, formatVietnamTime } from "@/lib/portal/vietnam-time";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getLatestMissionTelemetry, getLiveMissions, getMission, getMissionIncidents, liveMissionStreamUrl } from "@/lib/portal/client";
 import type { IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
 import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
 import LiveMap from "./live-map";
+import FlightPreparationPanel from "./flight-preparation-panel";
 import styles from "./live-monitoring.module.css";
 
 type StreamState = "connecting" | "live" | "reconnecting" | "closed";
 
 const valueOr = (value: number | null | undefined, suffix = "", digits = 1) => Number.isFinite(value) ? `${Number(value).toFixed(digits)}${suffix}` : "Unavailable";
-const shortDate = (value: string | null | undefined) => value ? new Date(value).toLocaleString() : "No packet received";
+const shortDate = (value: string | null | undefined) => value ? formatVietnamDateTime(value) : "No packet received";
 const statusKey = (value: string | null | undefined) => (value || "offline").toLowerCase().replaceAll(" ", "");
 
 function telemetryFromMission(mission: LiveMission): MissionTelemetry {
@@ -25,7 +28,7 @@ function telemetryFromMission(mission: LiveMission): MissionTelemetry {
   };
 }
 
-export default function LiveMonitoringClient() {
+export default function LiveMonitoringClient({ initialMissionId = "", canPrepare = false }: { initialMissionId?: string; canPrepare?: boolean }) {
   const [missions, setMissions] = useState<LiveMission[] | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [mission, setMission] = useState<MissionDetail | null>(null);
@@ -55,14 +58,14 @@ export default function LiveMonitoringClient() {
     void getLiveMissions().then(result => {
       if (!active) return;
       setMissions(result);
-      setSelectedId(result[0]?.missionId ?? "");
+      setSelectedId(result.find(item => item.missionId === initialMissionId)?.missionId ?? result[0]?.missionId ?? "");
     }).catch(reason => {
       if (!active) return;
       setMissions([]);
       setError(reason instanceof Error ? reason.message : "Unable to load live missions.");
     });
     return () => { active = false; };
-  }, []);
+  }, [initialMissionId]);
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -171,6 +174,7 @@ export default function LiveMonitoringClient() {
   if (missions === null) return <section className={styles.state}><div className={styles.spinner} /><p>ESTABLISHING LIVE OPERATIONS LINK</p></section>;
 
   return <div className={styles.monitor}>
+    {canPrepare && mission?.id === selectedId && mission.automaticFlightRequested && mission.status === "Approved" && <FlightPreparationPanel key={selectedId} missionId={selectedId} />}
     <header className={styles.commandHeader}>
       <div className={styles.missionIdentity}>
         <span className={styles.eyebrow}>LIVE OPERATIONS / MISSION CHANNEL</span>
@@ -216,7 +220,7 @@ export default function LiveMonitoringClient() {
 
           <section className={styles.incidentPanel}>
             <header><span>LIVE INCIDENT FEED</span><b>{activeIncidents.length} OPEN</b></header>
-            <div className={styles.incidentList}>{incidents.length ? incidents.slice(0, 5).map(item => <article key={item.id}><div><b className={styles[`severity${statusKey(item.severity)}`]}>{item.severity}</b><time>{new Date(item.createdAt).toLocaleTimeString()}</time></div><h3>{item.title}</h3><p>{item.description ?? `${item.type} event`}</p><small>{item.status.toUpperCase()}</small></article>) : <div className={styles.incidentEmpty}><b>CHANNEL CLEAR</b><span>No incidents recorded for this mission.</span></div>}</div>
+            <div className={styles.incidentList}>{incidents.length ? incidents.slice(0, 5).map(item => <article key={item.id}><div><b className={styles[`severity${statusKey(item.severity)}`]}>{item.severity}</b><time>{formatVietnamTime(item.createdAt)}</time></div><h3>{item.title}</h3><p>{item.description ?? `${item.type} event`}</p><small>{item.status.toUpperCase()}</small></article>) : <div className={styles.incidentEmpty}><b>CHANNEL CLEAR</b><span>No incidents recorded for this mission.</span></div>}</div>
           </section>
         </aside>
       </div>

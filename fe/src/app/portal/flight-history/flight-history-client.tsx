@@ -1,5 +1,7 @@
 "use client";
 
+import { apiInstant } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,10 +14,10 @@ const PAGE_SIZE = 8;
 const terminalStatuses = ["", "Completed", "Aborted", "Failed", "Cancelled"];
 const dateTime = (value: string | null) => {
   if (!value) return "Not recorded";
-  const parsed = new Date(value);
+  const parsed = apiInstant(value);
   return Number.isNaN(parsed.getTime())
     ? "Not recorded"
-    : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(parsed);
+    : new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(parsed);
 };
 const reportLabel = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2");
 const percent = (value: number | null) => value == null ? "N/A" : `${value.toFixed(1)}%`;
@@ -107,7 +109,7 @@ export default function FlightHistoryClient() {
     </section>
 
     {result.items.length === 0 ? <ModuleEmpty title="No flights found" message="No mission matches the current filters." /> : <section className={styles.records} aria-label="Logged flight records">
-      <header><h2>Logged Sorties <span>{result.totalItems} AVAILABLE</span></h2><small>SORT: DATE DESCENDING (UTC)</small></header>
+      <header><h2>Logged Sorties <span>{result.totalItems} AVAILABLE</span></h2><small>SORT: DATE DESCENDING (GMT+7)</small></header>
       <div>{result.items.map(item => <FlightRecord key={item.missionId} item={item} />)}</div>
       <footer><span>Showing <b>{rangeStart}-{rangeEnd}</b> of <b>{result.totalItems}</b> completed flight records</span><nav aria-label="Flight history pages"><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>&lt;</button>{pages.map(value => <button type="button" key={value} className={value === page ? styles.currentPage : ""} aria-current={value === page ? "page" : undefined} onClick={() => setPage(value)}>{value}</button>)}<button type="button" disabled={page >= result.totalPages} onClick={() => setPage(value => value + 1)}>&gt;</button></nav></footer>
     </section>}
@@ -122,7 +124,7 @@ function FlightRecord({ item }: { item: FlightHistoryItem }) {
   const isFailure = ["aborted", "failed", "cancelled"].includes(statusKey);
   const shortMissionId = item.missionId.slice(0, 8).toUpperCase();
   return <article className={`${styles.record} ${isFailure ? styles.recordDanger : ""}`}>
-    <header><div><b>FLT-{shortMissionId}</b><code>MS-{item.missionId.slice(0, 4).toUpperCase()}</code><span className={`${styles.outcome} ${isFailure ? styles.danger : ""}`}>{missionStatus}</span></div><time>{dateTime(item.startTime)} UTC</time></header>
+    <header><div><b>FLT-{shortMissionId}</b><code>MS-{item.missionId.slice(0, 4).toUpperCase()}</code><span className={`${styles.outcome} ${isFailure ? styles.danger : ""}`}>{missionStatus}</span></div><time>{dateTime(item.startTime)} GMT+7</time></header>
     <div className={styles.recordBody}>
       <div className={styles.recordIdentity}><h3>{item.missionName}</h3><dl><div><dt>AIRFRAME</dt><dd>{item.uavCode || "N/A"}<small>{item.uavName || "Aircraft unavailable"}</small></dd></div><div><dt>PIC / OPERATOR</dt><dd>{item.pilotName || "N/A"}<small>CERTIFIED FLIGHT CREW</small></dd></div><div><dt>DURATION</dt><dd>{duration(item.durationMinutes)}<small>RECORDED FLIGHT</small></dd></div><div><dt>INCIDENTS</dt><dd className={item.totalIncidents ? styles.alertText : ""}>{item.totalIncidents}<small>{item.totalIncidents ? "REVIEW REQUIRED" : "NOMINAL"}</small></dd></div><div><dt>REPORT REV.</dt><dd>{item.reportRevision ?? "--"}<small>{reportLabel(reportStatus)}</small></dd></div></dl></div>
       <div className={styles.reportState}><span className={`${styles.reportBadge} ${styles[reportStatus.toLowerCase()] ?? ""}`}>{reportLabel(reportStatus)}</span><small>{item.reportRevision ? `REVISION ${item.reportRevision}` : "NO REVISION"}{" // "}{item.telemetryCoverageComplete ? "TELEMETRY COVERED" : "COVERAGE INCOMPLETE"}</small>{reportAvailable ? <Link href={`/portal/flight-history/${encodeURIComponent(item.missionId)}`}>VIEW REPORT <ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></Link> : <button type="button" disabled>REPORT NOT QUEUED</button>}</div>

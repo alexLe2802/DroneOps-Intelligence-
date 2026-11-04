@@ -1,4 +1,6 @@
 "use client";
+
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getAssignedUavs, getPilotMissions } from "@/lib/portal/client";
@@ -10,7 +12,7 @@ const labels: Record<DroneConnection["status"],string> = {AwaitingGateway:"Waiti
 type Pairing = {connection:DroneConnection;pairingCode:string;gatewayPath:"/ws/drone-gateway"};
 type BootstrapInfo = {backendOrigin:string;downloadOrigin:string;laptopHost:string};
 
-export default function DroneConnectionClient() {
+export default function DroneConnectionClient({ initialMissionId, embedded = false }: { initialMissionId?: string; embedded?: boolean } = {}) {
   const [bindings,setBindings]=useState<DroneBinding[]>([]);
   const [bindingConfirmed,setBindingConfirmed]=useState(false);
   const [aircraft,setAircraft]=useState<AssignedUav[]>([]);
@@ -24,7 +26,7 @@ export default function DroneConnectionClient() {
   const [bootstrapInfo,setBootstrapInfo]=useState<BootstrapInfo|null>(null);
   const [error,setError]=useState(""); const [notice,setNotice]=useState("");
   const [now,setNow]=useState(()=>Date.now());
-  useEffect(()=>{let active=true;void Promise.all([getAssignedUavs(),getPilotMissions(),getDroneConnections(),getDroneBindings()]).then(([a,m,c,b])=>{if(!active)return;setAircraft(a.filter(x=>x.status.toLowerCase()==="active"));setMissions(m.filter(x=>["approved","inprogress"].includes(x.status.toLowerCase().replaceAll(" ",""))));setConnections(c);setBindings(b);}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[]);
+  useEffect(()=>{let active=true;void Promise.all([getAssignedUavs(),getPilotMissions(),getDroneConnections(),getDroneBindings()]).then(([a,m,c,b])=>{if(!active)return;setAircraft(a.filter(x=>x.status.toLowerCase()==="active"));setMissions(m.filter(x=>["approved","inprogress"].includes(x.status.toLowerCase().replaceAll(" ",""))));setConnections(c);setBindings(b);const chosen=m.find(x=>x.id===initialMissionId);if(chosen){setMission(chosen.id);setUav(chosen.uavId??"");}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[initialMissionId]);
   useEffect(()=>{let active=true;void fetch("/api/gateway-bootstrap",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error("Unable to determine the hosted backend address.");return response.json() as Promise<BootstrapInfo>;}).then(info=>{if(active)setBootstrapInfo(info);}).catch(e=>{if(active)setError(e instanceof Error?e.message:"Unable to prepare the Jetson command.");});return()=>{active=false;};},[]);
   useEffect(()=>{let active=true;const timer=setInterval(()=>{setNow(Date.now());void Promise.all([getDroneConnections(),getDroneBindings()]).then(([c,b])=>{if(active){setConnections(c);setBindings(b);setStatusError("");}}).catch(()=>{if(active)setStatusError("Connection status could not be refreshed. Check your network and reload.");});},5000);return()=>{active=false;clearInterval(timer);};},[]);
   const eligible=missions.filter(m=>m.uavId===uav);
@@ -44,7 +46,7 @@ export default function DroneConnectionClient() {
   async function connect(){setBusy(true);setError("");setNotice("");try{const result=await createDroneConnection(uav,mission);setPairing(result);setConnections(await getDroneConnections());}catch(e){setError(e instanceof Error?e.message:"Unable to create pairing.");}finally{setBusy(false);}}
   async function disconnect(id:string){setBusy(true);setError("");try{await revokeDroneConnection(id);if(pairing?.connection.id===id)setPairing(null);setConnections(await getDroneConnections());setNotice("Connection revoked. The gateway can no longer send telemetry through this session.");}catch(e){setError(e instanceof Error?e.message:"Unable to disconnect.");}finally{setBusy(false);}}
   return <div className={styles.page}>
-    <header className="module-heading"><div><p className="module-kicker">PILOT / DRONE CONNECTION</p><h1>Connect your drone</h1><p>Choose an onboard Jetson or a telemetry radio connected to your laptop. Both use the flight controller hardware UID and send telemetry to Live Monitoring. No camera or IP configuration required.</p></div><Link className="module-secondary module-link" href="/portal/live-monitoring">OPEN LIVE MONITORING →</Link></header>
+    {!embedded && <header className="module-heading"><div><p className="module-kicker">PILOT / DRONE CONNECTION</p><h1>Connect your drone</h1><p>Choose an onboard Jetson or a telemetry radio connected to your laptop. Both use the flight controller hardware UID and send telemetry to Live Monitoring. No camera or IP configuration required.</p></div><Link className="module-secondary module-link" href="/portal/live-monitoring">OPEN LIVE MONITORING →</Link></header>}
     {error&&<p className={styles.error} role="alert">{error}</p>}{statusError&&<p className={styles.error} role="status">{statusError}</p>}{notice&&<p className={styles.notice} role="status">{notice}</p>}
     <div className={styles.grid}>
       <section className={styles.card}><span className={styles.step}>01 · CONNECTION PROFILE</span><h2>Choose your connection</h2>
@@ -88,7 +90,7 @@ export default function DroneConnectionClient() {
       {codeVisible?<div className={styles.code}><span>ONE-TIME CODE · EXPIRES IN {Math.max(0,Math.ceil((new Date(pairing.connection.codeExpiresAt).getTime()-now)/1000))}s</span><strong>{pairing.pairingCode.match(/.{1,4}/g)?.join("-")}</strong><button type="button" onClick={()=>void navigator.clipboard.writeText(pairing.pairingCode).then(()=>setNotice("Pairing code copied.")).catch(()=>setNotice("Select and copy the code manually."))}>Copy code</button></div>:<div className={styles.empty}>{pairing?"Code used or expired. Check the session below or create a new code.":"Prepare your chosen gateway, then select a UAV and mission to create a code."}</div>}
     </section>
     <section className={styles.card}><span className={styles.step}>04 · VERIFY CONNECTION</span><h2>Your connection sessions</h2><p>Gateway online means the Jetson or laptop has reached the backend. Receiving telemetry means fresh autopilot samples are arriving. Pairing never arms or starts the flight.</p>
-      {loading?<p>Loading…</p>:!connections.length?<div className={styles.empty}>No sessions yet.</div>:<div className={styles.sessions}>{connections.map(c=><article key={c.id}><div><strong>{labels[c.status]}</strong><p>{aircraft.find(a=>a.id===c.uavId)?.code??c.uavId} · {missions.find(m=>m.id===c.missionId)?.name??c.missionId}</p><small>{c.gatewayTransport} · {c.hardwareIdentity??"Hardware not identified"} · {c.gatewayName??"Gateway not paired"}{c.pairedAt?` · MAVLink ${c.systemId}/${c.componentId}`:""}</small><small>Last gateway contact: {c.lastGatewayAt?new Date(c.lastGatewayAt).toLocaleString():"None"} · Last sample: {c.lastSampleAt?new Date(c.lastSampleAt).toLocaleString():"None"}</small><small>Session expires: {new Date(c.expiresAt).toLocaleString()}</small></div>{!c.revokedAt&&<button className="module-secondary" disabled={busy} onClick={()=>void disconnect(c.id)}>DISCONNECT</button>}</article>)}</div>}
+      {loading?<p>Loading…</p>:!connections.length?<div className={styles.empty}>No sessions yet.</div>:<div className={styles.sessions}>{connections.map(c=><article key={c.id}><div><strong>{labels[c.status]}</strong><p>{aircraft.find(a=>a.id===c.uavId)?.code??c.uavId} · {missions.find(m=>m.id===c.missionId)?.name??c.missionId}</p><small>{c.gatewayTransport} · {c.hardwareIdentity??"Hardware not identified"} · {c.gatewayName??"Gateway not paired"}{c.pairedAt?` · MAVLink ${c.systemId}/${c.componentId}`:""}</small><small>Last gateway contact: {c.lastGatewayAt?formatVietnamDateTime(c.lastGatewayAt):"None"} · Last sample: {c.lastSampleAt?formatVietnamDateTime(c.lastSampleAt):"None"}</small><small>Session expires: {formatVietnamDateTime(c.expiresAt)}</small></div>{!c.revokedAt&&<button className="module-secondary" disabled={busy} onClick={()=>void disconnect(c.id)}>DISCONNECT</button>}</article>)}</div>}
     </section>
   </div>;
 }

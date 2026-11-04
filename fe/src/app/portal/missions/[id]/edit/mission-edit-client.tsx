@@ -1,5 +1,7 @@
 "use client";
 
+import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { getAssignedUavs, getGeofences, getMission, updateMission } from "@/lib/portal/client";
@@ -14,9 +16,7 @@ const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover", "CapturePh
 
 const toLocalInput = (value: string | null) => {
   if (!value) return "";
-  const date = new Date(value);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return toVietnamDateTimeInput(value);
 };
 
 type EditorValue = {
@@ -168,8 +168,8 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
         description: value.description.trim() || null,
         averageSpeedMetersPerSecond,
         maxSpeedMetersPerSecond,
-        startTime: new Date(value.startTime).toISOString(),
-        endTime: new Date(value.endTime).toISOString(),
+        startTime: vietnamInputToUtcIso(value.startTime),
+        endTime: vietnamInputToUtcIso(value.endTime),
         waypoints: normalizedWaypoints,
       };
       const signature = JSON.stringify(payload);
@@ -212,8 +212,8 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
           <label className="full-field">DESCRIPTION<textarea value={value.description} onChange={event => patchValue({ description: event.target.value })} maxLength={2000} /></label>
           <label>AVERAGE SPEED (M/S)<input type="number" min="0.1" step="0.1" value={value.averageSpeedMetersPerSecond} onChange={event => patchValue({ averageSpeedMetersPerSecond: event.target.value })} required /></label>
           <label>MAXIMUM SPEED (M/S)<input type="number" min="0.1" step="0.1" value={value.maxSpeedMetersPerSecond} onChange={event => patchValue({ maxSpeedMetersPerSecond: event.target.value })} required /></label>
-          <label>START TIME<input type="datetime-local" value={value.startTime} onChange={event => patchValue({ startTime: event.target.value })} required /></label>
-          <label>END TIME<input type="datetime-local" value={value.endTime} onChange={event => patchValue({ endTime: event.target.value })} required /></label>
+          <label>START TIME (GMT+7)<input type="datetime-local" value={value.startTime} onChange={event => patchValue({ startTime: event.target.value })} required /></label>
+          <label>END TIME (GMT+7)<input type="datetime-local" value={value.endTime} onChange={event => patchValue({ endTime: event.target.value })} required /></label>
         </div>
       </section>
 
