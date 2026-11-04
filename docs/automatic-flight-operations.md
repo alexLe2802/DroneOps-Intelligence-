@@ -1,5 +1,8 @@
 # Vận hành nhiệm vụ bay tự động
 
+Cập nhật luồng tạo mission, nguồn tham số FC, giới hạn vận hành và phân xử lỗi
+đồng thời: [Operating envelope and recovery](automatic-flight-operating-envelope.md).
+
 Tài liệu vận hành theo đặc tả chức năng cuối cùng của DroneOps Intelligence. Phạm vi gồm kế hoạch đã duyệt, gateway tin cậy, biên dịch và upload mission, xác nhận pilot, thực thi theo lịch, giám sát và kết thúc chuyến bay.
 
 ## Vai trò và phương tiện

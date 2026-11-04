@@ -18,6 +18,13 @@ public sealed class Waypoint
     public decimal? Altitude { get; set; }
 
     public string? ActionType { get; set; }
+    public string? NavigationJson { get; set; }
+    [NotMapped]
+    public WaypointNavigation? Navigation
+    {
+        get => NavigationJson == null ? null : System.Text.Json.JsonSerializer.Deserialize<WaypointNavigation>(NavigationJson);
+        set => NavigationJson = value == null ? null : System.Text.Json.JsonSerializer.Serialize(value);
+    }
 
     public DateTime CreatedAt { get; set; }
 
