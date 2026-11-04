@@ -38,6 +38,9 @@ internal static class FlightPreparationChecks
         var sql = await File.ReadAllTextAsync(Path.Combine(root, "database/migrations/20261104115300_gateway_enrollment_and_flight_preparation.sql"));
         await source.CreateCommand(sql).ExecuteNonQueryAsync();
         await source.CreateCommand(sql).ExecuteNonQueryAsync();
+        var controlSql = await File.ReadAllTextAsync(Path.Combine(root, "database/migrations/20261104160247_manual_arm_countdown.sql"));
+        await source.CreateCommand(controlSql).ExecuteNonQueryAsync();
+        await source.CreateCommand(controlSql).ExecuteNonQueryAsync();
         await FlightPreparationSchema.CheckAsync(source);
         Check(true, "migration upgrades an existing schema and is idempotent");
         var rls = await source.CreateCommand("SELECT count(*) FROM pg_class WHERE relname IN ('GatewayEnrollment','MissionAutomationState') AND relrowsecurity").ExecuteScalarAsync();
@@ -176,6 +179,7 @@ internal static class FlightPreparationChecks
         state = await automation.PresenceAsync(mission.Id, owner.Id, default);
         var late = await automation.ConfirmAsync(mission.Id, owner.Id, state.PlanHash, default);
         Check(late.ConfirmationRecorded && late.ReadinessConfirmed && !late.DispatchEnabled, "late manual confirmation is accepted but does not dispatch an aircraft command");
+        await FlightControlDatabaseChecks.RunAsync(db, preflight, mission.Id, owner.Id, connection.Id);
         await db.Missions.Where(m => m.Id == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.EndTime, DateTime.UtcNow.AddSeconds(-1)));
         db.ChangeTracker.Clear();
         await reminders.ProcessMissionAsync(mission.Id, default);
