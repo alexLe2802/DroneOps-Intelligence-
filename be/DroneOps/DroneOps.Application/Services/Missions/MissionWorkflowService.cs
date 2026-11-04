@@ -109,7 +109,9 @@ public sealed class MissionWorkflowService(
     string.Equals(
         validationResult.Weather?.OverallRisk,
         "High",
-        StringComparison.OrdinalIgnoreCase);
+        StringComparison.OrdinalIgnoreCase)
+    ||
+    validationResult.Battery?.RequiresConfirmation == true;
 
                 var nextStatus =
                     requiresPilotConfirmation
