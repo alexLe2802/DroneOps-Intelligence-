@@ -45,7 +45,7 @@ public static class DroneGatewayWebSocket
                 if (request.RememberGateway)
                     credential = credential with { DeviceToken = await scope.ServiceProvider.GetRequiredService<TrustedGatewayStore>().EnrollAsync(credential, context.RequestAborted) };
                 session = new(credential.ConnectionId, credential.Token, credential.HardwareIdentity);
-                await SendAsync(socket, new { type = "session", payload = credential }, context.RequestAborted);
+                await SendAsync(socket, new { type = "session", payload = credential, executionProtocol = 1 }, context.RequestAborted);
             }
             else if (type == "deviceResume")
             {
@@ -60,7 +60,7 @@ public static class DroneGatewayWebSocket
                     return;
                 }
                 session = new(credential.ConnectionId, credential.Token, credential.HardwareIdentity);
-                await SendAsync(socket, new { type = "session", payload = credential }, context.RequestAborted);
+                await SendAsync(socket, new { type = "session", payload = credential, executionProtocol = 1 }, context.RequestAborted);
             }
             else if (type == "resume")
             {
@@ -69,7 +69,7 @@ public static class DroneGatewayWebSocket
                 await using var scope = context.RequestServices.CreateAsyncScope();
                 await scope.ServiceProvider.GetRequiredService<IDroneConnectionService>()
                     .HeartbeatAsync(session.ConnectionId, session.Token, session.HardwareIdentity, context.RequestAborted);
-                await SendAsync(socket, new { type = "ready" }, context.RequestAborted);
+                await SendAsync(socket, new { type = "ready", executionProtocol = 1 }, context.RequestAborted);
             }
             else
             {
@@ -98,6 +98,24 @@ public static class DroneGatewayWebSocket
                 {
                     await service.HeartbeatAsync(session.ConnectionId, session.Token, session.HardwareIdentity, context.RequestAborted);
                     await SendAsync(socket, new { type = "heartbeatAck", receivedAt = now }, context.RequestAborted);
+                }
+                else if (type == "controlPoll")
+                {
+                    await service.HeartbeatAsync(session.ConnectionId, session.Token, session.HardwareIdentity, context.RequestAborted);
+                    var request = RequiredPayload<ControlPoll>(message.RootElement);
+                    try
+                    {
+                        var result = await scope.ServiceProvider.GetRequiredService<FlightControlService>()
+                            .PollAsync(session.ConnectionId, request.Evidence, request.Report, context.RequestAborted);
+                        await SendAsync(socket, new { type = "controlAck", payload = result }, context.RequestAborted);
+                    }
+                    catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException)
+                    {
+                        // Manual/ended missions can still stream telemetry. A control rejection
+                        // revokes the launch lease instead of disconnecting monitoring.
+                        await SendAsync(socket, new { type = "controlAck", payload = new { enabled = false,
+                            leaseSeconds = 0, stage = "Unavailable", message = error.Message } }, context.RequestAborted);
+                    }
                 }
                 else if (type == "telemetry")
                 {
@@ -177,6 +195,7 @@ public static class DroneGatewayWebSocket
     }
 
     private sealed record ResumeGateway(Guid ConnectionId, string Token, string HardwareIdentity);
+    private sealed record ControlPoll(FlightControllerEvidence Evidence, FlightControlReport? Report);
     private sealed record ResumeDevice(Guid UavId, string DeviceToken, string HardwareIdentity);
     private sealed record GatewaySession(Guid ConnectionId, string Token, string HardwareIdentity);
 }
