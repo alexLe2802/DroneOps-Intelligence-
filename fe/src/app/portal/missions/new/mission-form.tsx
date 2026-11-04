@@ -16,7 +16,7 @@ import { appendLandingWaypoint, normalizeWaypointActions } from "@/lib/maps/miss
 import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 import { useUnsavedChanges } from "@/lib/maps/use-unsaved-changes";
 
-const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover", "CapturePhoto"];
+const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
 
 function localDateTimeMinimum() {
   const interval = 60_000;

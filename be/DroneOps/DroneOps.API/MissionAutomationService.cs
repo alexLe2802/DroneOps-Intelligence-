@@ -156,7 +156,7 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
                 altitudeMeters = w.Altitude, action = w.ActionType
             }),
             requiredBeforeDispatch = new[] { "Detected firmware/version/vehicle type and capabilities", "Explicit altitude frame and home/terrain data",
-                "Per-action yaw/hold/camera parameters", "Failsafe/RTL configuration", "Upload ACK and read-back plan hash", "Fresh pre-arm checks and command acknowledgements" }
+                "Per-action yaw/hold parameters", "Failsafe/RTL configuration", "Upload ACK and read-back plan hash", "Fresh pre-arm checks and command acknowledgements" }
         };
     }
 }
