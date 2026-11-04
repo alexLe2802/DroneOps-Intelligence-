@@ -234,7 +234,10 @@ export default function LiveMonitoringClient() {
           </article>
           <TelemetryCard index="02" label="ALTITUDE" value={valueOr(telemetry?.altitudeMeters, telemetry?.altitudeReference === "AGL" ? " m AGL" : telemetry?.altitudeReference === "MSL" ? " m MSL" : " m")} lines={[`Reference: ${telemetry?.altitudeReference === "Relative" ? "Relative to Home" : telemetry?.altitudeReference ?? "Unavailable"}`, `Validity: ${telemetry?.isValid ? "Valid" : "Unavailable"}`]} />
           <TelemetryCard index="03" label="VELOCITY" value={valueOr(telemetry?.groundSpeedMetersPerSecond, " m/s")} lines={[telemetry?.groundSpeedMetersPerSecond == null ? "Ground speed unavailable" : `${(Number(telemetry.groundSpeedMetersPerSecond) * 3.6).toFixed(1)} km/h`, "Wind data unavailable"]} />
-          <TelemetryCard index="04" label="POWER & CELLS" value={valueOr(telemetry?.batteryPercent, "%", 0)} tone={telemetry?.batteryPercent != null && telemetry.batteryPercent < 25 ? "danger" : "good"} lines={["Voltage unavailable", `State: ${telemetry?.armed ? "Armed" : "Disarmed"}`]} />
+          <TelemetryCard index="04" label="POWER & CELLS" value={valueOr(telemetry?.batteryPercent, "%", 0)} tone={telemetry?.batteryPercent != null && telemetry.batteryPercent < 25 ? "danger" : "good"} lines={[
+            `Pack voltage: ${valueOr(telemetry?.batteryVoltageVolts, " V", 2)}`,
+            `State: ${telemetry?.armed == null ? "Unavailable" : telemetry.armed ? "Armed" : "Disarmed"}`,
+          ]} />
           <TelemetryCard index="05" label="LINK & TELEMETRY" value={(telemetry?.connectivityStatus ?? "Offline").toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />
           <TelemetryCard index="06" label="FLIGHT NAVIGATION" value={waypointTotal ? `WP ${sequence}/${waypointTotal}` : "Unavailable"} lines={[`Mode: ${telemetry?.flightMode ?? "Unavailable"}`, `Progress: ${progress.toFixed(1)}%`]} />
         </div>

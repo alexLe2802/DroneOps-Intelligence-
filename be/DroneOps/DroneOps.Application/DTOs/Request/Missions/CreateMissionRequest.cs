@@ -1,8 +1,9 @@
-﻿namespace DroneOps.Application.DTOs.Request.Missions;
+namespace DroneOps.Application.DTOs.Request.Missions;
 
 public sealed class CreateMissionRequest
 {
     public string? AltitudeReference { get; set; }
+    public bool AutomaticFlightRequested { get; set; }
 
     public Guid UavId { get; set; }
 

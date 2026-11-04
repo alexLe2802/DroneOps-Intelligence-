@@ -61,6 +61,18 @@ public class IngestTelemetrySampleRequestValidator : AbstractValidator<IngestTel
             .When(x => x.BoardTemperatureCelsius.HasValue)
             .WithMessage("BoardTemperatureCelsius must be between -100 and 200.");
 
+        RuleFor(x => x.BatteryTemperatureCelsius)
+            .InclusiveBetween(-100m, 200m)
+            .When(x => x.BatteryTemperatureCelsius.HasValue);
+        RuleFor(x => x.BatteryConsumedMah)
+            .GreaterThanOrEqualTo(0)
+            .When(x => x.BatteryConsumedMah.HasValue);
+        RuleFor(x => x.BatteryCellVoltagesVolts)
+            .Must(cells => cells is null || cells.Length <= 14)
+            .WithMessage("At most 14 cell voltages may be supplied.");
+        RuleForEach(x => x.BatteryCellVoltagesVolts)
+            .InclusiveBetween(0m, 65.534m);
+
         RuleFor(x => x.AltitudeReference)
             .Must(x => AllowedAltitudeReferences.Contains(x))
             .When(x => !string.IsNullOrEmpty(x.AltitudeReference))

@@ -10,6 +10,12 @@ using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
 using Microsoft.AspNetCore.Authorization;
 
+if (args.Length == 2 && args[0] == "--flight-preparation")
+{
+    await FlightPreparationChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--drone-connections")
 {
     await DroneConnectionChecks.RunAsync(Path.GetFullPath(args[1]));

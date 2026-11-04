@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Application.Interfaces.UAVs;
@@ -39,6 +42,39 @@ internal static class UavImageChecks
             throw new Exception("Disguised executable/text payload was accepted as an image.");
         }
         catch (ArgumentException) { Check(true, "UAV image validation rejects spoofed image content"); }
+
+        var missingGemini = new UavImageModerationService(
+            new HttpClient(new GeminiHandler(HttpStatusCode.OK, "")) { BaseAddress = new Uri("https://fixture.invalid/") },
+            new ConfigurationBuilder().AddInMemoryCollection().Build(),
+            NullLogger<UavImageModerationService>.Instance);
+        Check(!await missingGemini.IsAllowedAsync(png, "image/png"),
+            "missing Gemini configuration rejects the UAV image instead of bypassing moderation");
+
+        var geminiConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["UavImageModeration:ApiKey"] = "fixture-key",
+            ["UavImageModeration:Model"] = "gemini-3.8-flash"
+        }).Build();
+        var allowedGemini = new UavImageModerationService(
+            new HttpClient(new GeminiHandler(HttpStatusCode.OK, "{\"isDrone\":true,\"containsInappropriateContent\":false}")) { BaseAddress = new Uri("https://fixture.invalid/") },
+            geminiConfiguration,
+            NullLogger<UavImageModerationService>.Instance);
+        Check(await allowedGemini.IsAllowedAsync(png, "image/png"),
+            "Gemini accepts a genuine safe UAV image");
+
+        var unsafeGemini = new UavImageModerationService(
+            new HttpClient(new GeminiHandler(HttpStatusCode.OK, "{\"isDrone\":false,\"containsInappropriateContent\":true}")) { BaseAddress = new Uri("https://fixture.invalid/") },
+            geminiConfiguration,
+            NullLogger<UavImageModerationService>.Instance);
+        Check(!await unsafeGemini.IsAllowedAsync(png, "image/png"),
+            "Gemini rejects non-UAV or inappropriate content");
+
+        var unavailableGemini = new UavImageModerationService(
+            new HttpClient(new GeminiHandler(HttpStatusCode.TooManyRequests, "")) { BaseAddress = new Uri("https://fixture.invalid/") },
+            geminiConfiguration,
+            NullLogger<UavImageModerationService>.Instance);
+        Check(!await unavailableGemini.IsAllowedAsync(png, "image/png"),
+            "Gemini service failure rejects the upload instead of failing open");
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase("uav-image-check-" + Guid.NewGuid()).Options;
@@ -132,6 +168,23 @@ internal static class UavImageChecks
         {
             foreach (var path in paths) { Paths.Remove(path); Deleted.Add(path); }
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class GeminiHandler(HttpStatusCode statusCode, string resultJson) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var responseBody = string.IsNullOrWhiteSpace(resultJson)
+                ? "{}"
+                : JsonSerializer.Serialize(new
+                {
+                    candidates = new[] { new { content = new { parts = new[] { new { text = resultJson } } } } }
+                });
+            return Task.FromResult(new HttpResponseMessage(statusCode)
+            {
+                Content = new StringContent(responseBody, Encoding.UTF8, "application/json")
+            });
         }
     }
 }
