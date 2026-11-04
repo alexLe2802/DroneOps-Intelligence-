@@ -128,6 +128,11 @@ gateway/.venv/
 __pycache__/
 *.pyc
 
+# Generated document authoring and visual QA files
+tmp/doc-refresh/
+tmp/final-submission/
+*.xlsx.inspect.ndjson
+
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/
 **/.codex/
