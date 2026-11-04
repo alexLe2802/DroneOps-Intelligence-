@@ -1,7 +1,8 @@
 import type { CreateMissionRequest, MissionWaypoint } from "./types";
 export function planFieldChanges(current: CreateMissionRequest, proposed: CreateMissionRequest) {
-  const fields = ["name", "description", "uavId", "averageSpeedMetersPerSecond", "maxSpeedMetersPerSecond", "startTime", "endTime", "altitudeReference"] as const;
+  const fields = ["automaticFlightRequested", "name", "description", "uavId", "averageSpeedMetersPerSecond", "maxSpeedMetersPerSecond", "startTime", "endTime", "altitudeReference"] as const;
   return fields.filter(key => {
+    if (key === "automaticFlightRequested") return Boolean(current[key]) !== Boolean(proposed[key]);
     if (key === "startTime" || key === "endTime") {
       const a = Date.parse(current[key]), b = Date.parse(proposed[key]);
       if (Number.isFinite(a) && Number.isFinite(b)) return a !== b;

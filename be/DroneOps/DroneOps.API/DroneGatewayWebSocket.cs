@@ -41,6 +41,23 @@ public static class DroneGatewayWebSocket
                 await using var scope = context.RequestServices.CreateAsyncScope();
                 var credential = await scope.ServiceProvider.GetRequiredService<IDroneConnectionService>()
                     .PairAsync(request, context.RequestAborted);
+                if (request.RememberGateway)
+                    credential = credential with { DeviceToken = await scope.ServiceProvider.GetRequiredService<TrustedGatewayStore>().EnrollAsync(credential, context.RequestAborted) };
+                session = new(credential.ConnectionId, credential.Token, credential.HardwareIdentity);
+                await SendAsync(socket, new { type = "session", payload = credential }, context.RequestAborted);
+            }
+            else if (type == "deviceResume")
+            {
+                var request = RequiredPayload<ResumeDevice>(hello.RootElement);
+                await using var scope = context.RequestServices.CreateAsyncScope();
+                var credential = await scope.ServiceProvider.GetRequiredService<TrustedGatewayStore>()
+                    .ResumeAsync(request.UavId, request.DeviceToken, request.HardwareIdentity, context.RequestAborted);
+                if (credential is null)
+                {
+                    await SendAsync(socket, new { type = "waiting", message = "No selected eligible mission. Select this UAV and create a connection on the web." }, context.RequestAborted);
+                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Waiting for mission selection.", context.RequestAborted);
+                    return;
+                }
                 session = new(credential.ConnectionId, credential.Token, credential.HardwareIdentity);
                 await SendAsync(socket, new { type = "session", payload = credential }, context.RequestAborted);
             }
@@ -144,5 +161,6 @@ public static class DroneGatewayWebSocket
     }
 
     private sealed record ResumeGateway(Guid ConnectionId, string Token, string HardwareIdentity);
+    private sealed record ResumeDevice(Guid UavId, string DeviceToken, string HardwareIdentity);
     private sealed record GatewaySession(Guid ConnectionId, string Token, string HardwareIdentity);
 }

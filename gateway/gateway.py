@@ -21,6 +21,10 @@ class GatewayError(Exception):
     pass
 
 
+class GatewayWaiting(Exception):
+    """A trusted gateway is enrolled but no mission has been selected on the web."""
+
+
 def gps_signal_status(satellites):
     if satellites == 255:
         return 'UNKNOWN', '33'
@@ -63,19 +67,33 @@ def open_gateway_socket(endpoint, session=None, pairing=None):
     connection = websocket.create_connection(endpoint, timeout=10, enable_multithread=True)
     try:
         if session:
-            hello = {'type': 'resume', 'payload': {
-                'connectionId': session['connectionId'], 'token': session['token'],
-                'hardwareIdentity': session['hardwareIdentity']}}
-            expected = 'ready'
+            if session.get('deviceToken'):
+                hello = {'type': 'deviceResume', 'payload': {
+                    'uavId': session['uavId'], 'deviceToken': session['deviceToken'],
+                    'hardwareIdentity': session['hardwareIdentity']}}
+                expected = 'session'
+            else:
+                hello = {'type': 'resume', 'payload': {
+                    'connectionId': session['connectionId'], 'token': session['token'],
+                    'hardwareIdentity': session['hardwareIdentity']}}
+                expected = 'ready'
         else:
             hello = {'type': 'pair', 'payload': pairing}
             expected = 'session'
         connection.send(json.dumps(hello, separators=(',', ':')))
         response = json.loads(connection.recv())
+        if response.get('type') == 'waiting':
+            raise GatewayWaiting(response.get('message', 'Waiting for mission selection on the web.'))
         if response.get('type') == 'error':
             raise GatewayError(response.get('message', 'Gateway WebSocket handshake rejected.'))
         if response.get('type') != expected:
             raise GatewayError('Backend returned an unexpected WebSocket handshake response.')
+        if session and session.get('deviceToken'):
+            credential = response.get('payload') or {}
+            if credential.get('uavId') != session['uavId'] or credential.get('hardwareIdentity') != session['hardwareIdentity']:
+                raise GatewayError('Backend resumed a different UAV or hardware identity.')
+            # A device credential is returned only during first enrollment.
+            session.update({key: value for key, value in credential.items() if key != 'deviceToken'})
         return connection, response.get('payload')
     except BaseException:
         connection.close()
@@ -230,7 +248,17 @@ def forward(endpoint, session, pending, stop, failures):
     while not stop.is_set():
         connection = None
         try:
+            previous_scope = (session.get('connectionId'), session.get('missionId'), session.get('sourceId'))
             connection, _ = open_gateway_socket(endpoint, session=session)
+            # A web-selected mission may have changed while offline. Discard samples
+            # captured for the old lease before accepting the new scoped session.
+            if previous_scope != (session.get('connectionId'), session.get('missionId'), session.get('sourceId')):
+                inflight = None
+                while True:
+                    try:
+                        pending.get_nowait()
+                    except queue.Empty:
+                        break
             retry_delay = 1.0
             last_heartbeat = 0.0
             while not stop.is_set():
@@ -248,7 +276,16 @@ def forward(endpoint, session, pending, stop, failures):
                     continue
                 exchange(connection, {'type': 'telemetry', 'idempotencyKey': key, 'payload': sample}, 'telemetryAck')
                 inflight = None
+        except GatewayWaiting as error:
+            print(str(error), flush=True)
+            stop.wait(min(retry_delay, 30))
+            retry_delay = min(retry_delay * 2, 30)
         except GatewayError as error:
+            if session.get('deviceToken') and str(error).startswith('Connection expired, revoked'):
+                # A new mission selection revokes the old lease; the device key
+                # may claim only the owner's new, explicitly created connection.
+                stop.wait(2)
+                continue
             failures.append(str(error))
             stop.set()
         except Exception as error:
@@ -270,6 +307,7 @@ def main():
     parser.add_argument('--name', default=socket.gethostname())
     parser.add_argument('--session-file', default=str(Path(__file__).with_name('session.private.json')))
     parser.add_argument('--new-pairing', action='store_true')
+    parser.add_argument('--remember-device', action='store_true', help='Enroll this trusted gateway for unattended boots and web-selected mission changes')
     parser.add_argument('--pair-only', action='store_true', help='Save a paired session and exit without forwarding')
     parser.add_argument('--service', action='store_true', help='Never prompt interactively; wait for a saved session')
     parser.add_argument('--pair-code-stdin', action='store_true', help='Read pairing code from stdin for automated integration tests')
@@ -307,7 +345,8 @@ def main():
             raise GatewayError('Saved session does not match this server or device. Pair again.')
         code = sys.stdin.readline().strip() if args.pair_code_stdin else getpass.getpass('One-time pairing code from the web: ')
         connection, session = open_gateway_socket(endpoint, pairing={'code': code, 'gatewayName': args.name,
-                          'systemId': args.system_id, 'componentId': args.component_id, 'hardwareIdentity': identity})
+                          'systemId': args.system_id, 'componentId': args.component_id, 'hardwareIdentity': identity,
+                          'rememberGateway': args.remember_device})
         connection.close()
         session.update(endpoint=endpoint, systemId=args.system_id, componentId=args.component_id)
         save_session(args.session_file, session)

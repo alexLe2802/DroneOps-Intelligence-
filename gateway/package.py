@@ -7,6 +7,9 @@ output.parent.mkdir(parents=True,exist_ok=True)
 with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
     files=(
         (root/'gateway.py','gateway.py'),
+        (root/'connect.py','connect.py'),
+        (root/'connect-drone.sh','connect-drone.sh'),
+        (root/'connect-drone.cmd','connect-drone.cmd'),
         (root/'requirements.txt','requirements.txt'),
         (root/'README.md','README.md'),
         (root/'droneops-gateway.service.example','droneops-gateway.service.example'),

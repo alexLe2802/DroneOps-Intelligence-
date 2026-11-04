@@ -131,6 +131,10 @@ __pycache__/
 tmp/
 .vercel
 
+# Persistent gateway credentials
+gateway/.sessions/
+**/*.private.json
+
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/
 **/.codex/

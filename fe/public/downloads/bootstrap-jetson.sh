@@ -17,9 +17,11 @@ while [[ $# -gt 0 ]]; do
 done
 [[ "$server" =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] || { echo 'Invalid backend origin.' >&2; exit 1; }
 [[ "$package_url" =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?/downloads/droneops-gateway\.zip$ ]] || { echo 'Invalid gateway package URL.' >&2; exit 1; }
-[[ "$gcs_host" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo 'Invalid QGroundControl/Mission Planner laptop IPv4.' >&2; exit 1; }
-IFS=. read -r -a gcs_octets <<< "$gcs_host"
-for octet in "${gcs_octets[@]}"; do (( 10#$octet <= 255 )) || { echo 'Invalid GCS laptop IPv4.' >&2; exit 1; }; done
+if [[ -n "$gcs_host" ]]; then
+  [[ "$gcs_host" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo 'Invalid optional GCS laptop IPv4.' >&2; exit 1; }
+  IFS=. read -r -a gcs_octets <<< "$gcs_host"
+  for octet in "${gcs_octets[@]}"; do (( 10#$octet <= 255 )) || { echo 'Invalid GCS laptop IPv4.' >&2; exit 1; }; done
+fi
 [[ "$otp" =~ ^[A-Za-z0-9]{8,64}$ ]] || { echo 'Invalid pairing code.' >&2; exit 1; }
 [[ "$baud" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid baud.' >&2; exit 1; }
 [[ "$system_id" =~ ^[1-9][0-9]{0,2}$ ]] && (( system_id <= 255 )) || { echo 'Invalid system ID.' >&2; exit 1; }
@@ -54,7 +56,7 @@ apt-get update
 apt-get install -y curl unzip
 if ! curl --silent --show-error --output /dev/null --connect-timeout 5 "$server/ws/drone-gateway"; then
   echo "Cannot reach the DroneOps backend at $server from this Jetson." >&2
-  echo 'Start the backend with LAN binding (--urls http://0.0.0.0:5159), check the laptop IP/firewall, then run a newly generated command.' >&2
+  echo 'Check the Jetson Internet connection and the backend hostname, then generate a fresh setup command on the web.' >&2
   exit 1
 fi
 echo "Backend reachable: $server"
@@ -75,14 +77,16 @@ DRONEOPS_INSTALL_GCS_IP=$gcs_host \
 /opt/droneops-gateway/pair-jetson.sh --code "$otp"
 
 # The package has already been installed under /opt. Remove the downloaded ZIP
-# and extracted copy before following logs, which may keep this terminal open.
+# and extracted copy before returning control to the user.
 cleanup
 trap - EXIT
 echo
 printf '\033[1;35m▲ DroneOps Gateway\033[0m\n'
-printf '  \033[1;32mQGroundControl\033[0m  udp://%s:14550\n' "$gcs_host"
-printf '  \033[1;35mMission Planner\033[0m udp://%s:14551\n' "$gcs_host"
+if [[ -n "$gcs_host" ]]; then
+  printf '  QGroundControl udp://%s:14550 · Mission Planner udp://%s:14551\n' "$gcs_host" "$gcs_host"
+fi
 printf '  \033[1;36mBackend\033[0m        %s\n' "$server"
 printf '  \033[1;32m✓ Ready\033[0m · services start automatically on boot\n'
-printf '  Live gateway log follows. Press Ctrl+C to stop viewing; services keep running.\n\n'
-journalctl -u droneops-gateway -n 20 -f -o cat
+printf '  Setup complete. You may close this terminal and SSH.\n'
+printf '  Power-on and Internet are sufficient on future boots. Select the mission on the web.\n'
+printf '  Optional diagnostics: journalctl -u droneops-gateway -n 30 --no-pager\n'
