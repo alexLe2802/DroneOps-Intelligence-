@@ -32,6 +32,7 @@ database/*.local.json
 
 # Local certificates
 *.crt
+!database/certificates/prod-ca-2021.crt
 
 # Visual Studio
 .vs/
