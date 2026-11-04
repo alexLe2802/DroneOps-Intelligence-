@@ -1,5 +1,7 @@
 "use client";
 
+import { apiInstant } from "@/lib/portal/vietnam-time";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Account } from "@/lib/auth/types";
@@ -14,7 +16,7 @@ import MissionEvidencePanel from "../missions/mission-evidence-panel";
 type Decision = "approve" | "reject";
 
 const formatDate = (value: string | null) => value
-  ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" }).format(new Date(value))
+  ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Ho_Chi_Minh", timeZoneName: "short" }).format(apiInstant(value))
   : "Not scheduled";
 
 const missionCode = (id: string) => `#MS-${id.slice(0, 4).toUpperCase()}`;

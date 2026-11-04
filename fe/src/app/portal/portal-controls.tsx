@@ -1,5 +1,7 @@
 "use client";
 
+import { vietnamDateYearsAgo } from "@/lib/portal/vietnam-time";
+
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "@/lib/auth/client";
 import { roleLabels, type Account, type SessionInfo } from "@/lib/auth/types";
@@ -153,7 +155,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           <label>Full name<input name="fullName" required minLength={2} maxLength={100} autoComplete="name" placeholder="Pilot's full name" /></label>
           <label>Email address<input name="email" type="email" required maxLength={254} autoComplete="off" placeholder="pilot@example.com" /></label>
           <label>Phone number<input name="phoneNumber" type="tel" required minLength={8} maxLength={20} autoComplete="tel" placeholder="+84..." /></label>
-          <label>Date of birth<input name="dateOfBirth" type="date" required max={new Date().toISOString().slice(0, 10)} /></label>
+          <label>Date of birth<input name="dateOfBirth" type="date" required max={vietnamDateYearsAgo()} /></label>
           {accountType === "new" && <>
             <label>Initial password<input name="password" type="password" required minLength={12} maxLength={128} autoComplete="new-password" aria-describedby="pilot-password-help" /></label>
             <label>Confirm password<input name="confirmPassword" type="password" required minLength={12} maxLength={128} autoComplete="new-password" /></label>
@@ -198,7 +200,7 @@ export default function PortalControls({ account, registerOnly = false }: Portal
           <label>Full name<input name="fullName" required minLength={2} maxLength={100} autoComplete="name" placeholder="Pilot's full name" /></label>
           <label>Email address<input name="email" type="email" required maxLength={254} autoComplete="off" placeholder="pilot@example.com" /></label>
           <label>Phone number<input name="phoneNumber" type="tel" required minLength={8} maxLength={20} autoComplete="tel" placeholder="+84..." /></label>
-          <label>Date of birth<input name="dateOfBirth" type="date" required max={new Date().toISOString().slice(0, 10)} /></label>
+          <label>Date of birth<input name="dateOfBirth" type="date" required max={vietnamDateYearsAgo()} /></label>
           {accountType === "new" && <>
             <label>Initial password<input name="password" type="password" required minLength={12} maxLength={128} autoComplete="new-password" aria-describedby="pilot-password-help" /></label>
             <label>Confirm password<input name="confirmPassword" type="password" required minLength={12} maxLength={128} autoComplete="new-password" /></label>

@@ -1,3 +1,4 @@
+import { formatVietnamDate } from "@/lib/portal/vietnam-time";
 import type { AssignedUav } from "@/lib/portal/types";
 
 function metric(value: number | null, unit: string, maximumFractionDigits = 2) {
@@ -9,7 +10,7 @@ function metric(value: number | null, unit: string, maximumFractionDigits = 2) {
 function date(value: string | null) {
   if (!value) return "Not specified";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
+  return Number.isNaN(parsed.getTime()) ? value : formatVietnamDate(parsed);
 }
 
 function Field({ label, value }: { label: string; value: string | number }) {

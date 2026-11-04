@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDate } from "@/lib/portal/vietnam-time";
+
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getManagedUav, getManagedUavs, setManagedUavStatus } from "@/lib/portal/client";
@@ -89,7 +91,7 @@ export default function UavManagementClient() {
         {busy && !selected ? <ModuleLoading label="Loading UAV fleet" /> : error && !aircraft ? <p>Fleet data is unavailable. Please retry.</p> : !aircraft?.length ? <ModuleEmpty title="No UAV found" message="No aircraft matches your search and status filter." /> : aircraft.map(uav => <button type="button" className={`manager-uav-row${selected?.id === uav.id ? " selected" : ""}`} key={uav.id} onClick={() => void inspect(uav.id)} disabled={busy}>
           <span className={`manager-uav-thumbnail${uav.imageUrl ? " has-image" : ""}`}>{uav.imageUrl ? <Image src={uav.imageUrl} alt="" width={120} height={90} unoptimized /> : uav.code.slice(0, 3)}</span>
           <span><b>{uav.code}</b><small>{uav.name} · {[uav.manufacturer, uav.model].filter(Boolean).join(" ") || "Model not specified"}</small></span>
-          <span><b>{uav.pilotName || "Unknown pilot"}</b><small>{new Date(uav.createdAt).toLocaleDateString()}</small></span>
+          <span><b>{uav.pilotName || "Unknown pilot"}</b><small>{formatVietnamDate(uav.createdAt)}</small></span>
           <em>{uav.status}</em>
         </button>)}
         <div className="uav-actions" aria-label="Fleet pagination"><button className="module-secondary" disabled={busy || page <= 1} onClick={() => setPage(value => value - 1)}>PREVIOUS</button><span role="status">Page {page} / {Math.max(1, totalPages)} · {totalItems} UAVs</span><button className="module-secondary" disabled={busy || page >= totalPages} onClick={() => setPage(value => value + 1)}>NEXT</button></div>

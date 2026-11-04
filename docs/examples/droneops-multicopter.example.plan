@@ -1,0 +1,77 @@
+{
+  "fileType": "Plan",
+  "version": 1,
+  "groundStation": "DroneOps",
+  "geoFence": {
+    "version": 2,
+    "circles": [],
+    "polygons": []
+  },
+  "rallyPoints": {
+    "version": 2,
+    "points": []
+  },
+  "mission": {
+    "version": 2,
+    "firmwareType": 3,
+    "vehicleType": 2,
+    "globalPlanAltitudeMode": 1,
+    "cruiseSpeed": 5,
+    "hoverSpeed": 5,
+    "plannedHomePosition": [10.8231, 106.6297, 12],
+    "items": [
+      {
+        "type": "SimpleItem",
+        "doJumpId": 1,
+        "autoContinue": true,
+        "command": 22,
+        "frame": 3,
+        "AltitudeMode": 0,
+        "Altitude": 30,
+        "AMSLAltAboveTerrain": null,
+        "params": [0, 0, 0, 90, 10.8231, 106.6297, 30]
+      },
+      {
+        "type": "SimpleItem",
+        "doJumpId": 2,
+        "autoContinue": true,
+        "command": 178,
+        "frame": 2,
+        "params": [1, 5, -1, 0, 0, 0, 0]
+      },
+      {
+        "type": "SimpleItem",
+        "doJumpId": 3,
+        "autoContinue": true,
+        "command": 16,
+        "frame": 3,
+        "AltitudeMode": 0,
+        "Altitude": 30,
+        "AMSLAltAboveTerrain": null,
+        "params": [0, 2, 0, 90, 10.8234, 106.6297, 30]
+      },
+      {
+        "type": "SimpleItem",
+        "doJumpId": 4,
+        "autoContinue": true,
+        "command": 16,
+        "frame": 3,
+        "AltitudeMode": 0,
+        "Altitude": 30,
+        "AMSLAltAboveTerrain": null,
+        "params": [5, 2, 0, 90, 10.8234, 106.6300, 30]
+      },
+      {
+        "type": "SimpleItem",
+        "doJumpId": 5,
+        "autoContinue": true,
+        "command": 21,
+        "frame": 3,
+        "AltitudeMode": 0,
+        "Altitude": 0,
+        "AMSLAltAboveTerrain": null,
+        "params": [0, 0, 0, 90, 10.8231, 106.6297, 0]
+      }
+    ]
+  }
+}

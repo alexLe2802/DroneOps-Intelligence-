@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AccountRole } from "@/lib/auth/types";
@@ -14,7 +16,7 @@ import MissionPlanComparison from "../mission-plan-comparison";
 import MissionEvidencePanel from "../mission-evidence-panel";
 import MissionValidationEvidence from "../mission-validation-evidence";
 
-const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
+const formatDate = (value: string | null) => value ? formatVietnamDateTime(value) : "Not scheduled";
 const formatStatus = (value: string) => value.replace(/([A-Z])/g, " $1").trim();
 const statusKey = (value: string) => value.toLowerCase().replaceAll(" ", "");
 type MissionDialog = "cancel" | null;
@@ -263,7 +265,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     </section>
 
     <section className="mission-review-grid">
-      <article><span className={`review-state ${busy === "validate" ? "running" : validationState(validation) === "Pass" ? "passed" : validation ? "failed" : "pending"}`}>{busy === "validate" ? "..." : validationState(validation) === "Pass" ? "OK" : validation ? "!" : "--"}</span><div><p className="module-kicker">BACKEND VALIDATION</p><h2>{busy === "validate" ? "Validation in progress" : validationState(validation) === "Pass" ? "Pre-flight check passed" : validation ? "Pre-flight check failed" : "Not validated"}</h2><p>{validation?.message ?? "No persisted validation result is available for this mission."}</p>{validatedAt && <time>Checked {validatedAt.toLocaleString()}</time>}</div></article>
+      <article><span className={`review-state ${busy === "validate" ? "running" : validationState(validation) === "Pass" ? "passed" : validation ? "failed" : "pending"}`}>{busy === "validate" ? "..." : validationState(validation) === "Pass" ? "OK" : validation ? "!" : "--"}</span><div><p className="module-kicker">BACKEND VALIDATION</p><h2>{busy === "validate" ? "Validation in progress" : validationState(validation) === "Pass" ? "Pre-flight check passed" : validation ? "Pre-flight check failed" : "Not validated"}</h2><p>{validation?.message ?? "No persisted validation result is available for this mission."}</p>{validatedAt && <time>Checked {formatVietnamDateTime(validatedAt)}</time>}</div></article>
       <article><span className={`review-state ${currentStatus === "approved" ? "passed" : currentStatus === "rejected" || currentStatus === "cancelled" ? "failed" : awaitingApproval ? "running" : ""}`}>{currentStatus === "approved" ? "OK" : currentStatus === "rejected" || currentStatus === "cancelled" ? "!" : awaitingApproval ? "..." : "--"}</span><div><p className="module-kicker">MANAGER APPROVAL</p><h2>{approvalTitle}</h2><p>{approvalCopy}</p></div></article>
     </section>
 

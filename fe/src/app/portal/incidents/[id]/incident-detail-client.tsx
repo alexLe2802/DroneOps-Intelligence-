@@ -1,4 +1,6 @@
 "use client";
+
+import { apiInstant } from "@/lib/portal/vietnam-time";
 import { incidentDescription } from "@/lib/portal/incident-display";
 
 import Link from "next/link";
@@ -23,9 +25,10 @@ const labelOf = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2").rep
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Unavailable";
-  const date = new Date(value);
+  const date = apiInstant(value);
   if (Number.isNaN(date.getTime())) return "Unavailable";
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
     day: "2-digit",
     month: "short",
     year: "numeric",

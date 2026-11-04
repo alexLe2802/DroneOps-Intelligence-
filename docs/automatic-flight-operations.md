@@ -58,8 +58,41 @@ Giới hạn transfer của release: chờ phản hồi 3 giây, tối đa 3 ret
 - Thiếu điều kiện hoặc quá deadline: hiển thị lý do Blocked/Expired; không tự bay bù khi mạng trở lại.
 - ACK thất lạc hoặc restart giữa lúc start: đối chiếu trạng thái thực; không tự ARM/start lại khi outcome chưa rõ.
 - Mất web/backend sau takeoff: autopilot xử lý theo failsafe đã cấu hình; pilot có RC takeover. Không mặc định mọi tình huống đều RTL.
-- Photo action cần camera capability; profile/frame/action không hỗ trợ phải bị chặn trước dispatch.
+- Profile tạo/sửa mission hiện hành dùng TakeOff, FlyThrough, Hover và Land. Camera/CapturePhoto không được đưa vào mission mới; dữ liệu lịch sử vẫn được giữ. Action hoặc frame không hỗ trợ phải bị chặn trước dispatch.
 
 ## Hồ sơ kiểm chứng
 
 SRS quy định FR-AF-01–FR-AF-12 và UC-AF-01–UC-AF-03. Workbook chức năng ghi AF-01–AF-16; workbook unit ghi UT-AF-01–UT-AF-07. Kết quả và bằng chứng từng lần chạy được ghi độc lập với trạng thái “bản cuối” của tài liệu. SITL, bench tháo cánh và bay giám sát là các mức bằng chứng riêng.
+
+## Live Monitoring và nhắc chuẩn bị
+
+Live Monitoring chứa form kết nối/pairing và phần xác nhận; presence theo dõi tab portal đang hiển thị. Dùng lại dữ liệu mission, connection và notification hiện có, không tạo nguồn dữ liệu flight hoặc API kết nối trùng chức năng.
+
+- Từ T−5 đến trước `EndTime`, mission Approved có opt-in được theo dõi chuẩn bị, kể cả gateway kết nối trễ. Readiness ghi nhận sau StartTime không cho phép tự bay bù hoặc vượt deadline dispatch của kế hoạch.
+- Chưa có gateway đúng UAV/UID: gửi `FlightConnectionRequired` một lần trong vòng đời mission, kể cả sau khi thông báo đã đọc, reconnect hoặc worker restart.
+- Gateway online nhưng telemetry chưa mới hoặc preflight chưa Pass: tiếp tục chờ; chưa gửi thông báo có thể xác nhận.
+- Telemetry mới và preflight Pass đúng plan hash: gửi `FlightConfirmationRequired` khi chưa có consent hợp lệ. Kiểm tra ngay sau telemetry WebSocket đầu tiên và mỗi 10 giây trong worker preflight để bao phủ REST gateway và dữ liệu đến trễ.
+- Chưa xác nhận: nhắc lại sau ít nhất 2 phút từ lần nhắc confirm gần nhất. Đọc thông báo không phải confirm. Consent đúng plan/connection dừng nhắc; cache preflight hết hạn không tự xóa bản ghi consent, nhưng readiness/dispatch vẫn cần preflight mới và Pass.
+- Trước mỗi lần gửi, kiểm tra lại status và EndTime. Khóa row Mission cùng transaction ghi Notification để chống trùng giữa worker/API instance. Sau EndTime hoặc khi mission Completed, Cancelled, Aborted, Failed hay InProgress thì dừng nhắc; giữ lịch sử đã gửi.
+- Notification dùng kênh trong web hiện có, action mở `/portal/live-monitoring?missionId=...`; không tự thêm email, SMS hoặc push.
+
+### Hợp đồng API chuẩn bị
+
+| API | Nội dung tích hợp |
+| --- | --- |
+| `GET /api/missions/automation/due` | Bao phủ từ T−5 đến trước EndTime, gồm kết nối trễ; trả `endTime`, không giới hạn 20 mission làm sót lịch |
+| `GET /api/missions/{id}/automation`, `POST .../presence` | `endsAt`, `gatewayConnected`, `preflightReady`, `confirmationRecorded`; tách gateway online khỏi telemetry mới |
+| `POST .../confirm` | Readiness được ghi nhận trước EndTime sau kiểm tra owner/hash/preflight/presence/UID; ghi nhận trễ không tạo lại quyền dispatch đã hết hạn |
+| `POST .../cancel` | Thu hồi consent trong Live Monitoring |
+| Notification list/count/read/read-all | Giữ endpoint/response, dùng thêm hai notification type ở trên |
+| WebSocket `/ws/drone-gateway` | Giữ telemetry payload/ACK; lỗi gửi nhắc không được ngắt ingestion |
+
+Các phần nhắc và UI chuẩn bị dùng Mission, DroneConnection, MissionValidationRun, MissionAutomationState và Notification hiện có; không đòi thêm migration chỉ cho cơ chế nhắc.
+
+## Hiển thị giờ Việt Nam
+
+Giờ lịch nhập trên web dùng `Asia/Ho_Chi_Minh`/GMT+7 dù browser ở múi giờ khác. Nhập 05/11/2026 01:30 tương ứng API `2026-11-04T18:30:00Z`; mở form sửa vẫn hiển thị 05/11/2026 01:30. API, database và packet gateway giữ UTC/offset ISO; không cộng 7 giờ vào dữ liệu lưu. T−5, 2 phút và EndTime so sánh cùng một instant.
+
+Notification, Live Monitoring, dashboard, duyệt nhiệm vụ, incident và lịch sử hiển thị giờ Việt Nam. Ngày sinh và ngày giấy phép là calendar date, không dịch ngày theo múi giờ.
+
+Xem thêm [pin và telemetry](battery-telemetry-and-assessment.md), [hợp đồng dữ liệu mission](examples/droneops-mission-fields.md) và các file mẫu `.plan`/`.waypoints` trong `docs/examples/`.

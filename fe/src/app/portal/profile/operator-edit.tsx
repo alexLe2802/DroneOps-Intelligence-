@@ -1,5 +1,7 @@
 "use client";
 
+import { vietnamDateYearsAgo } from "@/lib/portal/vietnam-time";
+
 import { useState, type FormEvent } from "react";
 import { api } from "@/lib/auth/client";
 import type { PilotProfile } from "@/lib/portal/types";
@@ -21,7 +23,7 @@ export default function OperatorEdit({ pilot, onUpdated }: { pilot: PilotProfile
   }
   return <section className="mission-fields"><h2>Edit operator information</h2><form className="profile-form" onSubmit={submit}>
     <label>Phone number<input name="phoneNumber" type="tel" maxLength={20} defaultValue={pilot.phoneNumber ?? ""} disabled={busy} /></label>
-    <label>Date of birth<input name="dateOfBirth" type="date" required defaultValue={pilot.dateOfBirth ?? ""} max={new Date(new Date().getFullYear() - 18, new Date().getMonth(), new Date().getDate()).toLocaleDateString("en-CA")} disabled={busy} /></label>
+    <label>Date of birth<input name="dateOfBirth" type="date" required defaultValue={pilot.dateOfBirth ?? ""} max={vietnamDateYearsAgo(18)} disabled={busy} /></label>
     <label>Flight experience (years)<input name="experienceYears" type="number" min={0} step={1} required defaultValue={pilot.experienceYears} disabled={busy} /></label>
     {error && <p role="alert">{error}</p>}{message && <p className="module-success" role="status">{message}</p>}<button className="module-primary" disabled={busy}>{busy ? "Saving…" : "Save operator information"}</button>
   </form></section>;

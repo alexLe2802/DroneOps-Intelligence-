@@ -11,7 +11,6 @@ public sealed class CreateMissionRequestValidator
         "TakeOff",
         "FlyThrough",
         "Hover",
-        "CapturePhoto",
         "Land"
     ];
 
@@ -135,7 +134,7 @@ public sealed class CreateMissionRequestValidator
                                     action,
                                     StringComparer.OrdinalIgnoreCase))
                 .WithMessage(
-                    "Action type must be TakeOff, FlyThrough, Hover, CapturePhoto or Land.");
+                    "Action type must be TakeOff, FlyThrough, Hover or Land. Camera actions are deferred.");
         }
     }
 }

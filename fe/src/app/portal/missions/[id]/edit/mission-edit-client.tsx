@@ -1,5 +1,7 @@
 "use client";
 
+import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { getAssignedUavs, getGeofences, getMission, updateMission } from "@/lib/portal/client";
@@ -10,13 +12,11 @@ import MissionMap from "../../mission-map";
 import { appendLandingWaypoint, normalizeWaypointActions } from "@/lib/maps/mission-waypoints";
 import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 
-const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover", "CapturePhoto"];
+const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
 
 const toLocalInput = (value: string | null) => {
   if (!value) return "";
-  const date = new Date(value);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return toVietnamDateTimeInput(value);
 };
 
 type EditorValue = {
@@ -168,8 +168,8 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
         description: value.description.trim() || null,
         averageSpeedMetersPerSecond,
         maxSpeedMetersPerSecond,
-        startTime: new Date(value.startTime).toISOString(),
-        endTime: new Date(value.endTime).toISOString(),
+        startTime: vietnamInputToUtcIso(value.startTime),
+        endTime: vietnamInputToUtcIso(value.endTime),
         waypoints: normalizedWaypoints,
       };
       const signature = JSON.stringify(payload);
@@ -212,8 +212,8 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
           <label className="full-field">DESCRIPTION<textarea value={value.description} onChange={event => patchValue({ description: event.target.value })} maxLength={2000} /></label>
           <label>AVERAGE SPEED (M/S)<input type="number" min="0.1" step="0.1" value={value.averageSpeedMetersPerSecond} onChange={event => patchValue({ averageSpeedMetersPerSecond: event.target.value })} required /></label>
           <label>MAXIMUM SPEED (M/S)<input type="number" min="0.1" step="0.1" value={value.maxSpeedMetersPerSecond} onChange={event => patchValue({ maxSpeedMetersPerSecond: event.target.value })} required /></label>
-          <label>START TIME<input type="datetime-local" value={value.startTime} onChange={event => patchValue({ startTime: event.target.value })} required /></label>
-          <label>END TIME<input type="datetime-local" value={value.endTime} onChange={event => patchValue({ endTime: event.target.value })} required /></label>
+          <label>START TIME (GMT+7)<input type="datetime-local" value={value.startTime} onChange={event => patchValue({ startTime: event.target.value })} required /></label>
+          <label>END TIME (GMT+7)<input type="datetime-local" value={value.endTime} onChange={event => patchValue({ endTime: event.target.value })} required /></label>
         </div>
       </section>
 
@@ -222,7 +222,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
         <MissionMap waypoints={value.waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
         <div className="waypoint-list mission-edit-waypoint-list">{value.waypoints.length === 0 ? <div className="waypoint-empty">Click the map to add the first route waypoint.</div> : value.waypoints.map((point, index) => {
           const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : index === value.waypoints.length - 1 ? "Land" : null;
-          return <article key={`${point.sequenceOrder}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M)<input type="number" min="10.1" step="any" value={point.altitude ?? ""} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option>{endpointAction}</option> : intermediateActions.map(action => <option key={action}>{action}</option>)}</select></label><div className="waypoint-order-actions"><button type="button" title="Move waypoint up" aria-label={`Move waypoint ${index + 1} up`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" title="Move waypoint down" aria-label={`Move waypoint ${index + 1} down`} disabled={index === value.waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" title="Remove waypoint" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div></article>;
+          return <article key={`${point.sequenceOrder}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE<input type="number" min="-90" max="90" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE<input type="number" min="-180" max="180" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M)<input type="number" min="10.1" step="any" value={point.altitude ?? ""} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option>{endpointAction}</option> : <>{point.actionType === "CapturePhoto" && <option value="CapturePhoto" disabled>Camera action deferred — select another action</option>}{intermediateActions.map(action => <option key={action}>{action}</option>)}</>}</select></label><div className="waypoint-order-actions"><button type="button" title="Move waypoint up" aria-label={`Move waypoint ${index + 1} up`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" title="Move waypoint down" aria-label={`Move waypoint ${index + 1} down`} disabled={index === value.waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" title="Remove waypoint" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div></article>;
         })}</div>
       </section>
       </fieldset>

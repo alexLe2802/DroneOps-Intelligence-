@@ -132,6 +132,7 @@ __pycache__/
 tmp/doc-refresh/
 tmp/final-submission/
 *.xlsx.inspect.ndjson
+outputs/final-submission/
 
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/

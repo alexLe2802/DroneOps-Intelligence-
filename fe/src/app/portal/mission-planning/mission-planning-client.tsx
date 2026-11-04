@@ -1,5 +1,11 @@
 "use client";
 
+import { vietnamDateYearsAgo } from "@/lib/portal/vietnam-time";
+
+import { apiInstant } from "@/lib/portal/vietnam-time";
+
+import { formatVietnamTime } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getGeofences, getManagerMissions } from "@/lib/portal/client";
@@ -24,7 +30,7 @@ const bucketFor = (status: string): MissionBucket => {
 
 const formatStatus = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ");
 const formatDate = (value: string | null) => value
-  ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value))
+  ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(apiInstant(value))
   : "Not scheduled";
 
 const escapeCsv = (value: string | number | null) => `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -130,8 +136,8 @@ export default function MissionPlanningClient() {
 
   const filtered = useMemo(() => {
     const search = query.trim().toLowerCase();
-    const from = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null;
-    const to = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : null;
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00+07:00`).getTime() : null;
+    const to = dateTo ? new Date(`${dateTo}T23:59:59.999+07:00`).getTime() : null;
     return (missions ?? []).filter(item => {
       if (bucket !== "all" && bucketFor(item.status) !== bucket) return false;
       if (search && !`${item.id} ${item.name} ${item.uavCode ?? ""} ${item.uavName ?? ""} ${item.pilotName ?? ""} ${item.createdBy} ${item.status}`.toLowerCase().includes(search)) return false;
@@ -155,7 +161,7 @@ export default function MissionPlanningClient() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `droneops-mission-manifest-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `droneops-mission-manifest-${vietnamDateYearsAgo()}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -196,7 +202,7 @@ export default function MissionPlanningClient() {
     </section>
 
     <section className="mission-manifest-panel">
-      <header><div><b>ACTIVE MANIFEST <span>(SHOWING {filtered.length} RECORDS)</span></b><em>GEODESIC WGS-84</em></div><span>AUTO REFRESH: <strong>30s</strong>{lastSynced ? ` // ${lastSynced.toLocaleTimeString("en-GB")}` : ""}</span></header>
+      <header><div><b>ACTIVE MANIFEST <span>(SHOWING {filtered.length} RECORDS)</span></b><em>GEODESIC WGS-84</em></div><span>AUTO REFRESH: <strong>30s</strong>{lastSynced ? ` // ${formatVietnamTime(lastSynced)}` : ""}</span></header>
       <div className="mission-manifest-table-wrap"><table>
         <thead><tr><th>Mission ID</th><th>Mission Plan</th><th>Assigned UAV</th><th>Pilot in Command</th><th>Schedule</th><th>Route Profile</th><th>Validation State</th><th>Record</th></tr></thead>
         <tbody>{visible.map(item => {

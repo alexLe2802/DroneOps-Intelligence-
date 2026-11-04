@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamTime } from "@/lib/portal/vietnam-time";
+
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -7,7 +9,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { Account } from "@/lib/auth/types";
 import AccountMenu from "./account-menu";
 import NotificationCenter from "./notification-center";
-import FlightPreparationPrompt from "./flight-preparation-prompt";
+import FlightPreparationPresence from "./flight-preparation-presence";
 import { managerNavItems, operatorNavItems } from "./portal-navigation";
 
 export default function PortalShell({ account, children, dashboard = false, activeNav, onNavigate }: {
@@ -49,8 +51,8 @@ export default function PortalShell({ account, children, dashboard = false, acti
       <div className="sidebar-status"><div><span>TELEMETRY LINK</span><b>ENCRYPTED (AES-256)</b></div><i /><div><span>BANDWIDTH</span><b>48.2 Mbps</b></div></div>
     </aside>
     <div className="ops-main">
-      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now ? now.toLocaleTimeString("en-GB", { timeZone: "UTC" }) : "--:--:--"} UTC</time><div className="account-role">{manager ? "OPERATIONS MANAGER" : "UAV OPERATOR"}</div><NotificationCenter /><AccountMenu account={account} /></header>
-      {!manager && <FlightPreparationPrompt />}
+      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now ? formatVietnamTime(now) : "--:--:--"} GMT+7</time><div className="account-role">{manager ? "OPERATIONS MANAGER" : "UAV OPERATOR"}</div><NotificationCenter /><AccountMenu account={account} /></header>
+      {!manager && <FlightPreparationPresence />}
       <main className={`ops-content${dashboard ? "" : " module-content"}`}>{children}</main>
     </div>
   </div>;
