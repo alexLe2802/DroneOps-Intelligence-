@@ -185,6 +185,8 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<TrustedGatewayStore>();
+builder.Services.AddScoped<MissionAutomationService>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
@@ -202,6 +204,7 @@ var app = builder.Build();
 await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await AccountWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await FlightPreparationSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 // Detect a missing deployment migration before background monitoring starts.
 await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());

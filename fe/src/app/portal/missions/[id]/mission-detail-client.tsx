@@ -196,6 +196,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       </div>
       <div className="heading-actions"><Link className="module-secondary module-link" href={isManager ? "/portal/mission-planning" : "/portal/missions"}>&lt; {isManager ? "MISSION PLANNING" : "MY MISSIONS"}</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}{actions?.review && <Link className="module-primary module-link" href={`/portal/mission-approvals?missionId=${encodeURIComponent(mission.id)}`}>REVIEW REQUEST</Link>}</div>
     </header>
+    {mission.automaticFlightRequested && <p className="form-warning" role="status">Automatic flight preparation requested. Keep the pilot portal open and the bound drone connected for the five-minute confirmation prompt. Aircraft launch commands are not enabled. <a href={`/api/missions/${mission.id}/automation/plan`} target="_blank" rel="noreferrer">VIEW FLIGHT PLAN DATA</a></p>}
     {mission.detailAvailable === false && <p className="api-pending-banner" role="status"><b>MISSION DETAIL API PENDING</b> Showing the available mission summary. Route and waypoint data will appear when the backend returns a response from GET /api/missions/{mission.id}.</p>}
 
     <section className="mission-action-feedback" aria-label="Persisted mission validation">
@@ -205,7 +206,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
 
     {mission.pendingUpdate && <>
       <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
-      <MissionPlanComparison key={mission.pendingUpdate.id} missionId={mission.id} isInitial={mission.pendingUpdate.isInitial} current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
+      <MissionPlanComparison key={mission.pendingUpdate.id} missionId={mission.id} isInitial={mission.pendingUpdate.isInitial} current={{ automaticFlightRequested: mission.automaticFlightRequested ?? false, uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
     </>}
     <MissionValidationEvidence missionId={id} validation={readinessValidation} />
     <MissionEvidencePanel key={`${id}-${mission.status}-${mission.pendingUpdate?.id ?? "current"}`} id={id} />

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DroneOps.Domain.Entities;
 
@@ -18,6 +18,7 @@ public sealed class Mission
     public string Status { get; set; } = "Draft";
 
     public string? AltitudeReference { get; set; }
+    public bool AutomaticFlightRequested { get; set; }
 
     public DateTime? StartTime { get; set; }
 

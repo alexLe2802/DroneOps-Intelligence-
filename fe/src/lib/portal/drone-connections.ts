@@ -11,5 +11,6 @@ export const getDroneConnections = () => api<DroneConnection[]>("/drone-connecti
 export const createDroneConnection = (uavId: string, missionId: string) => api<{connection: DroneConnection; pairingCode: string; gatewayPath: "/ws/drone-gateway"}>("/drone-connections", {method:"POST",body:JSON.stringify({uavId,missionId})});
 export const revokeDroneConnection = (id: string) => api<void>(`/drone-connections/${encodeURIComponent(id)}`,{method:"DELETE"});
 
-export type DroneBinding = {uavId:string;hardwareIdentity:string;boundAt:string};
+export type DroneBinding = {uavId:string;hardwareIdentity:string;boundAt:string;gatewayRegistered?:boolean};
 export const getDroneBindings = () => api<DroneBinding[]>("/drone-connections/aircraft");
+export const forgetDroneGateway = (uavId: string) => api<void>(`/drone-connections/aircraft/${encodeURIComponent(uavId)}/gateway`, { method: "DELETE" });

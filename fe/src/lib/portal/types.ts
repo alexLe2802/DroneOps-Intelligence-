@@ -3,6 +3,7 @@ import type { AccountRole } from "@/lib/auth/types";
 export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Pending Confirm" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
 
 export type PilotMission = {
+  automaticFlightRequested?: boolean;
   id: string;
   createdBy?: string;
   name: string;
@@ -34,6 +35,7 @@ export type MissionWaypoint = {
   actionType: WaypointAction;
 };
 export type CreateMissionRequest = {
+  automaticFlightRequested?: boolean;
   operationId?: string;
   altitudeReference?: "AGL" | "MSL" | "Relative" | null;
   uavId: string;

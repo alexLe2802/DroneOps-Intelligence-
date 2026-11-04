@@ -115,6 +115,17 @@ void Check(bool condition, string name)
     passed++;
 }
 
+var scheduled = DateTimeOffset.UtcNow.AddMinutes(10);
+Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5).AddTicks(-1), scheduled), "automatic confirmation rejects times before T-5");
+Check(MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5), scheduled), "automatic confirmation opens exactly at T-5");
+Check(!MissionAutomationService.InConfirmationWindow(scheduled, scheduled), "late confirmation cannot authorize a missed departure");
+var reviewedPlan = new Mission { Id = Guid.NewGuid(), CreatedBy = Guid.NewGuid(), Name = "Review fingerprint" };
+var manualHash = DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan);
+reviewedPlan.AutomaticFlightRequested = true;
+Check(manualHash != DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan), "automatic opt-in invalidates manual-plan approval and confirmation evidence");
+reviewedPlan.AutomaticFlightRequested = false;
+Check(manualHash == DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan), "legacy manual plan fingerprints remain compatible");
+
 HttpRequestMessage Ingest(string key, object payload, string? credential = integrationKey)
 {
     var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/telemetry/samples");

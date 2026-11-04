@@ -22,12 +22,13 @@ export default function MissionPlanComparison({ current, proposed, validation, i
   const waypointRows = waypointReviewRows(isInitial ? [] : saved.waypoints, proposed.waypoints);
   const displayRoute = isInitial ? "proposed" : routeView;
   const fields = [
-    ["Name", "name"], ["Description", "description"], ["UAV", "uavId"],
+    ["Automatic flight preparation", "automaticFlightRequested"], ["Name", "name"], ["Description", "description"], ["UAV", "uavId"],
     ["Average speed", "averageSpeedMetersPerSecond"], ["Maximum speed", "maxSpeedMetersPerSecond"],
     ["Start", "startTime"], ["End", "endTime"], ["Altitude reference", "altitudeReference"],
   ] as const;
   const fieldValue = (plan: CreateMissionRequest, key: typeof fields[number][1]) =>
-    key === "startTime" || key === "endTime" ? formatWeatherTime(plan[key])
+    key === "automaticFlightRequested" ? plan[key] ? "Requested · confirmation required" : "Manual"
+      : key === "startTime" || key === "endTime" ? formatWeatherTime(plan[key])
       : key === "averageSpeedMetersPerSecond" || key === "maxSpeedMetersPerSecond" ? `${plan[key]} m/s`
         : plan[key] || "Not specified";
   const waypointValue = (point: typeof proposed.waypoints[number] | undefined) => point

@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Request.Missions;
@@ -331,6 +331,9 @@ public sealed class MissionValidationService(
         var json = JsonSerializer.Serialize(
             Snapshot(mission),
             JsonOptions);
+
+        // Preserve existing manual-plan evidence; opt-in changes invalidate approval evidence.
+        if (mission.AutomaticFlightRequested) json += "|automatic-flight-v1";
 
         return Convert.ToHexString(
             SHA256.HashData(
