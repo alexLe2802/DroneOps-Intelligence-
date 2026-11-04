@@ -10,6 +10,12 @@ using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
 using Microsoft.AspNetCore.Authorization;
 
+if (args.Length == 1 && args[0] == "--mission-compiler")
+{
+    MissionCommandCompilerChecks.Run();
+    return;
+}
+
 if (args.Length == 1 && args[0] == "--battery-assessment")
 {
     BatteryAssessmentChecks.Run();
