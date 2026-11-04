@@ -20,6 +20,7 @@ const toLocalInput = (value: string | null) => {
 };
 
 type EditorValue = {
+  automaticFlightRequested: boolean;
   altitudeReference: "AGL" | "MSL" | "Relative" | "";
   uavId: string;
   name: string;
@@ -33,6 +34,7 @@ type EditorValue = {
 
 const editorValue = (saved: MissionDetail): EditorValue => { const mission = saved.pendingUpdate ? { ...saved, ...saved.pendingUpdate.proposedPlan } : saved; return ({
   altitudeReference: (mission.pendingUpdate?.proposedPlan.altitudeReference ?? mission.altitudeReference ?? "") as EditorValue["altitudeReference"],
+  automaticFlightRequested: mission.automaticFlightRequested ?? false,
   uavId: mission.uavId ?? "",
   name: mission.name,
   description: mission.description ?? "",
@@ -159,6 +161,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
     setSaving(true);
     try {
       const payload = {
+        automaticFlightRequested: value.automaticFlightRequested,
         altitudeReference: value.altitudeReference || null,
         uavId: value.uavId,
         name: value.name.trim(),
@@ -224,6 +227,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       </section>
       </fieldset>
 
+      <label><span><input type="checkbox" checked={value.automaticFlightRequested} onChange={event => setValue(current => current ? { ...current, automaticFlightRequested: event.target.checked } : current)} /> Request automatic flight preparation</span><small>Pilot confirmation is required at T−5 minutes. No aircraft launch commands are enabled.</small></label>
       <label>Altitude reference<select value={value.altitudeReference} onChange={event => setValue(current => current ? { ...current, altitudeReference: event.target.value as EditorValue["altitudeReference"] } : current)}><option value="">Not specified</option><option value="AGL">AGL</option><option value="MSL">MSL</option><option value="Relative">Relative</option></select></label>
       {formError && <p className="form-error" role="alert" aria-live="assertive">{formError}</p>}
       {notice && <p className="mission-edit-notice" role="status" aria-live="polite">{notice}</p>}

@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.Missions;
+using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces;
 using DroneOps.Application.Interfaces.Geofences;
@@ -169,6 +169,7 @@ public sealed class MissionService : IMissionService
         return new MissionResponse
         {
             Id = mission.Id,
+            AutomaticFlightRequested = mission.AutomaticFlightRequested,
             CreatedBy = mission.CreatedBy,
             UavId = mission.UAVId,
             UavCode = mission.UAV?.Code,
