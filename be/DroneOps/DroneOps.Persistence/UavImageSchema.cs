@@ -11,6 +11,8 @@ public static class UavImageSchema
             ?? throw new InvalidOperationException("Embedded UAV image migration is missing.");
         using var reader = new StreamReader(stream);
         await using var command = source.CreateCommand(await reader.ReadToEndAsync());
+        command.CommandTimeout = 120;
         await command.ExecuteNonQueryAsync();
     }
 }
+                                
