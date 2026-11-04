@@ -3,6 +3,9 @@
 Status: implementation on Qthong; physical execution remains disabled. This is
 not a claim of Mission Planner/QGroundControl feature parity or successful SITL.
 
+Vietnamese field requirements, operator workflow and failsafe review matrix:
+[Automatic-flight user flow](automatic-flight-user-flow.vi.md).
+
 ## Authoring modes and required data
 
 The existing `automaticFlightRequested` flag selects the mode; no duplicate
@@ -150,8 +153,9 @@ Not implemented/verified: versioned FC parameter application/read-back for the
 operational envelope; onboard configuration of the recovery contract; native
 rally/fence upload and exact recovery-route execution; calibrated emergency
 energy model; physical landing/obstacle/terrain verification; ArduPilot/PX4 SITL
-and hardware flight tests. Local environment currently has no Docker/CMake/Ninja
-SITL toolchain. This is not complete GCS feature parity.
+and hardware flight tests. Jetson SSH/toolchain inspection succeeded; Docker is
+available there through sudo, but no SITL result has been established. This is
+not complete GCS feature parity.
 
 The compiled envelope declares `fcParameterVerificationRequired=true`. Gateway
 explicitly refuses to upload/start an envelope without its versioned parameter

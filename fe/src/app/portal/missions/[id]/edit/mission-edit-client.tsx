@@ -14,6 +14,8 @@ import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 
 import WaypointNavigationFields, { FirmwareDefaultsNotice } from "../../waypoint-navigation-fields";
 import AutomaticFlightFields, { defaultAutomaticLimits } from "../../automatic-flight-fields";
+import FlightModeFields from "../../flight-mode-fields";
+import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
 import type { AutomaticFlightLimits } from "@/lib/portal/types";
 
 const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
@@ -163,6 +165,8 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
     const maxSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.maxSpeedMetersPerSecond.trim() ? "3" : value.maxSpeedMetersPerSecond);
     const invalidSpeed = missionSpeedError(averageSpeedMetersPerSecond, maxSpeedMetersPerSecond);
     if (invalidSpeed) { setFormError(invalidSpeed); return; }
+    const invalidAutomatic = value.automaticFlightRequested ? automaticFlightError(value.altitudeReference, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, value.automaticFlightLimits, normalizedWaypoints) : null;
+    if (invalidAutomatic) { setFormError(invalidAutomatic); return; }
     savePending.current = true;
     setSaving(true);
     try {
@@ -211,10 +215,12 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
     {mission.pendingUpdate && <p role="status">Editing the pending proposal. The current mission remains unchanged until approval.</p>}
     <form className="mission-builder mission-edit-form" onSubmit={submit}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
+      <FlightModeFields value={value.automaticFlightRequested ? "automatic" : "manual"} onChange={mode => patchValue(mode === "automatic"
+        ? { automaticFlightRequested: true, averageSpeedMetersPerSecond: "3", maxSpeedMetersPerSecond: "3", altitudeReference: "Relative" }
+        : { automaticFlightRequested: false })} />
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Plan configuration</h2><p>Revise the assigned aircraft, schedule and mission brief.</p></div><button type="button" className="text-action" disabled={!dirty} onClick={resetChanges}>RESET CHANGES</button></div>
         <div className="mission-field-grid">
-          <div className="full-field mission-mode-options"><strong>FLIGHT MODE · required</strong><label><input type="radio" name="flight-mode" checked={!value.automaticFlightRequested} onChange={() => patchValue({ automaticFlightRequested: false })} /> Manual operation — RC/GCS controls the flight</label><label><input type="radio" name="flight-mode" checked={value.automaticFlightRequested} onChange={() => patchValue({ automaticFlightRequested: true, averageSpeedMetersPerSecond: "3", maxSpeedMetersPerSecond: "3", altitudeReference: "Relative" })} /> Automatic mission — FC upload, pilot confirmation, explicit ARM and countdown</label></div>
           <label>ASSIGNED UAV · required<select value={value.uavId} onChange={event => patchValue({ uavId: event.target.value })} required><option value="">Select an active UAV</option>{approvedAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME · required<input value={value.name} onChange={event => patchValue({ name: event.target.value })} minLength={2} maxLength={200} required /></label>
           <label className="full-field">DESCRIPTION · optional<textarea value={value.description} onChange={event => patchValue({ description: event.target.value })} maxLength={2000} /></label>
