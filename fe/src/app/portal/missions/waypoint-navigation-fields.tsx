@@ -12,7 +12,7 @@ export function FirmwareDefaultsNotice({ snapshot }: { snapshot?: FirmwareParame
 export default function WaypointNavigationFields({ point, maximumSpeed, onChange }: { point: MissionWaypoint; maximumSpeed: number; onChange: (value: WaypointNavigation) => void }) {
   const value = point.navigation ?? {};
   const number = (key: keyof WaypointNavigation, input: string) => onChange({ ...value, [key]: input === "" ? null : Number(input) });
-  return <details open={point.actionType === "Hover" || Boolean(value.emergencyLandingCandidate)} style={{ gridColumn: "1 / -1" }}><summary>Waypoint {point.sequenceOrder} · optional navigation / landing-site settings</summary>
+  return <details open={point.actionType === "Hover" || point.actionType === "Land" || Boolean(value.emergencyLandingCandidate)} style={{ gridColumn: "1 / -1" }}><summary>Waypoint {point.sequenceOrder} · navigation / landing-site settings {point.actionType === "Hover" ? "· hold time required" : point.actionType === "Land" ? "· ground elevation required before flight" : "· optional overrides"}</summary>
     <p>Latitude, longitude, altitude, command and order above are required. Overrides below remain inside the approved mission envelope.</p>
     <button type="button" className="module-secondary" onClick={() => onChange({})}>CLEAR OPTIONAL OVERRIDES</button>
     <div className="mission-field-grid">
