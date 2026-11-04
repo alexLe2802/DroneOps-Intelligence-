@@ -4,13 +4,16 @@
 
 - Mission có lựa chọn `AutomaticFlightRequested`, mặc định tắt. Thay đổi lựa chọn
   đi qua quy trình đề xuất/duyệt kế hoạch; không sửa ngầm một mission đã duyệt.
-- Portal hỏi xác nhận trong khoảng **T−5 phút ≤ hiện tại < giờ bay**, tính bằng
-  đồng hồ backend. Tab phải hiển thị, có Internet và phiên đăng nhập còn hợp lệ.
+- Live Monitoring nhận xác nhận trong khoảng **T−5 phút ≤ hiện tại < EndTime**,
+  tính bằng đồng hồ backend. Có thể xác nhận khi kết nối trễ sau StartTime;
+  không tự hiểu kết nối trễ là đồng ý bay. Tab phải hiển thị, có Internet và
+  phiên đăng nhập còn hợp lệ. Mission phải còn Approved và bật chuẩn bị tự động.
 - Presence gửi mỗi 10 giây, hết hiệu lực sau 30 giây. Gateway phải có heartbeat
   trong 30 giây và telemetry thực trong 15 giây; gateway online đơn thuần chưa đủ.
 - Xác nhận chạy lại preflight, gắn với hash của kế hoạch và connection của đúng
   UAV/UID. Đổi kế hoạch/connection phải xác nhận lại. Bỏ qua, đóng web hoặc quá
-  giờ không được hiểu là đồng ý bay.
+  EndTime không được hiểu là đồng ý bay. Hết EndTime hoặc mission đã Completed/
+  Cancelled/Aborted/Failed/InProgress thì không gửi thêm nhắc chuẩn bị.
 - `GET /api/missions/{id}/automation/plan` xuất dữ liệu kế hoạch cho chủ mission.
 - **Chưa có uploader/ARM/TAKEOFF/AUTO/MISSION_START xuống flight controller.**
   `dispatchEnabled=false` được trả rõ ràng. Xác nhận chỉ lưu readiness, không
@@ -18,6 +21,56 @@
 
 Đây là phần chuẩn bị cho luồng điều khiển, không phải bằng chứng đã bay tự động
 trên drone thật. Gateway vẫn chỉ yêu cầu telemetry/UID và chuyển dữ liệu lên web.
+
+## Nhắc kết nối và nhắc xác nhận đã triển khai
+
+- Từ T−5 đến trước EndTime: nếu chưa có gateway của đúng UAV/UID kết nối,
+  ghi một thông báo `FlightConnectionRequired` cho chủ mission. Chỉ một lần
+  trong vòng đời mission, kể cả đã đọc, mất kết nối lại hoặc worker khởi động lại.
+- Gateway online nhưng telemetry chưa mới hoặc preflight chưa Pass thì chờ dữ
+  liệu, không gửi thông báo rằng có thể xác nhận.
+- Khi telemetry mới và preflight Pass cho đúng planHash: gửi
+  `FlightConfirmationRequired` nếu chưa có xác nhận còn hiệu lực. Lần đầu nhận
+  telemetry qua WebSocket kiểm tra ngay; worker preflight hiện có cũng kiểm tra
+  mỗi 10 giây để bao phủ REST gateway, kết nối trễ và dữ liệu hoàn tất sau đó.
+- Nếu chưa xác nhận, nhắc tiếp khi đã qua ít nhất 2 phút từ thông báo confirm
+  gần nhất. Đã đọc thông báo không đồng nghĩa đã confirm. Đã xác nhận đúng kế
+  hoạch/connection thì dừng nhắc; cache preflight hết hạn không tự xóa sự đồng ý.
+  Preflight vẫn phải mới và Pass để trạng thái readiness được công nhận.
+- Mỗi lần gửi kiểm tra lại status và EndTime. Khóa row Mission cùng transaction
+  với ghi Notification chống gửi trùng giữa nhiều worker/API instance. Lịch sử
+  thông báo đã gửi được giữ lại sau EndTime; không phát thêm thông báo mới.
+- Dùng lại `NotificationService`, bảng Notification và notification center hiện
+  có (thông báo trong web, không tự thêm kênh email/SMS/push). Action mở
+  `/portal/live-monitoring?missionId=...`. Form kết nối/pairing hiện có được nhúng
+  vào Live Monitoring; không tạo bản API kết nối hoặc nguồn dữ liệu flight mới.
+- Phần hỏi xác nhận toàn portal được chuyển vào Live Monitoring. Presence vẫn
+  theo dõi tab portal đang hiển thị. Một tab đang online không có nghĩa đồng ý bay.
+
+## API thay đổi trong bản bổ sung
+
+Không tạo endpoint mới và không tạo migration mới. Dùng các field Mission,
+DroneConnection, MissionValidationRun, MissionAutomationState và Notification có sẵn.
+
+| API hiện có | Thay đổi |
+| --- | --- |
+| `GET /api/missions/automation/due` | Trả cả mission kết nối trễ, từ T−5 đến trước EndTime; thêm `endTime`, bỏ giới hạn 20 làm sót mission |
+| `GET /api/missions/{id}/automation` và `POST .../presence` | Thêm `endsAt`, `gatewayConnected`, `preflightReady`, `confirmationRecorded`; phân biệt gateway online với telemetry mới |
+| `POST /api/missions/{id}/automation/confirm` | Cho phép confirm muộn trước EndTime, giữ kiểm tra owner/hash/preflight/presence/UID và khóa chống race với nhắc lịch |
+| `POST .../cancel` | Giữ contract; thao tác thu hồi xác nhận nằm trong Live Monitoring |
+| `GET /api/notifications`, unread-count, read/read-all | Giữ endpoint và response; thêm hai giá trị type nêu trên qua service gửi sẵn có |
+| WebSocket `/ws/drone-gateway` | Giữ payload/ACK; sau telemetry đầu tiên kiểm tra nhắc confirm, lỗi thông báo không ngắt telemetry |
+| Mission create/update, live missions/telemetry, automation/plan | Giữ contract và nguồn dữ liệu; không tạo API trùng chức năng |
+
+## Giờ Việt Nam GMT+7
+
+Giờ lịch nhập trên web luôn là `Asia/Ho_Chi_Minh`/GMT+7, dù browser ở múi giờ
+khác. Ví dụ nhập 05/11/2026 01:30 sẽ gửi API `2026-11-04T18:30:00Z`; mở lại
+form sửa vẫn là 05/11/2026 01:30. API/database và packet gateway giữ UTC/offset
+ISO để không làm lệch dữ liệu cũ. Các mốc T−5/2 phút/EndTime so sánh cùng instant,
+không cộng thêm 7 giờ vào thời gian lưu. Notification, Live Monitoring, dashboard,
+duyệt nhiệm vụ, incident và lịch sử hiển thị giờ Việt Nam. Trường ngày sinh/ngày
+giấy phép là calendar date, không đổi ngày do dịch múi giờ.
 
 ## Dữ liệu đang có trong hệ thống
 

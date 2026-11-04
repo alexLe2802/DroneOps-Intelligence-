@@ -1,5 +1,7 @@
 "use client";
 
+import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -19,7 +21,7 @@ const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover", "CapturePh
 function localDateTimeMinimum() {
   const interval = 60_000;
   const now = new Date(Math.ceil(Date.now() / interval) * interval);
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  return toVietnamDateTimeInput(now);
 }
 
 function openDateTimePicker(input: HTMLInputElement) {
@@ -105,7 +107,7 @@ export default function MissionForm() {
     const normalizedWaypoints = normalizeWaypointActions(waypoints);
     const invalidRoute = routeError(normalizedWaypoints);
     if (invalidRoute) { setError(invalidRoute); return; }
-    const start = new Date(startTime), end = new Date(endTime);
+    const start = new Date(`${startTime}+07:00`), end = new Date(`${endTime}+07:00`);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) { setError("Enter a valid schedule with the end time later than the start time."); return; }
     if (start.getTime() <= Date.now()) { setError("Flight start time must be in the future. Update the start date and time."); return; }
     const averageSpeedMetersPerSecond = Number(averageSpeed);
@@ -115,7 +117,7 @@ export default function MissionForm() {
     pending.current = true;
     setSaving(true);
     try {
-      const payload = { automaticFlightRequested, altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: new Date(startTime).toISOString(), endTime: new Date(endTime).toISOString(), waypoints: normalizedWaypoints };
+      const payload = { automaticFlightRequested, altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: vietnamInputToUtcIso(startTime), endTime: vietnamInputToUtcIso(endTime), waypoints: normalizedWaypoints };
       const signature = JSON.stringify(payload);
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
       const created = await createMission({ ...payload, operationId: operation.current.id });
@@ -184,8 +186,8 @@ export default function MissionForm() {
           <label className="full-field">DESCRIPTION<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
           <label>AVERAGE SPEED (M/S)<input id="mission-average-speed" type="number" min="0.1" step="0.1" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder="10.0" required /></label>
           <label>MAXIMUM SPEED (M/S)<input id="mission-max-speed" type="number" min="0.1" step="0.1" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder="15.0" required /></label>
-          <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setStartTime(event.target.value)} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">LOCAL TIME / START MUST BE IN THE FUTURE</small></div>
-          <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setEndTime(event.target.value)} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">MUST BE LATER THAN START</small></div>
+          <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setStartTime(event.target.value)} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">VIETNAM GMT+7 / START MUST BE IN THE FUTURE</small></div>
+          <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => setEndTime(event.target.value)} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">VIETNAM GMT+7 / MUST BE LATER THAN START</small></div>
         </div>
         {activeAircraft.length === 0 && <p className="form-warning">No active UAV is ready for mission planning.</p>}
       </section>

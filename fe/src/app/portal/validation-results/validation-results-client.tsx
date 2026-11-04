@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -124,7 +126,7 @@ export default function ValidationResultsClient({ role, missionId, runId }: { ro
     <dl className={styles.evidenceMeta}>
       <div><dt>MISSION ID</dt><dd>{missionId}</dd></div>
       <div><dt>VALIDATION ID</dt><dd>{result.id ?? "Not recorded"}</dd></div>
-      <div><dt>CHECKED AT</dt><dd>{result.checkedAt ? new Date(result.checkedAt).toLocaleString() : "Not recorded"}</dd></div>
+      <div><dt>CHECKED AT</dt><dd>{result.checkedAt ? formatVietnamDateTime(result.checkedAt) : "Not recorded"}</dd></div>
       <div><dt>EVIDENCE</dt><dd>{runId ? "Immutable saved run" : "Latest available result"}</dd></div>
     </dl>
 
