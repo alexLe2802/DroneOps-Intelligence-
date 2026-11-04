@@ -25,6 +25,12 @@ public interface IMissionValidationService
         bool manager,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<Guid, MissionValidationReadSnapshot>> ReadManyAsync(
+        IReadOnlyCollection<Mission> missions,
+        Guid actor,
+        bool manager,
+        CancellationToken cancellationToken = default);
+
     Task<MissionValidationResult?> ReadRunAsync(
         Guid missionId,
         Guid runId,
@@ -56,3 +62,8 @@ public interface IMissionValidationService
         MissionValidationResult result,
         CancellationToken cancellationToken = default);
 }
+
+public sealed record MissionValidationReadSnapshot(
+    MissionValidationResult? Validation,
+    MissionValidationResult? LatestValidation,
+    MissionValidationResult? PreflightValidation);

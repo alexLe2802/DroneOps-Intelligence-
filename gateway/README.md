@@ -180,3 +180,17 @@ dotnet run --project be/DroneOps/DroneOps.TelemetryChecks -- --gateway /absolute
 
 Đặt DRONEOPS_GATEWAY_PYTHON trỏ đến Python có dependencies cho loopback gateway.
 PTY chỉ chạy POSIX; loopback không chứng minh phần cứng thật. Không commit token.
+
+# Detailed battery telemetry
+
+Power & Cells uses primary `BATTERY_STATUS` battery ID 0, with `SYS_STATUS`
+as a fallback for percentage, pack voltage and current. Supported measurements
+include pack voltage (V), current (A), battery temperature (°C), consumed charge
+(mAh), and individual cell voltages when supplied by the flight controller.
+Whole-pack voltage is not presented as an individual cell. Missing MAVLink
+measurements remain unavailable, and readings expire after five seconds.
+
+Before deploying this gateway version, apply
+`database/migrations/010_battery_telemetry.sql` to the backend database (or run
+the API with `--migrate-telemetry`) and restart the backend. Update the installed
+gateway using the newly packaged web download and restart its service.

@@ -4,6 +4,10 @@ namespace DroneOps.Persistence.Interfaces;
 
 public interface IPostFlightRepository
 {
+    Task<List<PostFlightReport>> GetCurrentReportsAsync(Guid[] missionIds, CancellationToken cancellationToken = default);
+    Task<Dictionary<Guid, int>> GetIncidentCountsAsync(Guid[] missionIds, CancellationToken cancellationToken = default);
+    Task<List<Incident>> GetIncidentsForMissionsAsync(Guid[] missionIds, CancellationToken cancellationToken = default);
+    Task<List<TelemetryRecord>> GetAnalyticsTelemetryForMissionsAsync(Guid[] missionIds, CancellationToken cancellationToken = default);
     Task<OverdueMissionSyncResult> SynchronizeOverdueMissionsAsync(
         DateTimeOffset now,
         CancellationToken cancellationToken = default);

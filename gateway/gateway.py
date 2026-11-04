@@ -175,7 +175,29 @@ class TelemetryState:
                         message.fix_type, message.satellites_visible, now)
         elif kind == 'SYS_STATUS':
             fields = {'batteryPercent': message.battery_remaining if 0 <= message.battery_remaining <= 100 else None,
-                      'batteryVoltageVolts': None if message.voltage_battery == 65535 else message.voltage_battery / 1000}
+                      'batteryVoltageVolts': None if message.voltage_battery == 65535 else message.voltage_battery / 1000,
+                      'batteryCurrentAmps': None if getattr(message, 'current_battery', -1) == -1 else message.current_battery / 100}
+            # Prefer fresh, battery-specific readings over the ambiguous system summary.
+            fields = {key: value for key, value in fields.items()
+                      if now - getattr(self, 'battery_status_at', -math.inf) > 5}
+        elif kind == 'BATTERY_STATUS':
+            # The Power card represents primary battery ID 0; never mix packs.
+            if message.id != 0:
+                return False
+            self.battery_status_at = now
+            volts = list(message.voltages)
+            known = [voltage / 1000 for voltage in volts if voltage != 65535]
+            extended = [voltage / 1000 for voltage in getattr(message, 'voltages_ext', []) if voltage not in (0, 65535)]
+            # A single voltage followed by UINT16_MAX may be whole-pack voltage.
+            cells = known + extended if len(known) > 1 else []
+            fields = {
+                'batteryPercent': message.battery_remaining if 0 <= message.battery_remaining <= 100 else None,
+                'batteryVoltageVolts': sum(known + extended) if known else None,
+                'batteryCurrentAmps': None if message.current_battery == -1 else message.current_battery / 100,
+                'batteryTemperatureCelsius': None if message.temperature == 32767 else message.temperature / 100,
+                'batteryConsumedMah': None if message.current_consumed < 0 else message.current_consumed,
+                'batteryCellVoltagesVolts': cells or None,
+            }
         elif kind == 'MISSION_CURRENT':
             # MAVLink seq is zero-based; web progress contract uses one-based nodes.
             fields = {'missionSequence': message.seq + 1 if message.seq < 65535 else None}

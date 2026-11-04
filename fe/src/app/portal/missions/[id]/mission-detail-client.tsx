@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AccountRole } from "@/lib/auth/types";
-import { cancelMission, getGeofences, getMission, startMission, validateMission } from "@/lib/portal/client";
+import { cancelMission, getGeofences, getMission, startMission, updateMission, validateMission } from "@/lib/portal/client";
+import { missionActions, validationState } from "@/lib/portal/mission-review";
 import type { Geofence, MissionDetail, MissionValidationResult } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
@@ -11,14 +12,15 @@ import dialogStyles from "./mission-dialog.module.css";
 
 import MissionPlanComparison from "../mission-plan-comparison";
 import MissionEvidencePanel from "../mission-evidence-panel";
+import MissionValidationEvidence from "../mission-validation-evidence";
 
 const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
 const formatStatus = (value: string) => value.replace(/([A-Z])/g, " $1").trim();
 const statusKey = (value: string) => value.toLowerCase().replaceAll(" ", "");
 type MissionDialog = "cancel" | null;
-type BusyAction = "validate" | "start" | "cancel" | null;
+type BusyAction = "validate" | "start" | "cancel" | "submit" | null;
 
-export default function MissionDetailClient({ id, role }: { id: string; role: AccountRole }) {
+export default function MissionDetailClient({ id, role, actorId }: { id: string; role: AccountRole; actorId: string }) {
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [error, setError] = useState<unknown>(null);
@@ -30,6 +32,7 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
   const [cancelReason, setCancelReason] = useState("");
   const [busy, setBusy] = useState<BusyAction>(null);
   const actionPending = useRef(false);
+  const actions = mission ? missionActions(mission, role, actorId) : null;
 
   const load = useCallback(() => {
     setMission(null);
@@ -44,8 +47,8 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
         return;
       }
       setMission(missionResult.value);
-      setValidation(missionResult.value.validation ?? null);
-      setValidatedAt(missionResult.value.validation?.checkedAt ? new Date(missionResult.value.validation.checkedAt) : null);
+      setValidation(missionResult.value.validation?.updateRequestId ? null : missionResult.value.validation ?? null);
+      setValidatedAt(!missionResult.value.validation?.updateRequestId && missionResult.value.validation?.checkedAt ? new Date(missionResult.value.validation.checkedAt) : null);
       setGeofences(geofenceResult.status === "fulfilled" ? geofenceResult.value : []);
     });
   }, [id]);
@@ -59,8 +62,8 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
         return;
       }
       setMission(missionResult.value);
-      setValidation(missionResult.value.validation ?? null);
-      setValidatedAt(missionResult.value.validation?.checkedAt ? new Date(missionResult.value.validation.checkedAt) : null);
+      setValidation(missionResult.value.validation?.updateRequestId ? null : missionResult.value.validation ?? null);
+      setValidatedAt(!missionResult.value.validation?.updateRequestId && missionResult.value.validation?.checkedAt ? new Date(missionResult.value.validation.checkedAt) : null);
       setGeofences(geofenceResult.status === "fulfilled" ? geofenceResult.value : []);
     });
     return () => { active = false; };
@@ -82,13 +85,13 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
   }, [mission]);
 
   async function runValidation() {
-    if (!mission || actionPending.current) return;
+    if (!mission || !actions?.validate || actionPending.current) return;
     actionPending.current = true;
     setBusy("validate");
     setActionError("");
     setNotice("");
     try {
-      const result = await validateMission(mission, mission.pendingUpdate?.id);
+      const result = await validateMission(mission);
       setValidation(result);
       setValidatedAt(result.checkedAt ? new Date(result.checkedAt) : new Date());
     } catch (reason) {
@@ -102,7 +105,7 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
   }
 
   async function beginMission() {
-    if (!mission || actionPending.current) return;
+    if (!mission || !actions?.start || actionPending.current) return;
     actionPending.current = true; setBusy("start"); setActionError("");
     try {
       const result = await startMission(mission.id);
@@ -111,14 +114,14 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
       setMission(await getMission(mission.id));
       setNotice("Mission marked In Progress after fresh mandatory checks. No aircraft control command was sent.");
     } catch (reason) {
-      try { const refreshed = await getMission(mission.id); setMission(refreshed); setValidation(refreshed.validation ?? null); } catch { /* Preserve the original action error. */ }
+      try { const refreshed = await getMission(mission.id); setMission(refreshed); setValidation(refreshed.validation?.updateRequestId ? null : refreshed.validation ?? null); } catch { /* Preserve the original action error. */ }
       setActionError(reason instanceof Error ? reason.message : "Unable to start mission.");
     }
     finally { actionPending.current = false; setBusy(null); }
   }
 
   async function confirmCancel() {
-    if (!mission || !cancelReason.trim() || actionPending.current) return;
+    if (!mission || !actions?.cancel || !cancelReason.trim() || actionPending.current) return;
     actionPending.current = true;
     setBusy("cancel");
     setActionError("");
@@ -141,20 +144,45 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
     }
   }
 
+  async function submitDraft() {
+    if (!mission || !actions?.submit || actionPending.current) return;
+    actionPending.current = true; setBusy("submit"); setActionError(""); setNotice("");
+    try {
+      if (!mission.uavId || !mission.startTime || !mission.endTime || mission.averageSpeedMetersPerSecond == null || mission.maxSpeedMetersPerSecond == null) {
+        throw new Error("Complete the mission plan in Edit Plan before submitting.");
+      }
+      // The legacy /submit endpoint is retired. Saving a Draft validates and queues its plan.
+      await updateMission(mission.id, {
+        operationId: crypto.randomUUID(), name: mission.name, description: mission.description,
+        uavId: mission.uavId, startTime: mission.startTime, endTime: mission.endTime,
+        averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond,
+        maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond,
+        altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null,
+        waypoints: mission.waypoints,
+      });
+      const refreshed = await getMission(mission.id);
+      setMission(refreshed); setValidation(refreshed.validation?.updateRequestId ? null : refreshed.validation ?? null);
+      setNotice("Draft validated and sent for review. Review the submission status below.");
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Unable to submit the draft.");
+    } finally { actionPending.current = false; setBusy(null); }
+  }
+
   if (error) return <ModuleError error={error} retry={load} />;
   if (!mission) return <ModuleLoading label="Loading mission details" />;
   const isManager = role === "operation_manager";
   const currentStatus = statusKey(mission.status);
-  const readinessValidation = [validation, mission.latestValidation, mission.preflightValidation, mission.pendingUpdate?.validation]
+  const readinessValidation = [validation, mission.preflightValidation]
+    .filter(result => !result?.updateRequestId)
     .filter((result): result is MissionValidationResult => result != null)
     .sort((a, b) => new Date(b.checkedAt ?? 0).getTime() - new Date(a.checkedAt ?? 0).getTime())[0];
-  const readinessStatus = readinessValidation?.status ?? mission.flightReadiness ?? "AwaitingPreflight";
+  const readinessStatus = readinessValidation ? validationState(readinessValidation) : "AwaitingPreflight";
   const readinessHref = readinessValidation?.id
     ? `/portal/validation-results?missionId=${encodeURIComponent(id)}&runId=${encodeURIComponent(readinessValidation.id)}`
     : `/portal/validation-results?missionId=${encodeURIComponent(id)}`;
-  const canEdit = !isManager && ["draft", "rejected", "pending", "pendingreview", "submitted", "approved"].includes(currentStatus);
-  const canValidate = !["completed", "cancelled", "inprogress"].includes(currentStatus);
-  const canCancel = !["inprogress", "completed", "cancelled"].includes(currentStatus);
+  const canEdit = actions?.edit;
+  const canValidate = actions?.validate;
+  const canCancel = actions?.cancel;
   const awaitingApproval = ["submitted", "pending", "pendingapproval", "pendingreview"].includes(currentStatus);
   const approvalTitle = currentStatus === "approved" ? "Flight authorized" : currentStatus === "rejected" ? "Changes requested" : currentStatus === "cancelled" ? "Mission cancelled" : awaitingApproval ? "Awaiting manager review" : "No decision recorded";
   const approvalCopy = currentStatus === "approved" ? "The backend reports that this mission has manager approval." : currentStatus === "rejected" ? "Edit and save the plan to run validation and send it for review again." : currentStatus === "cancelled" ? "No further approval action is available for this mission." : currentStatus === "submitted" ? "The backend accepted the submission. Manager queue visibility depends on pending-status mapping." : awaitingApproval ? "The mission is waiting for manager review. Saving changes submits a separate proposal." : "Approval evidence will appear after the plan is submitted and reviewed.";
@@ -166,28 +194,30 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
         <div className="mission-title-line"><h1>{mission.name}</h1><span className={`status status-${mission.status.toLowerCase()}`}>{formatStatus(mission.status)}</span></div>
         <p>{mission.description ?? "No mission description has been provided."}</p>
       </div>
-      <div className="heading-actions"><Link className="module-secondary module-link" href={isManager ? "/portal/mission-planning" : "/portal/missions"}>&lt; {isManager ? "MISSION PLANNING" : "MY MISSIONS"}</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}{isManager && awaitingApproval && <Link className="module-primary module-link" href={`/portal/mission-approvals?missionId=${encodeURIComponent(mission.id)}`}>REVIEW REQUEST</Link>}</div>
+      <div className="heading-actions"><Link className="module-secondary module-link" href={isManager ? "/portal/mission-planning" : "/portal/missions"}>&lt; {isManager ? "MISSION PLANNING" : "MY MISSIONS"}</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}{actions?.review && <Link className="module-primary module-link" href={`/portal/mission-approvals?missionId=${encodeURIComponent(mission.id)}`}>REVIEW REQUEST</Link>}</div>
     </header>
     {mission.detailAvailable === false && <p className="api-pending-banner" role="status"><b>MISSION DETAIL API PENDING</b> Showing the available mission summary. Route and waypoint data will appear when the backend returns a response from GET /api/missions/{mission.id}.</p>}
 
     <section className="mission-action-feedback" aria-label="Persisted mission validation">
-      <b>Flight readiness: {formatStatus(readinessStatus)}</b>
+      <b>Current mission flight readiness: {formatStatus(readinessStatus)}</b>
       <Link className="module-link" href={readinessHref}>View validation result</Link>
     </section>
 
     {mission.pendingUpdate && <>
       <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
-      <MissionPlanComparison isInitial={mission.pendingUpdate.isInitial} current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
+      <MissionPlanComparison key={mission.pendingUpdate.id} missionId={mission.id} isInitial={mission.pendingUpdate.isInitial} current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
     </>}
-    <MissionEvidencePanel key={id} id={id} />
+    <MissionValidationEvidence missionId={id} validation={readinessValidation} />
+    <MissionEvidencePanel key={`${id}-${mission.status}-${mission.pendingUpdate?.id ?? "current"}`} id={id} />
     <section className="mission-command-panel" aria-label="Mission lifecycle actions">
       <div className="mission-command-state">
         <span>PRE-FLIGHT CONTROL</span>
-        <strong>{validation ? validation.isValid ? "VALIDATION PASSED" : "VALIDATION FAILED" : canValidate ? "VALIDATION REQUIRED" : formatStatus(mission.status).toUpperCase()}</strong>
+        <strong>{validation ? validationState(validation) === "Pass" ? "VALIDATION PASSED" : "VALIDATION FAILED" : canValidate ? "VALIDATION REQUIRED" : formatStatus(mission.status).toUpperCase()}</strong>
         <small>{validation ? validation.message : canValidate ? "Saving the plan automatically validates and sends it for review." : "Lifecycle actions are restricted by the current mission status."}</small>
       </div>
       <div className="mission-command-actions">
-        {currentStatus === "approved" && <button type="button" className="mission-submit-button" disabled={busy !== null} onClick={() => void beginMission()}>{busy === "start" ? "CHECKING..." : "START MISSION WITH PREFLIGHT CHECK"}</button>}
+        {actions?.submit && <button type="button" className="mission-submit-button" disabled={busy !== null} onClick={() => void submitDraft()}>{busy === "submit" ? "SUBMITTING..." : "SUBMIT DRAFT FOR REVIEW"}</button>}
+        {actions?.start && <button type="button" className="mission-submit-button" disabled={busy !== null} onClick={() => void beginMission()}>{busy === "start" ? "CHECKING..." : "START MISSION WITH PREFLIGHT CHECK"}</button>}
         <button type="button" className="mission-validate-button" disabled={!canValidate || busy !== null} onClick={() => void runValidation()}>{busy === "validate" ? "VALIDATING..." : "RUN VALIDATION"}</button>
         {canCancel && <button type="button" className="mission-cancel-button" disabled={busy !== null} onClick={() => setDialog("cancel")}>CANCEL MISSION</button>}
       </div>
@@ -204,8 +234,8 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
 
     <section className="mission-detail-layout">
       <div className="mission-route-panel">
-        <header><div><p className="module-kicker">ROUTE PLAN</p><h2>Mission Flight Path</h2></div><span>{geofences.length} AIRSPACE ZONES</span></header>
-        {mission.waypoints.length > 0 ? <MissionMap waypoints={mission.waypoints} geofences={geofences} readOnly /> : <div className="mission-route-empty"><span>⌁</span><h3>Route data unavailable</h3><p>No waypoint data was returned for this mission.</p></div>}
+        <header><div><p className="module-kicker">ROUTE PLAN</p><h2>Current Mission Flight Path</h2></div><span>{geofences.length} AIRSPACE ZONES</span></header>
+        {mission.waypoints.length > 0 ? <MissionMap waypoints={mission.waypoints} geofences={geofences} readOnly findings={readinessValidation?.findings} /> : <div className="mission-route-empty"><span>⌁</span><h3>Route data unavailable</h3><p>No waypoint data was returned for this mission.</p></div>}
       </div>
       <aside className="mission-overview-panel">
         <header><p className="module-kicker">MISSION RECORD</p><h2>Plan Overview</h2></header>
@@ -232,7 +262,7 @@ export default function MissionDetailClient({ id, role }: { id: string; role: Ac
     </section>
 
     <section className="mission-review-grid">
-      <article><span className={`review-state ${busy === "validate" ? "running" : validation?.isValid ? "passed" : validation ? "failed" : "pending"}`}>{busy === "validate" ? "..." : validation?.isValid ? "OK" : validation ? "!" : "--"}</span><div><p className="module-kicker">BACKEND VALIDATION</p><h2>{busy === "validate" ? "Validation in progress" : validation?.isValid ? "Pre-flight check passed" : validation ? "Pre-flight check failed" : "Not validated"}</h2><p>{validation?.message ?? "No persisted validation result is available for this mission."}</p>{validatedAt && <time>Checked {validatedAt.toLocaleString()}</time>}</div></article>
+      <article><span className={`review-state ${busy === "validate" ? "running" : validationState(validation) === "Pass" ? "passed" : validation ? "failed" : "pending"}`}>{busy === "validate" ? "..." : validationState(validation) === "Pass" ? "OK" : validation ? "!" : "--"}</span><div><p className="module-kicker">BACKEND VALIDATION</p><h2>{busy === "validate" ? "Validation in progress" : validationState(validation) === "Pass" ? "Pre-flight check passed" : validation ? "Pre-flight check failed" : "Not validated"}</h2><p>{validation?.message ?? "No persisted validation result is available for this mission."}</p>{validatedAt && <time>Checked {validatedAt.toLocaleString()}</time>}</div></article>
       <article><span className={`review-state ${currentStatus === "approved" ? "passed" : currentStatus === "rejected" || currentStatus === "cancelled" ? "failed" : awaitingApproval ? "running" : ""}`}>{currentStatus === "approved" ? "OK" : currentStatus === "rejected" || currentStatus === "cancelled" ? "!" : awaitingApproval ? "..." : "--"}</span><div><p className="module-kicker">MANAGER APPROVAL</p><h2>{approvalTitle}</h2><p>{approvalCopy}</p></div></article>
     </section>
 

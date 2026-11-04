@@ -36,6 +36,10 @@ public class TelemetryRecord
     public int? BatteryLevel { get; set; }
 
     public decimal? BatteryVoltageVolts { get; set; }
+    public decimal? BatteryCurrentAmps { get; set; }
+    public decimal? BatteryTemperatureCelsius { get; set; }
+    public int? BatteryConsumedMah { get; set; }
+    public decimal[]? BatteryCellVoltagesVolts { get; set; }
 
     public decimal? BoardTemperatureCelsius { get; set; }
 

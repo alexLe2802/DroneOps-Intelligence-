@@ -130,6 +130,8 @@ object Sample(DateTimeOffset timestamp, Guid? mappedUav = null, decimal? latitud
     latitude, longitude, altitudeMeters = (decimal?)82.4m, altitudeReference = "Relative",
     groundSpeedMetersPerSecond = (decimal?)12.6m, headingDegrees = (decimal?)215.5m,
     batteryPercent = battery, batteryVoltageVolts = (decimal?)15.8m,
+    batteryCurrentAmps = (decimal?)12.5m, batteryTemperatureCelsius = (decimal?)31.5m,
+    batteryConsumedMah = (int?)420, batteryCellVoltagesVolts = new decimal[] { 3.95m, 3.95m, 3.95m, 3.95m },
     boardTemperatureCelsius = (decimal?)47.2m,
     flightMode = "AUTO", armed = true, missionSequence = sequence
 };
@@ -189,6 +191,11 @@ try
     Check(latest.GetProperty("missionSequence").GetInt32() == 3, "latest API keeps the newest projection");
     Check(latest.GetProperty("latitude").GetDecimal() == 10.849m && latest.GetProperty("progressPercent").GetDouble() == 75, "units, map coordinates and mission progress survive end-to-end");
     Check(latest.GetProperty("headingDegrees").GetDecimal() == 215.5m && latest.GetProperty("batteryVoltageVolts").GetDecimal() == 15.8m, "optional heading and battery voltage are preserved when supplied");
+    Check(latest.GetProperty("batteryCurrentAmps").GetDecimal() == 12.5m &&
+          latest.GetProperty("batteryTemperatureCelsius").GetDecimal() == 31.5m &&
+          latest.GetProperty("batteryConsumedMah").GetInt32() == 420 &&
+          latest.GetProperty("batteryCellVoltagesVolts").GetArrayLength() == 4,
+          "battery current, temperature, consumed charge and cells survive ingestion and latest API");
     Check(latest.GetProperty("environmentalTemperatureCelsius").ValueKind == JsonValueKind.Null && latest.GetProperty("relativeHumidityPercent").ValueKind == JsonValueKind.Null && latest.GetProperty("environmentalSensorStatus").GetString() == "Unavailable", "missing environmental sensors stay null/unavailable and are not weather substitutes");
 
     await using (var scope = app.Services.CreateAsyncScope())

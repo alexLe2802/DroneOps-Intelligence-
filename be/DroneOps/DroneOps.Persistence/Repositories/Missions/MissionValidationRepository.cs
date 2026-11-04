@@ -1,13 +1,16 @@
 ﻿using System.Data;
+using DroneOps.Domain.Constants;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace DroneOps.Persistence.Repositories;
 
 public sealed class MissionValidationRepository(
-    AppDbContext db)
+    AppDbContext db,
+    IMemoryCache cache)
     : IMissionValidationRepository
 {
     public async Task<Mission?> GetMissionWithWaypointsAsync(
@@ -71,6 +74,34 @@ public sealed class MissionValidationRepository(
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<List<MissionValidationRun>> GetLatestRunsAsync(
+        IReadOnlyCollection<Guid> missionIds,
+        bool preflightOnly,
+        CancellationToken cancellationToken = default)
+    {
+        if (missionIds.Count == 0)
+        {
+            return [];
+        }
+
+        var query = db.MissionValidationRuns
+            .AsNoTracking()
+            .Where(x => x.MissionId.HasValue && missionIds.Contains(x.MissionId.Value));
+
+        if (preflightOnly)
+        {
+            query = query.Where(x => x.Stage == "Preflight");
+        }
+
+        return await query
+            .GroupBy(x => x.MissionId)
+            .Select(group => group
+                .OrderByDescending(x => x.CheckedAt)
+                .ThenByDescending(x => x.Id)
+                .First())
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<MissionValidationRun?> GetRunAsync(
         Guid missionId,
         Guid runId,
@@ -103,9 +134,22 @@ public sealed class MissionValidationRepository(
     public async Task<List<Geofence>> GetGeofencesAsync(
         CancellationToken cancellationToken = default)
     {
-        return await db.Geofences
+        if (cache.TryGetValue(
+                GeofenceCacheKeys.Snapshot,
+                out IReadOnlyList<Geofence>? cached) && cached is not null)
+        {
+            return cached.ToList();
+        }
+
+        var snapshot = await db.Geofences
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+
+        cache.Set(
+            GeofenceCacheKeys.Snapshot,
+            (IReadOnlyList<Geofence>)snapshot,
+            GeofenceCacheKeys.SnapshotLifetime);
+        return snapshot;
     }
 
     public async Task<List<(Guid Id, long Revision)>>
