@@ -119,3 +119,108 @@ cùng phiên bản; Jetson cũ phải chạy setup/ghép một lần để nhậ
 
 Kiểm thử software không thay thế test reboot Jetson, tháo/cắm serial, đổi Wi‑Fi,
 lease hết hạn, chọn mission mới và thu hồi credential trên phần cứng thật.
+
+## Appendix: Jetson hardware and manual router setup
+
+### Chuẩn bị phần cứng một lần
+
+- Jetson Orin Nano Developer Kit NVIDIA có JetPack tương thích, SSD 256 GB, tản nhiệt/quạt.
+- Pixhawk 6C đã cấu hình bay, receiver ELRS hoạt động.
+- USB-UART có TX/RX logic 3,3 V (không phải RS-232), dây TELEM2.
+- Nguồn DC-DC riêng cho Jetson, mạng Wi-Fi/router hoặc modem.
+
+SSD 256 GB đủ cho hệ điều hành, gateway, telemetry và phát triển ban đầu. Giữ khoảng 40-50 GB trống, giới hạn log. Kiểm tra `df -h` và `findmnt /`: gắn NVMe không tự chuyển root filesystem từ microSD. Cài JetPack/NVMe theo hướng dẫn NVIDIA, sao lưu trước khi flash.
+
+LiPo 4S thường là 14,8 V danh định, 16,8 V đầy. Dùng DC-DC ổn áp riêng đúng yêu cầu carrier board và tải Jetson. Không cấp Jetson từ TELEM. Developer kit NVIDIA dùng DC jack 5,5 x 2,5 mm; USB-C là dữ liệu. Đối chiếu revision, điện áp/cực tính bằng tài liệu và adapter gốc. Thử trên bàn bằng adapter gốc trước.
+
+Tháo cánh, ngắt nguồn khi đấu. TELEM2 Pixhawk 6C:
+
+| Pin | Tín hiệu | USB-UART |
+|---|---|---|
+| 1 | +5 V | Không nối |
+| 2 | TX 3,3 V | RX |
+| 3 | RX 3,3 V | TX |
+| 4, 5 | CTS, RTS | Không nối trong cấu hình ba dây |
+| 6 | GND | GND |
+
+Cắm adapter vào Jetson. Xác nhận chiều pin theo Holybro, không đoán theo màu dây. Cấp Pixhawk qua power module. USB Pixhawk-Jetson trực tiếp chỉ dùng chẩn đoán bàn trước khi xác nhận hành vi firmware.
+
+### Cấu hình Pixhawk một lần
+
+QGroundControl không xác nhận firmware là PX4: xem tên/phiên bản trước, sao lưu tham số. Không flash firmware chỉ để làm theo ví dụ.
+
+Nếu là PX4, chọn TELEM2 và một MAVLink instance còn trống, ví dụ:
+
+```text
+MAV_1_CONFIG = TELEM 2
+MAV_1_MODE = Onboard
+SER_TEL2_BAUD = 115200
+MAV_1_RATE = 5000
+MAV_1_FLOW_CTRL = Force off (nếu phiên bản có tham số này)
+```
+
+Chọn tên tùy chọn thay vì đoán enum; lưu/reboot/kiểm tra lại. Không cho driver khác giữ TELEM2. RATE là giới hạn B/s, không phải Hz. Baud installer phải khớp Pixhawk: nếu giữ 921600 thì nhập 921600 khi cài.
+
+Nếu là ArduPilot: kiểm tra mapping TELEM2/SERIAL2, ví dụ `SERIAL2_PROTOCOL=2`, `SERIAL2_BAUD=115` cho 115200; tắt hardware flow control tương ứng khi dùng ba dây. Không dùng tham số PX4 trên ArduPilot.
+
+### Cài MAVLink Router
+
+Chạy các lệnh trong mục này **trên Jetson qua terminal hoặc SSH**, không chạy trong PowerShell laptop. Router nhận MAVLink từ cổng Pixhawk và chia cho gateway/GCS. Không cần cắm Pixhawk để cài phần mềm router.
+
+Installer `install-jetson.sh` đã tự cài router nếu thiếu. Chỉ làm thủ công bên dưới khi muốn chuẩn bị trước hoặc chẩn đoán lỗi cài đặt. Nếu đã có router, kiểm tra rồi chuyển sang mục 2:
+
+```bash
+command -v mavlink-routerd
+mavlink-routerd --version
+```
+
+**Cách A - qua apt nếu kho Ubuntu có gói:**
+
+```bash
+sudo apt update
+sudo apt install -y mavlink-router
+```
+
+Nếu hiện `Unable to locate package mavlink-router`, dùng cách B. Đây không nhất thiết là lỗi mạng: kho Ubuntu/JetPack của bạn có thể không cung cấp gói. Trên Jetson của bạn chạy Ubuntu 24.04 ARM64, lần cài thực tế đã phải dùng cách B.
+
+**Cách B - build từ repository chính thức:**
+
+```bash
+sudo apt update
+sudo apt install -y git meson ninja-build pkg-config gcc g++ libsystemd-dev
+
+mkdir -p ~/droneops-tools
+git clone --recurse-submodules https://github.com/mavlink-router/mavlink-router.git ~/droneops-tools/mavlink-router
+cd ~/droneops-tools/mavlink-router
+
+meson setup build .
+ninja -C build
+sudo ninja -C build install
+```
+
+Nếu thư mục source đã tồn tại từ lần trước, không clone đè hoặc xóa thư mục. Vào source hiện có rồi tiếp tục:
+
+```bash
+cd ~/droneops-tools/mavlink-router
+git submodule update --init --recursive
+# Chỉ chạy lệnh setup nếu chưa có thư mục build đã cấu hình thành công:
+meson setup build .
+ninja -C build
+sudo ninja -C build install
+```
+
+Nếu build đã cấu hình thành công, bỏ lệnh `meson setup` và chạy từ `ninja`. Nếu setup báo thiếu dependency, sửa lỗi được in ra rồi chạy lại; không chạy bước install khi build thất bại. Không cần `sudo` cho clone/setup/build, chỉ dùng cho apt và install.
+
+**Xác nhận sau cài:**
+
+```bash
+command -v mavlink-routerd
+mavlink-routerd --version
+git -C ~/droneops-tools/mavlink-router rev-parse HEAD
+```
+
+Lệnh Git cuối chỉ áp dụng cách B; lưu commit để tái tạo môi trường. Binary có thể nằm ở `/usr/bin/mavlink-routerd` hoặc `/usr/local/bin/mavlink-routerd` tùy cấu hình build. Dùng kết quả `command -v`, không mặc định một đường dẫn. Lần cài thực tế trên Jetson của bạn nằm ở `/usr/bin/mavlink-routerd`.
+
+Cài binary chưa có nghĩa router đã kết nối Pixhawk. Chưa bật service `mavlink-router` mặc định chỉ để thử: installer DroneOps sẽ tạo cấu hình `/etc/droneops-router/main.conf` và service **`droneops-router`** riêng sau khi bạn chọn serial/baud. Không chạy hai router cùng giữ cổng Pixhawk.
+
+Hướng dẫn upstream: [MAVLink Router - Compilation and Installation](https://github.com/mavlink-router/mavlink-router#compilation-and-installation).
