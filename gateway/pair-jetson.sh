@@ -41,7 +41,7 @@ pair_gateway() {
     --system-id "$MAVLINK_SYSTEM_ID" \
     --component-id "$MAVLINK_COMPONENT_ID" \
     --session-file /var/lib/droneops-gateway/session.private.json \
-    --new-pairing --pair-only "$@" "${extra[@]}"
+    --new-pairing --pair-only --remember-device "$@" "${extra[@]}"
 }
 if [[ -n "$pair_code" ]]; then
   printf '%s\n' "$pair_code" | pair_gateway --pair-code-stdin

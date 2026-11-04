@@ -130,3 +130,7 @@ __pycache__/
 *.pyc
 tmp/
 .vercel
+
+# Persistent gateway credentials
+gateway/.sessions/
+**/*.private.json

@@ -27,6 +27,8 @@ public static class MissionPlans
 
             UAVId = request.UavId,
 
+            AutomaticFlightRequested = request.AutomaticFlightRequested,
+
             Name = request.Name.Trim(),
             Description = request.Description,
 
@@ -89,6 +91,8 @@ public static class MissionPlans
         {
             UavId =
                 mission.UAVId ?? Guid.Empty,
+
+            AutomaticFlightRequested = mission.AutomaticFlightRequested,
 
             Name =
                 mission.Name,

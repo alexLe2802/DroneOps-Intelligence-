@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
 
     public DbSet<DroneHardwareIdentity> DroneHardwareIdentities { get; set; }
     public DbSet<DroneConnection> DroneConnections { get; set; }
+    public DbSet<MissionAutomationState> MissionAutomationStates { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Pilot> Pilots { get; set; }
     public DbSet<Role> Roles { get; set; }
