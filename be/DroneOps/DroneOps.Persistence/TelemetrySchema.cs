@@ -8,6 +8,7 @@ public static class TelemetrySchema
     {
         await ApplyEmbeddedAsync(source, "DroneOps.Persistence.Migrations.005_nullable_live_telemetry.sql");
         await ApplyEmbeddedAsync(source, "DroneOps.Persistence.Migrations.008_realtime_incident_lifecycle.sql");
+        await ApplyEmbeddedAsync(source, "DroneOps.Persistence.Migrations.010_battery_telemetry.sql");
         await CheckAsync(source);
     }
 
@@ -16,6 +17,7 @@ public static class TelemetrySchema
         // LIMIT 0 checks the new telemetry columns without reading flight data.
         await using var command = source.CreateCommand("""
             SELECT t."HeadingDegrees", t."BatteryVoltageVolts", t."BoardTemperatureCelsius",
+                   t."BatteryCurrentAmps", t."BatteryTemperatureCelsius", t."BatteryConsumedMah", t."BatteryCellVoltagesVolts",
                    transition."EventType", alert."ReadAt"
             FROM "TelemetryRecord" t
             LEFT JOIN "IncidentTransition" transition ON FALSE
@@ -32,7 +34,8 @@ public static class TelemetrySchema
                 "Telemetry schema is out of date. Run the API with --migrate-telemetry " +
                 "against this database before starting it, or apply " +
                 "database/migrations/005_nullable_live_telemetry.sql and " +
-                "database/migrations/008_realtime_incident_lifecycle.sql. " +
+                "database/migrations/008_realtime_incident_lifecycle.sql and " +
+                "database/migrations/010_battery_telemetry.sql. " +
                 "The base application schema must already exist.", ex);
         }
     }

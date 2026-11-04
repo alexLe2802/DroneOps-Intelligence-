@@ -22,6 +22,10 @@ public class MissionLatestTelemetryResponse
     public decimal? HeadingDegrees { get; set; }
     public int? BatteryPercent { get; set; }
     public decimal? BatteryVoltageVolts { get; set; }
+    public decimal? BatteryCurrentAmps { get; set; }
+    public decimal? BatteryTemperatureCelsius { get; set; }
+    public int? BatteryConsumedMah { get; set; }
+    public decimal[]? BatteryCellVoltagesVolts { get; set; }
     public decimal? BoardTemperatureCelsius { get; set; }
     public decimal? EnvironmentalTemperatureCelsius { get; set; }
     public decimal? RelativeHumidityPercent { get; set; }
