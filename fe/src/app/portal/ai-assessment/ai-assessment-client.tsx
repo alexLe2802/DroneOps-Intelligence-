@@ -5,6 +5,7 @@ import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 import { createAiAssessment, getAiAssessments, getMission, getValidationMissionOptions, type ValidationMissionOption } from "@/lib/portal/client";
 import type { AccountRole } from "@/lib/auth/types";
 import type { AiAssessment, MissionDetail } from "@/lib/portal/types";
+import { formatAutomaticLimits } from "@/lib/portal/automatic-flight-limits";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
 
 const metric = (value: number | null | undefined, unit: string) => value == null ? "Unavailable" : `${value.toFixed(1)} ${unit}`;
@@ -61,6 +62,7 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
     {error && <section className="ai-unavailable" role="alert"><b>ASSESSMENT UNAVAILABLE</b><p>{error instanceof Error ? error.message : "Request failed."}</p></section>}
     {selected && !items && !error && <ModuleLoading label="Loading assessment history" />}
     {selected && items?.length === 0 && <ModuleEmpty title="No assessment yet" message="Generate an assessment to review recorded risks and battery evidence." />}
+    {latest?.result?.automaticFlightLimits && <section className="ai-context"><h2>Automatic operating envelope</h2><p>{formatAutomaticLimits(latest.result.automaticFlightLimits)}</p><p>Cruise: {metric(latest.result.cruiseSpeedMetersPerSecond, "m/s")} · Maximum horizontal speed: {metric(latest.result.maxSpeedMetersPerSecond, "m/s")}</p></section>}
     {battery && <section className="ai-context" aria-label="Battery assessment"><header><h2>Battery requirement · {battery.status === "EstimateOnly" ? "Estimate only" : "More data required"}</h2></header>
       <dl><div><dt>FC BATTERY REMAINING</dt><dd>{metric(battery.currentBatteryPercent, "%")}</dd></div><div><dt>FC CONSUMED CHARGE</dt><dd>{metric(battery.consumedMah, "mAh")}</dd></div><div><dt>CONFIGURED PACK CAPACITY</dt><dd>{metric(battery.configuredCapacityMah, "mAh")}</dd></div><div><dt>ESTIMATED CHARGE REMAINING</dt><dd>{metric(battery.estimatedRemainingChargeMah, "mAh")}</dd></div><div><dt>ESTIMATED MISSION REQUIREMENT</dt><dd>{metric(battery.requiredBatteryPercent, "%")} / {metric(battery.estimatedRequiredChargeMah, "mAh")}</dd></div></dl>
       <p>Capacity source: {battery.capacitySource}. Consumed charge is not the full capacity of the battery.</p>

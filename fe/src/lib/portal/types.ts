@@ -1,9 +1,16 @@
+export type AutomaticFlightLimits = {
+  takeoffSpeedMetersPerSecond: number; climbSpeedMetersPerSecond: number;
+  descentSpeedMetersPerSecond: number; landingSpeedMetersPerSecond: number;
+  maxAltitudeMeters: number; maxWindMetersPerSecond: number; maxGustMetersPerSecond: number;
+  policyVersion: string;
+};
 import type { AccountRole } from "@/lib/auth/types";
 
 export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Pending Confirm" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
 
 export type PilotMission = {
   automaticFlightRequested?: boolean;
+  automaticFlightLimits?: AutomaticFlightLimits | null;
   id: string;
   createdBy?: string;
   name: string;
@@ -28,7 +35,10 @@ export type PagedResponse<T> = {
 
 // CapturePhoto is retained only to read historical records; new camera actions are deferred.
 export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
+export type WaypointNavigation = { speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null };
+export type FirmwareParameterSnapshot = { firmwareVersion: string; values: Record<string, number>; observedAtUtc: string; hardwareIdentity?: string | null; source: string };
 export type MissionWaypoint = {
+  navigation?: WaypointNavigation | null;
   sequenceOrder: number;
   latitude: number;
   longitude: number;
@@ -37,6 +47,7 @@ export type MissionWaypoint = {
 };
 export type CreateMissionRequest = {
   automaticFlightRequested?: boolean;
+  automaticFlightLimits?: AutomaticFlightLimits | null;
   operationId?: string;
   altitudeReference?: "AGL" | "MSL" | "Relative" | null;
   uavId: string;
@@ -229,6 +240,7 @@ export type MissionDecision = {
 export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
 export type AssignedUav = {
+  firmwareNavigationDefaults?: FirmwareParameterSnapshot | null;
   id: string;
   code: string;
   name: string;
@@ -244,6 +256,7 @@ export type AssignedUav = {
   batteryType: string | null;
   batteryCapacityMah: number | null;
   batteryVoltage: number | null;
+  batteryMaxVoltage?: number | null;
   batteryCellCount: number | null;
   maxFlightTimeMinutes: number | null;
   maxRangeKm: number | null;
@@ -271,6 +284,7 @@ export type CreateUavRequest = {
   batteryType: string | null;
   batteryCapacityMah: number | null;
   batteryVoltage: number | null;
+  batteryMaxVoltage?: number | null;
   batteryCellCount: number | null;
   maxFlightTimeMinutes: number | null;
   maxRangeKm: number | null;
@@ -362,7 +376,7 @@ export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
   status: "Pending" | "Available" | "Failed";
-  result: { battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
+  result: { automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
     retrieval?: { method: string; featureSchema: string; maximumResults: number };
     historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; incidentIds: string[] }> } | null;
   errorCode: string | null; createdAt: string; completedAt: string | null;

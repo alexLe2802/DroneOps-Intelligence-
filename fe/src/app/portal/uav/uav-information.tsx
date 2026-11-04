@@ -35,7 +35,8 @@ export default function UavInformation({ aircraft }: { aircraft: AssignedUav }) 
       <article><h3>Battery system</h3><dl>
         <Field label="Battery type" value={aircraft.batteryType ?? "Not specified"} />
         <Field label="Capacity" value={metric(aircraft.batteryCapacityMah, "mAh", 0)} />
-        <Field label="Voltage" value={metric(aircraft.batteryVoltage, "V")} />
+        <Field label="Maximum pack voltage" value={metric(aircraft.batteryMaxVoltage ?? null, "V")} />
+        <Field label="Nominal voltage (legacy)" value={metric(aircraft.batteryVoltage, "V")} />
         <Field label="Cell count" value={aircraft.batteryCellCount ?? "Not specified"} />
       </dl></article>
       <article><h3>Performance limits</h3><dl>
