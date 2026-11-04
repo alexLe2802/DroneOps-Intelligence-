@@ -96,8 +96,9 @@ riêng, không cần để kết nối website.
 - Jetson giữ credential ở `/var/lib/droneops-gateway/session.private.json`.
   Laptop giữ riêng từng controller trong `.sessions/`. Không tải các file này lên
   web/chat/Git. ZIP do hệ thống phát hành không chứa credential.
-- Pairing, gateway online hoặc xác nhận readiness đều không ARM/cất cánh.
-  Luồng điều khiển tự động được mô tả trong `docs/automatic-flight-proposal.md`.
+- Pairing, gateway online hoặc xác nhận readiness không tự ARM/cất cánh.
+  Thực thi theo lịch cần đủ consent, upload/read-back và toàn bộ dispatch gate.
+  Xem [Vận hành bay tự động](automatic-flight-operations.md).
 
 ## 5. Chẩn đoán Jetson (chỉ khi cần)
 
