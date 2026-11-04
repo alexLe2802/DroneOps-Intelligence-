@@ -15,6 +15,9 @@
   EndTime không được hiểu là đồng ý bay. Hết EndTime hoặc mission đã Completed/
   Cancelled/Aborted/Failed/InProgress thì không gửi thêm nhắc chuẩn bị.
 - `GET /api/missions/{id}/automation/plan` xuất dữ liệu kế hoạch cho chủ mission.
+- Endpoint này bổ sung `compilationPreviews` cho ArduPilot/PX4: compiler kiểm tra
+  input và dựng candidate MISSION_ITEM_INT. Các lựa chọn chưa được duyệt/điền
+  đầy đủ trả NeedsInput; preview không được quyền upload hoặc start.
 - **Chưa có uploader/ARM/TAKEOFF/AUTO/MISSION_START xuống flight controller.**
   `dispatchEnabled=false` được trả rõ ràng. Xác nhận chỉ lưu readiness, không
   đổi mission thành đang bay và không tác động động cơ.
@@ -126,8 +129,8 @@ Ví dụ dữ liệu kế hoạch (đây không phải gói MAVLink đã sẵn s
 | Hạ cánh/VTOL | điểm tiếp cận, approach altitude/slope, VTOL transition, landing policy; không dùng chung một chuỗi lệnh cho mọi airframe |
 | Failsafe | pin thấp, mất RC, mất telemetry/GCS, mất GPS/EKF, geofence, RTL altitude và điểm đáp dự phòng |
 
-`MSL` có thể dùng `MAV_FRAME_GLOBAL_INT`, `Relative` dùng
-`MAV_FRAME_GLOBAL_RELATIVE_ALT_INT`. `AGL` chỉ dùng terrain frame khi firmware và
+`MSL` dùng `MAV_FRAME_GLOBAL` (0), `Relative` dùng
+`MAV_FRAME_GLOBAL_RELATIVE_ALT` (3); với MISSION_ITEM_INT, x/y vẫn là int32 E7. `AGL` chỉ dùng terrain frame khi firmware và
 terrain thực sự hỗ trợ; không đổi AGL thành relative bằng cách thay tên field.
 
 Các command ứng viên: `MAV_CMD_NAV_TAKEOFF` (22), `NAV_WAYPOINT` (16),
@@ -177,3 +180,6 @@ Nguồn chính thức:
 
 Camera/CapturePhoto được hoãn khỏi luồng tạo/sửa nhiệm vụ hiện tại. Dữ liệu lịch
 sử vẫn được giữ; không đưa camera vào yêu cầu dữ liệu cho adapter ở giai đoạn này.
+
+Bước triển khai compiler và bản dữ liệu/failsafe chờ duyệt: xem
+[automatic-flight-data-and-failsafe-review.md](automatic-flight-data-and-failsafe-review.md).

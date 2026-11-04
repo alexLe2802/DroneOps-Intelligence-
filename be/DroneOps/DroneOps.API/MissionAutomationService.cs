@@ -4,6 +4,7 @@ using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
+using DroneOps.Application.Services.Missions;
 
 namespace DroneOps.API;
 
@@ -148,6 +149,8 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
             altitudeReference = mission.AltitudeReference, averageSpeedMetersPerSecond = mission.AverageSpeedMetersPerSecond,
             maxSpeedMetersPerSecond = mission.MaxSpeedMetersPerSecond,
             supportedFirmwareTargets = new[] { "ArduPilot", "PX4" },
+            compilationPreviews = new[] { "ArduPilot", "PX4" }.Select(firmware =>
+                MissionCommandCompiler.Compile(mission, new MissionCompileOptions(firmware))).ToArray(),
             waypoints = mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => new
             {
                 sequenceOrder = w.SequenceOrder, latitudeDegrees = w.Latitude, longitudeDegrees = w.Longitude,
