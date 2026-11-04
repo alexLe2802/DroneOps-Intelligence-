@@ -11,4 +11,5 @@ public sealed class CreateWaypointRequest
     public decimal? Altitude { get; set; }
 
     public string? ActionType { get; set; }
+    public DroneOps.Domain.Entities.WaypointNavigation? Navigation { get; set; }
 }

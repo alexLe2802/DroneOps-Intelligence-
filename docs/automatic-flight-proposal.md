@@ -1,5 +1,8 @@
 # Chuẩn bị bay tự động — ArduPilot và PX4
 
+Cập nhật luồng tạo mission, nguồn tham số FC, giới hạn vận hành và phân xử lỗi
+đồng thời: [Operating envelope and recovery](automatic-flight-operating-envelope.md).
+
 ## Phạm vi bản thay đổi này
 
 - Mission có lựa chọn `AutomaticFlightRequested`, mặc định tắt. Thay đổi lựa chọn

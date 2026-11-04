@@ -33,7 +33,8 @@ class ControlBridge:
                 return None
             evidence = self.evidence
             if time.monotonic() - self.evidence_at >= 3:
-                evidence = dict(evidence, armed=None, landedState=None, navigationReady=False, preArmReady=False)
+                evidence = dict(evidence, armed=None, landedState=None, navigationReady=False, preArmReady=False,
+                    homeLatitudeDegrees=None, homeLongitudeDegrees=None, homeAltitudeMslMeters=None)
             return {'evidence': dict(evidence, gatewayInstance=self.instance), 'report': self.report}
 
     def receive(self, response, payload):
@@ -60,6 +61,8 @@ class FlightControl:
         self.requested = set()
         self.handled = set()
         self.last_gcs_heartbeat = float('-inf')
+        self.parameters = {}
+        self.parameters_requested = float('-inf')
 
     def fresh(self, kind, seconds=3):
         item = self.seen.get(kind)
@@ -69,18 +72,44 @@ class FlightControl:
         hb, landed, health, gps = (self.fresh(k) for k in ('HEARTBEAT', 'EXTENDED_SYS_STATE', 'SYS_STATUS', 'GPS_RAW_INT'))
         version, home = self.fresh('AUTOPILOT_VERSION', 15), self.fresh('HOME_POSITION', 15)
         firmware = {3: 'ArduPilot', 12: 'PX4'}.get(hb.autopilot) if hb else None
+        valid_home = bool(home and -900000000 <= home.latitude <= 900000000 and -1800000000 <= home.longitude <= 1800000000
+                          and (home.latitude != 0 or home.longitude != 0))
         # Only multicopters with MISSION_INT capability are accepted by this profile.
         navigation = bool(hb and hb.type in (2, 3, 4, 13, 14, 15, 29, 35) and gps and 3 <= gps.fix_type <= 8
-                          and version and version.capabilities & 4 and home
-                          and (home.latitude != 0 or home.longitude != 0)
+                          and version and version.capabilities & 4 and valid_home
                           and health and health.onboard_control_sensors_enabled != 0
                           and (health.onboard_control_sensors_health & health.onboard_control_sensors_enabled)
                           == health.onboard_control_sensors_enabled)
         prearm = bool(navigation and health.onboard_control_sensors_enabled & (1 << 28)
                       and health.onboard_control_sensors_health & (1 << 28))
+        parameters = {name: value for name, (value, seen, utc) in self.parameters.items() if self.clock() - seen <= 60}
+        version_number = getattr(version, 'flight_sw_version', 0) if version else 0
+        parameter_snapshot = None
+        if parameters and version_number:
+            oldest = min(utc for name, (_, seen, utc) in self.parameters.items() if name in parameters)
+            parameter_snapshot = {'firmwareVersion': '%d.%d.%d' % (version_number >> 24, (version_number >> 16) & 255, (version_number >> 8) & 255),
+                'values': parameters, 'observedAtUtc': oldest}
         return {'firmware': firmware, 'armed': bool(hb.base_mode & 128) if hb else None,
                 'landedState': landed.landed_state if landed else None,
-                'navigationReady': navigation, 'preArmReady': prearm, 'uploadedHash': self.uploaded_hash}
+                'navigationReady': navigation, 'preArmReady': prearm, 'uploadedHash': self.uploaded_hash,
+                'homeLatitudeDegrees': home.latitude / 1e7 if valid_home else None,
+                'homeLongitudeDegrees': home.longitude / 1e7 if valid_home else None,
+                'homeAltitudeMslMeters': home.altitude / 1000 if valid_home else None,
+                'firmwareParameters': parameter_snapshot}
+
+    def request_parameters(self, link):
+        if self.clock() - self.parameters_requested < 20:
+            return
+        heartbeat = self.fresh('HEARTBEAT')
+        if not heartbeat:
+            return
+        names = ('WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED',
+                 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS') if heartbeat.autopilot == 3 else (
+                 'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN',
+                 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST') if heartbeat.autopilot == 12 else ()
+        for name in names:
+            link.mav.param_request_read_send(self.system, self.component, name.encode('ascii'), -1)
+        self.parameters_requested = self.clock()
 
     def grounded(self):
         evidence = self.evidence()
@@ -97,6 +126,13 @@ class FlightControl:
         if message.get_srcSystem() != self.system or message.get_srcComponent() != self.component:
             return
         kind = message.get_type()
+        if kind == 'PARAM_VALUE':
+            name = message.param_id.decode('ascii', errors='ignore') if isinstance(message.param_id, bytes) else message.param_id
+            name = name.split('\0')[0]
+            allowed = {'WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED', 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS',
+                'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN', 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST'}
+            if name in allowed and math.isfinite(message.param_value):
+                self.parameters[name] = (message.param_value, self.clock(), dt.datetime.now(dt.timezone.utc).isoformat())
         if kind == 'HEARTBEAT' and (message.type == 6 or message.autopilot == 8):
             return
         if kind in ('HEARTBEAT', 'EXTENDED_SYS_STATE', 'SYS_STATUS', 'GPS_RAW_INT', 'AUTOPILOT_VERSION', 'HOME_POSITION'):
@@ -174,6 +210,7 @@ class FlightControl:
 
     def tick(self, link):
         now = self.clock()
+        self.request_parameters(link)
         with self.bridge.lock:
             instance = self.bridge.instance
         if self.instance != instance:
@@ -226,6 +263,12 @@ class FlightControl:
             return
         if action == 'Upload':
             plan = response.get('mission')
+            if plan and (plan.get('operationalEnvelope') or {}).get('fcParameterVerificationRequired'):
+                # The new policy must not be mistaken for an onboard limit. Until
+                # a versioned parameter adapter has read-back proof, fail closed.
+                print('FC operating-envelope parameter verification is required. Upload/ARM blocked.', flush=True)
+                self.finish(False)
+                return
             if evidence['armed'] or not plan or plan.get('firmwareTarget') != evidence['firmware']:
                 self.finish(False)
                 return

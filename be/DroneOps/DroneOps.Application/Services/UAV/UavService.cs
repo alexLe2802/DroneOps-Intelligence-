@@ -76,6 +76,8 @@ public sealed class UavService : IUavService
             request.MaxSpeedKmh,
             request.MaxWindSpeedMps,
             request.MaxOperatingAltitudeMeters);
+        if (request.BatteryMaxVoltage is <= 0 || request.BatteryMaxVoltage < request.BatteryVoltage)
+            throw new ArgumentException("Battery maximum voltage must be positive and at least the nominal voltage when both are known.");
 
         var uav = new UAV
         {
@@ -98,6 +100,7 @@ public sealed class UavService : IUavService
             BatteryType = Normalize(request.BatteryType),
             BatteryCapacityMah = request.BatteryCapacityMah,
             BatteryVoltage = request.BatteryVoltage,
+            BatteryMaxVoltage = request.BatteryMaxVoltage,
             BatteryCellCount = request.BatteryCellCount,
 
             // Flight capabilities
@@ -271,6 +274,8 @@ public sealed class UavService : IUavService
             request.MaxSpeedKmh,
             request.MaxWindSpeedMps,
             request.MaxOperatingAltitudeMeters);
+        if (request.BatteryMaxVoltage is <= 0 || request.BatteryMaxVoltage < request.BatteryVoltage)
+            throw new ArgumentException("Battery maximum voltage must be positive and at least the nominal voltage when both are known.");
 
         // Basic information
         uav.Code = newCode;
@@ -288,6 +293,7 @@ public sealed class UavService : IUavService
         uav.BatteryType = Normalize(request.BatteryType);
         uav.BatteryCapacityMah = request.BatteryCapacityMah;
         uav.BatteryVoltage = request.BatteryVoltage;
+        uav.BatteryMaxVoltage = request.BatteryMaxVoltage;
         uav.BatteryCellCount = request.BatteryCellCount;
 
         // Flight capability
@@ -799,6 +805,8 @@ public sealed class UavService : IUavService
             BatteryType = uav.BatteryType,
             BatteryCapacityMah = uav.BatteryCapacityMah,
             BatteryVoltage = uav.BatteryVoltage,
+            BatteryMaxVoltage = uav.BatteryMaxVoltage,
+            FirmwareNavigationDefaults = uav.FirmwareNavigationDefaultsJson == null ? null : System.Text.Json.JsonSerializer.Deserialize<FirmwareParameterSnapshot>(uav.FirmwareNavigationDefaultsJson, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
             BatteryCellCount = uav.BatteryCellCount,
 
             // Flight capabilities

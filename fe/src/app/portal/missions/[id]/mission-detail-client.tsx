@@ -3,6 +3,7 @@
 import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
+import { formatAutomaticLimits } from "@/lib/portal/automatic-flight-limits";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AccountRole } from "@/lib/auth/types";
 import { cancelMission, getGeofences, getMission, startMission, updateMission, validateMission } from "@/lib/portal/client";
@@ -159,6 +160,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
         uavId: mission.uavId, startTime: mission.startTime, endTime: mission.endTime,
         averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond,
         maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond,
+        automaticFlightRequested: mission.automaticFlightRequested, automaticFlightLimits: mission.automaticFlightLimits,
         altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null,
         waypoints: mission.waypoints,
       });
@@ -208,7 +210,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
 
     {mission.pendingUpdate && <>
       <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
-      <MissionPlanComparison key={mission.pendingUpdate.id} missionId={mission.id} isInitial={mission.pendingUpdate.isInitial} current={{ automaticFlightRequested: mission.automaticFlightRequested ?? false, uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
+      <MissionPlanComparison key={mission.pendingUpdate.id} missionId={mission.id} isInitial={mission.pendingUpdate.isInitial} current={{ automaticFlightLimits: mission.automaticFlightLimits, automaticFlightRequested: mission.automaticFlightRequested ?? false, uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
     </>}
     <MissionValidationEvidence missionId={id} validation={readinessValidation} />
     <MissionEvidencePanel key={`${id}-${mission.status}-${mission.pendingUpdate?.id ?? "current"}`} id={id} />
@@ -248,6 +250,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
           <div><dt>End time</dt><dd>{formatDate(mission.endTime)}</dd></div>
           <div><dt>Average speed</dt><dd>{mission.averageSpeedMetersPerSecond == null ? "Not provided" : `${mission.averageSpeedMetersPerSecond} m/s`}</dd></div>
           <div><dt>Maximum speed</dt><dd>{mission.maxSpeedMetersPerSecond == null ? "Not provided" : `${mission.maxSpeedMetersPerSecond} m/s`}</dd></div>
+          {mission.automaticFlightRequested && <div><dt>Automatic operating envelope</dt><dd>{formatAutomaticLimits(mission.automaticFlightLimits)}</dd></div>}
           <div><dt>Created</dt><dd>{mission.createdAt ? formatDate(mission.createdAt) : "Not provided"}</dd></div>
           <div><dt>Mission ID</dt><dd className="mission-id-value">{mission.id}</dd></div>
         </dl>
