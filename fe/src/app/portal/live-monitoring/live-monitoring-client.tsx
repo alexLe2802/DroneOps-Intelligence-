@@ -3,8 +3,8 @@
 import { formatVietnamDateTime, formatVietnamTime } from "@/lib/portal/vietnam-time";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getLatestMissionTelemetry, getLiveMissions, getMission, getMissionIncidents, liveMissionStreamUrl } from "@/lib/portal/client";
-import type { IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
+import { getAssignedUav, getManagedUav, getLatestMissionTelemetry, getLiveMissions, getMission, getMissionIncidents, liveMissionStreamUrl } from "@/lib/portal/client";
+import type { AssignedUav, IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
 import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
 import { armingDisplay } from "@/lib/portal/arming-state";
 import LiveMap from "./live-map";
@@ -33,6 +33,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   const [missions, setMissions] = useState<LiveMission[] | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [mission, setMission] = useState<MissionDetail | null>(null);
+  const [aircraft, setAircraft] = useState<AssignedUav | null>(null);
   const [telemetry, setTelemetry] = useState<MissionTelemetry | null>(null);
   const browserReceiptTimes = useRef(new Map<string, string>());
   const [incidents, setIncidents] = useState<IncidentItem[]>([]);
@@ -73,6 +74,13 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   }, []);
 
   const selected = useMemo(() => missions?.find(item => item.missionId === selectedId) ?? null, [missions, selectedId]);
+  useEffect(() => {
+    if (!selected?.uavId) return;
+    let active = true;
+    const request = canPrepare ? getAssignedUav(selected.uavId) : getManagedUav(selected.uavId);
+    void request.then(value => { if (active) setAircraft(value); }).catch(() => { if (active) setAircraft(null); });
+    return () => { active = false; };
+  }, [selected?.uavId, canPrepare]);
 
   const loadSelected = useCallback(async () => {
     if (!selectedId || !selected) return;
@@ -148,6 +156,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     return telemetry.dataAgeSeconds;
   }, [clock, telemetry]);
   const connection = statusKey(telemetry?.connectivityStatus ?? selected?.connectivityStatus);
+  const batteryTelemetry = telemetry?.missionId === selectedId ? telemetry : null;
   const arming = armingDisplay(telemetry, selectedId, streamState === "live",
     telemetry?.sourceTimestamp || telemetry?.receivedAt ? packetAge : null);
   const missionEnded = mission?.id === selectedId && (Boolean(mission.endTime && new Date(mission.endTime).getTime() <= clock)
@@ -248,8 +257,13 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
           </article>
           <TelemetryCard index="02" label="ALTITUDE" value={valueOr(telemetry?.altitudeMeters, telemetry?.altitudeReference === "AGL" ? " m AGL" : telemetry?.altitudeReference === "MSL" ? " m MSL" : " m")} lines={[`Reference: ${telemetry?.altitudeReference === "Relative" ? "Relative to Home" : telemetry?.altitudeReference ?? "Unavailable"}`, `Validity: ${telemetry?.isValid ? "Valid" : "Unavailable"}`]} />
           <TelemetryCard index="03" label="VELOCITY" value={valueOr(telemetry?.groundSpeedMetersPerSecond, " m/s")} lines={[telemetry?.groundSpeedMetersPerSecond == null ? "Ground speed unavailable" : `${(Number(telemetry.groundSpeedMetersPerSecond) * 3.6).toFixed(1)} km/h`, "Wind data unavailable"]} />
-          <TelemetryCard index="04" label="POWER & CELLS" value={valueOr(telemetry?.batteryPercent, "%", 0)} tone={telemetry?.batteryPercent != null && telemetry.batteryPercent < 25 ? "danger" : "good"} lines={[
-            `Pack voltage: ${valueOr(telemetry?.batteryVoltageVolts, " V", 2)}`,
+          <TelemetryCard index="04" label="POWER & CELLS" value={valueOr(batteryTelemetry?.batteryPercent, "%", 0)} tone={batteryTelemetry?.batteryPercent != null && batteryTelemetry.batteryPercent < 25 ? "danger" : "good"} lines={[
+            `Pack voltage: ${valueOr(batteryTelemetry?.batteryVoltageVolts, " V", 2)}`,
+            `Current: ${valueOr(batteryTelemetry?.batteryCurrentAmps, " A", 2)}`,
+            `Consumed charge (FC): ${valueOr(batteryTelemetry?.batteryConsumedMah, " mAh", 0)}`,
+            `Pack capacity (UAV configuration): ${valueOr(aircraft?.id === selected?.uavId ? aircraft?.batteryCapacityMah : null, " mAh", 0)}`,
+            "Configured capacity is not a live FC measurement",
+            `Battery readings: ${streamState === "live" && connection === "online" && packetAge !== null && packetAge <= 15 && !batteryTelemetry?.isStale ? "Live telemetry" : "Last known / unavailable"}`,
             `State: ${arming.label}`,
           ]} />
           <TelemetryCard index="05" label="LINK & TELEMETRY" value={(telemetry?.connectivityStatus ?? "Offline").toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />

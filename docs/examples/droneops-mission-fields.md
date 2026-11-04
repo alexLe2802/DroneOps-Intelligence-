@@ -69,7 +69,7 @@ Nguồn hiện có: `CreateMissionRequest`, `CreateWaypointRequest` và
 | Firmware/airframe | Có UID và system/component ID ở connection, chưa có profile firmware/airframe trong plan | Phát hiện ArduPilot/PX4, version, MAV_TYPE và capabilities từ FC; không mặc định mọi UAV là quadcopter |
 | Tốc độ hành trình | `averageSpeedMetersPerSecond` | Chốt đây là target ground speed cho copter; biên dịch speed command được firmware hỗ trợ |
 | Tốc độ tối đa | `maxSpeedMetersPerSecond` | Đây là giới hạn kế hoạch; không tự biến thành cruiseSpeed hay một parameter FC chung cho mọi firmware |
-| Hành động | `actionType`: TakeOff/FlyThrough/Hover/CapturePhoto/Land | Adapter map action sang command; chưa có compiler thực thi |
+| Hành động | `actionType`: TakeOff/FlyThrough/Hover/Land | Adapter map action sang command; chưa có compiler thực thi |
 | Hold time | Chỉ có tên action Hover | Thêm `holdTimeSeconds` hoặc dùng profile mặc định được công bố; mẫu chọn 5 giây |
 | Heading | Chưa có yaw policy/yaw angle | Chọn hướng cố định, theo tuyến hoặc mặc định FC; không âm thầm gán 0° |
 | Dung sai waypoint | Chưa có acceptance/pass radius | Có thể dùng cấu hình chuẩn theo profile thay vì bắt người dùng nhập từng điểm; kiểm tra firmware có hỗ trợ param từng item |
@@ -77,7 +77,6 @@ Nguồn hiện có: `CreateMissionRequest`, `CreateWaypointRequest` và
 | Climb/descent | Chưa có tốc độ lên/xuống trong mission | Đọc/kiểm tra cấu hình FC; thêm override chỉ nếu sản phẩm cần và firmware cho phép |
 | Geofence | Hệ thống có vùng hạn chế để validation | Chưa có exporter geofence onboard; không coi việc validate web là đã nạp fence xuống FC. Mẫu để trống |
 | Rally/đáp dự phòng | Chưa có danh sách rally trong mission | Tùy chọn theo profile; mẫu để trống |
-| Camera | Chỉ có CapturePhoto | Camera/component, kiểu trigger, interval/count, capability; chỉ cần khi dùng payload này |
 | Failsafe/RTL | Chưa được chứng minh bởi plan API | Đọc/kiểm tra cấu hình pin, mất liên lạc/GPS, RTL altitude; thường là parameters onboard, không tự nhét vào `.plan` |
 
 Không phải tất cả ô còn thiếu đều cần thêm field trên UI. Nhóm **người lập kế
@@ -107,3 +106,5 @@ Chỉ multicopter được mô tả ở đây; fixed-wing/VTOL cần profile tak
 approach/landing riêng. Đặc biệt hold tại waypoint không có cùng ý nghĩa với
 fixed-wing. Không dùng firmwareType hoặc vehicleType khai trong file thay cho
 phát hiện và đối chiếu thiết bị thực tế.
+
+Camera được hoãn; API tạo/sửa mission hiện không chấp nhận CapturePhoto.

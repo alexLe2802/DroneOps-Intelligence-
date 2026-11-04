@@ -85,7 +85,7 @@ giấy phép là calendar date, không đổi ngày do dịch múi giờ.
 | `latitudeDegrees`, `longitudeDegrees` | WGS84, độ | `MISSION_ITEM_INT.x/y` = độ × 10^7, int32 |
 | `latitudeE7`, `longitudeE7` | Giá trị đã chuẩn hóa × 10^7 | Chỉ tọa độ; không nhầm với mét |
 | `altitudeMeters` | Mét theo altitude reference | `MISSION_ITEM_INT.z`; không tự thay null thành 0 |
-| `action` | TakeOff / FlyThrough / Hover / CapturePhoto / Land | Biên dịch sang command được firmware và phần cứng hỗ trợ |
+| `action` | TakeOff / FlyThrough / Hover / Land | Biên dịch sang command được firmware và phần cứng hỗ trợ |
 
 Trước khi gửi, gateway cần thêm `hardwareIdentity`, system/component ID được phát
 hiện thực tế, autopilot/firmware version, vehicle type, MAVLink capabilities,
@@ -123,7 +123,6 @@ Ví dụ dữ liệu kế hoạch (đây không phải gói MAVLink đã sẵn s
 | Waypoint | acceptance radius (m), pass radius (m), yaw (độ hoặc giữ heading), hold time (s), autocontinue |
 | Tốc độ | ground speed cho copter, airspeed/groundspeed policy cho fixed-wing; lên/xuống m/s và giới hạn tăng tốc |
 | Hover | thời gian dừng; với fixed-wing cần loiter radius/direction thay vì đứng yên |
-| Camera | camera/component ID, trigger mode, interval/count, hỗ trợ ACK; CapturePhoto phải bị chặn nếu không có camera |
 | Hạ cánh/VTOL | điểm tiếp cận, approach altitude/slope, VTOL transition, landing policy; không dùng chung một chuỗi lệnh cho mọi airframe |
 | Failsafe | pin thấp, mất RC, mất telemetry/GCS, mất GPS/EKF, geofence, RTL altitude và điểm đáp dự phòng |
 
@@ -132,8 +131,7 @@ Ví dụ dữ liệu kế hoạch (đây không phải gói MAVLink đã sẵn s
 terrain thực sự hỗ trợ; không đổi AGL thành relative bằng cách thay tên field.
 
 Các command ứng viên: `MAV_CMD_NAV_TAKEOFF` (22), `NAV_WAYPOINT` (16),
-`NAV_LOITER_TIME` (19), `NAV_LAND` (21), `DO_CHANGE_SPEED` (178). Camera cần chọn
-command theo capability. Mỗi `MISSION_ITEM_INT` gồm target IDs, `seq`, `frame`,
+`NAV_LOITER_TIME` (19), `NAV_LAND` (21), `DO_CHANGE_SPEED` (178). Mỗi `MISSION_ITEM_INT` gồm target IDs, `seq`, `frame`,
 `command`, `current`, `autocontinue`, `param1..4`, `x`, `y`, `z`, `mission_type`.
 Ý nghĩa param phụ thuộc command và có khác biệt hỗ trợ theo firmware.
 
@@ -176,3 +174,6 @@ Nguồn chính thức:
 - https://ardupilot.org/copter/docs/auto-mode.html
 - https://docs.px4.io/main/en/flight_modes_mc/mission.html
 - https://docs.px4.io/main/en/flight_modes/offboard.html
+
+Camera/CapturePhoto được hoãn khỏi luồng tạo/sửa nhiệm vụ hiện tại. Dữ liệu lịch
+sử vẫn được giữ; không đưa camera vào yêu cầu dữ liệu cho adapter ở giai đoạn này.

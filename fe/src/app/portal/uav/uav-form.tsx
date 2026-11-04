@@ -182,7 +182,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
           <header><span>03</span><div><h2>Battery system</h2><p>Electrical configuration and rated capacity.</p></div></header>
           <div className="uav-form-grid">
             <label>BATTERY TYPE<input value={form.batteryType} onChange={event => set("batteryType", event.target.value)} placeholder="LiPo 6S" maxLength={50} /></label>
-            <label>CAPACITY (MAH)<input type="number" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="5880" min="1" step="1" /></label>
+            <label>INSTALLED PACK CAPACITY (mAh)<input type="number" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="5880" min="1" step="1" /><small>Use the capacity of the installed battery. This configured value is separate from the consumed mAh reported by telemetry.</small></label>
             <label>VOLTAGE (V)<input type="number" value={form.batteryVoltage} onChange={event => set("batteryVoltage", event.target.value)} placeholder="22.8" min="0.01" step="0.01" /></label>
             <label>CELL COUNT<input type="number" value={form.batteryCellCount} onChange={event => set("batteryCellCount", event.target.value)} placeholder="6" min="1" max="100" step="1" /></label>
           </div>
