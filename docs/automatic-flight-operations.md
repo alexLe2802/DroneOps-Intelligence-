@@ -45,6 +45,10 @@ Portal gửi presence mỗi 10 giây khi hiển thị và online. `dispatchEnabl
 
 Plan export gồm schema version, mission/UAV IDs, `planHash`, lịch UTC, tốc độ m/s, altitude reference và waypoint theo thứ tự. Tọa độ WGS84 có dạng độ và E7 (độ × 10^7); độ cao dùng mét theo reference. Không đổi giá trị độ cao thiếu thành 0 hoặc đổi AGL sang Relative bằng cách đổi tên.
 
+`GET /api/missions/{id}/automation/plan` trả thêm `compilationPreviews` cho ArduPilot/PX4. `MissionCommandCompiler` kiểm tra input và dựng candidate `MISSION_ITEM_INT`; dữ liệu hoặc policy chưa đầy đủ trả `NeedsInput`. Preview chỉ thể hiện khả năng encode: `CanEncode` không cấp quyền `CanUpload`/`CanStart`, và không thay thế approval, consent, upload/read-back hoặc dispatch gate.
+
+Theo hợp đồng compiler hiện hành, MSL dùng `MAV_FRAME_GLOBAL` (0), Relative dùng `MAV_FRAME_GLOBAL_RELATIVE_ALT` (3); `MISSION_ITEM_INT.x/y` vẫn là int32 E7. Không suy ra kiểu encode từ hậu tố tên frame hoặc tự đổi AGL sang Relative. Chi tiết wire fields, home/landing altitude, policy và trạng thái compiler nằm trong [dữ liệu thực thi và failsafe](automatic-flight-data-and-failsafe-review.md).
+
 Envelope thực thi thêm `commandId`, owner, controller UID, connection/lease, `compiledMissionHash`, profile/adapter version, `issuedAtUtc`, `scheduledAtUtc` và `expiresAtUtc`. Credential gateway không nằm trong dữ liệu trả về browser.
 
 Gateway lưu receipt/outcome bền vững trước tác động vật lý. Backend cấp một dispatch identity cho một approved execution snapshot. Gửi lại tối đa ba lần cùng identity trước deadline chỉ là retry giao nhận; không tạo thêm lần start.
