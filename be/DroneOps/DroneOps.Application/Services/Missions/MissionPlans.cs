@@ -28,6 +28,7 @@ public static class MissionPlans
             UAVId = request.UavId,
 
             AutomaticFlightRequested = request.AutomaticFlightRequested,
+            AutomaticFlightLimits = request.AutomaticFlightRequested ? request.AutomaticFlightLimits ?? new AutomaticFlightLimits() : null,
 
             Name = request.Name.Trim(),
             Description = request.Description,
@@ -74,6 +75,7 @@ public static class MissionPlans
                             MidpointRounding.AwayFromZero)
                         : null,
 
+                    Navigation = x.Navigation,
                     ActionType =
                         x.ActionType ?? "FlyThrough",
 
@@ -93,6 +95,7 @@ public static class MissionPlans
                 mission.UAVId ?? Guid.Empty,
 
             AutomaticFlightRequested = mission.AutomaticFlightRequested,
+            AutomaticFlightLimits = mission.AutomaticFlightLimits,
 
             Name =
                 mission.Name,
@@ -139,6 +142,7 @@ public static class MissionPlans
                             MidpointRounding.AwayFromZero)
                         : null,
 
+                    Navigation = x.Navigation,
                     ActionType =
                         x.ActionType
                 })

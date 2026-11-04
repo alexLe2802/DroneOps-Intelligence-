@@ -1,0 +1,118 @@
+0 [p] 
+1 [p] 
+2 [p] 
+3 [p] 
+4 [p] 
+5 [p] 
+6 [p] 
+7 [p] 
+8 [p] 
+9 [p] Capstone Project Report
+10 [p] Report 4 – Software Design Document
+11 [p] 
+12 [p] 
+13 [p] 
+14 [p] 
+15 [p] 
+16 [p] 
+17 [p] 
+18 [p] – Ho Chi Minh, October 2026 –
+19 [p] 
+20 [sdt] Table of ContentsI. Record of Changes3II. Software Design Document41. System Design41.1 System Architecture41.2 Package Diagram52. Database Design73. Detailed Design103.1 <Feature/Function Name1>53.2 <Feature/Function Name2>6
+21 [p] 
+22 [p] I. Record of Changes
+23 [tbl] Date | A*M, D | In charge | Change Description | 20/10/26 | A | Project team | Prepared DroneOps Intelligence Software Design Document for Review 2.
+24 [p] *A - Added M - Modified D - Deleted
+25 [p] 
+26 [p] II. Software Design Document
+27 [p] 1. System Design
+28 [p] 1.1 System Architecture
+29 [p] DroneOps Intelligence uses a Next.js/React Web application, an ASP.NET Core API, application services, EF Core/Npgsql persistence and PostgreSQL. A telemetry gateway supplies normalized MAVLink-derived samples, and SSE delivers authorized live updates. Backend adapters provide media storage, email and AI integration. Low-level UAV flight control remains external.
+30 [p] 
+31 [p] Figure 1. System Architecture.
+32 [tbl] No | Component | Description | 1 | Next.js Web + proxy | Role-specific pages, client validation, map, same-origin forwarding. Backend remains authoritative for authorization and state. | 2 | API + Application | JWT/canonical roles, DTO validation, business services and outcome errors. Controllers delegate business operations to services; the composition root configures persistence and external adapters. | 3 | Persistence + Domain | EF entities/repositories plus Npgsql stores. Application depends on repository interfaces in Persistence and entities in Domain. | 4 | PostgreSQL / media | Transactional domain records; proposed request/evidence storage. Private user media uses protected backend read/upload and short-lived access; no public server secret. | 5 | Integration gateway / SSE | Normalized sample HTTP endpoint exists. Raw MAVLink adapter and background loss timer remain gaps; latest snapshot and SSE support frontend monitoring. | 6 | External AI / email | Configured outbound calls with bounded timeout, provenance and error handling. AI advice cannot approve missions.
+33 [p] 
+34 [p] 
+35 [p] Figure 2. Deployment and Trust Boundaries.
+36 [p] 1.2 Package Diagram
+37 [p] The backend packages separate API endpoints, application services, persistence and domain entities. The Web subsystem groups route components, shared clients and API forwarding.
+38 [p] 
+39 [p] Figure 3. Backend Package Diagram.
+40 [p] 
+41 [p] Figure 4. Web Package Diagram.
+42 [p] Package Descriptions
+43 [tbl] No | Package | Description | 1 | DroneOps.API | Controllers/{Missions,Integrations,Incidents,Users,PostFlight}; authentication middleware, Storage helpers, composition root. | 2 | DroneOps.Application | Services/{Missions,Telemetry,Incidents,PostFlight,AI,Auth}; request/response DTOs and service interfaces. | 3 | DroneOps.Persistence | AppDbContext, repositories and interfaces; PostgresAuthStore; Npgsql pooling. | 4 | DroneOps.Domain | Mission, Waypoint, UAV, User/Pilot, TelemetryRecord, Incident, MissionApproval, PostFlightReport and related records. | 5 | DroneOps.AuthChecks | Executable offline authorization/validation checks; not a full database or end-to-end test suite. | 6 | fe/src/app/portal | Mission/UAV/operator/profile/geofence/history/AI pages and shared shell/maps; monitoring/incident business screens still need integration. | 7 | fe/src/lib + API proxy | Shared DTOs/clients and server forwarding; review allowlist and streaming timeout/buffering before realtime integration.
+44 [p] 
+45 [p] 2. Database Design
+46 [p] The planning model stores the current mission and proposed updates awaiting review. Telemetry, incidents, review decisions, reports and assessments retain their mission relationships. Database keys and attributes are specified below.
+47 [p] 
+48 [p] Figure 5. Entity Relationship Diagram.
+49 [p] Table Descriptions
+50 [tbl] No. | Entity | Domain | Description | 1 | Role | Identity and access | Defines an authorization category assigned to user accounts and used to control access to system capabilities. | 2 | User | Identity and access | Represents an authenticated system account and the actor behind mission, approval, review, and notification activities. | 3 | Pilot | Identity and access | Stores the operational pilot profile associated with a user and links that profile to aircraft, evidence, requests, and suggestions. | 4 | PilotRegistration | Identity and access | Represents a pilot onboarding or registration submission together with its supporting license evidence. | 5 | PilotUpdateRequest | Identity and access | Captures a controlled request to update pilot information and supports review and attachment of evidence before changes are accepted. | 6 | LicenseImage | Identity and access | Stores or references license-document imagery used as evidence for a pilot profile, registration, or profile update request. | 7 | UAV | Fleet and airspace | Represents a pilot-registered aircraft managed by the platform, including its registering pilot, Manager-reviewed operational status, mission allocations, hardware identities and completion events. Managed fleet means registered platform records, not ownership by the platform. | 8 | DroneHardwareIdentity | Fleet and airspace | Represents a hardware-level identity associated with a UAV, such as a serial, device, controller, or communication identity. | 9 | Geofence | Fleet and airspace | Represents a logical operational or restricted area whose definition can evolve through versioned revisions. | 10 | GeofenceRevision | Fleet and airspace | Represents one historical or current revision of a geofence, preserving changes to geometry or operational rules over time. | 11 | Mission | Mission lifecycle | Acts as the central operational record for a planned flight and connects its creator, aircraft, route, approvals, telemetry, incidents, completion events, and reports. | 12 | Waypoint | Mission lifecycle | Represents an ordered route point contained by a mission and used to define the intended flight path. | 13 | MissionApproval | Mission lifecycle | Records an approval review received by a mission and associated with the user responsible for the review activity. | 14 | MissionSuggestion | Mission lifecycle | Represents a mission-related recommendation or planning suggestion associated with a pilot. | 15 | TelemetryRecord | Mission lifecycle | Represents telemetry generated during a mission, allowing operational and post-flight analysis of aircraft state. | 16 | FlightCompletionEvent | Mission lifecycle | Records a completion-related lifecycle event connected to both the mission and the UAV that performed the flight. | 17 | PostFlightReport | Mission lifecycle | Represents a report generated for a mission after flight activity, consolidating outcome and supporting evidence. | 18 | Incident | Incidents and notifications | Represents an operational anomaly or safety event linked to a mission and its subsequent lifecycle and alert deliveries. | 19 | IncidentTransition | Incidents and notifications | Records a change in an incident's lifecycle state so that status history and operational actions remain traceable. | 20 | IncidentAlertDelivery | Incidents and notifications | Tracks delivery of an incident alert to a user, with context from the incident and its transition history. | 21 | Notification | Incidents and notifications | Represents a user-facing system notification. The source diagram labels its relationship to User as TRIGGERS and should be reviewed for intended direction.
+51 [p] 
+52 [p] The approval transaction checks the mission, request identity, record scope and current validation evidence before applying the accepted metadata and ordered waypoints. It records the decision and closes the request in the same transaction. Any failure rolls back the complete operation. Rejection updates only the request and decision, preserving current mission content and prior approval. A stale or conflicting request returns 409. Notification delivery follows the committed decision.
+53 [p] Indexes support ordered mission waypoints, pending requests, latest mission telemetry, incident status and recipient alerts. Ingestion uses an idempotency key, while decisions use a unique request identity and terminal-state check. Backend authorization protects mission, history, media and streaming operations.
+54 [p] 
+55 [p] 3. Detailed Design
+56 [p] 3.1 Mission Planning and Approval
+57 [p] This feature covers mission submission, pre-flight validation, proposed updates and Manager decisions. Approval applies accepted content to the same mission; rejection preserves current content and any existing approval.
+58 [p] 3.1.1 Class Diagram
+59 [p] The classes below separate mission editing, proposed content, review decisions and the approval transaction.
+60 [p] 
+61 [p] Figure 6. Mission Planning and Approval Class Diagram.
+62 [p] Class Specifications
+63 [tbl] No | Class / Operation | Specification | 1 | MissionService.UpdateAsync | Input mission ID, authenticated operator and metadata/route. Authorize scope/state; reject malformed geometry; persist separate review request; run mandatory validation; return request ID/current mission summary. Current in-place update must be replaced. | 2 | MissionUpdateRequest | Owns proposed payload, author/time and review state, not a mission version. Current content remains outside payload and authoritative. | 3 | MissionApprovalService | Approve/reject exact request, require current evidence; commit accepted data atomically or reject without content mutation. Repeated/stale decisions return current outcome or conflict. | 4 | Review transaction / validation | One DB unit of work, request identity, input fingerprint and restriction revision. Concurrent edits cannot reuse validation or overwrite a newer accepted proposal.
+64 [p] 3.1.2 Submit a Mission Update
+65 [p] 
+66 [p] Figure 7. Submit Mission Update Sequence Diagram.
+67 [p] 3.1.3 Approve a Mission Update
+68 [p] 
+69 [p] Figure 8. Approve Mission Update Sequence Diagram.
+70 [p] 3.1.4 Reject a Mission Update
+71 [p] 
+72 [p] Figure 9. Reject Mission Update Sequence Diagram.
+73 [p] 
+74 [p] Figure 10. Mission State Diagram.
+75 [p] 
+76 [p] Figure 11. Mission Update Request State Diagram.
+77 [p] 
+78 [p] Figure 12. Mission Planning and Pre-flight Validation Workflow.
+79 [p] 
+80 [p] 3.2 Realtime Monitoring and Incident Management
+81 [p] This feature receives timestamped telemetry, maintains the latest authorized mission state and records incident evidence and handling decisions.
+82 [p] 3.2.1 Class Diagram
+83 [p] 
+84 [p] Figure 13. Telemetry and Incident Class Diagram.
+85 [p] Class Specifications
+86 [tbl] No | Class / Operation | Specification | 1 | TelemetryIngestionService.IngestSampleAsync | Check integration authentication upstream, idempotency, UAV/mission association and source/received timestamps. Persist valid/invalid classification; avoid replacing latest by older out-of-order data. | 2 | Latest / SSE | Authorize scope, send latest snapshot and incident feed; FE shows unavailable/null/stale. Current sequence IDs reset per connection; durable replay is not promised. Reconnect resynchronizes snapshot and alerts. | 3 | IncidentDetector / timer | Evaluate battery, altitude and speed against configured unit-aware rules. An independent timer checks communication loss. Rule recovery conditions determine when a new abnormal episode may create another incident. | 4 | Acknowledge / resolve | Enforce current state, actor and Manager-only resolution with reason; persist frozen source evidence and append-only timeline. Reject conflict, duplicate or out-of-scope mutation without changing evidence.
+87 [p] 
+88 [p] 3.2.2 Ingest and Monitor Telemetry
+89 [p] 
+90 [p] Figure 14. Telemetry Ingestion Sequence Diagram.
+91 [p] 3.2.3 Acknowledge and Resolve an Incident
+92 [p] 
+93 [p] Figure 15. Incident Handling Sequence Diagram.
+94 [p] 
+95 [p] Figure 16. Incident State Diagram.
+96 [p] 3.3 Post-flight History and Reporting
+97 [p] PostFlightService provides history queries, report generation, telemetry playback, mission incidents and operational analytics. Aggregation uses authorized persisted samples and UTC coverage windows. Missing metrics remain null. Mission completion follows the external execution event; it is not a browser flight-control command.
+98 [p] 3.3.1 Class Diagram
+99 [p] 
+100 [p] Figure 17. History, Reporting and AI Class Diagram.
+101 [p] Class Specifications
+102 [tbl] No | Class / Operation | Specification | 1 | PostFlightService.GetFlightHistoryAsync | Queries scoped mission history with date, UAV and status filters and pagination. | 2 | PostFlightService.GetReportByMissionIdAsync | Returns the persisted report, source mission, coverage and metrics; missing measurements remain unavailable. | 3 | PostFlightService.GetTelemetryPlaybackAsync | Returns authorized ordered telemetry positions and timestamps for recorded-route playback. | 4 | PostFlightService.FinalizeAndGenerateReportAsync | Processes the authorized completion context and aggregates persisted telemetry and incidents into the mission report.
+103 [p] 
+104 [p] 3.3.2 Retrieve a Post-flight Report
+105 [p] 
+106 [p] Figure 18. Post-flight Report Retrieval Sequence Diagram.
+107 [p] 3.4 AI-assisted Mission Assessment
+108 [p] IAIService.GenerateMissionSuggestionAsync and OpenAIService provide the external AI adapter. MissionSuggestionService prepares and persists mission or update-request context, provider identity, timestamp and assessment outcome. Timeout, rate-limit and invalid-response handling return an unavailable result without changing mission approval. AI output remains advisory.
+109 [p] 3.4.1 Class Diagram
+110 [p] The AI assessment classes and their relationships are included in Figure 18. Post-flight reporting and AI assessment share mission and operational evidence; their service responsibilities are specified separately below.
+111 [p] Class Specifications
+112 [tbl] No | Class / Operation | Specification | 1 | MissionSuggestionService | Authorizes and prepares mission or update context, calls the configured adapter and persists the assessment outcome. | 2 | IAIService.GenerateMissionSuggestionAsync | Defines the provider contract for an advisory mission assessment. | 3 | OpenAIService | Sends bounded authorized context and handles provider timeout, rate limit and invalid responses.
+113 [p] 
+114 [p] 3.4.2 Request an AI Assessment
+115 [p] 
+116 [p] Figure 19. AI Assessment Sequence Diagram.
+117 [sectPr] 

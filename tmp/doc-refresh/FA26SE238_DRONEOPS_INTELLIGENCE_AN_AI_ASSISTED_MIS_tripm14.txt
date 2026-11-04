@@ -1,0 +1,136 @@
+0 [p]  
+1 [p]  
+2 [p] CAPSTONE PROJECT REGISTER 
+3 [p]  
+4 [p] Class:            Duration time:  from 09/2026 To 03/2027
+5 [p] (*) Profession: Software Engineer                   Specialty: SE                           
+6 [p] (*) Kinds of person make registers:               Lecturer                Students  
+7 [p]  
+8 [p] 1. Register information for supervisor (if have) 
+9 [tbl] No. | Full name | Phone | E-Mail  | Title  |   1  | Phạm Minh Trí |  | tripm14@fpt.edu.vn | Giảng viên  |   2  | Đặng Ngọc Minh Đức |  | ducdnm2@fpt.edu.vn | Giảng viên 
+10 [p] 2. Register information for students (if have) 
+11 [tbl] No. | Full name  | Student code  | Phone  | E-mail  | Role in Group  | 1 | Lê Quốc Thống | SE172002 | 0898243340 | Impro2003@gmail.com | Leader | 2 | Giang Nguyễn Gia Khánh | SE182367 | 0889779093 | Khanhgngse182367@fpt.edu.vn | Member | 3 | Hà Quang Nghĩa | SE184490 | 0978874316 | Nghiahqse184490@fpt.edu.vn | Member | 4 | Đặng Đào Anh Đức | SE194009 | 0376793318 | Danganhduc848@gmail.com | Member | 5 |  |  |  |  | 
+12 [p]  
+13 [p] 3. Register content of Capstone Project 
+14 [p] (*) 3.1. Capstone Project name: 
+15 [p] 3.1.1. English: DroneOps Intelligence – An AI-Assisted Mission Planning, Monitoring, and Incident Analytics Platform for UAV Operations
+16 [p] 3.1.2. Vietnamese: DroneOps Intelligence – Nền tảng hỗ trợ lập kế hoạch, giám sát và phân tích sự cố thông minh cho hoạt động UAV
+17 [p]  (*) 3.2. Main proposal content (including result and product)   
+18 [p] a) Context:
+19 [p] UAV operations involve mission planning, pre-flight safety checks, telemetry monitoring, and post-flight incident analysis. In many small or experimental drone operations, these activities are fragmented across flight-control software, spreadsheets, maps, and manually reviewed logs.
+20 [p] A mission-management platform can improve traceability and operational safety by validating flight plans before execution, ingesting standardized UAV telemetry, detecting abnormal events, and using historical missions to support risk assessment.
+21 [p] DroneOps Intelligence focuses on the software platform around UAV operations rather than development of the low-level flight controller.
+22 [p] 
+23 [p] b) Proposed Solutions:
+24 [p] Manage UAVs, pilots/operators, missions, waypoints, mission versions, and flight histories.
+25 [p] Provide pre-flight Geofencing & Flight Path Validation.
+26 [p] Check mission waypoints/segments against configured No-Fly Zones, restricted areas, and altitude limits before approval.
+27 [p] Ingest standardized UAV telemetry using MAVLink, bridged to platform services through WebSocket or MQTT.
+28 [p] Monitor location, altitude, speed, battery, connectivity, and mission progress in real time.
+29 [p] Detect and record operational incidents and abnormal telemetry.
+30 [p] Implement an AI Decision-Support service using similarity retrieval (k-NN/vector search) to retrieve historical missions similar to a proposed/current mission.
+31 [p] Explain risk recommendations using evidence from Top-k similar missions and their incident histories rather than only providing an opaque risk score.
+32 [p] Provide mission dashboards, incident analytics, and post-flight reports.
+33 [p] 
+34 [p] c) Functional Requirements:
+35 [p] UAV Operator / Pilot:
+36 [p] Register and manage mission plans.
+37 [p] Define routes using waypoints.
+38 [p] Submit missions for pre-flight validation.
+39 [p] View geofence, restricted-zone, and altitude violations.
+40 [p] Monitor UAV telemetry and mission progress.
+41 [p] Receive operational alerts.
+42 [p] Review post-flight mission and incident reports.
+43 [p] Operations Manager:
+44 [p] Manage UAVs, operators, mission approval policies, and operational areas.
+45 [p] Define/import No-Fly Zones, geofences, and altitude restrictions.
+46 [p] Review and approve/reject mission plans.
+47 [p] Monitor active missions.
+48 [p] Review incident histories and risk evidence.
+49 [p] View operational analytics.
+50 [p] Telemetry & Mission Service:
+51 [p] Receive MAVLink-based telemetry through an integration gateway.
+52 [p] Normalize and persist telemetry.
+53 [p] Track UAV and mission state.
+54 [p] Detect communication loss, low battery, abnormal altitude/speed, and configurable operational events.
+55 [p] Maintain mission and incident histories.
+56 [p] Flight Path Validation Service:
+57 [p] Validate waypoints and route segments against geofences/No-Fly Zones.
+58 [p] Validate altitude constraints.
+59 [p] Identify violating route segments and provide evidence on a map.
+60 [p] Prevent approval where mandatory safety constraints are violated.
+61 [p] AI Decision-Support Service:
+62 [p] Construct feature representations for historical and proposed missions.
+63 [p] Retrieve Top-k similar historical missions using k-NN/vector search.
+64 [p] Present similarity, relevant mission characteristics, and historical incidents.
+65 [p] 
+66 [p] d) Non-Functional Requirements:
+67 [p] Interoperability: MAVLink shall be supported as the UAV telemetry standard at the integration boundary.
+68 [p] Traceability: Mission plan versions, validation results, approvals, telemetry, and incidents must be auditable.
+69 [p] Latency: Real-time telemetry and critical alerts should be delivered with operationally appropriate latency.
+70 [p] Reliability: Temporary telemetry interruptions must not corrupt mission state.
+71 [p] Security: Authentication, authorization, secure API communication, and protected mission data are required.
+72 [p] Explainability: AI decision support must show historical evidence supporting similarity/risk recommendations.
+73 [p] Maintainability: Telemetry adapters, validation rules, and analytics services should be modular.
+74 [p] 
+75 [p] e) Theory & Practical:
+76 [p] UAV mission management.
+77 [p] Geospatial/geofencing algorithms.
+78 [p] MAVLink telemetry.
+79 [p] Time-series/event processing.
+80 [p] Similarity retrieval and vector search.
+81 [p] Explainable decision-support systems.
+82 [p] Mission planning and map visualization.
+83 [p] MAVLink simulator or compatible UAV/autopilot integration.
+84 [p] WebSocket/MQTT telemetry pipeline.
+85 [p] Spatial database/geospatial operations.
+86 [p] Vector database/search.
+87 [p] Web operations dashboard.
+88 [p] 
+89 [p] f) Products (Expected Deliverables):
+90 [p] DroneOps Intelligence Web Platform.
+91 [p] UAV Mission Planning and Approval module.
+92 [p] Geofencing & Flight Path Validation Engine.
+93 [p] MAVLink Telemetry Ingestion Gateway.
+94 [p] Real-Time Mission Monitoring Dashboard.
+95 [p] Incident Management and Analytics module.
+96 [p] Similarity-Based AI Decision-Support Service.
+97 [p] Experimental evaluation reports.
+98 [p] Source code, deployment package, and software documentation.
+99 [p] 
+100 [p] g) Proposed Tasks:
+101 [p] Task Package 1: Requirements, mission workflow, architecture, geospatial data model, and evaluation design.
+102 [p] Task Package 2: Mission planning, geofence management, and flight-path validation.
+103 [p] Task Package 3: MAVLink telemetry integration, mission monitoring, and incident pipeline.
+104 [p] Task Package 4: Historical mission feature engineering, vector search, and similarity-based decision support.
+105 [p] Task Package 5: Integration, evaluation, deployment, testing, and documentation.
+106 [p] 
+107 [p] 3.3. Research Information
+108 [p] a. Research Problem
+109 [p] RQ1: How effectively can automated geofence and flight-path validation detect spatial and altitude constraint violations in UAV mission plans?
+110 [p] RQ2: How accurately and efficiently can the platform ingest and process MAVLink telemetry for real-time mission monitoring and incident detection?
+111 [p] RQ3: Can similarity-based retrieval of historical missions provide relevant and explainable evidence for UAV mission risk assessment?
+112 [p] b. Research Objectives
+113 [p] Develop a software platform for UAV mission planning, monitoring, and incident management.
+114 [p] Develop and evaluate automated flight-path validation.
+115 [p] Integrate MAVLink as a standardized telemetry interface.
+116 [p] Develop and evaluate evidence-based similarity retrieval for mission decision support.
+117 [p] c. Research Scope & Methodology
+118 [p] The project focuses on mission operations software; low-level flight-control algorithm development is outside scope.
+119 [p] Evaluation shall include:
+120 [p] Geofence/path violation detection accuracy.
+121 [p] Telemetry ingestion throughput and latency.
+122 [p] Incident detection performance for defined conditions.
+123 [p] Top-k retrieval relevance using Precision@k/Recall@k or expert relevance assessment.
+124 [p] End-to-end mission workflow demonstrations.
+125 [p] d. Expected Scientific Contribution
+126 [p] An integrated architecture combining UAV mission validation, standardized telemetry, and incident analytics.
+127 [p] An evaluated geospatial flight-path validation approach.
+128 [p] An evidence-based historical mission retrieval method for explainable UAV operational decision support.
+129 [p] 4. Other comments (propose all relative things if have): 
+130 [p] ............................................................................................................................................................
+131 [p] ............................................................................................................................................................
+132 [p] ............................................................................................................................................................
+133 [tbl]              | Supervisor (If have)  |  (Sign and full name) |   | HCM, date 05/09/2026  | On behalf of Registers   | (Sign and full name)  | 
+134 [p]  
+135 [sectPr] 

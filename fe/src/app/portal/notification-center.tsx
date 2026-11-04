@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDate, formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import { Bell, CheckCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -20,7 +22,7 @@ function relativeTime(value: string): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}H AGO`;
   const days = Math.floor(hours / 24);
-  return days < 7 ? `${days}D AGO` : new Date(value).toLocaleDateString();
+  return days < 7 ? `${days}D AGO` : formatVietnamDate(value);
 }
 
 export default function NotificationCenter() {
@@ -51,14 +53,16 @@ export default function NotificationCenter() {
     const initialLoad = window.setTimeout(() => void load(), 0);
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void load();
-    }, 30000);
+    }, 10000);
     const refresh = () => { if (document.visibilityState === "visible") void load(); };
     document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("droneops:notifications-refresh", refresh);
     return () => {
       mounted.current = false;
       window.clearTimeout(initialLoad);
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("droneops:notifications-refresh", refresh);
     };
   }, [load]);
 
@@ -129,7 +133,7 @@ export default function NotificationCenter() {
       <div className="notification-list">
         {!loaded ? <p className="notification-empty">Loading notifications...</p> : feed.items.length === 0 ? <p className="notification-empty">No notifications yet.</p> : feed.items.map(notification => <button type="button" key={notification.id} className={`notification-item${notification.isRead ? " is-read" : " is-unread"}`} disabled={busyId !== ""} onClick={() => void inspect(notification)}>
           <i aria-hidden="true" />
-          <span><strong>{notification.title}</strong><small>{notification.message}</small><time title={new Date(notification.createdAt).toLocaleString()}>{relativeTime(notification.createdAt)}{notification.isRead ? " / SEEN" : " / NEW"}</time></span>
+          <span><strong>{notification.title}</strong><small>{notification.message}</small><time title={formatVietnamDateTime(notification.createdAt)}>{relativeTime(notification.createdAt)}{notification.isRead ? " / SEEN" : " / NEW"}</time></span>
         </button>)}
       </div>
       <footer><span>{feed.items.length} RECENT</span><b>{feed.unreadCount} UNREAD</b></footer>

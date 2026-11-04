@@ -7,6 +7,9 @@ using DroneOps.Application.Interfaces.AI;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
+using DroneOps.Application.DTOs.Response.Missions;
+using DroneOps.Application.Validators.Missions;
+using DroneOps.Application.Services.Missions;
 
 namespace DroneOps.Application.Services.AI;
 
@@ -18,7 +21,7 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
     {
         if (!Guid.TryParse(request.MissionRef, out var missionId)) throw new ArgumentException("Mission reference must be a UUID.");
         if (request.MissionVersion < 1) throw new ArgumentException("Mission version must be positive.");
-        var mission = await AuthorizedMissions(userId, isManager).Include(x => x.UAV)
+        var mission = await AuthorizedMissions(userId, isManager).Include(x => x.UAV).Include(x => x.Waypoints)
             .SingleOrDefaultAsync(x => x.Id == missionId, cancellationToken)
             ?? throw new KeyNotFoundException("Mission was not found in the authorized scope.");
 
@@ -61,16 +64,59 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
             Evidence = $"{x.IncidentIds.Count} linked incident(s); similarity score {x.SimilarityScore:F3}.",
             Precaution = "Review the linked incident evidence before operational approval."
         }).ToList();
+        var now = DateTimeOffset.UtcNow;
+        var batteryRecord = telemetry.Where(t => t.MissionId == mission.Id && t.UAVId == mission.UAVId)
+            .OrderByDescending(t => t.SourceTimestamp).ThenByDescending(t => t.ReceivedAt).FirstOrDefault();
+        var planHash = MissionValidationService.Hash(mission);
+        var latestValidation = await db.MissionValidationRuns.AsNoTracking().Where(r => r.MissionId == mission.Id && r.PlanHash == planHash)
+            .OrderByDescending(r => r.CheckedAt).FirstOrDefaultAsync(cancellationToken);
+        WeatherAdvisory? weather = null;
+        if (latestValidation != null && latestValidation.CheckedAt >= now.AddMinutes(-10))
+        {
+            try
+            {
+                var snapshot = JsonSerializer.Deserialize<MissionValidationResult>(latestValidation.ResultJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (snapshot?.Weather is { Available: true } forecast && forecast.ExpiresAt > now && forecast.GeneratedAt <= now)
+                    weather = forecast;
+            }
+            catch (JsonException) { /* Missing evidence is explicit; no synthetic weather. */ }
+        }
+        var battery = BatteryAssessmentCalculator.Calculate(mission, mission.UAV, batteryRecord, weather, now);
+        var envelopeErrors = AutomaticFlightPolicy.Errors(mission.AutomaticFlightRequested, mission.AltitudeReference,
+            mission.AverageSpeedMetersPerSecond ?? 0, mission.MaxSpeedMetersPerSecond ?? 0, mission.AutomaticFlightLimits,
+            mission.Waypoints.Select(w => (w.Altitude, w.ActionType)));
+        foreach (var error in envelopeErrors)
+            risks.Add(new AiRiskResponse { Severity = "High", Title = "Automatic flight envelope requires correction", Evidence = error,
+                Precaution = "Correct the mission and obtain fresh validation and manager approval. AI cannot override an operating limit." });
+        if (mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } limits)
+        {
+            if (weather?.Status != "Available" || weather.ExpiresAt <= now || weather.MaxWindMetersPerSecond == null || weather.MaxGustMetersPerSecond == null)
+                missing.Add("Fresh route wind and gust evidence is required for the automatic operating envelope.");
+            else if (weather.MaxWindMetersPerSecond > limits.MaxWindMetersPerSecond || weather.MaxGustMetersPerSecond > limits.MaxGustMetersPerSecond)
+                risks.Add(new AiRiskResponse { Severity = "High", Title = "Wind exceeds the approved automatic envelope",
+                    Evidence = $"Forecast wind {weather.MaxWindMetersPerSecond} m/s; gust {weather.MaxGustMetersPerSecond} m/s. Limits: {limits.MaxWindMetersPerSecond}/{limits.MaxGustMetersPerSecond} m/s.",
+                    Precaution = "Postpone or amend the mission and obtain fresh validation and approval." });
+        }
+        missing.AddRange(battery.MissingData);
+        if (battery.MeetsEstimatedRequirement == false)
+            risks.Add(new AiRiskResponse { Severity = "High", Title = "Battery below estimated mission requirement",
+                Evidence = $"Fresh battery: {battery.CurrentBatteryPercent}%; estimated requirement including reserve: {battery.RequiredBatteryPercent:0.##}%.",
+                Precaution = "Charge or replace the battery and regenerate the assessment before departure." });
         var result = new AiAssessmentResultResponse
         {
+            AutomaticFlightLimits = mission.AutomaticFlightLimits, CruiseSpeedMetersPerSecond = mission.AverageSpeedMetersPerSecond, MaxSpeedMetersPerSecond = mission.MaxSpeedMetersPerSecond,
+            RecoveryPolicy = mission.AutomaticFlightRequested ? AutomaticFailsafePolicy.Contract(mission.MaxSpeedMetersPerSecond ?? 0) : null,
+            Battery = battery,
             Summary = similar.Count == 0 ? "No eligible historical flight was found; manual review is required." : $"Retrieved {similar.Count} authorized completed flight(s) using recorded normalized features.",
             Risks = risks, MissingData = missing, HistoricalFlights = similar,
             Precautions = risks.Count == 0 ? ["Continue mandatory validation and manual operational review."] : ["Open every linked incident before approval.", "Do not treat similarity as a probability of safety."],
             Disclaimer = "Historical similarity is explainable decision support, not a safety probability and not an approval decision."
         };
-        var context = new { targetMissionId = mission.Id, target = FeatureDictionary(target), retrieval = result.Retrieval, sourceMissionIds = similar.Select(x => x.MissionId), sourceIncidentIds = similar.SelectMany(x => x.IncidentIds) };
+        var context = new { targetMissionId = mission.Id, planHash, automaticFlightLimits = mission.AutomaticFlightLimits,
+            recoveryPolicy = result.RecoveryPolicy, waypointNavigation = mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => new { w.SequenceOrder, w.Latitude, w.Longitude, w.Altitude, w.ActionType, w.Navigation }),
+            cruiseSpeed = mission.AverageSpeedMetersPerSecond, maximumSpeed = mission.MaxSpeedMetersPerSecond,
+            batteryMaxVoltage = mission.UAV?.BatteryMaxVoltage, battery, target = FeatureDictionary(target), retrieval = result.Retrieval, sourceMissionIds = similar.Select(x => x.MissionId), sourceIncidentIds = similar.SelectMany(x => x.IncidentIds) };
         var contextJson = JsonSerializer.Serialize(context, JsonOptions);
-        var now = DateTimeOffset.UtcNow;
         var entity = new AiAssessment
         {
             Id = Guid.NewGuid(), MissionRef = mission.Id.ToString(), MissionVersion = request.MissionVersion, RequestedBy = userId,

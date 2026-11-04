@@ -1,0 +1,462 @@
+[
+  {
+    "i": 0,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 1,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 2,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 3,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 4,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 5,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 6,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 7,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 8,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 9,
+    "kind": "p",
+    "text": "Capstone Project Report"
+  },
+  {
+    "i": 10,
+    "kind": "p",
+    "text": "Report 5 – Software Test Documentation"
+  },
+  {
+    "i": 11,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 12,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 13,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 14,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 15,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 16,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 17,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 18,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 19,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 20,
+    "kind": "p",
+    "text": "– Ho Chi Minh, October 2026 –"
+  },
+  {
+    "i": 21,
+    "kind": "sdt",
+    "text": "Table of Contents | I. Record of Changes3 | II. Testing Documentation4 | 1. Scope of Testing4 | 2. Test Strategy4 | 2.1 Testing Types4 | 2.2 Test Levels4 | 2.3 Supporting Tools5 | 3. Test Plan5 | 3.1 Human Resources5 | 3.2 Test Environment5 | 3.3 Test Milestones6 | 4. Test Cases7 | 5. Test Reports7 | "
+  },
+  {
+    "i": 22,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 23,
+    "kind": "p",
+    "text": "I. Record of Changes"
+  },
+  {
+    "i": 24,
+    "kind": "tbl",
+    "text": "Date | A*M, D | In charge | Change Description | 20 October 2026 | M | Project team | Prepared Review 2 Test Plan and template-based unit and integration/system test workbooks. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | "
+  },
+  {
+    "i": 25,
+    "kind": "p",
+    "text": "*A - Added M - Modified D - Deleted"
+  },
+  {
+    "i": 26,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 27,
+    "kind": "p",
+    "text": "II. Testing Documentation"
+  },
+  {
+    "i": 28,
+    "kind": "p",
+    "text": "1. Scope of Testing"
+  },
+  {
+    "i": 29,
+    "kind": "p",
+    "text": "Testing covers authentication and role scope, user media, mission planning and review, waypoint and segment validation, telemetry ingestion and monitoring, incident handling, post-flight reports and advisory AI. Low-level flight-control algorithms and aviation certification are outside the software test scope."
+  },
+  {
+    "i": 30,
+    "kind": "p",
+    "text": "Unit tests exercise business rules and processing functions with deterministic inputs. Integration tests cover API, persistence, scope and provider boundaries. System tests cover the two-role mainflows and recovery scenarios. Flow owners prepare tests; another team member reviews the cases and evidence."
+  },
+  {
+    "i": 31,
+    "kind": "p",
+    "text": "Tests use a disposable database, scoped test accounts, configured route and restriction fixtures, timestamped telemetry replay, and provider/email stubs. Live MAVLink, provider and email behavior require separate integration evidence. The case designs are prepared; no execution results are recorded in this document."
+  },
+  {
+    "i": 32,
+    "kind": "p",
+    "text": "2. Test Strategy"
+  },
+  {
+    "i": 33,
+    "kind": "p",
+    "text": "The strategy combines functional and boundary tests, authorization checks, transaction and recovery tests, realtime measurements and usability checks. Each test is linked to its function, controlled inputs, expected result and execution evidence."
+  },
+  {
+    "i": 34,
+    "kind": "p",
+    "text": "2.1 Testing Types"
+  },
+  {
+    "i": 35,
+    "kind": "p",
+    "text": "Functional tests use normal, invalid and boundary inputs to verify required outcomes. Authorization tests use distinct Operators and a Manager to verify role and record scope. Reliability tests use duplicate/out-of-order samples, database failure, missing packets and provider errors. Performance tests record latency, loss and workload conditions. Usability tests cover visible feedback, keyboard navigation and desktop/narrow-screen layouts. A case passes only when its expected outcome and evidence agree."
+  },
+  {
+    "i": 36,
+    "kind": "p",
+    "text": "2.2 Test Levels"
+  },
+  {
+    "i": 37,
+    "kind": "p",
+    "text": "Unit: deterministic rule, transaction, aggregation and response-processing checks owned by the function author and peer reviewer. Integration: disposable-database/API and provider-stub scenarios owned by the flow owner. System: a tagged Web/API build and controlled telemetry source exercised by the team. Acceptance: nominated mainflows reviewed against agreed requirements with supervisors. The matrix below shows the applicable testing levels."
+  },
+  {
+    "i": 38,
+    "kind": "tbl",
+    "text": "Type of Tests | Test Level |  | Unit | Integration | System | Acceptance | Functional and boundary | X | X | X | X | Authorization and data protection | X | X | X | X | Reliability and recovery | X | X | X | X | Performance and realtime latency |  | X | X |  | Usability and compatibility |  |  | X | X"
+  },
+  {
+    "i": 39,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 40,
+    "kind": "p",
+    "text": "2.3 Supporting Tools"
+  },
+  {
+    "i": 41,
+    "kind": "p",
+    "text": "The tools below support repeatable checks and evidence collection. Versions identify the project configuration; actual run versions, build commit and environment are recorded with each execution."
+  },
+  {
+    "i": 42,
+    "kind": "tbl",
+    "text": "Purpose | Tool | Vendor/In-house | Version | Backend build and static checks | dotnet build / dotnet format | Microsoft | .NET 8; SDK 8.0.400 with configured roll-forward | Offline authorization checks | DroneOps.AuthChecks | In-house | Version recorded by Git commit | Frontend checks | ESLint / TypeScript / Node test runner | Open source / Node.js | Project lockfile; Node 24 in CI | API integration and data fixtures | API client / disposable PostgreSQL / replay source | In-house / PostgreSQL | Recorded in each run | Test tracking and results | Template XLS / XLSX workbooks | Course templates | Review 2 submission"
+  },
+  {
+    "i": 43,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 44,
+    "kind": "p",
+    "text": "3. Test Plan"
+  },
+  {
+    "i": 45,
+    "kind": "p",
+    "text": "3.1 Human Resources"
+  },
+  {
+    "i": 46,
+    "kind": "p",
+    "text": "Each flow owner prepares fixtures, expected outcomes and execution evidence for the assigned mainflow. Peer review is performed by a different member. The team coordinates regression testing and review readiness."
+  },
+  {
+    "i": 47,
+    "kind": "tbl",
+    "text": "Worker/Doer | Role | Specific Responsibilities/Comments | Ha Quang Nghia | MF1 owner | Mission review, validation, transaction and scope fixtures and tests. | Le Quoc Thong | MF2 owner | Telemetry, incident, timer, reconnect and readiness tests; FE/CI and dossier coordination. | Dang Dao Anh Duc | MF3 owner | History, report, playback and analytics expected-data fixtures. | Giang Nguyen Gia Khanh | MF4 owner | AI context, provider, provenance and failure tests. | Peer reviewer / supervisors | Review and acceptance | Review requirements, cases, evidence and unresolved defects."
+  },
+  {
+    "i": 48,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 49,
+    "kind": "p",
+    "text": "3.2 Test Environment"
+  },
+  {
+    "i": 50,
+    "kind": "p",
+    "text": "Testing uses a tagged build, disposable PostgreSQL data, separate role-scoped accounts, deterministic route/zone/telemetry fixtures and controlled AI/email responses. Server credentials are supplied through the test environment. Actual machine, browser and migration versions are recorded with the test run."
+  },
+  {
+    "i": 51,
+    "kind": "tbl",
+    "text": "Purpose | Tool | Provider | Version | Backend service | .NET API + configured test environment | Microsoft / project | .NET 8; run build commit recorded | Web client | Next.js / React / Node.js | Vercel / Meta / Node.js | Project lockfile; CI Node 24 | Database | Disposable PostgreSQL schema | PostgreSQL / project | Migration level recorded per run | Browser | Chrome / Edge | Google / Microsoft | Exact version recorded per run | Telemetry and external services | Simulator/replay + AI/email stubs | Project / configured providers | Fixture, rule settings and provider scenario recorded"
+  },
+  {
+    "i": 52,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 53,
+    "kind": "p",
+    "text": "3.3 Test Milestones"
+  },
+  {
+    "i": 54,
+    "kind": "p",
+    "text": "Milestone dates are aligned with the confirmed project and Review 2 schedule. Integration and system execution begin when the relevant APIs, migrations and test fixtures are available."
+  },
+  {
+    "i": 55,
+    "kind": "tbl",
+    "text": "Milestone Task | Start Date | End Date | Test design and peer review | 20 October 2026 | Before Review 2 submission | Unit checks and offline regression | After function/test implementation | Before integration gate | API/database integration tests | After API/migration fixture readiness | Before system test gate | System workflow and demo rehearsal | After integration gate | Before confirmed Review 2 session | Feedback regression | After review feedback is recorded | Before corresponding delivery gate"
+  },
+  {
+    "i": 56,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 57,
+    "kind": "p",
+    "text": "4. Test Cases"
+  },
+  {
+    "i": 58,
+    "kind": "p",
+    "text": "Unit cases follow the supplied function-oriented XLS workbook. Integration, system and acceptance cases follow the supplied Test Report workbook. Each case records its requirement, precondition/input, procedure or condition matrix, expected result, type and execution evidence."
+  },
+  {
+    "i": 59,
+    "kind": "p",
+    "text": "Unit Test Cases: Report5_Unit Test.xlsx"
+  },
+  {
+    "i": 60,
+    "kind": "p",
+    "text": "Other Test Cases (IT, ST, AT): Report5_Test Report.xlsx"
+  },
+  {
+    "i": 61,
+    "kind": "p",
+    "text": "5. Test Reports"
+  },
+  {
+    "i": 62,
+    "kind": "p",
+    "text": "Executed regression subset: TC-T01, TC-T02, TC-T03, TC-H01 and TC-H04 passed in isolated automated service/API fixtures. UT-05 and UT-06 conditions also passed through the service-regression harness. Supporting runs: 38 auth/validation, 39 telemetry, 42 post-flight and 18 FE contract/render checks passed. Evidence includes commands, commit 9d2078867285a499d3a8d6cb9c112521ae9877a0 and raw logs in test-evidence. Results apply to this subset and environment, not to browser/hardware or full acceptance testing."
+  },
+  {
+    "i": 63,
+    "kind": "p",
+    "text": "Automatic flight preparation and workflow ownership"
+  },
+  {
+    "i": 64,
+    "kind": "p",
+    "text": "Current ownership: MF1 / WF-01 — NghiaHQ (Ha Quang Nghia), planning and preflight; MF2 / WF-02 — ThongLQ (Le Quoc Thong), realtime monitoring, incidents and flight preparation; MF3 / WF-03 — DucDDA (Dang Dao Anh Duc), post-flight; MF4 / WF-04 — KhanhGNG (Giang Nguyen Gia Khanh), AI assessment. ThongLQ remains team leader and dossier coordinator."
+  },
+  {
+    "i": 65,
+    "kind": "p",
+    "text": "Implemented scope"
+  },
+  {
+    "i": 66,
+    "kind": "p",
+    "text": "AutomaticFlightRequested is optional and defaults to false. Changes follow the mission proposal and approval workflow. This release prepares readiness; dispatchEnabled is false. Neither confirmation nor gateway enrollment uploads a mission, arms motors, sends TAKEOFF/AUTO/MISSION_START, or changes the mission to InProgress."
+  },
+  {
+    "i": 67,
+    "kind": "p",
+    "text": "Confirmation conditions"
+  },
+  {
+    "i": 68,
+    "kind": "p",
+    "text": "For an approved, opted-in mission with a schedule, the backend opens confirmation at T minus 5 minutes and closes it at the scheduled start. The authenticated operator must keep a visible browser tab online. Presence is sent every 10 seconds and expires after 30 seconds. The selected, unrevoked mission connection must match the active UAV and flight-controller UID, with gateway heartbeat within 30 seconds and telemetry within 15 seconds."
+  },
+  {
+    "i": 69,
+    "kind": "p",
+    "text": "Readiness evidence"
+  },
+  {
+    "i": 70,
+    "kind": "p",
+    "text": "Confirmation reruns preflight and binds readiness to the exact plan hash and connection ID. Readiness requires a passing preflight for that hash from the last minute. Changed plan/connection, stale presence or missing telemetry invalidates the conditions; the operator must review and confirm again. Dismissal, a hidden/offline tab or a missed window is not flight consent."
+  },
+  {
+    "i": 71,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "i": 72,
+    "kind": "p",
+    "text": "Autopilot execution remains a separate development phase: firmware/airframe capability detection, mission compilation and upload/read-back, command IDs/deadlines and replay protection, scheduled condition rechecks, local pre-arm/failsafe enforcement, and ACK plus observed flight-state verification. Validate ArduPilot/PX4 SITL, propeller-free bench operation and supervised flight before enabling dispatch. AI advice cannot authorize launch."
+  },
+  {
+    "i": 73,
+    "kind": "p",
+    "text": "Test execution status"
+  },
+  {
+    "i": 74,
+    "kind": "p",
+    "text": "The following flight-preparation cases are planned acceptance/regression targets. No execution date, pass result or physical-aircraft evidence is claimed by this document update. MF2 owner ThongLQ coordinates execution; NghiaHQ reviews preflight fixtures; KhanhGNG verifies that AI advice cannot bypass readiness."
+  },
+  {
+    "i": 75,
+    "kind": "p",
+    "text": "AF-01 Opt-in review"
+  },
+  {
+    "i": 76,
+    "kind": "p",
+    "text": "Create a mission without the option, then propose an option change. Expect false by default and the approved plan unchanged until review."
+  },
+  {
+    "i": 77,
+    "kind": "p",
+    "text": "AF-02 Window boundaries"
+  },
+  {
+    "i": 78,
+    "kind": "p",
+    "text": "Check immediately before T-5, at T-5, immediately before start, and at start using backend time. Expect confirmation only within [T-5, start)."
+  },
+  {
+    "i": 79,
+    "kind": "p",
+    "text": "AF-03 Identity and scope"
+  },
+  {
+    "i": 80,
+    "kind": "p",
+    "text": "Try another owner, wrong UAV/UID, revoked/expired connection and inactive UAV. Expect denial or blocked readiness; no aircraft command."
+  },
+  {
+    "i": 81,
+    "kind": "p",
+    "text": "AF-04 Freshness"
+  },
+  {
+    "i": 82,
+    "kind": "p",
+    "text": "Exercise stale operator presence (>30 s), gateway heartbeat (>30 s) and telemetry (>15 s), and restore them independently. Missing prerequisites must remain visible; restoring one must not bypass the others."
+  },
+  {
+    "i": 83,
+    "kind": "p",
+    "text": "AF-05 Evidence changes"
+  },
+  {
+    "i": 84,
+    "kind": "p",
+    "text": "Confirm, then change plan hash or connection, or expire the passing preflight (>1 minute). Expect earlier evidence not to authorize readiness for changed/stale inputs."
+  },
+  {
+    "i": 85,
+    "kind": "p",
+    "text": "AF-06 Dismiss and disconnect"
+  },
+  {
+    "i": 86,
+    "kind": "p",
+    "text": "Dismiss/cancel; hide the tab; lose Internet/session; reconnect after the window. Expect no implied consent or late launch, and cancel clears saved confirmation/presence."
+  },
+  {
+    "i": 87,
+    "kind": "p",
+    "text": "AF-07 Plan contract"
+  },
+  {
+    "i": 88,
+    "kind": "p",
+    "text": "Export as owner and non-owner; verify units, waypoint order, altitude reference, E7 conversion and dispatchEnabled=false. Reject unauthorized export; do not interpret a missing altitude as zero."
+  },
+  {
+    "i": 89,
+    "kind": "p",
+    "text": "AF-08 No dispatch"
+  },
+  {
+    "i": 90,
+    "kind": "p",
+    "text": "Confirm with all prerequisites and inspect gateway traffic and mission state. Expect no mission upload, ARM, TAKEOFF, mode/start command or readiness-driven InProgress transition."
+  },
+  {
+    "i": 91,
+    "kind": "sectPr",
+    "text": ""
+  }
+]

@@ -1,0 +1,854 @@
+[
+  {
+    "file": "D:\\DroneOps-Intelligence-\\docs\\reports\\FA26SE238_Project_Schedule.xlsx",
+    "changes": [
+      {
+        "sheet": "Project Schedule",
+        "cell": "H10",
+        "value": "ThongLQ"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I10",
+        "value": "Simulator ingestion, normalization and persistence. | Responsible: ThongLQ. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H12",
+        "value": "KhanhGNG"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I12",
+        "value": "Mission context, response display, server-side keys, timeout/rate limits; no model training. | Responsible: KhanhGNG. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H23",
+        "value": "ThongLQ"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I23",
+        "value": "FE-05/06/07/08/10; telemetry, connectivity, detection, alerts and incident states. | Responsible: ThongLQ. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H25",
+        "value": "KhanhGNG"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I25",
+        "value": "FE-09/10; source mission context, external API contract, advisory UI and failure states. | Responsible: KhanhGNG. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H36",
+        "value": "ThongLQ"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I36",
+        "value": "MF2 lead ThongLQ; monitoring and incidents are one main flow. | Responsible: ThongLQ. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H37",
+        "value": "ThongLQ"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I37",
+        "value": "FE-05; normalize, persist and update UAV/mission state. | Responsible: ThongLQ. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H38",
+        "value": "ThongLQ"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I38",
+        "value": "FE-06/10; location, altitude, speed, battery, connectivity and progress. | Responsible: ThongLQ. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H39",
+        "value": "ThongLQ"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I39",
+        "value": "FE-07/08; low battery, communication loss, abnormal altitude/speed, alerts and incident history. | Responsible: ThongLQ. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H40",
+        "value": "ThongLQ"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I40",
+        "value": "Incremental tests and demo; package source/database scripts and updated SRS, SDD and test records. | Responsible: ThongLQ. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H44",
+        "value": "KhanhGNG"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I44",
+        "value": "FE-09/10; prepare context, call configured OpenAI or Gemini API, validate/display advisory output and handle errors. | Responsible: KhanhGNG. Team support as needed."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "H49",
+        "value": "KhanhGNG"
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I49",
+        "value": "Mocked API cases plus controlled live smoke tests; missing context, invalid output, timeout/rate limits, latency and usage; user review of advice. | Responsible: KhanhGNG. Team support as needed."
+      },
+      {
+        "sheet": "Responsibility Matrix",
+        "cell": "B7",
+        "value": "D"
+      },
+      {
+        "sheet": "Responsibility Matrix",
+        "cell": "D7",
+        "value": "S"
+      },
+      {
+        "sheet": "Responsibility Matrix",
+        "cell": "B9",
+        "value": "S"
+      },
+      {
+        "sheet": "Responsibility Matrix",
+        "cell": "D9",
+        "value": "D"
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "B9",
+        "value": "Current ownership: MF1 NghiaHQ; MF2 ThongLQ; MF3 DucDDA; MF4 KhanhGNG. Each flow owner coordinates requirements, design, implementation and tests. ThongLQ retains team leadership, frontend/CI and dossier coordination."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I38",
+        "value": "FE-06/10; location, altitude, speed, battery, connectivity and progress. | Responsible: ThongLQ. Team support as needed. Readiness scope: optional AutomaticFlightRequested; reviewed plan; T-5 minute confirmation; scoped fresh presence/telemetry/preflight; dispatchEnabled=false. No aircraft command execution."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I40",
+        "value": "Incremental tests and demo; package source/database scripts and updated SRS, SDD and test records. | Responsible: ThongLQ. Team support as needed. Include AF-01 through AF-08 readiness tests; statuses remain Pending until executed."
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "A18",
+        "value": "Automatic flight preparation"
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "B18",
+        "value": "Implemented readiness only: approved opt-in; backend window [T-5 min,start); visible online authenticated operator; presence/heartbeat within 30 s; telemetry within 15 s; passing preflight for current plan hash within 1 min; confirmation bound to connection. Owner ThongLQ with NghiaHQ support."
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "A19",
+        "value": "Aircraft execution roadmap"
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "B19",
+        "value": "Not implemented: mission upload/read-back, ARM, TAKEOFF/AUTO/MISSION_START, command replay protection and scheduled dispatch. dispatchEnabled=false. Schedule/effort for that phase remains to be agreed after SITL and bench validation; existing dates are not proof of readiness to fly."
+      }
+    ],
+    "kind": "schedule"
+  },
+  {
+    "file": "D:\\DroneOps-Intelligence-\\docs\\reports\\Report5_Test Report.xlsx",
+    "changes": [
+      {
+        "sheet": "Telemetry",
+        "cell": "A20",
+        "value": "AF-01"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B20",
+        "value": "Opt-in review"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C20",
+        "value": "Create a mission without the option, then propose an option change. Expect false by default and the approved plan unchanged until review."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D20",
+        "value": "Satisfy the acceptance criteria in FR-AF-01 through FR-AF-04; dispatchEnabled=false; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E20",
+        "value": "Approved opted-in scheduled mission; controlled backend clock; scoped owner/UAV/UID/connection; mock telemetry/preflight."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F20",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I20",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L20",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O20",
+        "value": "MF2 owner ThongLQ; NghiaHQ supports preflight; planned, not executed."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A21",
+        "value": "AF-02"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B21",
+        "value": "Window boundaries"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C21",
+        "value": "Check immediately before T-5, at T-5, immediately before start, and at start using backend time. Expect confirmation only within [T-5, start)."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D21",
+        "value": "Satisfy the acceptance criteria in FR-AF-01 through FR-AF-04; dispatchEnabled=false; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E21",
+        "value": "Approved opted-in scheduled mission; controlled backend clock; scoped owner/UAV/UID/connection; mock telemetry/preflight."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F21",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I21",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L21",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O21",
+        "value": "MF2 owner ThongLQ; NghiaHQ supports preflight; planned, not executed."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A22",
+        "value": "AF-03"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B22",
+        "value": "Identity and scope"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C22",
+        "value": "Try another owner, wrong UAV/UID, revoked/expired connection and inactive UAV. Expect denial or blocked readiness; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D22",
+        "value": "Satisfy the acceptance criteria in FR-AF-01 through FR-AF-04; dispatchEnabled=false; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E22",
+        "value": "Approved opted-in scheduled mission; controlled backend clock; scoped owner/UAV/UID/connection; mock telemetry/preflight."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F22",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I22",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L22",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O22",
+        "value": "MF2 owner ThongLQ; NghiaHQ supports preflight; planned, not executed."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A23",
+        "value": "AF-04"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B23",
+        "value": "Freshness"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C23",
+        "value": "Exercise stale operator presence (>30 s), gateway heartbeat (>30 s) and telemetry (>15 s), and restore them independently. Missing prerequisites must remain visible; restoring one must not bypass the others."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D23",
+        "value": "Satisfy the acceptance criteria in FR-AF-01 through FR-AF-04; dispatchEnabled=false; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E23",
+        "value": "Approved opted-in scheduled mission; controlled backend clock; scoped owner/UAV/UID/connection; mock telemetry/preflight."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F23",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I23",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L23",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O23",
+        "value": "MF2 owner ThongLQ; NghiaHQ supports preflight; planned, not executed."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A24",
+        "value": "AF-05"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B24",
+        "value": "Evidence changes"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C24",
+        "value": "Confirm, then change plan hash or connection, or expire the passing preflight (>1 minute). Expect earlier evidence not to authorize readiness for changed/stale inputs."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D24",
+        "value": "Satisfy the acceptance criteria in FR-AF-01 through FR-AF-04; dispatchEnabled=false; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E24",
+        "value": "Approved opted-in scheduled mission; controlled backend clock; scoped owner/UAV/UID/connection; mock telemetry/preflight."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F24",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I24",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L24",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O24",
+        "value": "MF2 owner ThongLQ; NghiaHQ supports preflight; planned, not executed."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A25",
+        "value": "AF-06"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B25",
+        "value": "Dismiss and disconnect"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C25",
+        "value": "Dismiss/cancel; hide the tab; lose Internet/session; reconnect after the window. Expect no implied consent or late launch, and cancel clears saved confirmation/presence."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D25",
+        "value": "Satisfy the acceptance criteria in FR-AF-01 through FR-AF-04; dispatchEnabled=false; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E25",
+        "value": "Approved opted-in scheduled mission; controlled backend clock; scoped owner/UAV/UID/connection; mock telemetry/preflight."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F25",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I25",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L25",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O25",
+        "value": "MF2 owner ThongLQ; NghiaHQ supports preflight; planned, not executed."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A26",
+        "value": "AF-07"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B26",
+        "value": "Plan contract"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C26",
+        "value": "Export as owner and non-owner; verify units, waypoint order, altitude reference, E7 conversion and dispatchEnabled=false. Reject unauthorized export; do not interpret a missing altitude as zero."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D26",
+        "value": "Satisfy the acceptance criteria in FR-AF-01 through FR-AF-04; dispatchEnabled=false; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E26",
+        "value": "Approved opted-in scheduled mission; controlled backend clock; scoped owner/UAV/UID/connection; mock telemetry/preflight."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F26",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I26",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L26",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O26",
+        "value": "MF2 owner ThongLQ; NghiaHQ supports preflight; planned, not executed."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A27",
+        "value": "AF-08"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B27",
+        "value": "No dispatch"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C27",
+        "value": "Confirm with all prerequisites and inspect gateway traffic and mission state. Expect no mission upload, ARM, TAKEOFF, mode/start command or readiness-driven InProgress transition."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D27",
+        "value": "Satisfy the acceptance criteria in FR-AF-01 through FR-AF-04; dispatchEnabled=false; no aircraft command."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E27",
+        "value": "Approved opted-in scheduled mission; controlled backend clock; scoped owner/UAV/UID/connection; mock telemetry/preflight."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F27",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I27",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L27",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O27",
+        "value": "MF2 owner ThongLQ; NghiaHQ supports preflight; planned, not executed."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B3",
+        "value": "UC-13–14 / MF2-CR-01; FR-AF-01–04 / readiness; owner ThongLQ"
+      },
+      {
+        "sheet": "Test Cases",
+        "cell": "E10",
+        "value": "Telemetry and AF-01–AF-08 flight-preparation cases; owner ThongLQ; new cases Pending."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B4",
+        "formula": "=COUNTA(A12:A27)"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B6",
+        "formula": "=COUNTIF(F12:F27,\"Passed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C6",
+        "formula": "=COUNTIF(F12:F27,\"Failed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D6",
+        "formula": "=COUNTIF(F12:F27,\"Pending\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E6",
+        "formula": "=COUNTIF(F12:F27,\"N/A\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B7",
+        "formula": "=COUNTIF(I12:I27,\"Passed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C7",
+        "formula": "=COUNTIF(I12:I27,\"Failed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D7",
+        "formula": "=COUNTIF(I12:I27,\"Pending\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E7",
+        "formula": "=COUNTIF(I12:I27,\"N/A\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B8",
+        "formula": "=COUNTIF(L12:L27,\"Passed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C8",
+        "formula": "=COUNTIF(L12:L27,\"Failed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D8",
+        "formula": "=COUNTIF(L12:L27,\"Pending\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E8",
+        "formula": "=COUNTIF(L12:L27,\"N/A\")"
+      }
+    ],
+    "kind": "tests"
+  }
+]

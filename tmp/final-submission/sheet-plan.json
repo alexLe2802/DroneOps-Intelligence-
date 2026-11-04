@@ -1,0 +1,1344 @@
+[
+  {
+    "kind": "schedule",
+    "file": "D:/DroneOps-Intelligence-/docs/reports/FA26SE238_Project_Schedule.xlsx",
+    "changes": [
+      {
+        "sheet": "Plan Notes",
+        "cell": "A18",
+        "value": "Scheduled automatic flight"
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "B18",
+        "value": "Final scope: reviewed opt-in, firmware/profile compilation, upload/read-back, pilot consent in [T-5 min,start), atomic scheduled dispatch, gateway local checks and observed execution/completion. Owner ThongLQ; NghiaHQ owns planning/preflight; DucDDA owns post-flight; KhanhGNG owns advisory AI."
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "A19",
+        "value": "Dispatch and acceptance"
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "B19",
+        "value": "All gates are conjunctive. Presence/heartbeat <=30 s, telemetry <=15 s, preflight <=60 s; exact UID/lease/plan/compiled hash binding. Envelope expires at start+5 s; retry delivery at most three times with the same commandId; no replay/catch-up. AF-01–16 and UT-AF-01–07 define final acceptance. Execution status is recorded from actual evidence."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I38",
+        "value": "MF2 owner ThongLQ: gateway, compiled mission upload/read-back, operator consent, scheduled dispatch, local pre-arm and observed execution; realtime/incident integration remains in this flow."
+      },
+      {
+        "sheet": "Project Schedule",
+        "cell": "I40",
+        "value": "Final acceptance includes AF-01–AF-16 and unit UT-AF-01–UT-AF-07; record actual SITL/bench/supervised-aircraft evidence separately. No automatic pass result is implied by document finalization."
+      },
+      {
+        "sheet": "Plan Notes",
+        "cell": "B12",
+        "value": "Configured external AI provider with authorized context, advisory output and failure handling; AI does not approve or launch. Scheduled automatic execution follows the reviewed plan, pilot consent and gateway dispatch contract."
+      }
+    ]
+  },
+  {
+    "kind": "tests",
+    "file": "D:/DroneOps-Intelligence-/docs/reports/Report5_Test Report.xlsx",
+    "changes": [
+      {
+        "sheet": "Telemetry",
+        "cell": "A20",
+        "value": "AF-01"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B20",
+        "value": "Reviewed opt in"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C20",
+        "value": "Change the automatic option before and after approval."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D20",
+        "value": "Option defaults off; approved content changes only through review; a pending update blocks dispatch."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E20",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F20",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I20",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L20",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N20",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O20",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A21",
+        "value": "AF-02"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B21",
+        "value": "Consent window"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C21",
+        "value": "Exercise T−5 minus a tick, T−5, start minus a tick and start."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D21",
+        "value": "Consent accepted only in [T−5,start), using backend time; confirmation alone sends no start."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E21",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F21",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I21",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L21",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N21",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O21",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A22",
+        "value": "AF-03"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B22",
+        "value": "Identity and authorization"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C22",
+        "value": "Use another owner, wrong UID/UAV, expired/revoked lease or inactive UAV."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D22",
+        "value": "Access is denied or dispatch blocked; no aircraft command is issued."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E22",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F22",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I22",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L22",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N22",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O22",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A23",
+        "value": "AF-04"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B23",
+        "value": "Freshness gates"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C23",
+        "value": "Expire presence, heartbeat, telemetry and preflight independently."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D23",
+        "value": "The relevant gate blocks dispatch; restoring one condition cannot bypass the others."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E23",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F23",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I23",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L23",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N23",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O23",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A24",
+        "value": "AF-05"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B24",
+        "value": "Changed execution context"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C24",
+        "value": "Confirm, then replace plan, connection or uploaded mission."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D24",
+        "value": "Consent/read-back binding is invalidated; stale hashes cannot authorize execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E24",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F24",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I24",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L24",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N24",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O24",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A25",
+        "value": "AF-06"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B25",
+        "value": "Cancel and missed window"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C25",
+        "value": "Cancel before dispatch, hide tab, lose session and reconnect after deadline."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D25",
+        "value": "No implied consent or late catch-up start; cancelled authorization remains unusable."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E25",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F25",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I25",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L25",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N25",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O25",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A26",
+        "value": "AF-07"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B26",
+        "value": "Plan and unit contract"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C26",
+        "value": "Export owner/non-owner plans; test degrees/E7, altitude frame and missing values."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D26",
+        "value": "Correct units/order and scope; null altitude is rejected; dispatchEnabled reflects all gates."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E26",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F26",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I26",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L26",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N26",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O26",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A27",
+        "value": "AF-08"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B27",
+        "value": "Eligible scheduled execution"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C27",
+        "value": "Provide approved plan, verified upload, valid consent and all fresh gates at start."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D27",
+        "value": "One execution envelope reaches the correct gateway; no early arm/start; InProgress requires actual flight evidence."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E27",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F27",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I27",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L27",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N27",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O27",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A28",
+        "value": "AF-09"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B28",
+        "value": "Firmware and payload capability"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C28",
+        "value": "Use supported profiles, unsupported firmware and a missing-camera photo action."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D28",
+        "value": "Supported profile compiles; incompatible airframe/frame/action blocks before execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E28",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F28",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G28",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H28",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I28",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J28",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K28",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L28",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M28",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N28",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O28",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A29",
+        "value": "AF-10"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B29",
+        "value": "Upload read-back integrity"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C29",
+        "value": "Inject upload timeout, rejected ACK, reordered/wrong downloaded items and hash mismatch."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D29",
+        "value": "Bounded failure is visible; no dispatch until normalized read-back matches the compiled mission."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E29",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F29",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G29",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H29",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I29",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J29",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K29",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L29",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M29",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N29",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O29",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A30",
+        "value": "AF-11"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B30",
+        "value": "Replay and delivery retry"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C30",
+        "value": "Duplicate/reorder one commandId across reconnects and workers."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D30",
+        "value": "Same identity is deduplicated; delivery retries do not repeat physical start or create another execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E30",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F30",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G30",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H30",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I30",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J30",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K30",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L30",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M30",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N30",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O30",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A31",
+        "value": "AF-12"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B31",
+        "value": "ACK versus flight evidence"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C31",
+        "value": "Accept command ACK while vehicle remains on ground; then supply valid flight-state evidence."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D31",
+        "value": "ACK alone leaves mission Approved; one trusted execution/InProgress transition follows observed flight evidence."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E31",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F31",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G31",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H31",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I31",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J31",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K31",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L31",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M31",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N31",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O31",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A32",
+        "value": "AF-13"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B32",
+        "value": "Dispatch deadline"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C32",
+        "value": "Deliver immediately before and after scheduled start plus 5 seconds."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D32",
+        "value": "Only a valid, still-eligible envelope within deadline can execute; expired dispatch never catches up."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E32",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F32",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G32",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H32",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I32",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J32",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K32",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L32",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M32",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N32",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O32",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A33",
+        "value": "AF-14"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B33",
+        "value": "Restart and uncertain outcome"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C33",
+        "value": "Restart backend/gateway after accepting an envelope and during an uncertain start."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D33",
+        "value": "Durable identity survives; reconcile observed state; do not blindly re-arm or restart."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E33",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F33",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G33",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H33",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I33",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J33",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K33",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L33",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M33",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N33",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O33",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A34",
+        "value": "AF-15"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B34",
+        "value": "Loss and pilot takeover"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C34",
+        "value": "Lose web/backend link during an airborne SITL mission; exercise RC takeover."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D34",
+        "value": "Configured onboard failsafe and pilot authority apply; history remains traceable; no automatic duplicate launch."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E34",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F34",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G34",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H34",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I34",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J34",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K34",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L34",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M34",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N34",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O34",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "A35",
+        "value": "AF-16"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B35",
+        "value": "Completion and partial outcome"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C35",
+        "value": "Repeat trusted completion; record an aborted/partial flight with telemetry gaps."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D35",
+        "value": "One execution/report; outcome and missing coverage remain explicit; no fabricated completed route."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E35",
+        "value": "Approved plan; supported profile; scoped owner/UAV/UID/lease; controlled clock, transfer and telemetry fixtures."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "F35",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "G35",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "H35",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "I35",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "J35",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "K35",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "L35",
+        "value": "Pending"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "M35",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "N35",
+        "value": null
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "O35",
+        "value": "FR-AF-01–12; UC-AF-01–03; owner ThongLQ; final test specification; result recorded on execution."
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B3",
+        "value": "UC-13–14; UC-AF-01–03; FR-AF-01–12; owner ThongLQ"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B4",
+        "formula": "=COUNTA(A12:A35)"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B6",
+        "formula": "=COUNTIF(F12:F35,\"Passed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C6",
+        "formula": "=COUNTIF(F12:F35,\"Failed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D6",
+        "formula": "=COUNTIF(F12:F35,\"Pending\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E6",
+        "formula": "=COUNTIF(F12:F35,\"N/A\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B7",
+        "formula": "=COUNTIF(I12:I35,\"Passed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C7",
+        "formula": "=COUNTIF(I12:I35,\"Failed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D7",
+        "formula": "=COUNTIF(I12:I35,\"Pending\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E7",
+        "formula": "=COUNTIF(I12:I35,\"N/A\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "B8",
+        "formula": "=COUNTIF(L12:L35,\"Passed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "C8",
+        "formula": "=COUNTIF(L12:L35,\"Failed\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "D8",
+        "formula": "=COUNTIF(L12:L35,\"Pending\")"
+      },
+      {
+        "sheet": "Telemetry",
+        "cell": "E8",
+        "formula": "=COUNTIF(L12:L35,\"N/A\")"
+      },
+      {
+        "sheet": "Test Cases",
+        "cell": "E10",
+        "value": "Telemetry and full scheduled automatic execution: AF-01–AF-16; owner ThongLQ."
+      },
+      {
+        "sheet": "Cover",
+        "cell": "B6",
+        "value": "FA26SE238_Test_Report_v1.0"
+      },
+      {
+        "sheet": "Cover",
+        "cell": "F6",
+        "value": "1.0 Final"
+      },
+      {
+        "sheet": "Test Statistics",
+        "cell": "C5",
+        "value": "FA26SE238_Test_Report_v1.0"
+      },
+      {
+        "sheet": "Test Statistics",
+        "cell": "C6",
+        "value": "Final test specification: 56 functional cases. Five recorded integration passes are retained; remaining execution states stay evidence-based. Automatic flight coverage: AF-01–AF-16."
+      }
+    ]
+  }
+]

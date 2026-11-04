@@ -24,7 +24,8 @@ public sealed class MissionPreflightService(
             dueMissions,
             new ParallelOptions
             {
-                MaxDegreeOfParallelism = 4,
+                // This scoped validation service shares one EF DbContext.
+                MaxDegreeOfParallelism = 1,
                 CancellationToken = cancellationToken
             },
             async (mission, ct) =>
