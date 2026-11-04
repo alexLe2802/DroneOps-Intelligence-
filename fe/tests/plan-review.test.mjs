@@ -23,6 +23,8 @@ test('matches waypoint sequence and identifies added, removed and action-only ed
   assert.deepEqual(rows.map(row => [row.sequence,row.status]), [[1,'Unchanged'],[2,'Changed'],[3,'Added'],[4,'Removed']]);
 });
 let evidenceSource = await readFile(new URL('../src/app/portal/missions/mission-validation-evidence.tsx', import.meta.url), 'utf8');
+const vietnamTime = compile(await readFile(new URL('../src/lib/portal/vietnam-time.ts', import.meta.url), 'utf8'));
+evidenceSource = evidenceSource.replace('from "@/lib/portal/vietnam-time"', `from ${JSON.stringify(vietnamTime)}`);
 evidenceSource = evidenceSource.replace('from "@/lib/portal/mission-review"', `from ${JSON.stringify(reviewHelper)}`);
 evidenceSource = evidenceSource.replace('import styles from "./mission-evidence.module.css";', 'const styles = { validationEvidence: "validationEvidence" };');
 // Resolve the JSX runtime in data URL modules against this test package.

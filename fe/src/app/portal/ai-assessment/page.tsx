@@ -6,5 +6,5 @@ export const metadata = { title: "AI Risk Assessment | DroneOps Intelligence" };
 
 export default async function AiAssessmentPage() {
   const session = await requirePortalSession();
-  return <PortalShell account={session.account}><AiAssessmentClient /></PortalShell>;
+  return <PortalShell account={session.account}><AiAssessmentClient role={session.account.role} /></PortalShell>;
 }

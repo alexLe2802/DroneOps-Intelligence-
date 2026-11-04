@@ -7,6 +7,8 @@ using DroneOps.Application.Interfaces.AI;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
+using DroneOps.Application.DTOs.Response.Missions;
+using DroneOps.Application.Validators.Missions;
 
 namespace DroneOps.Application.Services.AI;
 
@@ -18,7 +20,7 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
     {
         if (!Guid.TryParse(request.MissionRef, out var missionId)) throw new ArgumentException("Mission reference must be a UUID.");
         if (request.MissionVersion < 1) throw new ArgumentException("Mission version must be positive.");
-        var mission = await AuthorizedMissions(userId, isManager).Include(x => x.UAV)
+        var mission = await AuthorizedMissions(userId, isManager).Include(x => x.UAV).Include(x => x.Waypoints)
             .SingleOrDefaultAsync(x => x.Id == missionId, cancellationToken)
             ?? throw new KeyNotFoundException("Mission was not found in the authorized scope.");
 
@@ -61,16 +63,39 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
             Evidence = $"{x.IncidentIds.Count} linked incident(s); similarity score {x.SimilarityScore:F3}.",
             Precaution = "Review the linked incident evidence before operational approval."
         }).ToList();
+        var now = DateTimeOffset.UtcNow;
+        var batteryRecord = telemetry.Where(t => t.MissionId == mission.Id && t.UAVId == mission.UAVId)
+            .OrderByDescending(t => t.SourceTimestamp).ThenByDescending(t => t.ReceivedAt).FirstOrDefault();
+        var planHash = MissionValidationService.Hash(mission);
+        var latestValidation = await db.MissionValidationRuns.AsNoTracking().Where(r => r.MissionId == mission.Id && r.PlanHash == planHash)
+            .OrderByDescending(r => r.CheckedAt).FirstOrDefaultAsync(cancellationToken);
+        WeatherAdvisory? weather = null;
+        if (latestValidation != null && latestValidation.CheckedAt >= now.AddMinutes(-10))
+        {
+            try
+            {
+                var snapshot = JsonSerializer.Deserialize<MissionValidationResult>(latestValidation.ResultJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (snapshot?.Weather is { Available: true } forecast && forecast.ExpiresAt > now && forecast.GeneratedAt <= now)
+                    weather = forecast;
+            }
+            catch (JsonException) { /* Missing evidence is explicit; no synthetic weather. */ }
+        }
+        var battery = BatteryAssessmentCalculator.Calculate(mission, mission.UAV, batteryRecord, weather, now);
+        missing.AddRange(battery.MissingData);
+        if (battery.MeetsEstimatedRequirement == false)
+            risks.Add(new AiRiskResponse { Severity = "High", Title = "Battery below estimated mission requirement",
+                Evidence = $"Fresh battery: {battery.CurrentBatteryPercent}%; estimated requirement including reserve: {battery.RequiredBatteryPercent:0.##}%.",
+                Precaution = "Charge or replace the battery and regenerate the assessment before departure." });
         var result = new AiAssessmentResultResponse
         {
+            Battery = battery,
             Summary = similar.Count == 0 ? "No eligible historical flight was found; manual review is required." : $"Retrieved {similar.Count} authorized completed flight(s) using recorded normalized features.",
             Risks = risks, MissingData = missing, HistoricalFlights = similar,
             Precautions = risks.Count == 0 ? ["Continue mandatory validation and manual operational review."] : ["Open every linked incident before approval.", "Do not treat similarity as a probability of safety."],
             Disclaimer = "Historical similarity is explainable decision support, not a safety probability and not an approval decision."
         };
-        var context = new { targetMissionId = mission.Id, target = FeatureDictionary(target), retrieval = result.Retrieval, sourceMissionIds = similar.Select(x => x.MissionId), sourceIncidentIds = similar.SelectMany(x => x.IncidentIds) };
+        var context = new { targetMissionId = mission.Id, planHash, battery, target = FeatureDictionary(target), retrieval = result.Retrieval, sourceMissionIds = similar.Select(x => x.MissionId), sourceIncidentIds = similar.SelectMany(x => x.IncidentIds) };
         var contextJson = JsonSerializer.Serialize(context, JsonOptions);
-        var now = DateTimeOffset.UtcNow;
         var entity = new AiAssessment
         {
             Id = Guid.NewGuid(), MissionRef = mission.Id.ToString(), MissionVersion = request.MissionVersion, RequestedBy = userId,

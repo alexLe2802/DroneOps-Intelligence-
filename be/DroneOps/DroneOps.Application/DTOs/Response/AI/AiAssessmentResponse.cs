@@ -16,6 +16,7 @@ public sealed class AiAssessmentResponse
 
 public sealed class AiAssessmentResultResponse
 {
+    public BatteryAssessmentResponse? Battery { get; set; }
     public string Summary { get; set; } = string.Empty;
     public List<AiRiskResponse> Risks { get; set; } = [];
     public List<string> Precautions { get; set; } = [];
