@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DroneOps MAVLink telemetry gateway. Reads only; never sends flight commands."""
+"""DroneOps gateway. Telemetry by default; flight commands require explicit opt-in."""
 import argparse
 import datetime as dt
 import getpass
@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.parse
 import uuid
+from flight_control import ControlBridge, FlightControl
 
 
 class GatewayError(Exception):
@@ -94,6 +95,8 @@ def open_gateway_socket(endpoint, session=None, pairing=None):
                 raise GatewayError('Backend resumed a different UAV or hardware identity.')
             # A device credential is returned only during first enrollment.
             session.update({key: value for key, value in credential.items() if key != 'deviceToken'})
+        if session is not None:
+            session['executionProtocol'] = response.get('executionProtocol', 0)
         return connection, response.get('payload')
     except BaseException:
         connection.close()
@@ -242,7 +245,7 @@ class TelemetryState:
         return value
 
 
-def forward(endpoint, session, pending, stop, failures):
+def forward(endpoint, session, pending, stop, failures, controls=None):
     last_heartbeat, retry_delay = 0.0, 1.0
     inflight = None
     while not stop.is_set():
@@ -250,6 +253,8 @@ def forward(endpoint, session, pending, stop, failures):
         try:
             previous_scope = (session.get('connectionId'), session.get('missionId'), session.get('sourceId'))
             connection, _ = open_gateway_socket(endpoint, session=session)
+            if controls:
+                controls.reconnect()
             # A web-selected mission may have changed while offline. Discard samples
             # captured for the old lease before accepting the new scoped session.
             if previous_scope != (session.get('connectionId'), session.get('missionId'), session.get('sourceId')):
@@ -261,7 +266,14 @@ def forward(endpoint, session, pending, stop, failures):
                         break
             retry_delay = 1.0
             last_heartbeat = 0.0
+            last_control = 0.0
             while not stop.is_set():
+                if controls and session.get('executionProtocol') == 1 and time.monotonic() - last_control >= 1:
+                    payload = controls.payload()
+                    if payload:
+                        response = exchange(connection, {'type': 'controlPoll', 'payload': payload}, 'controlAck')
+                        controls.receive(response['payload'], payload)
+                    last_control = time.monotonic()
                 if time.monotonic() - last_heartbeat >= 10:
                     exchange(connection, {'type': 'heartbeat'}, 'heartbeatAck')
                     last_heartbeat = time.monotonic()
@@ -310,6 +322,7 @@ def main():
     parser.add_argument('--remember-device', action='store_true', help='Enroll this trusted gateway for unattended boots and web-selected mission changes')
     parser.add_argument('--pair-only', action='store_true', help='Save a paired session and exit without forwarding')
     parser.add_argument('--service', action='store_true', help='Never prompt interactively; wait for a saved session')
+    parser.add_argument('--enable-flight-control', action='store_true', help='Experimental: enable FC mission upload and pilot-authorized commands after SITL/failsafe validation')
     parser.add_argument('--pair-code-stdin', action='store_true', help='Read pairing code from stdin for automated integration tests')
     parser.add_argument('--allow-insecure-websocket', '--allow-insecure-http', dest='allow_insecure_websocket', action='store_true')
     args = parser.parse_args()
@@ -325,7 +338,7 @@ def main():
         raise GatewayError('Use udpin:HOST:PORT, /dev/ttyUSB0 or COM3; telemetry log files are not live devices.')
     os.environ.setdefault('MAVLINK20', '1')
     from pymavlink import mavutil
-    link = mavutil.mavlink_connection(args.device, baud=args.baud, autoreconnect=True)
+    link = mavutil.mavlink_connection(args.device, baud=args.baud, autoreconnect=True, source_system=250, source_component=190)
     try:
         identity = read_identity(link, args.system_id, args.component_id, mavutil)
     except BaseException:
@@ -354,25 +367,31 @@ def main():
         link.close()
         print('Pairing saved. The background service can now resume this session.')
         return
-    print('Gateway paired. Listening for autopilot %s/%s on %s. No flight commands are sent.' % (args.system_id, args.component_id, args.device))
+    print('Gateway paired. Listening for autopilot %s/%s on %s. Flight control: %s.' % (args.system_id, args.component_id, args.device, 'EXPERIMENTAL OPT-IN' if args.enable_flight_control else 'disabled'))
     stop, pending, failures = threading.Event(), queue.Queue(maxsize=1), []
-    worker = threading.Thread(target=forward, args=(endpoint, session, pending, stop, failures), daemon=True)
+    controls = ControlBridge()
+    flight = FlightControl(args.system_id, args.component_id, controls, args.enable_flight_control)
+    worker = threading.Thread(target=forward, args=(endpoint, session, pending, stop, failures, controls), daemon=True)
     worker.start()
     streams_requested = False
     state, last_sent, sent_revision, link = TelemetryState(args.system_id, args.component_id), 0.0, -1, link
     last_gps_report = time.monotonic()
     version_requested = float('-inf')
     identity_seen = time.monotonic()
+    control_requested = float('-inf')
     try:
         while not stop.is_set():
             try:
                 if link is None:
-                    link = mavutil.mavlink_connection(args.device, baud=args.baud, autoreconnect=True)
+                    link = mavutil.mavlink_connection(args.device, baud=args.baud, autoreconnect=True, source_system=250, source_component=190)
                     if read_identity(link, args.system_id, args.component_id, mavutil) != identity:
                         raise GatewayError('A different physical drone was connected. Telemetry forwarding stopped.')
                     identity_seen = time.monotonic()
+                    flight = FlightControl(args.system_id, args.component_id, controls, args.enable_flight_control)
+                    controls.reconnect()
                 message = link.recv_match(blocking=True, timeout=.5)
                 if message:
+                    flight.accept(message, link)
                     if message.get_srcSystem() == args.system_id and message.get_srcComponent() == args.component_id:
                         if message.get_type() == 'AUTOPILOT_VERSION':
                             if hardware_identity(message) != identity:
@@ -382,6 +401,13 @@ def main():
                             link.mav.command_long_send(args.system_id,args.component_id,mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
                                 0,mavutil.mavlink.MAVLINK_MSG_ID_AUTOPILOT_VERSION,0,0,0,0,0,0)
                             version_requested = time.monotonic()
+                        if message.get_type() == 'HEARTBEAT' and time.monotonic() - control_requested > 5:
+                            # Request read-only evidence even with command execution disabled.
+                            link.mav.command_long_send(args.system_id, args.component_id, 511,
+                                0, 245, 1000000, 0, 0, 0, 0, 0)  # EXTENDED_SYS_STATE
+                            link.mav.command_long_send(args.system_id, args.component_id, 512,
+                                0, 242, 0, 0, 0, 0, 0, 0)  # HOME_POSITION may be event-only.
+                            control_requested = time.monotonic()
                     accepted = state.accept(message, mavutil.mode_string_v10)
                     if accepted and message.get_type() == 'HEARTBEAT' and not streams_requested:
                         # MAVLink Router is bidirectional, so interval requests work
@@ -390,6 +416,7 @@ def main():
                         streams_requested = True
                         print('Requested MAVLink streams: GPS_RAW_INT 2Hz, GLOBAL_POSITION_INT 5Hz, '
                               'SYS_STATUS 1Hz, BATTERY_STATUS 1Hz, MISSION_CURRENT 1Hz.', flush=True)
+                flight.tick(link)
                 if time.monotonic() - last_gps_report >= 10:
                     if state.gps is None:
                         print('%s: no GPS_RAW_INT received; waiting for receiver telemetry.' %

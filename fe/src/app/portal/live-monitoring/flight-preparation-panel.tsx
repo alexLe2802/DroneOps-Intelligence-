@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/auth/client";
 import DroneConnectionClient from "../drone-connection/drone-connection-client";
 import styles from "../flight-preparation.module.css";
+import FlightControls from "./flight-controls";
 
 type Preparation = {
   missionId: string; planHash: string; serverNow: string; scheduledAt: string; endsAt: string;
@@ -77,7 +78,8 @@ export default function FlightPreparationPanel({ missionId }: { missionId: strin
         <button className="module-primary" disabled={busy || !canConfirm} onClick={() => void decide("confirm")}>{busy ? "CHECKING…" : "CONFIRM AUTOMATIC PREPARATION"}</button>
         {state.confirmationRecorded && <button className="module-secondary" disabled={busy || !windowOpen} onClick={() => void decide("cancel")}>WITHDRAW CONFIRMATION</button>}
       </div>
-      <p>Aircraft command execution is not enabled. This confirmation does not arm or launch the drone.</p>
+      <p>Confirmation records your consent. You decide when to ARM; FC confirmation starts a 10-second takeoff countdown. DISARM is available only with fresh FC ground-state evidence.</p>
+      <FlightControls missionId={missionId} planHash={state.planHash} confirmed={state.confirmationRecorded} />
     </>}
     {connectionOpen && !ended && <DroneConnectionClient key={missionId} initialMissionId={missionId} embedded />}
   </section>;

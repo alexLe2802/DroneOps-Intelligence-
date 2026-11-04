@@ -207,7 +207,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     {error && <div className={styles.errorBanner} role="alert"><span>{error}</span><button type="button" onClick={() => setError("")}>DISMISS</button></div>}
 
     {!missions.length ? <section className={styles.emptyState}><span>NO LIVE CHANNEL</span><h2>No active missions</h2><p>The backend returned no missions currently eligible for live tracking.</p><button type="button" onClick={() => void loadMissions()}>RETRY CONNECTION</button></section> : <>
-      {arming.remindToArm && !missionEnded && <div className={styles.armReminder} role="status" aria-live="polite">
+      {arming.remindToArm && !missionEnded && !(canPrepare && mission?.automaticFlightRequested && mission.status === "Approved") && <div className={styles.armReminder} role="status" aria-live="polite">
         <strong>DRONE ĐANG DISARM — CHƯA ARM</strong>
         <p>Hoàn tất kiểm tra trước bay và bảo đảm khu vực an toàn, sau đó ARM bằng bộ điều khiển hoặc GCS khi sẵn sàng bay. Lời nhắc sẽ tự tắt khi nhận telemetry xác nhận drone đã ARM.</p>
       </div>}
