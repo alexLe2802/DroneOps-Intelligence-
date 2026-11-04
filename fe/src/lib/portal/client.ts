@@ -246,7 +246,23 @@ export async function getMission(id: string): Promise<MissionDetail> {
 }
 
 export async function getAssignedUavs(): Promise<AssignedUav[]> {
-  return api<AssignedUav[]>("/uavs/myUAV");
+  const aircraft: AssignedUav[] = [];
+  let pageNumber = 1;
+  let totalPages = 1;
+  do {
+    const result = await api<PagedResponse<AssignedUav> | AssignedUav[]>(
+      `/uavs/myUAV?pageNumber=${pageNumber}&pageSize=100`,
+    );
+    // Keep compatibility with backends that still return the original array contract.
+    if (Array.isArray(result)) return result;
+    if (!result || !Array.isArray(result.items) || !Number.isInteger(result.totalPages) || result.totalPages < 0) {
+      throw new Error("Assigned UAV API returned an invalid paginated response.");
+    }
+    aircraft.push(...result.items);
+    totalPages = result.totalPages;
+    pageNumber++;
+  } while (pageNumber <= totalPages);
+  return aircraft;
 }
 
 export async function getAssignedUav(id: string): Promise<AssignedUav | null> {

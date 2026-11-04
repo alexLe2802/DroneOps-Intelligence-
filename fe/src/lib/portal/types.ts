@@ -91,6 +91,11 @@ export type LiveMission = {
 };
 
 export type MissionTelemetry = {
+  batteryVoltageVolts?: number | null;
+  batteryCurrentAmps?: number | null;
+  batteryTemperatureCelsius?: number | null;
+  batteryConsumedMah?: number | null;
+  batteryCellVoltagesVolts?: number[] | null;
   missionId: string;
   uavId: string | null;
   uavCode: string | null;

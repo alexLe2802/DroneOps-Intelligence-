@@ -240,6 +240,7 @@
 }
 
 .mapPanel {
+  align-self: start;
   min-width: 0;
   overflow: hidden;
 }
