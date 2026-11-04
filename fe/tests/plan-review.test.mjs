@@ -8,6 +8,7 @@ import React from 'react';
 import ts from 'typescript';
 const require = createRequire(import.meta.url);
 const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText).toString('base64');
+const reviewHelper = compile(await readFile(new URL("../src/lib/portal/mission-review.ts", import.meta.url), "utf8"));
 const helper = compile(await readFile(new URL('../src/lib/portal/plan-review.ts', import.meta.url), 'utf8'));
 const { planFieldChanges, waypointReviewRows } = await import(helper);
 const point = (sequenceOrder, overrides = {}) => ({ sequenceOrder, latitude:10.8, longitude:106.8, altitude:30, actionType:'FlyThrough', ...overrides });
@@ -21,11 +22,20 @@ test('matches waypoint sequence and identifies added, removed and action-only ed
   const rows=waypointReviewRows([point(2),point(1),point(4)], [point(1),point(2,{actionType:'Hover'}),point(3)]);
   assert.deepEqual(rows.map(row => [row.sequence,row.status]), [[1,'Unchanged'],[2,'Changed'],[3,'Added'],[4,'Removed']]);
 });
+let evidenceSource = await readFile(new URL('../src/app/portal/missions/mission-validation-evidence.tsx', import.meta.url), 'utf8');
+evidenceSource = evidenceSource.replace('from "@/lib/portal/mission-review"', `from ${JSON.stringify(reviewHelper)}`);
+evidenceSource = evidenceSource.replace('import styles from "./mission-evidence.module.css";', 'const styles = { validationEvidence: "validationEvidence" };');
+// Resolve the JSX runtime in data URL modules against this test package.
+const evidenceJs = ts.transpileModule(evidenceSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText.replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href));
+const evidenceModule = 'data:text/javascript;base64,' + Buffer.from(evidenceJs).toString('base64');
+const { default: Evidence } = await import(evidenceModule);
 let component = await readFile(new URL('../src/app/portal/missions/mission-plan-comparison.tsx', import.meta.url), 'utf8');
 component = component.replace('from "react"', `from ${JSON.stringify(pathToFileURL(require.resolve('react')).href)}`)
   .replace('import { getGeofences } from "@/lib/portal/client";', 'const getGeofences = async () => [];')
   .replace('import { formatWeatherTime } from "@/lib/portal/weather-display";', 'const formatWeatherTime = value => value || "Unavailable";')
   .replace('from "@/lib/portal/plan-review"', `from ${JSON.stringify(helper)}`)
+  .replace('from \"@/lib/portal/mission-review\"', `from ${JSON.stringify(reviewHelper)}`)
+  .replace('from \"./mission-validation-evidence\"', `from ${JSON.stringify(evidenceModule)}`)
   .replace('import MissionMap from "./mission-map";', 'const MissionMap = () => null;')
   .replace('import styles from "./mission-evidence.module.css";', 'const styles = new Proxy({}, {get: (_, key) => key});');
 let js = ts.transpileModule(component, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -45,4 +55,28 @@ test('update shows both columns and marks changed fields and waypoints', () => {
 test('unchanged update remains a comparison and explains no changes', () => {
   const html=renderToStaticMarkup(React.createElement(Comparison, {current:plan,proposed:plan}));
   assert.match(html,/>Current</); assert.match(html,/No changes from the saved plan\./);
+});
+
+test('validation evidence renders textual waypoint/segment locations, exact identities and outdated state', () => {
+  const validation = {
+    id: 'run-id', missionId: 'mission', updateRequestId: 'proposal-id', isValid: true,
+    stale: true, status: 'Pass', message: 'Previous pass', checkedAt: '2026-11-01T01:00:00Z', restrictionRevision: 'restriction-hash',
+    findings: [
+      { geofenceId: 'zone-a', revision: 2, waypointSequence: 3, reason: 'Inside no-fly zone', rule: 'RestrictedAirspaceIntersection' },
+      { geofenceId: 'zone-b', revision: 4, segmentFrom: 3, segmentTo: 4, reason: 'Crosses restriction', rule: 'RestrictedAirspaceIntersection' },
+    ],
+  };
+  const html = renderToStaticMarkup(React.createElement(Evidence, { missionId: 'mission', validation }));
+  for (const text of ['Validation: Stale', 'Outdated evidence', 'run-id', 'proposal-id', 'restriction-hash', 'Waypoint 3', 'Segment 3–4', 'zone-a', 'zone-b', 'if the map cannot load', 'runId=run-id']) assert.ok(html.includes(text), text);
+});
+
+test('historical evidence warns that an old pass does not establish current clearance', () => {
+  const html = renderToStaticMarkup(React.createElement(Evidence, { historical: true, validation: { isValid: true, message: 'Passed' } }));
+  assert.match(html, /Historical run; does not establish current clearance/);
+});
+
+test('Error evidence cannot render a passed route with a contradictory isValid flag', () => {
+  const html = renderToStaticMarkup(React.createElement(Comparison, { current: plan, proposed: plan, validation: { isValid: true, error: true, message: 'Provider failed' } }));
+  assert.match(html, /Validation: Error/);
+  assert.doesNotMatch(html, /Waypoints and route checks passed/);
 });

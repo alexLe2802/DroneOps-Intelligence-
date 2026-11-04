@@ -182,6 +182,61 @@ public sealed class MissionValidationService(
                 cancellationToken));
     }
 
+    public async Task<IReadOnlyDictionary<Guid, MissionValidationReadSnapshot>> ReadManyAsync(
+        IReadOnlyCollection<Mission> missions,
+        Guid actor,
+        bool manager,
+        CancellationToken cancellationToken = default)
+    {
+        if (!manager && missions.Any(mission => mission.CreatedBy != actor))
+        {
+            throw new UnauthorizedAccessException("A mission is outside your scope.");
+        }
+
+        var missionIds = missions.Select(mission => mission.Id).Distinct().ToArray();
+        if (missionIds.Length == 0)
+        {
+            return new Dictionary<Guid, MissionValidationReadSnapshot>();
+        }
+
+        var latestRuns = (await repository.GetLatestRunsAsync(
+                missionIds, false, cancellationToken))
+            .Where(run => run.MissionId.HasValue)
+            .ToDictionary(run => run.MissionId!.Value);
+        var preflightRuns = (await repository.GetLatestRunsAsync(
+                missionIds, true, cancellationToken))
+            .Where(run => run.MissionId.HasValue)
+            .ToDictionary(run => run.MissionId!.Value);
+
+        string? restrictionHash = null;
+        if (latestRuns.Count > 0)
+        {
+            restrictionHash = await CurrentRestrictionHashAsync(cancellationToken);
+        }
+
+        var result = new Dictionary<Guid, MissionValidationReadSnapshot>(missionIds.Length);
+        foreach (var mission in missions)
+        {
+            latestRuns.TryGetValue(mission.Id, out var latestRun);
+            preflightRuns.TryGetValue(mission.Id, out var preflightRun);
+
+            var validation = Decode(latestRun);
+            var latestValidation = Decode(latestRun);
+            if (validation is not null && latestRun is not null)
+            {
+                validation.Stale = latestRun.PlanHash != Hash(mission) ||
+                                   validation.RestrictionRevision != restrictionHash;
+            }
+
+            result[mission.Id] = new MissionValidationReadSnapshot(
+                validation,
+                latestValidation,
+                Decode(preflightRun));
+        }
+
+        return result;
+    }
+
     public async Task<MissionValidationResult?> ReadRunAsync(
         Guid missionId,
         Guid runId,

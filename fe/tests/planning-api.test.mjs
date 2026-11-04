@@ -171,7 +171,7 @@ test("validation mission selector uses role-scoped mission registries instead of
   const mock = test.mock.method(globalThis, "fetch", async url => {
     calls.push(String(url));
     if (String(url) === "/api/missions/my") return Response.json([pilotMission]);
-    if (String(url) === "/api/uavs/myUAV") return Response.json([]);
+    if (String(url) === "/api/uavs/myUAV?PageNumber=1&PageSize=100") return Response.json({ items: [], pageNumber: 1, pageSize: 100, totalItems: 0, totalPages: 0 });
     if (String(url) === "/api/missions") return Response.json([managerMission]);
     if (String(url).startsWith("/api/admin/uavs?")) return Response.json({ items: [], pageNumber: 1, pageSize: 100, totalItems: 0, totalPages: 0 });
     throw new Error(`Unexpected request: ${url}`);
@@ -242,4 +242,45 @@ test("proxy allows only the exact high-risk mission decision routes", async () =
   assert.equal(allowed.test(`missions/${id}/cancel-high-risk`), true);
   assert.equal(allowed.test(`missions/${id}/confirm-high-risk/delete`), false);
   assert.equal(allowed.test("missions/not-a-guid/confirm-high-risk"), false);
+});
+
+test("mission update returns current approved content separately from its pending proposal", async () => {
+  const data = { id: "mission", name: "Approved plan", createdBy: "pilot", status: "Approved", waypoints: [], pendingUpdate: { id: "proposal", proposedPlan: { name: "Proposed change", waypoints: [] } } };
+  const mock = test.mock.method(globalThis, "fetch", async (_url, options) => {
+    assert.equal(options.method, "PUT");
+    assert.equal(JSON.parse(options.body).operationId, "operation");
+    return Response.json(data);
+  });
+  try {
+    const result = await client.updateMission("mission", { name: "Proposed change", operationId: "operation" });
+    assert.equal(result.name, "Approved plan");
+    assert.equal(result.pendingUpdate.proposedPlan.name, "Proposed change");
+    assert.equal(mock.mock.calls.length, 1);
+  } finally { mock.mock.restore(); }
+});
+
+test("mission review conflicts and out-of-scope responses never become successful decisions", async () => {
+  for (const status of [401, 403, 404, 409]) {
+    const mock = test.mock.method(globalThis, "fetch", async () => Response.json({ message: status === 409 ? "Proposal superseded; refresh review" : "Outside your scope" }, { status }));
+    try {
+      for (const action of [() => client.getMission("other"), () => client.updateMission("other", {}), () => client.approveMission("other", "", "run", "request"), () => client.rejectMission("other", "Unsafe route", "request"), () => client.getMissionHistory("other")]) {
+        await assert.rejects(action, error => error.status === status && /scope|superseded/.test(error.message));
+      }
+    } finally { mock.mock.restore(); }
+  }
+});
+
+test("exact validation run evidence is reachable through the proxy and preserves run identity", async () => {
+  const source = await readFile(new URL("../src/app/api/[...path]/route.ts", import.meta.url), "utf8");
+  const allowed = Function(`${source.split("\n").find(line => line.startsWith("const allowed = "))} return allowed;`)();
+  const id = "12345678-1234-1234-1234-123456789abc";
+  assert.equal(allowed.test(`missions/${id}/validation/runs/${id}`), true);
+  assert.equal(allowed.test(`missions/${id}/validation/runs/not-a-guid`), false);
+  assert.equal(allowed.test(`missions/${id}/validation/runs/${id}/delete`), false);
+  const mock = test.mock.method(globalThis, "fetch", async url => {
+    assert.equal(url, `/api/missions/${id}/validation/runs/${id}`);
+    return Response.json({ id, status: "Stale", stale: true, isValid: false });
+  });
+  try { assert.equal((await client.getMissionValidationRun(id, id)).stale, true); }
+  finally { mock.mock.restore(); }
 });

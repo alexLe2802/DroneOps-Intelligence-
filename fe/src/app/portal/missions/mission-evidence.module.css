@@ -19,3 +19,8 @@
 .changedRow{background:#283222}
 .changedRow>th{border-left:3px solid #e6bf68}
 .comparison .changeBadge{display:block;margin-top:6px;font-size:11px;font-weight:600;color:#f5d58c;letter-spacing:.3px}
+.validationEvidence{margin:20px 0;padding:18px 24px;border:1px solid #344154;border-radius:8px;background:#131b26;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.comparison>.validationEvidence{margin:20px 24px}
+.validationEvidence dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:14px 0}
+.validationEvidence dt{color:#9bacc1;font-size:11px}.validationEvidence dd{margin:4px 0;color:#dae3ee}
+.validationEvidence ul{padding-left:20px}.validationEvidence li+li{margin-top:8px}.validationEvidence a{color:#7ed5f7;text-decoration:underline}

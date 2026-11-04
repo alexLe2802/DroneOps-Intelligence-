@@ -31,6 +31,10 @@ public class IngestTelemetrySampleRequest
     public int? BatteryPercent { get; set; }
 
     public decimal? BatteryVoltageVolts { get; set; }
+    public decimal? BatteryCurrentAmps { get; set; }
+    public decimal? BatteryTemperatureCelsius { get; set; }
+    public int? BatteryConsumedMah { get; set; }
+    public decimal[]? BatteryCellVoltagesVolts { get; set; }
 
     /// <summary>PX4/autopilot board temperature, not ambient weather.</summary>
     public decimal? BoardTemperatureCelsius { get; set; }
