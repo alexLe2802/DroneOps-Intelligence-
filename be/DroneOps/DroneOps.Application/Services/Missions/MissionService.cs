@@ -170,6 +170,7 @@ public sealed class MissionService : IMissionService
         {
             Id = mission.Id,
             AutomaticFlightRequested = mission.AutomaticFlightRequested,
+            AutomaticFlightLimits = mission.AutomaticFlightLimits,
             CreatedBy = mission.CreatedBy,
             UavId = mission.UAVId,
             UavCode = mission.UAV?.Code,
@@ -197,6 +198,7 @@ public sealed class MissionService : IMissionService
                     Latitude = x.Latitude,
                     Longitude = x.Longitude,
                     Altitude = x.Altitude,
+                    Navigation = x.Navigation,
                     ActionType = x.ActionType
                 })
                 .ToList()

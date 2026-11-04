@@ -93,7 +93,10 @@ public sealed class FlightControlState
 }
 
 public sealed record FlightControllerEvidence(Guid GatewayInstance, string? Firmware, bool? Armed,
-    int? LandedState, bool NavigationReady, bool PreArmReady, string? UploadedHash);
+    int? LandedState, bool NavigationReady, bool PreArmReady, string? UploadedHash,
+    DroneOps.Domain.Entities.FirmwareParameterSnapshot? FirmwareParameters = null,
+    decimal? HomeLatitudeDegrees = null, decimal? HomeLongitudeDegrees = null, decimal? HomeAltitudeMslMeters = null,
+    string? VerifiedEnvelopeHash = null);
 
 public sealed class FlightControlCommand
 {

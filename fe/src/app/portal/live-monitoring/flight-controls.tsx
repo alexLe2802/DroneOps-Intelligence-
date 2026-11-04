@@ -8,7 +8,8 @@ type Options = { firmwareTarget: string; vehicleClass: string; acceptanceRadiusM
   yawPolicy: string | null; yawDegrees: number | null; hoverDurationSeconds: number | null; landingGroundAltitudeMeters: number | null };
 type Execution = { enabled: boolean; serverNow: string; scheduledAt: string; endsAt: string; stage: string;
   message: string; options: Options | null; compiledHash: string | null; uploadVerified: boolean; launchAt: string | null;
-  armed: boolean | null; onGround: boolean; canArm: boolean; canDisarm: boolean; reason: string | null };
+  armed: boolean | null; onGround: boolean; canArm: boolean; canDisarm: boolean; reason: string | null;
+  homeLatitudeDegrees?: number | null; homeLongitudeDegrees?: number | null; homeAltitudeMslMeters?: number | null };
 
 export default function FlightControls({ missionId, planHash, confirmed }: { missionId: string; planHash: string; confirmed: boolean }) {
   const [state, setState] = useState<Execution | null>(null);
@@ -98,6 +99,9 @@ export default function FlightControls({ missionId, planHash, confirmed }: { mis
           : <><strong>{!fresh ? "FC STATUS STALE" : state.armed === true ? "ARMED" : state.armed === false ? "DISARMED" : "ARM STATUS UNKNOWN"}</strong><span>{state.message}</span></>}
       </div>
       <p>FC mission: <strong>{state.uploadVerified ? "Upload and read-back verified" : "Not verified"}</strong>. ARM becomes available from the scheduled start, after your confirmation and passing readiness checks.</p>
+      <p>FC Home: {fresh && state.homeLatitudeDegrees != null && state.homeLongitudeDegrees != null
+        ? `${state.homeLatitudeDegrees.toFixed(7)}, ${state.homeLongitudeDegrees.toFixed(7)} · ${state.homeAltitudeMslMeters ?? "unknown"} m MSL`
+        : "Waiting for fresh Home from the bound flight controller"}. This is the FC reference, not a map-click estimate.</p>
       {state.reason && <p>{state.reason}</p>}
       {(confirmed || state.armed === true) && <div className={styles.actions}>
         <button className="module-primary" disabled={busy || !confirmed || !fresh || ended || !state.canArm} onClick={() => void act("arm")}>ARM — TAKE OFF AFTER 10s</button>

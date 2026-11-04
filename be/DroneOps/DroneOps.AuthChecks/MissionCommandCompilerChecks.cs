@@ -23,7 +23,7 @@ internal static class MissionCommandCompilerChecks
         var px4 = MissionCommandCompiler.Compile(mission, options with { FirmwareTarget = "PX4" });
         Check(px4.CanEncode && px4.CompiledMissionHash != result.CompiledMissionHash && !px4.CanUpload, "PX4 has a separately identified preview and still requires its runtime adapter checks");
         var missing = MissionCommandCompiler.Compile(mission, new MissionCompileOptions("ArduPilot"));
-        Check(!missing.CanEncode && missing.Items.Count == 0 && missing.CompiledMissionHash == null, "missing yaw, radius, hover and landing input never creates a partial executable plan");
+        Check(!missing.CanEncode && missing.Items.Count == 0 && missing.CompiledMissionHash == null, "unresolved radius, hover and landing input never creates a partial executable plan");
         mission.AltitudeReference = "MSL";
         Check(MissionCommandCompiler.Compile(mission, options).Items[0].Frame == 0, "MSL uses global frame with integer coordinate encoding");
         mission.AltitudeReference = "AGL";

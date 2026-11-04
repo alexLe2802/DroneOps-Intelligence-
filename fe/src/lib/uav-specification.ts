@@ -9,7 +9,8 @@ export function uavSpecificationError(request: CreateUavRequest): string | null 
     [request.emptyWeightKg, "Empty weight"],
     [request.maxTakeoffWeightKg, "Maximum takeoff weight"],
     [request.batteryCapacityMah, "Battery capacity"],
-    [request.batteryVoltage, "Battery voltage"],
+    [request.batteryVoltage, "Nominal battery voltage"],
+    [request.batteryMaxVoltage ?? null, "Maximum pack voltage"],
     [request.batteryCellCount, "Battery cell count"],
     [request.maxFlightTimeMinutes, "Maximum flight time"],
     [request.maxRangeKm, "Maximum range"],
@@ -26,5 +27,6 @@ export function uavSpecificationError(request: CreateUavRequest): string | null 
   }
   if (request.emptyWeightKg != null && request.maxTakeoffWeightKg != null && request.maxTakeoffWeightKg < request.emptyWeightKg) return "Maximum takeoff weight cannot be less than empty weight.";
   if (request.emptyWeightKg != null && request.maxPayloadKg != null && request.maxTakeoffWeightKg != null && request.emptyWeightKg + request.maxPayloadKg > request.maxTakeoffWeightKg) return "Empty weight plus maximum payload cannot exceed maximum takeoff weight.";
+  if (request.batteryMaxVoltage != null && request.batteryVoltage != null && request.batteryMaxVoltage < request.batteryVoltage) return "Maximum pack voltage cannot be below the stored nominal voltage.";
   return null;
 }

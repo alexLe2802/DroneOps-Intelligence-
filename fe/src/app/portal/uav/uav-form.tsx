@@ -29,6 +29,7 @@ function initialValue(aircraft?: AssignedUav): UavFormValue {
     batteryType: aircraft?.batteryType ?? "",
     batteryCapacityMah: value(aircraft?.batteryCapacityMah),
     batteryVoltage: value(aircraft?.batteryVoltage),
+    batteryMaxVoltage: value(aircraft?.batteryMaxVoltage),
     batteryCellCount: value(aircraft?.batteryCellCount),
     maxFlightTimeMinutes: value(aircraft?.maxFlightTimeMinutes),
     maxRangeKm: value(aircraft?.maxRangeKm),
@@ -87,6 +88,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       batteryType: form.batteryType.trim() || null,
       batteryCapacityMah: optionalNumber(form.batteryCapacityMah),
       batteryVoltage: optionalNumber(form.batteryVoltage),
+      batteryMaxVoltage: optionalNumber(form.batteryMaxVoltage ?? ""),
       batteryCellCount: optionalNumber(form.batteryCellCount),
       maxFlightTimeMinutes: optionalNumber(form.maxFlightTimeMinutes),
       maxRangeKm: optionalNumber(form.maxRangeKm),
@@ -149,7 +151,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       <div>
         <p className="module-kicker">PILOT / UAV REQUEST</p>
         <h1>{aircraft ? "Edit UAV" : "Add UAV"}</h1>
-        <p>{aircraft ? "Update the aircraft identity, specifications, and operating limits." : "Register an aircraft and send its technical specifications for approval."}</p>
+        <p>{aircraft ? "Update aircraft identity, weight and battery information." : "Register an aircraft and send its technical specifications for approval."}</p>
       </div>
     </header>
 
@@ -183,19 +185,16 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
           <div className="uav-form-grid">
             <label>BATTERY TYPE<input value={form.batteryType} onChange={event => set("batteryType", event.target.value)} placeholder="LiPo 6S" maxLength={50} /></label>
             <label>INSTALLED PACK CAPACITY (mAh)<input type="number" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="5880" min="1" step="1" /><small>Use the capacity of the installed battery. This configured value is separate from the consumed mAh reported by telemetry.</small></label>
-            <label>VOLTAGE (V)<input type="number" value={form.batteryVoltage} onChange={event => set("batteryVoltage", event.target.value)} placeholder="22.8" min="0.01" step="0.01" /></label>
+            <label>MAX PACK VOLTAGE (V)<input type="number" value={form.batteryMaxVoltage} onChange={event => set("batteryMaxVoltage", event.target.value)} placeholder="25.2 for standard 6S LiPo" min="0.01" step="0.01" /><small>Full-charge voltage for the whole installed pack. Use the battery label; this is different from nominal voltage and live telemetry.</small></label>
             <label>CELL COUNT<input type="number" value={form.batteryCellCount} onChange={event => set("batteryCellCount", event.target.value)} placeholder="6" min="1" max="100" step="1" /></label>
           </div>
         </section>
 
         <section className="uav-form-section">
-          <header><span>04</span><div><h2>Performance limits</h2><p>Manufacturer-rated operating capabilities.</p></div></header>
+          <header><span>04</span><div><h2>Endurance information</h2><p>Optional manufacturer-rated endurance. Automatic speed, altitude and wind limits are set in the mission.</p></div></header>
           <div className="uav-form-grid uav-form-grid-three">
             <label>MAX FLIGHT TIME (MIN)<input type="number" value={form.maxFlightTimeMinutes} onChange={event => set("maxFlightTimeMinutes", event.target.value)} placeholder="45" min="1" step="1" /></label>
             <label>MAX RANGE (KM)<input type="number" value={form.maxRangeKm} onChange={event => set("maxRangeKm", event.target.value)} placeholder="15" min="0.01" step="0.01" /></label>
-            <label>MAX SPEED (KM/H)<input type="number" value={form.maxSpeedKmh} onChange={event => set("maxSpeedKmh", event.target.value)} placeholder="82.8" min="0.01" step="0.01" /></label>
-            <label>MAX WIND SPEED (M/S)<input type="number" value={form.maxWindSpeedMps} onChange={event => set("maxWindSpeedMps", event.target.value)} placeholder="12" min="0.01" step="0.01" /></label>
-            <label>MAX OPERATING ALTITUDE (M)<input type="number" value={form.maxOperatingAltitudeMeters} onChange={event => set("maxOperatingAltitudeMeters", event.target.value)} placeholder="5000" min="0.01" step="0.01" /></label>
           </div>
         </section>
 
