@@ -17,8 +17,8 @@ test('hosted connection instructions require no LAN backend or laptop IP',async(
  const source=await readFile(new URL('../src/app/portal/drone-connection/drone-connection-client.tsx',import.meta.url),'utf8');
  for(const part of ['JETSON ONBOARD','RADIO TELEMETRY','--server','--package-url','--otp','connect-drone.cmd','bash connect-drone.sh','FORGET TRUSTED GATEWAY']) assert.ok(source.includes(part),part);
  for(const retired of ['dotnet run','--gcs-host','--device COM5','0.0.0.0:5159']) assert.ok(!source.includes(retired),retired);
- assert.ok(source.includes('close SSH and the terminal'));
- assert.ok(source.includes('trusted gateways request a fresh mission lease automatically'));
+ assert.ok(source.includes('đóng terminal/SSH'));
+ assert.ok(source.includes('tự kết nối lại'));
  assert.doesNotMatch(source,/new WebSocket\s*\(/);
 });
 test('forgetting a trusted gateway uses the scoped browser API without exposing device credentials',async()=>{
