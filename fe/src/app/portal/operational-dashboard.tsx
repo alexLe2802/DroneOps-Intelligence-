@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Account } from "@/lib/auth/types";
@@ -13,7 +15,7 @@ import PortalShell from "./portal-shell";
 const EMPTY_MISSIONS: FlightHistoryItem[] = [];
 
 const isActive = (status: string) => status.toLowerCase().replaceAll(" ", "") === "inprogress";
-const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
+const formatDate = (value: string | null) => value ? formatVietnamDateTime(value) : "Not scheduled";
 
 export default function OperationalDashboard({ account }: { account: Account }) {
   const manager = account.role === "operation_manager";

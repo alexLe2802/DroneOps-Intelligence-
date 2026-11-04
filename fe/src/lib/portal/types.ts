@@ -26,6 +26,7 @@ export type PagedResponse<T> = {
   totalPages: number;
 };
 
+// CapturePhoto is retained only to read historical records; new camera actions are deferred.
 export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
 export type MissionWaypoint = {
   sequenceOrder: number;
@@ -349,24 +350,19 @@ export type UserProfile = {
 // Matches DroneOps.Application.DTOs.Users.UpdateProfileRequest.
 export type UpdateProfileRequest = { fullName: string; expectedVersion: number };
 
-export type AiAssessmentRequest = {
-  missionRef: string;
-  missionName: string;
-  missionVersion: number;
-  missionStatus: string;
-  uavCode: string | null;
-  startTime: string | null;
-  endTime: string | null;
-  waypoints: Array<{ latitude: number; longitude: number; altitude: number; action: string }>;
-  validationSummary: string;
-  incidents: string[];
-  telemetrySummary: string | null;
+export type AiAssessmentRequest = { missionRef: string; missionVersion: number };
+export type BatteryAssessment = {
+  status: "MissingData" | "EstimateOnly"; model: string; capacitySource: string;
+  configuredCapacityMah: number | null; currentBatteryPercent: number | null; consumedMah: number | null;
+  telemetrySourceTimestamp: string | null; estimatedRemainingChargeMah: number | null;
+  requiredBatteryPercent: number | null; estimatedRequiredChargeMah: number | null;
+  meetsEstimatedRequirement: boolean | null; missingData: string[]; warnings: string[];
 };
 export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
   status: "Pending" | "Available" | "Failed";
-  result: { summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
+  result: { battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
     retrieval?: { method: string; featureSchema: string; maximumResults: number };
     historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; incidentIds: string[] }> } | null;
   errorCode: string | null; createdAt: string; completedAt: string | null;

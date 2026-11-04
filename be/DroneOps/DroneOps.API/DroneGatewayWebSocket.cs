@@ -28,6 +28,7 @@ public static class DroneGatewayWebSocket
         GatewaySession? session = null;
         var windowStarted = DateTimeOffset.UtcNow;
         var messagesInWindow = 0;
+        var preparationChecked = false;
 
         try
         {
@@ -108,6 +109,21 @@ public static class DroneGatewayWebSocket
                         throw new ArgumentException(string.Join("; ", validation.Errors.Select(x => x.ErrorMessage)));
                     var result = await service.SampleAsync(session.ConnectionId, session.Token, session.HardwareIdentity, key, sample, context.RequestAborted);
                     await SendAsync(socket, new { type = "telemetryAck", idempotencyKey = key, payload = result }, context.RequestAborted);
+                    if (!preparationChecked)
+                    {
+                        preparationChecked = true;
+                        try
+                        {
+                            await scope.ServiceProvider.GetRequiredService<FlightPreparationReminders>()
+                                .ProcessConnectionAsync(session.ConnectionId, context.RequestAborted);
+                        }
+                        catch (Exception error) when (!context.RequestAborted.IsCancellationRequested)
+                        {
+                            // Notification failure must not interrupt telemetry; the existing monitor retries.
+                            scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("FlightPreparation")
+                                .LogWarning(error, "Immediate flight preparation reminder failed; monitor will retry");
+                        }
+                    }
                 }
                 else
                 {

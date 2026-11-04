@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDate } from "@/lib/portal/vietnam-time";
+
 import UserAvatar from "../user-avatar";
 import styles from "./profile-summary.module.css";
 import EmailChange from "./email-change";
@@ -99,7 +101,7 @@ export default function ProfileClient({ account }: { account: Account }) {
         {avatarError && <p className={styles.error} role="alert">{avatarError}</p>}
         {avatarMessage && <p className={styles.success} role="status">{avatarMessage}</p>}
       </div>
-      <div className={styles.identity}><h2>{profile.fullName}</h2><p>{profile.email}</p><b className={styles.role}>{profile.role.replaceAll("_", " ")}</b><small className={styles.member}>Member since {new Date(profile.createdAt).toLocaleDateString()}</small></div>
+      <div className={styles.identity}><h2>{profile.fullName}</h2><p>{profile.email}</p><b className={styles.role}>{profile.role.replaceAll("_", " ")}</b><small className={styles.member}>Member since {formatVietnamDate(profile.createdAt)}</small></div>
     </aside><form className="profile-form" onSubmit={submit}><div><p className="module-kicker">EDIT PROFILE</p><h2>Personal information</h2></div><label>FULL NAME<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={100} required /></label><label>EMAIL ADDRESS<input value={profile.email} readOnly disabled /></label><p className="field-help">Verify your new address below to change your email. Your role is managed by your Operations Manager.</p>{message && <p className="module-success" role="status">{message}</p>}<button className="module-primary" disabled={saving || name.trim() === profile.fullName}>{saving ? "SAVING…" : "SAVE CHANGES"}</button></form></section>
     {account.role === "uav_operator" && <section className="mission-fields" aria-label="Operator license details"><h2>Operator & flight license</h2>{pilotError ? <div role="alert"><p>{pilotError}</p><button className="module-secondary" type="button" onClick={retryPilot}>RETRY</button></div> : !pilot ? <p role="status">Loading operator details…</p> : <div className="request-detail-grid">{[
       ["Phone", pilot.phoneNumber], ["Date of birth", pilot.dateOfBirth],

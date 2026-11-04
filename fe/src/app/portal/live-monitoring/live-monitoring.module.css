@@ -958,3 +958,9 @@
 .mapTopRight[data-state="stale"] i{background:#e7bc65}
 .mapLastKnown{position:absolute;top:62px;left:14px;right:14px;z-index:450;padding:10px 14px;border:1px solid #825b45;border-radius:5px;background:#251e18f2;color:#f4d6ae;font-size:12px;line-height:1.6;pointer-events:none}
 @media(max-width:720px){.mapLastKnown{top:100px;font-size:11px}}
+.armReminder { padding: 16px 20px; margin: 12px 0; border: 1px solid #a87828; border-left: 4px solid #e7bc65; border-radius: 6px; background: #30291d; color: #f4d69b; }
+.armReminder strong { font-size: 14px; }
+.armReminder p { margin: 8px 0 0; font-size: 13px; line-height: 1.6; }
+.armarmed { color: #77d9ac; }
+.armdisarmed { color: #f4d69b; }
+.armunknown { color: #adb9c7; }
