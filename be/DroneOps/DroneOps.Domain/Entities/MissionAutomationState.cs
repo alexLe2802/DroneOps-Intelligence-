@@ -12,4 +12,5 @@ public sealed class MissionAutomationState
     public DateTimeOffset? ConfirmedAt { get; set; }
     public string? ConfirmedPlanHash { get; set; }
     public Guid? ConnectionId { get; set; }
+    public string? ExecutionJson { get; set; }
 }

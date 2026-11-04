@@ -3,10 +3,12 @@
 Trạng thái: **đề xuất chờ duyệt**. Phạm vi ban đầu: multicopter ArduPilot/PX4.
 Camera hoãn. Fixed-wing/VTOL cần profile riêng.
 
-Đã triển khai bước đầu: MissionCommandCompiler và compilationPreviews trong
-GET /api/missions/{id}/automation/plan. Đây là preview, không có đường phát lệnh
-upload/ARM/start. CanEncode không đồng nghĩa CanUpload/CanStart; hai giá trị sau
-luôn false. Chưa kiểm thử SITL hoặc phần cứng cho luồng điều khiển.
+Đã thêm compiler preview và executor thử nghiệm có khóa cho upload/read-back,
+ARM/DISARM do pilot quyết định, countdown 10 giây sau FC ARM và MISSION_START.
+Người dùng đã chọn chỉ cho ARM từ StartTime. Mặc định không bật phát lệnh thật;
+preview CanUpload/CanStart vẫn false. Chưa kiểm thử SITL hoặc phần cứng.
+Hợp đồng API, migration, trạng thái đã triển khai và các gate còn thiếu được
+ghi tại [luồng ARM/countdown](automatic-flight-proposal.md#arm-do-pilot-quyết-định-và-đếm-ngược-10-giây).
 
 ## 1. Dữ liệu thực sự gửi cho FC
 
@@ -109,8 +111,9 @@ giai đoạn thực thi cần ràng buộc compiled hash và policy đã duyệt
    Nếu ArduPilot thêm/biểu diễn home khác, adapter phải xử lý trước bước verify.
 6. T−5 đến trước EndTime: dùng notification/presence/confirm hiện có trong Live
    Monitoring. Kết nối trễ phải tính lại ETA hoàn thành trong thời gian còn lại.
-7. Ngay trước start: kiểm tra lại toàn bộ evidence và consent. Pilot ARM thủ công
-   khi sẵn sàng; thấy armed không tự được hiểu là đồng ý bay.
+7. Ngay trước start: kiểm tra lại toàn bộ evidence và consent. Pilot bấm ARM ở
+   Live Monitoring từ StartTime; sau ACK và heartbeat armed mới đếm đủ 10 giây.
+   ARM bên ngoài web không tự được hiểu là đồng ý bay.
 8. Phát start một lần với deadline. Chỉ chuyển Executing khi FC state xác nhận;
    upload ACK/command ACK không được dùng làm bằng chứng đã cất cánh.
 9. Theo dõi tiến độ, failsafe và manual override. Mạng trở lại không tự resume
@@ -157,8 +160,9 @@ khi gateway cũng chết. Chỉ gửi RTL từ web khi Internet đã mất là k
 GCS loss là mất heartbeat MAVLink, không tự động đồng nghĩa mất Internet. Nếu
 Jetson vẫn gửi heartbeat vào FC khi cloud đã mất, GCS failsafe có thể không kích
 hoạt. Cần thiết kế control lease/watchdog và nhận diện GCS đúng; thêm một GCS
-khác không được vô tình che lỗi liên lạc cần giám sát. Hiện gateway telemetry
-chưa có cơ chế điều khiển này; đây là phần cần triển khai sau duyệt.
+khác không được vô tình che lỗi liên lạc cần giám sát. Executor thử nghiệm chỉ
+gửi GCS heartbeat khi có lease, dùng source system/component 250/190. Cần kiểm
+thử và đối chiếu FC thật theo profile; gateway telemetry mặc định không bật nó.
 [ArduPilot GCS failsafe](https://ardupilot.org/copter/docs/gcs-failsafe.html)
 
 PX4/ArduPilot có cấu hình battery, RC/GCS, position và fence failsafe; tên/giá trị
@@ -170,7 +174,9 @@ parameter, exception modes và fallback không giống nhau. Các adapter cần 
 
 ## 5. Các điểm cần bạn duyệt
 
-1. V1 dùng manual ARM, automatic start sau consent; chưa bật remote ARM.
+1. **Đã chốt lại:** pilot bấm ARM/DISARM tại Live Monitoring sau consent;
+   ARM từ StartTime, FC xác nhận armed rồi đếm ngược đủ 10 giây mới Start.
+   Không force-arm/disarm trên không. Cần SITL và phần cứng trước bật thực tế.
 2. Không chọn chế độ tiếp tục mission khi mất cloud/RC trong v1; ưu tiên recovery.
    Chấp thuận nguyên tắc RTL nếu navigation hợp lệ, fallback theo FC khi không đủ.
 3. Chốt timeout control lease/presence và các mốc pin theo profile; giá trị đề
@@ -180,10 +186,12 @@ parameter, exception modes và fallback không giống nhau. Các adapter cần 
 
 ## 6. API và kiểm thử
 
-Chỉ mở rộng GET /api/missions/{id}/automation/plan bằng compilationPreviews cho
-ArduPilot và PX4. Giữ các trường cũ, không thêm endpoint upload/start trùng chức
-năng và không migration ở bước này. Options chưa có nguồn được duyệt nên preview
-API mặc định báo NeedsInput; compiler vẫn được kiểm thử với bộ input đầy đủ.
+GET preview tiếp tục giữ các trường cũ. Đã mở rộng họ API automation có sẵn với
+POST plan, GET/POST execution, POST arm/disarm và mở rộng cancel; không tạo
+endpoint mission/connection/notification trùng chức năng. Compiler options cần
+pilot nhập rõ và consent bị thu hồi khi thay đổi; preview mặc định vẫn NeedsInput.
+Có migration bổ sung ExecutionJson cho MissionAutomationState. Danh sách hợp
+đồng và giới hạn thử nghiệm tại tài liệu luồng ARM/countdown phía trên.
 
 Sau duyệt cần mở rộng evidence telemetry hiện có (home, firmware/capabilities,
 landed state, EKF/pre-arm health, failsafe flags) và state/receipt/audit điều khiển.

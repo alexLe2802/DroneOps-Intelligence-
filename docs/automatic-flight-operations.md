@@ -100,3 +100,67 @@ Giờ lịch nhập trên web dùng `Asia/Ho_Chi_Minh`/GMT+7 dù browser ở mú
 Notification, Live Monitoring, dashboard, duyệt nhiệm vụ, incident và lịch sử hiển thị giờ Việt Nam. Ngày sinh và ngày giấy phép là calendar date, không dịch ngày theo múi giờ.
 
 Xem thêm [pin và telemetry](battery-telemetry-and-assessment.md), [hợp đồng dữ liệu mission](examples/droneops-mission-fields.md) và các file mẫu `.plan`/`.waypoints` trong `docs/examples/`.
+
+
+## Executor runtime integration
+
+Runtime executor remains experimental: backend `FlightExecution:Enabled=false`; gateway flight control is opt-in via `--enable-flight-control`. Preparation API retains `dispatchEnabled=false`. The manual ARM flow below has its own timing contract, separate from the scheduler specification above.
+
+## ARM do pilot quyết định và đếm ngược 10 giây
+
+Luồng đã được người dùng chọn: kết nối FC → lưu thông số biên dịch còn thiếu →
+tự upload/read-back khi FC disarmed, trên mặt đất → xác nhận tại Live Monitoring
+→ **chỉ từ StartTime** mới cho bấm ARM → COMMAND_ACK và heartbeat xác nhận ARM
+→ backend đặt deadline sau 10 giây → gateway cũng kiểm tra đủ 10 giây bằng đồng
+hồ monotonic → gửi MISSION_START. Mission đã có TAKEOFF nên không phát thêm
+GUIDED TAKEOFF. ARM từ RC/GCS không tự tạo countdown.
+Gateway yêu cầu UTC đồng bộ với backend (lệch tối đa 2 giây); bỏ lệnh trễ từ
+3 giây hoặc đã hết deadline. Đồng hồ monotonic cục bộ bảo đảm đủ 10 giây,
+không phụ thuộc việc trình duyệt đếm nhanh/chậm.
+
+Live Monitoring thay lời nhắc DISARM bằng thanh trạng thái/đếm ngược. Nút DISARM
+khả dụng khi FC xác nhận đang armed và ON_GROUND; không force-disarm, không đưa
+vào nút thông báo. Sau khi đã phát Start, web không cung cấp DISARM để tránh
+giá trị landed còn trễ làm tắt động cơ ngay khi cất cánh. Dùng RC/GCS để điều
+khiển phục hồi và đáp; chức năng disarm sau bay cần đối soát vòng đời riêng.
+
+Pilot presence điều khiển cập nhật mỗi giây, lease 3 giây (độc lập presence nhắc
+chuẩn bị 10/30 giây). Mất readiness, consent, FC ground state, navigation, mạng,
+tab online hoặc hết EndTime sẽ hủy countdown. Đóng/ẩn tab gửi cancel tốt nhất
+có thể; lease backend/gateway giới hạn độ trễ hủy khi gói cancel mất. Hủy không
+tự DISARM. Kết nối lại/reboot không tiếp tục countdown. Kết quả lệnh không rõ
+được lưu Unknown, không tự retry. UI về 0 chỉ hiển thị chờ FC, không giả lập bay.
+
+Thông số FC được lưu gồm firmware, multicopter, acceptance radius, yaw policy,
+yaw angle nếu Fixed, thời gian Hover và cao độ mặt đất điểm đáp theo frame của
+mission. Không tự lấy độ cao đường bay làm độ cao mặt đất. Mỗi lần lưu sẽ thu
+hồi consent, yêu cầu xác nhận lại. Profile thử nghiệm giới hạn 500 compiled
+items (ArduPilot thêm home ở seq 0). ArduPilot yêu cầu Loiter trước ARM; PX4 yêu
+cầu Position mode để tránh ARM trong AUTO làm bay trước countdown.
+
+API mở rộng trong controller có sẵn, cùng ownership/role và CSRF BFF:
+
+| Endpoint | Công dụng |
+| --- | --- |
+| `POST /api/missions/{id}/automation/plan` | `{planHash, options}` lưu input compiler; giữ nguyên GET preview |
+| `GET /api/missions/{id}/automation/execution` | Đọc trạng thái FC, upload, countdown và khả năng thao tác |
+| `POST /api/missions/{id}/automation/execution` | Đọc trạng thái kèm presence của tab monitoring |
+| `POST /api/missions/{id}/automation/arm` | `{operationId, compiledHash}` yêu cầu ARM đúng plan từ StartTime |
+| `POST /api/missions/{id}/automation/disarm` | Cùng body; DISARM mặt đất do pilot quyết định |
+| `POST /api/missions/{id}/automation/cancel` | Tái sử dụng endpoint cũ; thu hồi consent và hủy countdown trước Start |
+| `/ws/drone-gateway`, `controlPoll`/`controlAck` | Tái sử dụng token/UID/connection; evidence FC và command receipt |
+
+`MissionAutomationState.ExecutionJson` lưu transition, deadline, gateway
+instance, compiled hash và tối đa 32 command receipts gần nhất; không phải
+immutable audit log dài hạn. Migration `20261104160247_manual_arm_countdown.sql`
+không mở Data API cho anon/authenticated. Không tạo API thông báo/kết nối/mission
+trùng chức năng hiện có.
+
+**Chưa đủ điều kiện bật bay thật:** chưa có SITL ArduPilot/PX4 hoặc FC vật lý
+để xác nhận adapter read-back (bao gồm chuẩn hóa home/yaw/unused params), firmware
+version được hỗ trợ, mission-current reset, chống GCS khác sửa mission, pre-arm
+health theo firmware và battery/failsafe policy. Cần thêm gate pin đủ nhiệm vụ
+theo calculator đã có, kiểm tra FC failsafe parameters thực tế, kiểm thử GCS/RC
+loss, EKF/GPS/fence và ngân sách thời gian trước EndTime. Các policy trong tài
+liệu review vẫn chờ duyệt. Không bật hai cờ điều khiển trên production chỉ vì
+unit/integration test đã pass. Không đổi tham số FC hoặc service Jetson ở bước này.
