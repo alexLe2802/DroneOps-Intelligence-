@@ -8,7 +8,9 @@ Trong ZIP tải về, mở `CONNECTION_SETUP.md`.
   `bash connect-drone.sh`. Launcher dò USB/baud/ArduPilot hoặc PX4 và dùng domain
   backend cố định. Giữ cửa sổ mở trong lúc nhận telemetry.
 - UID lấy từ flight controller, không lấy từ Jetson hoặc radio.
-- Gateway chưa upload mission, ARM hoặc cất cánh. Xem
+- Gateway mặc định chỉ truyền telemetry. Có executor thử nghiệm bị khóa cho
+  upload/read-back và ARM/DISARM/mission start; chưa bật trên Jetson/production.
+  Chưa được dùng hai cờ opt-in để bay thật trước khi hoàn thành các gate trong
   [Đề xuất bay tự động](../docs/automatic-flight-proposal.md).
 
 Developer verification:

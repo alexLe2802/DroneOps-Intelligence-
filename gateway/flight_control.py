@@ -1,0 +1,306 @@
+"""Experimental, opt-in command executor. All MAVLink IO stays on the reader thread.
+
+Never retries ARM/DISARM/START. A new WebSocket instance invalidates upload and
+countdown evidence. RC/GCS arming does not grant permission to start a mission.
+"""
+import math
+import datetime as dt
+import queue
+import threading
+import time
+import uuid
+
+
+class ControlBridge:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.instance = str(uuid.uuid4())
+        self.evidence = None
+        self.evidence_at = 0
+        self.responses = queue.Queue()
+        self.report = None
+
+    def reconnect(self):
+        with self.lock:
+            self.instance = str(uuid.uuid4())
+            self.evidence = None
+            self.evidence_at = 0
+            self.report = None
+
+    def payload(self):
+        with self.lock:
+            if not self.evidence:
+                return None
+            evidence = self.evidence
+            if time.monotonic() - self.evidence_at >= 3:
+                evidence = dict(evidence, armed=None, landedState=None, navigationReady=False, preArmReady=False)
+            return {'evidence': dict(evidence, gatewayInstance=self.instance), 'report': self.report}
+
+    def receive(self, response, payload):
+        with self.lock:
+            if self.report == payload.get('report'):
+                self.report = None
+            self.responses.put((payload['evidence']['gatewayInstance'], time.monotonic(), response))
+
+
+class FlightControl:
+    def __init__(self, system, component, bridge, enabled=False, clock=time.monotonic):
+        self.system, self.component, self.bridge = system, component, bridge
+        self.enabled, self.clock = enabled, clock
+        self.seen = {}
+        self.instance = None
+        self.uploaded_hash = None
+        self.active = None
+        self.lease = 0
+        self.arm_at = None
+        self.items = []
+        self.phase = None
+        self.download = {}
+        self.ack = False
+        self.requested = set()
+        self.handled = set()
+        self.last_gcs_heartbeat = float('-inf')
+
+    def fresh(self, kind, seconds=3):
+        item = self.seen.get(kind)
+        return item[0] if item and self.clock() - item[1] <= seconds else None
+
+    def evidence(self):
+        hb, landed, health, gps = (self.fresh(k) for k in ('HEARTBEAT', 'EXTENDED_SYS_STATE', 'SYS_STATUS', 'GPS_RAW_INT'))
+        version, home = self.fresh('AUTOPILOT_VERSION', 15), self.fresh('HOME_POSITION', 15)
+        firmware = {3: 'ArduPilot', 12: 'PX4'}.get(hb.autopilot) if hb else None
+        # Only multicopters with MISSION_INT capability are accepted by this profile.
+        navigation = bool(hb and hb.type in (2, 3, 4, 13, 14, 15, 29, 35) and gps and 3 <= gps.fix_type <= 8
+                          and version and version.capabilities & 4 and home
+                          and (home.latitude != 0 or home.longitude != 0)
+                          and health and health.onboard_control_sensors_enabled != 0
+                          and (health.onboard_control_sensors_health & health.onboard_control_sensors_enabled)
+                          == health.onboard_control_sensors_enabled)
+        prearm = bool(navigation and health.onboard_control_sensors_enabled & (1 << 28)
+                      and health.onboard_control_sensors_health & (1 << 28))
+        return {'firmware': firmware, 'armed': bool(hb.base_mode & 128) if hb else None,
+                'landedState': landed.landed_state if landed else None,
+                'navigationReady': navigation, 'preArmReady': prearm, 'uploadedHash': self.uploaded_hash}
+
+    def grounded(self):
+        evidence = self.evidence()
+        return evidence['landedState'] == 1 and evidence['armed'] is not None
+
+    def finish(self, succeeded):
+        if self.active:
+            with self.bridge.lock:
+                self.bridge.report = {'commandId': self.active['id'], 'succeeded': succeeded,
+                                      'uploadedHash': self.uploaded_hash}
+        self.active, self.phase, self.ack = None, None, False
+
+    def accept(self, message, link):
+        if message.get_srcSystem() != self.system or message.get_srcComponent() != self.component:
+            return
+        kind = message.get_type()
+        if kind == 'HEARTBEAT' and (message.type == 6 or message.autopilot == 8):
+            return
+        if kind in ('HEARTBEAT', 'EXTENDED_SYS_STATE', 'SYS_STATUS', 'GPS_RAW_INT', 'AUTOPILOT_VERSION', 'HOME_POSITION'):
+            self.seen[kind] = (message, self.clock())
+        # Other GCS changes invalidate verification, even while this gateway is idle.
+        if kind in ('MISSION_COUNT', 'MISSION_ACK') and self.active is None:
+            self.uploaded_hash = None
+        if not self.active:
+            return
+        if kind in ('MISSION_REQUEST', 'MISSION_REQUEST_INT', 'MISSION_ACK', 'MISSION_COUNT', 'MISSION_ITEM_INT', 'COMMAND_ACK'):
+            if getattr(message, 'target_system', link.source_system) not in (0, link.source_system):
+                return
+            if getattr(message, 'target_component', link.source_component) not in (0, link.source_component):
+                return
+        if getattr(message, 'mission_type', 0) != 0:
+            return
+        action = self.active['action']
+        if action == 'Upload':
+            if kind in ('MISSION_REQUEST', 'MISSION_REQUEST_INT') and self.phase == 'upload':
+                if not 0 <= message.seq < len(self.items):
+                    self.finish(False)
+                    return
+                item = self.items[message.seq]
+                self.requested.add(message.seq)
+                link.mav.mission_item_int_send(self.system, self.component, item['seq'], item['frame'], item['command'],
+                    0, 1, item['param1'], item['param2'], item['param3'],
+                    float('nan') if item['param4'] is None else item['param4'], item['x'], item['y'], item['z'], 0)
+            elif kind == 'MISSION_ACK' and self.phase == 'upload':
+                if message.type != 0 or len(self.requested) != len(self.items):
+                    self.finish(False)
+                else:
+                    self.phase = 'download_count'
+                    link.mav.mission_request_list_send(self.system, self.component, 0)
+            elif kind == 'MISSION_COUNT' and self.phase == 'download_count':
+                if message.count != len(self.items):
+                    self.finish(False)
+                else:
+                    self.phase = 'download'
+                    link.mav.mission_request_int_send(self.system, self.component, 0, 0)
+            elif kind == 'MISSION_ITEM_INT' and self.phase == 'download':
+                expected = len(self.download)
+                if message.seq != expected:
+                    return
+                if not same_item(self.items[expected], message):
+                    self.finish(False)
+                    return
+                self.download[expected] = True
+                if len(self.download) == len(self.items):
+                    link.mav.mission_ack_send(self.system, self.component, 0, 0)
+                    self.uploaded_hash = self.active['compiledHash']
+                    self.finish(True)
+                else:
+                    link.mav.mission_request_int_send(self.system, self.component, expected + 1, 0)
+        else:
+            command = 300 if action == 'Start' else 400
+            if kind == 'COMMAND_ACK' and message.command == command:
+                if message.result == 5:  # IN_PROGRESS is not success.
+                    return
+                if message.result != 0:
+                    self.finish(False)
+                    return
+                self.ack = True
+            # ACK alone does not prove motor state. Require a subsequent FC heartbeat.
+            if kind == 'HEARTBEAT' and self.ack:
+                armed = bool(message.base_mode & 128)
+                if action == 'Arm' and armed and self.grounded():
+                    self.arm_at = self.clock()
+                    self.finish(True)
+                elif action == 'Disarm' and not armed and self.grounded():
+                    self.arm_at = None
+                    self.finish(True)
+                elif action == 'Start' and armed and mission_mode(message):
+                    self.arm_at = None
+                    self.finish(True)
+
+    def tick(self, link):
+        now = self.clock()
+        with self.bridge.lock:
+            instance = self.bridge.instance
+        if self.instance != instance:
+            self.instance = instance
+            self.finish(False)
+            self.arm_at, self.uploaded_hash, self.lease = None, None, 0
+        while True:
+            try:
+                source, received, response = self.bridge.responses.get_nowait()
+            except queue.Empty:
+                break
+            if source != instance or now - received >= 3:
+                continue
+            self.lease = received + min(3, max(0, response.get('leaseSeconds', 0))) if response.get('enabled') else 0
+            if response.get('stage') not in ('Arming', 'Countdown', 'Starting'):
+                self.arm_at = None
+            command = response.get('command')
+            if not command or command['id'] in self.handled:
+                continue
+            self.handled.add(command['id'])
+            if len(self.handled) > 1024:
+                # A process restart is needed rather than forgetting command IDs.
+                self.enabled = False
+            if self.active:
+                continue
+            self.active = dict(command, compiledHash=response.get('compiledHash'))
+            self.deadline = now + (60 if command['action'] == 'Upload' else 8)
+            self.ack = False
+            self.begin(link, response)
+        if now >= self.lease or not self.grounded() or not self.evidence()['navigationReady']:
+            self.arm_at = None
+            if self.active and self.active['action'] in ('Arm', 'Start'):
+                self.finish(False)
+        if self.active and now >= self.deadline:
+            self.finish(False)
+        if self.enabled and now < self.lease and now - self.last_gcs_heartbeat >= 1:
+            # Cloud lease loss stops this GCS heartbeat. The validated FC-side GCS
+            # failsafe must handle the loss independently of the browser/backend.
+            link.mav.heartbeat_send(6, 8, 0, 0, 4)
+            self.last_gcs_heartbeat = now
+        with self.bridge.lock:
+            self.bridge.evidence = self.evidence()
+            self.bridge.evidence_at = time.monotonic()
+
+    def begin(self, link, response):
+        evidence = self.evidence()
+        action = self.active['action']
+        if not self.enabled or not response.get('enabled') or self.clock() >= self.lease or not self.grounded() or not timely_command(response, self.active):
+            self.finish(False)
+            return
+        if action == 'Upload':
+            plan = response.get('mission')
+            if evidence['armed'] or not plan or plan.get('firmwareTarget') != evidence['firmware']:
+                self.finish(False)
+                return
+            self.items = [dict(item) for item in plan['items']]
+            if not self.items or len(self.items) > 500:
+                self.finish(False)
+                return
+            if evidence['firmware'] == 'ArduPilot':
+                home = self.fresh('HOME_POSITION', 15)
+                if not home:
+                    self.finish(False)
+                    return
+                self.items.insert(0, dict(seq=0, command=16, frame=0, param1=0, param2=0, param3=0, param4=0,
+                    x=home.latitude, y=home.longitude, z=home.altitude / 1000))
+                for index, item in enumerate(self.items):
+                    item['seq'] = index
+            self.phase, self.download, self.requested = 'upload', {}, set()
+            self.uploaded_hash = None
+            link.mav.mission_count_send(self.system, self.component, len(self.items), 0)
+        elif action == 'Arm':
+            hb = self.fresh('HEARTBEAT')
+            # Arming into AUTO could take off before the countdown. Require a
+            # non-autonomous holding mode and leave FC arming checks enabled.
+            safe_mode = hb and ((hb.autopilot == 3 and hb.custom_mode == 5)
+                                or (hb.autopilot == 12 and (hb.custom_mode >> 16) & 255 == 3))
+            if not safe_mode or evidence['armed'] or not evidence['preArmReady'] or self.uploaded_hash != self.active['compiledHash']:
+                self.finish(False)
+                return
+            link.mav.command_long_send(self.system, self.component, 400, 0, 1, 0, 0, 0, 0, 0, 0)
+        elif action == 'Disarm':
+            self.arm_at = None
+            if not evidence['armed']:
+                self.finish(False)
+                return
+            link.mav.command_long_send(self.system, self.component, 400, 0, 0, 0, 0, 0, 0, 0, 0)
+        elif action == 'Start':
+            if not evidence['armed'] or not evidence['navigationReady'] or self.arm_at is None or self.clock() - self.arm_at < 10 or self.uploaded_hash != self.active['compiledHash']:
+                self.finish(False)
+                return
+            self.arm_at = None  # Consume permission before issuing START. Never repeat.
+            link.mav.command_long_send(self.system, self.component, 300, 0, 0, 0, 0, 0, 0, 0, 0)
+        else:
+            self.finish(False)
+
+
+def mission_mode(heartbeat):
+    return (heartbeat.autopilot == 3 and heartbeat.custom_mode == 3) or (
+        heartbeat.autopilot == 12 and (heartbeat.custom_mode >> 16) & 255 == 4
+        and (heartbeat.custom_mode >> 24) & 255 == 4)
+
+
+def timely_command(response, command):
+    """Initial delivery validity uses UTC; the countdown uses monotonic time."""
+    try:
+        now = dt.datetime.now(dt.timezone.utc)
+        server = dt.datetime.fromisoformat(response['serverNow'].replace('Z', '+00:00'))
+        expiry = dt.datetime.fromisoformat(command['expiresAt'].replace('Z', '+00:00'))
+        age = (now - server).total_seconds()
+        remaining = (expiry - now).total_seconds()
+        return -2 <= age < 3 and 0 < remaining <= (62 if command['action'] == 'Upload' else 10)
+    except (KeyError, ValueError, TypeError, AttributeError):
+        return False
+
+
+def same_item(item, message):
+    if any(item[field] != getattr(message, field) for field in ('seq', 'command', 'x', 'y')):
+        return False
+    # Non-navigation frames may be normalized by firmware; navigation frames must match.
+    if item['command'] in (16, 21, 22) and item['frame'] != message.frame:
+        return False
+    for field in ('param1', 'param2', 'param3', 'param4', 'z'):
+        expected, actual = item[field], getattr(message, field)
+        if expected is None:
+            if not math.isnan(actual):
+                return False
+        elif not math.isfinite(actual) or not math.isclose(expected, actual, rel_tol=1e-6, abs_tol=1e-5):
+            return False
+    return getattr(message, 'autocontinue', 1) == 1

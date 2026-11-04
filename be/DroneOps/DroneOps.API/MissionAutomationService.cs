@@ -26,11 +26,27 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
 
     public async Task CancelAsync(Guid id, Guid actor, CancellationToken ct)
     {
-        await OwnedMission(id, actor, ct);
-        await db.MissionAutomationStates.Where(s => s.MissionId == id && s.OwnerId == actor).ExecuteUpdateAsync(
-            updates => updates.SetProperty(s => s.ConfirmedAt, (DateTimeOffset?)null)
-                .SetProperty(s => s.ConfirmedPlanHash, (string?)null).SetProperty(s => s.ConnectionId, (Guid?)null)
-                .SetProperty(s => s.LastPresenceAt, (DateTimeOffset?)null), ct);
+        await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Mission\" WHERE \"Id\" = {id} FOR UPDATE", ct);
+            await OwnedMission(id, actor, ct);
+            var row = await db.MissionAutomationStates.SingleOrDefaultAsync(s => s.MissionId == id && s.OwnerId == actor, ct);
+            if (row != null)
+            {
+                row.ConfirmedAt = null; row.ConfirmedPlanHash = null; row.ConnectionId = null; row.LastPresenceAt = null;
+                if (row.ExecutionJson != null)
+                {
+                    var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+                    var execution = System.Text.Json.JsonSerializer.Deserialize<FlightControlState>(row.ExecutionJson, json);
+                    if (execution != null) { execution.Cancel("Pilot withdrew flight confirmation."); execution.PilotAt = null;
+                        row.ExecutionJson = System.Text.Json.JsonSerializer.Serialize(execution, json); }
+                }
+                await db.SaveChangesAsync(ct);
+            }
+            await transaction.CommitAsync(ct);
+        });
     }
 
     public static bool InConfirmationWindow(DateTimeOffset now, DateTimeOffset start, DateTimeOffset end) =>
@@ -79,8 +95,9 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
         if (!online) reasons.Add("Keep an authenticated, visible browser tab online.");
         if (!freshPreflight) reasons.Add("A fresh, passing preflight check for this exact plan is required.");
         if (!recorded) reasons.Add("The pilot has not confirmed this exact plan and drone connection.");
-        // Deliberate preparation boundary: no command transport/aircraft capability ACK exists yet.
-        reasons.Add("Aircraft command execution is not enabled. Confirmation does not arm or launch the drone.");
+        // This endpoint reports preparation consent; execution is a separate,
+        // explicitly gated action in the same automation API.
+        reasons.Add("Preparation confirmation does not arm or launch the drone. Use the pilot controls in Live Monitoring.");
         return new(id, hash, now, start, windowOpen, connection != null,
             online, confirmed, false, reasons.ToArray(), end, gatewayConnected, freshPreflight, recorded);
     }
@@ -126,6 +143,9 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
             var connection = await Connected(mission, now, ct);
             var runMatches = await db.MissionValidationRuns.AnyAsync(r => r.Id == result.Id && r.MissionId == id && r.PlanHash == hash && r.IsValid, ct);
             var state = await db.MissionAutomationStates.SingleAsync(s => s.MissionId == id && s.OwnerId == actor, ct);
+            // Presence uses an SQL upsert. Never validate a previously tracked
+            // snapshot after cancellation/presence changed in this scope.
+            await db.Entry(state).ReloadAsync(ct);
             if (hash != expectedHash || !runMatches || connection == null || !InConfirmationWindow(now, start, end)
                 || state.LastPresenceAt is null || state.LastPresenceAt < now.AddSeconds(-30))
                 throw new InvalidOperationException("The plan, connection or operator presence changed. Review and confirm again.");
