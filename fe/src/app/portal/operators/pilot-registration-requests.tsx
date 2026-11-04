@@ -1,5 +1,7 @@
 "use client";
 
+import { apiInstant } from "@/lib/portal/vietnam-time";
+
 import { licenseDocumentLabel } from "@/lib/license-document";
 
 import Image from "next/image";
@@ -17,7 +19,7 @@ import {
 } from "@/lib/pilot-registration";
 
 const dateValue = (value: string | null | undefined) => value
-  ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value))
+  ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "short", year: "numeric" }).format(apiInstant(value))
   : "Not provided";
 
 const statusClass = (status: PilotRegistrationStatus) => `request-status ${status.toLowerCase()}`;

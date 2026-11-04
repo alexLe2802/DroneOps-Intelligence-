@@ -116,9 +116,10 @@ void Check(bool condition, string name)
 }
 
 var scheduled = DateTimeOffset.UtcNow.AddMinutes(10);
-Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5).AddTicks(-1), scheduled), "automatic confirmation rejects times before T-5");
-Check(MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5), scheduled), "automatic confirmation opens exactly at T-5");
-Check(!MissionAutomationService.InConfirmationWindow(scheduled, scheduled), "late confirmation cannot authorize a missed departure");
+Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5).AddTicks(-1), scheduled, scheduled.AddMinutes(30)), "automatic confirmation rejects times before T-5");
+Check(MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5), scheduled, scheduled.AddMinutes(30)), "automatic confirmation opens exactly at T-5");
+Check(MissionAutomationService.InConfirmationWindow(scheduled, scheduled, scheduled.AddMinutes(30)), "late confirmation remains available before mission end");
+Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(30), scheduled, scheduled.AddMinutes(30)), "confirmation closes exactly at mission end");
 var reviewedPlan = new Mission { Id = Guid.NewGuid(), CreatedBy = Guid.NewGuid(), Name = "Review fingerprint" };
 var manualHash = DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan);
 reviewedPlan.AutomaticFlightRequested = true;

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/auth/client";
 import type { SessionInfo } from "@/lib/auth/types";
@@ -35,7 +37,7 @@ export default function ActiveSessions() {
     })}>Sign out everywhere</button></header>
     {error && <div className="sessions-error" role="alert"><p>{error}</p><button className="module-secondary" disabled={busy} onClick={() => void act(load)}>Try again</button></div>}
     {!sessions && !error && <p role="status">Loading your sessions…</p>}
-    {sessions && <ul>{sessions.map(session => <li key={session.id}><div><h3>{session.isCurrent ? "This browser" : "Another browser"}</h3><p className="session-user-agent">{session.userAgent || "Browser information unavailable"}</p><p>Signed in <time dateTime={session.createdAt}>{new Date(session.createdAt).toLocaleString()}</time> · Expires <time dateTime={session.expiresAt}>{new Date(session.expiresAt).toLocaleString()}</time></p></div><button className="module-secondary" disabled={busy} onClick={() => void act(() => revoke(session))}>{session.isCurrent ? "Sign out" : "Revoke"}</button></li>)}</ul>}
+    {sessions && <ul>{sessions.map(session => <li key={session.id}><div><h3>{session.isCurrent ? "This browser" : "Another browser"}</h3><p className="session-user-agent">{session.userAgent || "Browser information unavailable"}</p><p>Signed in <time dateTime={session.createdAt}>{formatVietnamDateTime(session.createdAt)}</time> · Expires <time dateTime={session.expiresAt}>{formatVietnamDateTime(session.expiresAt)}</time></p></div><button className="module-secondary" disabled={busy} onClick={() => void act(() => revoke(session))}>{session.isCurrent ? "Sign out" : "Revoke"}</button></li>)}</ul>}
     {sessions?.length === 0 && <p>No active sessions found.</p>}
   </section>;
 }

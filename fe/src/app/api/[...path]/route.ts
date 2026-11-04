@@ -9,7 +9,7 @@ const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
   const validationRunPath = /^missions\/[0-9a-f-]{36}\/validation\/runs\/[0-9a-f-]{36}$/;
-  const automationPath = /^missions\/[0-9a-f-]{36}\/automation(?:\/(?:presence|confirm|cancel|plan))?$/.test(path);
+  const automationPath = /^missions\/[0-9a-f-]{36}\/automation(?:\/(?:presence|confirm|cancel|plan|execution|arm|disarm))?$/.test(path);
   const gatewayForgetPath = /^drone-connections\/aircraft\/[0-9a-f-]{36}\/gateway$/.test(path);
   const automationDuePath = path === "missions/automation/due";
   if (!allowed.test(path) && !validationRunPath.test(path) && !automationPath && !gatewayForgetPath && !automationDuePath) return NextResponse.json({ message: "Not found." }, { status: 404 });

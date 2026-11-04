@@ -1,3 +1,4 @@
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 import type { MissionValidationResult } from "@/lib/portal/types";
 import { validationState } from "@/lib/portal/mission-review";
 import styles from "./mission-evidence.module.css";
@@ -12,7 +13,7 @@ export default function MissionValidationEvidence({ missionId, validation, histo
       <dl>
         <div><dt>Validation run</dt><dd>{validation.id ?? "Not recorded"}</dd></div>
         <div><dt>Review request</dt><dd>{validation.updateRequestId ?? "Current mission"}</dd></div>
-        <div><dt>Checked at</dt><dd>{validation.checkedAt ? new Date(validation.checkedAt).toLocaleString() : "Not recorded"}</dd></div>
+        <div><dt>Checked at</dt><dd>{validation.checkedAt ? formatVietnamDateTime(validation.checkedAt) : "Not recorded"}</dd></div>
         <div><dt>Restriction revision</dt><dd>{validation.restrictionRevision || "Not recorded"}</dd></div>
       </dl>
       <p>{validation.message}</p>

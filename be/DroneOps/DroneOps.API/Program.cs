@@ -192,6 +192,8 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<TrustedGatewayStore>();
 builder.Services.AddScoped<MissionAutomationService>();
+builder.Services.AddScoped<FlightControlService>();
+builder.Services.AddScoped<FlightPreparationReminders>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;

@@ -5,6 +5,9 @@ export type NotificationRouteInput = {
 };
 
 export function notificationDestination(notification: NotificationRouteInput): string {
+  if (notification.referenceId && ["FlightConnectionRequired", "FlightConfirmationRequired"].includes(notification.type)) {
+    return `/portal/live-monitoring?missionId=${encodeURIComponent(notification.referenceId)}`;
+  }
   if (notification.referenceId && notification.type === "NewPendingMission") {
     return `/portal/mission-approvals?missionId=${encodeURIComponent(notification.referenceId)}`;
   }

@@ -1,4 +1,5 @@
 "use client";
+import { formatAutomaticLimits } from "@/lib/portal/automatic-flight-limits";
 import { useEffect, useState } from "react";
 import type { CreateMissionRequest, Geofence, MissionValidationResult } from "@/lib/portal/types";
 import { getGeofences } from "@/lib/portal/client";
@@ -22,17 +23,18 @@ export default function MissionPlanComparison({ current, proposed, validation, i
   const waypointRows = waypointReviewRows(isInitial ? [] : saved.waypoints, proposed.waypoints);
   const displayRoute = isInitial ? "proposed" : routeView;
   const fields = [
+    ["Automatic operating limits", "automaticFlightLimits"],
     ["Automatic flight preparation", "automaticFlightRequested"], ["Name", "name"], ["Description", "description"], ["UAV", "uavId"],
     ["Average speed", "averageSpeedMetersPerSecond"], ["Maximum speed", "maxSpeedMetersPerSecond"],
     ["Start", "startTime"], ["End", "endTime"], ["Altitude reference", "altitudeReference"],
   ] as const;
   const fieldValue = (plan: CreateMissionRequest, key: typeof fields[number][1]) =>
-    key === "automaticFlightRequested" ? plan[key] ? "Requested · confirmation required" : "Manual"
+    key === "automaticFlightLimits" ? formatAutomaticLimits(plan[key]) : key === "automaticFlightRequested" ? plan[key] ? "Requested · confirmation required" : "Manual"
       : key === "startTime" || key === "endTime" ? formatWeatherTime(plan[key])
       : key === "averageSpeedMetersPerSecond" || key === "maxSpeedMetersPerSecond" ? `${plan[key]} m/s`
         : plan[key] || "Not specified";
   const waypointValue = (point: typeof proposed.waypoints[number] | undefined) => point
-    ? `${point.latitude}, ${point.longitude} / ${point.altitude ?? "unknown"} m · ${point.actionType}` : "—";
+    ? `${point.latitude}, ${point.longitude} / ${point.altitude ?? "unknown"} m · ${point.actionType}${point.navigation ? ` · Speed ${point.navigation.speedMetersPerSecond ?? "FC default"} m/s · Hold ${point.navigation.holdTimeSeconds ?? 0}s · Radius ${point.navigation.acceptanceRadiusMeters ?? "FC default"} m · Yaw ${point.navigation.yawDegrees ?? "FC behavior"} · Landing candidate ${point.navigation.emergencyLandingCandidate ? "requested — verify clearance" : "no"} · Ground ${point.navigation.landingGroundAltitudeMeters ?? "unknown"} m · ${point.navigation.landingSiteNotes ?? ""}` : ""}` : "—";
   const passed = validationState(validation) === "Pass";
   const hasFindings = !!validation?.findings?.length;
   const uncertain = ["Unavailable", "Stale", "Incomplete", "Error"].includes(validationState(validation));
@@ -42,6 +44,7 @@ export default function MissionPlanComparison({ current, proposed, validation, i
     <div className="mission-waypoint-table-wrap"><table className="mission-waypoint-table"><thead><tr><th>Field</th>{!isInitial && <th>Current</th>}<th>{isInitial ? "Submitted plan" : "Proposed"}</th></tr></thead><tbody>
       {fields.map(([label, key]) => <tr key={key} className={!isInitial && changedFields.includes(key) ? styles.changedRow : undefined}><th>{label}{!isInitial && changedFields.includes(key) && <small className={styles.changeBadge}>Changed</small>}</th>{!isInitial && <td>{fieldValue(saved, key)}</td>}<td>{fieldValue(proposed, key)}</td></tr>)}
     </tbody></table></div>
+    {proposed.automaticFlightRequested && proposed.automaticFlightLimits && <details><summary>Automatic recovery policy · firmware verification required</summary><p>Low battery: 30%; critical: 15%. Critical power overrides RTL. Home is preferred only when its approach and energy-to-land plus reserve are verified; otherwise use the nearest approved and verified reachable landing site. No automatic mission resume after a failsafe. FC application and flight validation remain required.</p></details>}
     <div className={`${styles.routeStatus} ${passed ? styles.passed : styles.attention}`} role="status">
       <strong>{passed ? "Waypoints and route checks passed" : uncertain ? "Route verification needs attention" : hasFindings ? "Route has restriction findings" : "Mission checks have not passed"}</strong>
       <p>{passed ? "No blocking findings were reported for the submitted plan at the last check." : uncertain ? "The current evidence cannot confirm route clearance. Review missing data, restriction geometry or altitude references and revalidate." : "Review the findings below. The submitted route is preserved for the pilot to correct; the system does not reroute it automatically."}</p>

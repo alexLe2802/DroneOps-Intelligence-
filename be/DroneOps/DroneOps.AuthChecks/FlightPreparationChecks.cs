@@ -10,6 +10,8 @@ using DroneOps.Persistence;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using DroneOps.Application.Services.Notifications;
+using DroneOps.Persistence.Repositories.Notifications;
 
 internal static class FlightPreparationChecks
 {
@@ -32,10 +34,20 @@ internal static class FlightPreparationChecks
             END $roles$;
             DROP TABLE public."MissionAutomationState";
             ALTER TABLE public."Mission" DROP COLUMN "AutomaticFlightRequested";
+            ALTER TABLE public."Mission" DROP COLUMN "AutomaticFlightLimitsJson";
+            ALTER TABLE public."UAV" DROP COLUMN "BatteryMaxVoltage";
+            ALTER TABLE public."UAV" DROP COLUMN "FirmwareNavigationDefaultsJson";
+            ALTER TABLE public."Waypoint" DROP COLUMN "NavigationJson";
             """).ExecuteNonQueryAsync();
         var sql = await File.ReadAllTextAsync(Path.Combine(root, "database/migrations/20261104115300_gateway_enrollment_and_flight_preparation.sql"));
         await source.CreateCommand(sql).ExecuteNonQueryAsync();
         await source.CreateCommand(sql).ExecuteNonQueryAsync();
+        var controlSql = await File.ReadAllTextAsync(Path.Combine(root, "database/migrations/20261104160247_manual_arm_countdown.sql"));
+        await source.CreateCommand(controlSql).ExecuteNonQueryAsync();
+        await source.CreateCommand(controlSql).ExecuteNonQueryAsync();
+        var envelopeSql = await File.ReadAllTextAsync(Path.Combine(root, "database/migrations/20261104163328_automatic_flight_envelope_and_battery_max_voltage.sql"));
+        await source.CreateCommand(envelopeSql).ExecuteNonQueryAsync();
+        await source.CreateCommand(envelopeSql).ExecuteNonQueryAsync();
         await FlightPreparationSchema.CheckAsync(source);
         Check(true, "migration upgrades an existing schema and is idempotent");
         var rls = await source.CreateCommand("SELECT count(*) FROM pg_class WHERE relname IN ('GatewayEnrollment','MissionAutomationState') AND relrowsecurity").ExecuteScalarAsync();
@@ -98,11 +110,93 @@ internal static class FlightPreparationChecks
         Check(!returned.ReadinessConfirmed, "returning online does not silently restore a stale confirmation");
         db.ChangeTracker.Clear();
         await db.Missions.Where(m => m.Id == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.StartTime, DateTime.UtcNow.AddSeconds(-1)));
-        Check(!(await automation.ReadAsync(mission.Id, owner.Id, default)).ConfirmationOpen, "missed departure closes confirmation without a catch-up launch");
+        Check((await automation.ReadAsync(mission.Id, owner.Id, default)).ConfirmationOpen, "late preparation is allowed before mission end without automatic dispatch");
         await gateway.RevokeAsync(uav.Id, owner.Id, default);
         await Reject<UnauthorizedAccessException>(() => gateway.ResumeAsync(uav.Id, deviceKey, uid, default), "forget gateway revokes unattended access");
         Check(await db.DroneHardwareIdentities.AnyAsync(h => h.UavId == uav.Id && h.Identity == uid), "forgetting a gateway preserves the permanent physical hardware binding");
+        await CheckRemindersAsync(source, db, owner, uav, uid);
         Console.WriteLine("Isolated PostgreSQL enrollment/preparation checks passed. No production data or aircraft used.");
+    }
+
+    private static FlightPreparationReminders Reminders(AppDbContext db) => new(db,
+        new MissionAutomationService(db, new PreflightStub(db)), new NotificationService(new NotificationRepository(db), null!));
+
+    private static async Task CheckRemindersAsync(NpgsqlDataSource source, AppDbContext db, User owner, UAV uav, string uid)
+    {
+        db.ChangeTracker.Clear();
+        var mission = new Mission { Id = Guid.NewGuid(), CreatedBy = owner.Id, UAVId = uav.Id, Name = "Reminder fixture", Status = "Approved", AutomaticFlightRequested = true,
+            StartTime = DateTime.UtcNow.AddMinutes(6), EndTime = DateTime.UtcNow.AddMinutes(30), CreatedAt = DateTime.UtcNow, AltitudeReference = "Relative" };
+        db.Missions.Add(mission); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        var reminders = Reminders(db);
+        Task<int> Count(string type) => db.Notifications.CountAsync(n => n.ReferenceId == mission.Id && n.Type == type);
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        Check(await Count(FlightPreparationReminders.ConnectType) == 0, "no connection reminder before T-5");
+        await db.Missions.Where(m => m.Id == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.StartTime, DateTime.UtcNow.AddMinutes(4)));
+        async Task ConcurrentWorker()
+        {
+            await using var other = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(source).Options);
+            await Reminders(other).ProcessMissionAsync(mission.Id, default);
+        }
+        await Task.WhenAll(ConcurrentWorker(), ConcurrentWorker());
+        Check(await Count(FlightPreparationReminders.ConnectType) == 1, "two workers create only one persistent connection reminder");
+        await db.Notifications.Where(n => n.ReferenceId == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        await ConcurrentWorker();
+        Check(await Count(FlightPreparationReminders.ConnectType) == 1, "reading a reminder or restarting a worker never resets its once-per-mission limit");
+        var connection = Session(uav.Id, mission.Id, owner.Id, uid);
+        connection.ExpiresAt = DateTimeOffset.UtcNow.AddHours(1); connection.LastSampleAt = null;
+        db.DroneConnections.Add(connection); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        await reminders.ProcessConnectionAsync(connection.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 0, "gateway online without fresh aircraft data does not ask for confirmation");
+        await db.DroneConnections.Where(c => c.Id == connection.Id).ExecuteUpdateAsync(s => s.SetProperty(c => c.LastSampleAt, DateTimeOffset.UtcNow));
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 0, "fresh telemetry without a passing preflight does not ask for confirmation");
+        var preflight = new PreflightStub(db);
+        await preflight.RevalidateAsync(mission.Id, owner.Id, false, "Preflight");
+        await reminders.ProcessConnectionAsync(connection.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 1, "first ready connection creates an immediate confirmation notification");
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 1, "confirmation reminders do not repeat within two minutes");
+        await db.Notifications.Where(n => n.ReferenceId == mission.Id && n.Type == FlightPreparationReminders.ConfirmType)
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.CreatedAt, DateTimeOffset.UtcNow.AddSeconds(-121)).SetProperty(n => n.IsRead, true));
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 2, "unconfirmed ready mission is reminded after two minutes even if the earlier message was read");
+        db.ChangeTracker.Clear();
+        var automation = new MissionAutomationService(db, preflight);
+        var state = await automation.PresenceAsync(mission.Id, owner.Id, default);
+        await automation.ConfirmAsync(mission.Id, owner.Id, state.PlanHash, default);
+        await db.Notifications.Where(n => n.ReferenceId == mission.Id && n.Type == FlightPreparationReminders.ConfirmType)
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.CreatedAt, DateTimeOffset.UtcNow.AddMinutes(-3)));
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 2, "a confirmed exact plan stops repeating reminders");
+        await db.MissionValidationRuns.Where(r => r.MissionId == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(r => r.CheckedAt, DateTimeOffset.UtcNow.AddSeconds(-61)));
+        var stale = await automation.ReadAsync(mission.Id, owner.Id, default);
+        Check(stale.ConfirmationRecorded && !stale.ReadinessConfirmed, "preflight cache expiry does not erase the user's confirmation");
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 2, "preflight refresh alone does not create another confirm reminder");
+        await db.DroneConnections.Where(c => c.Id == connection.Id).ExecuteUpdateAsync(s => s.SetProperty(c => c.LastGatewayAt, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        Check(await Count(FlightPreparationReminders.ConnectType) == 1, "disconnecting again never sends a second connection reminder");
+        await db.Missions.Where(m => m.Id == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.StartTime, DateTime.UtcNow.AddMinutes(-1)));
+        await db.DroneConnections.Where(c => c.Id == connection.Id).ExecuteUpdateAsync(s => s.SetProperty(c => c.LastGatewayAt, DateTimeOffset.UtcNow).SetProperty(c => c.LastSampleAt, DateTimeOffset.UtcNow));
+        db.ChangeTracker.Clear();
+        await preflight.RevalidateAsync(mission.Id, owner.Id, false, "Preflight");
+        await reminders.ProcessConnectionAsync(connection.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 3, "late connection still receives a confirmation reminder before EndTime");
+        state = await automation.PresenceAsync(mission.Id, owner.Id, default);
+        var late = await automation.ConfirmAsync(mission.Id, owner.Id, state.PlanHash, default);
+        Check(late.ConfirmationRecorded && late.ReadinessConfirmed && !late.DispatchEnabled, "late manual confirmation is accepted but does not dispatch an aircraft command");
+        await FlightControlDatabaseChecks.RunAsync(db, preflight, mission.Id, owner.Id, connection.Id);
+        await db.Missions.Where(m => m.Id == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.EndTime, DateTime.UtcNow.AddSeconds(-1)));
+        db.ChangeTracker.Clear();
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        state = await automation.ReadAsync(mission.Id, owner.Id, default);
+        Check(!state.ConfirmationOpen && !state.ConfirmationRecorded && await Count(FlightPreparationReminders.ConfirmType) == 3, "ended flight window stops reminders and invalidates confirmation");
+        await Reject<InvalidOperationException>(() => automation.ConfirmAsync(mission.Id, owner.Id, state.PlanHash, default), "ended mission rejects confirmation server-side");
+        await db.Missions.Where(m => m.Id == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.EndTime, DateTime.UtcNow.AddMinutes(30)).SetProperty(m => m.Status, "Completed"));
+        await reminders.ProcessMissionAsync(mission.Id, default);
+        Check(await Count(FlightPreparationReminders.ConfirmType) == 3, "completed status stops reminders even before the scheduled end");
+        Check(await db.Notifications.Where(n => n.ReferenceId == mission.Id).AllAsync(n => n.ActionUrl == $"/portal/live-monitoring?missionId={mission.Id}" && n.Message.Contains("GMT+7")), "existing notification API links to Live Monitoring and displays Vietnam schedule time");
     }
 
     private static DroneConnection Session(Guid uav, Guid mission, Guid owner, string uid) => new()
