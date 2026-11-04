@@ -37,7 +37,7 @@ Tất cả điều kiện phải đồng thời hợp lệ:
 | Validation | Preflight Pass đúng plan hash trong 60 giây gần nhất, được kiểm tra lại khi dispatch |
 | Mission onboard | Đúng compiled hash/profile; upload và normalized read-back đã xác minh |
 | Điều kiện cục bộ | Capability, home/frame/terrain, pre-arm và failsafe phù hợp profile |
-| Thời gian | Không sớm hơn giờ bay; envelope hết hạn tại giờ bay + 5 giây |
+| Thời gian | Không sớm hơn giờ bay; envelope hết hạn tại giờ bay + 5 giây; sai số đồng hồ backend/gateway tối đa 1 giây |
 
 Portal gửi presence mỗi 10 giây khi hiển thị và online. `dispatchEnabled` là kết quả của cấu hình release và toàn bộ gate; giá trị không được cố định để bỏ qua hoặc vô hiệu hóa quy trình trong đặc tả.
 
@@ -48,6 +48,8 @@ Plan export gồm schema version, mission/UAV IDs, `planHash`, lịch UTC, tốc
 Envelope thực thi thêm `commandId`, owner, controller UID, connection/lease, `compiledMissionHash`, profile/adapter version, `issuedAtUtc`, `scheduledAtUtc` và `expiresAtUtc`. Credential gateway không nằm trong dữ liệu trả về browser.
 
 Gateway lưu receipt/outcome bền vững trước tác động vật lý. Backend cấp một dispatch identity cho một approved execution snapshot. Gửi lại tối đa ba lần cùng identity trước deadline chỉ là retry giao nhận; không tạo thêm lần start.
+
+Giới hạn transfer của release: chờ phản hồi 3 giây, tối đa 3 retry mỗi bước và tối đa 120 giây cho toàn bộ upload/read-back. Profile có phiên bản và audit có thể đặt giới hạn chặt hơn.
 
 ## Thay đổi và sự cố
 
