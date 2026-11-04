@@ -128,6 +128,7 @@ gateway/.venv/
 __pycache__/
 *.pyc
 tmp/
+.vercel
 
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/
