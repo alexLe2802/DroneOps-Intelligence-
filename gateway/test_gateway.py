@@ -36,6 +36,34 @@ class GatewayTests(unittest.TestCase):
         self.state.accept(message('HEARTBEAT',type=2,autopilot=3,base_mode=128,**kwargs),lambda m:'AUTO')
     def test_no_heartbeat_no_fake_samples(self):
         self.assertIsNone(self.state.sample(SESSION))
+    def test_primary_battery_details_units_and_summary_priority(self):
+        self.heartbeat()
+        self.state.accept(message('BATTERY_STATUS', id=0, battery_remaining=72,
+            voltages=[4100, 4090, 4080, 4070] + [65535] * 6, voltages_ext=[0] * 4,
+            current_battery=1250, temperature=3150, current_consumed=420), None)
+        self.state.accept(message('SYS_STATUS', battery_remaining=99, voltage_battery=65535), None)
+        value = self.state.sample(SESSION)
+        self.assertEqual(value['batteryPercent'], 72)
+        self.assertAlmostEqual(value['batteryVoltageVolts'], 16.34)
+        self.assertEqual(value['batteryCurrentAmps'], 12.5)
+        self.assertEqual(value['batteryTemperatureCelsius'], 31.5)
+        self.assertEqual(value['batteryConsumedMah'], 420)
+        self.assertEqual(value['batteryCellVoltagesVolts'], [4.1, 4.09, 4.08, 4.07])
+        self.assertFalse(self.state.accept(message('BATTERY_STATUS', id=1), None))
+
+    def test_battery_unknowns_and_pack_voltage_are_not_fake_cells(self):
+        self.heartbeat()
+        self.state.accept(message('BATTERY_STATUS', id=0, battery_remaining=-1,
+            voltages=[15800] + [65535] * 9, current_battery=-1,
+            temperature=32767, current_consumed=-1), None)
+        value = self.state.sample(SESSION)
+        self.assertEqual(value['batteryVoltageVolts'], 15.8)
+        for key in ['batteryPercent', 'batteryCurrentAmps', 'batteryTemperatureCelsius',
+                    'batteryConsumedMah', 'batteryCellVoltagesVolts']:
+            self.assertIsNone(value[key])
+        self.now = 6
+        self.heartbeat()
+        self.assertIsNone(self.state.sample(SESSION)['batteryVoltageVolts'])
     def test_wrong_system_and_component_are_ignored(self):
         self.assertFalse(self.state.accept(message('HEARTBEAT',system=2),None))
         self.assertFalse(self.state.accept(message('HEARTBEAT',component=2),None))
