@@ -8,8 +8,9 @@ Trong ZIP tải về, mở `CONNECTION_SETUP.md`.
   `bash connect-drone.sh`. Launcher dò USB/baud/ArduPilot hoặc PX4 và dùng domain
   backend cố định. Giữ cửa sổ mở trong lúc nhận telemetry.
 - UID lấy từ flight controller, không lấy từ Jetson hoặc radio.
-- Gateway chưa upload mission, ARM hoặc cất cánh. Xem
-  [Đề xuất bay tự động](../docs/automatic-flight-proposal.md).
+- Hợp đồng thực thi gồm biên dịch, upload/read-back và dispatch theo lịch với
+  consent, hash/UID/lease binding và outcome thực từ telemetry. Xem
+  [Vận hành bay tự động](../docs/automatic-flight-operations.md).
 
 Developer verification:
 

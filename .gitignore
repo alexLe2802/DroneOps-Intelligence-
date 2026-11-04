@@ -32,7 +32,6 @@ database/*.local.json
 
 # Local certificates
 *.crt
-!database/certificates/prod-ca-2021.crt
 
 # Visual Studio
 .vs/
@@ -128,9 +127,3 @@ gateway/session.private.tmp
 gateway/.venv/
 __pycache__/
 *.pyc
-tmp/
-.vercel
-
-# Persistent gateway credentials
-gateway/.sessions/
-**/*.private.json

@@ -1,0 +1,237 @@
+[
+  {
+    "i": 0,
+    "kind": "p",
+    "text": "SWP490 · CAPSTONE PROJECT · REVIEW 2 · BM01"
+  },
+  {
+    "i": 1,
+    "kind": "p",
+    "text": "Design Brief – Review 2"
+  },
+  {
+    "i": 2,
+    "kind": "p",
+    "text": "0. Header"
+  },
+  {
+    "i": 3,
+    "kind": "tbl",
+    "text": "Project code | FA26SE238 | Project name | DroneOps Intelligence | Team | GFA26SE167 | Supervisor | Pham Minh Tri; Dang Ngoc Minh Duc | Repository link (tag review-2) | https://github.com/alexLe2802/DroneOps-Intelligence- (commit 48aea3c; review-2 tag not present) | Version | Review 2 submission v1.0 | Date | 27 October 2026"
+  },
+  {
+    "i": 4,
+    "kind": "p",
+    "text": "1. Scope"
+  },
+  {
+    "i": 5,
+    "kind": "p",
+    "text": "1.1 Registration Changes"
+  },
+  {
+    "i": 6,
+    "kind": "tbl",
+    "text": "Section | Current | Proposed | Reason | AI decision support | Top-k historical similarity retrieval with evidence | Configured external AI advisory service; remove mandatory vector retrieval | Iteration 1 technology/data constraint; requires Review 2 approval | Mission changes | Mission versions | One current mission plus separately reviewed update requests | Iteration 1 finding: prevents rejected edits overwriting approved content | Client platforms | Web and Mobile App | Web platform for Review 2 baseline | Team capacity and no mobile implementation baseline; requires Review 2 approval"
+  },
+  {
+    "i": 7,
+    "kind": "p",
+    "text": "1.2 Out of Scope"
+  },
+  {
+    "i": 8,
+    "kind": "tbl",
+    "text": "Item | Reason | Low-level flight control/autopilot | The product manages mission operations and never commands vehicle stabilization/navigation. | Aviation certification and unprovided restrictions | Validation uses configured data and is not a legal airspace guarantee. | Custom AI model training | The project integrates a configured provider and retains human decision authority."
+  },
+  {
+    "i": 9,
+    "kind": "p",
+    "text": "2. System at a Glance"
+  },
+  {
+    "i": 10,
+    "kind": "p",
+    "text": "DroneOps Intelligence is a Web mission-operations platform for UAV operators and operations managers. It centralizes aircraft, operator, mission and restriction data; validates planned routes before approval; ingests MAVLink-derived telemetry; detects and manages incidents; and preserves post-flight evidence. Operators plan and monitor missions, while managers review proposals, restrictions and operational outcomes. Advisory AI summarizes authorized context and suggests risks and precautions without approving missions or controlling a UAV. The core value is a traceable workflow from planning through approval, monitoring and post-flight review, replacing fragmented maps, logs and spreadsheets. System structure and trust boundaries are shown in Report 4, SDD §1.1, Figures 1–2."
+  },
+  {
+    "i": 11,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 12,
+    "kind": "p",
+    "text": "3. Key Design Decisions"
+  },
+  {
+    "i": 13,
+    "kind": "tbl",
+    "text": "ID | Decision | Options considered | Chosen option and rationale | Owner | Related FR / diagram | D1 | Use layered Web/API/domain/persistence architecture | Monolith; microservices; layered modular application | Layered modular application matches four-person delivery while keeping business and persistence boundaries testable. | Le Quoc Thong | All FRs; SDD Figures 1–4 | D2 | Review mission edits before applying them | In-place edit; immutable versions; pending update request | Pending requests preserve approved content and allow atomic accept/reject on the same mission ID. | Ha Quang Nghia | FR-05..10; SDD Figures 6–12 | D3 | Normalize telemetry at a gateway boundary | Direct browser link; broker-only; authenticated gateway/API | The gateway isolates MAVLink transport and supplies idempotent normalized samples to the API. | Le Quoc Thong | FR-11..13; SDD Figures 14–16 | D4 | Persist post-flight evidence and coverage | Ephemeral dashboard; raw logs only; reports over stored evidence | Stored samples/incidents support scoped playback, reproducible metrics and explicit missing coverage. | Dang Dao Anh Duc | FR-17..18/22; SDD Figures 17–18 | D5 | Keep AI advisory and fail-open for manual review | Autonomous approval; local model; configured external API | External API reduces model scope; provenance and failure states preserve human authority and mission availability. | Giang Nguyen Gia Khanh | FR-19; SDD Figure 19"
+  },
+  {
+    "i": 14,
+    "kind": "p",
+    "text": "4. Top Risks"
+  },
+  {
+    "i": 15,
+    "kind": "tbl",
+    "text": "ID | Risk | Impact | How we verify or mitigate | Owner | R1 | Registered Top-k retrieval is not implemented. | Defense scope may be incomplete. | Obtain BM03 decision; if retained, implement labeled k=5 retrieval and Precision@5 evidence. | Giang Nguyen Gia Khanh | R2 | Realtime/staging workflow evidence is incomplete. | Monitoring or incidents may fail during defense. | Run deterministic gateway replay, disconnect/reconnect, acknowledgement and resolution scenarios. | Le Quoc Thong | R3 | Design/schema/state documentation differs from code. | Reviewers cannot trace behavior reliably. | Regenerate ERD/state mappings from migrations and canonicalize status values. | Ha Quang Nghia"
+  },
+  {
+    "i": 16,
+    "kind": "p",
+    "text": "5. Known Gaps"
+  },
+  {
+    "i": 17,
+    "kind": "tbl",
+    "text": "ID | Gap | Location | Plan | Owner | Due | G-01 | Registered Top-k similarity/vector retrieval is specified in the SRS but has no implementation in the source; the implemented OpenAI adapter is not a substitute for retrieved historical evidence. | Registration §3.2(b–g); SRS FR-19/NFR-M02; source | Planned – Giang Nguyen Gia Khanh – 30 Nov 2026; implement and evaluate retrieval unless BM03 change is accepted. | Giang Nguyen Gia Khanh | 30 Nov 2026 | G-02 | The project material identifies a Mobile App/operator mobile client, but the repository contains only the Next.js Web client and no defined mobile feature subset or mobile package. | Report 1 §1.1/§7; SRS mobile statements; source | Planned – Le Quoc Thong – 30 Nov 2026; remove mobile scope only if BM03 change is accepted, otherwise define and deliver its subset. | Le Quoc Thong | 30 Nov 2026 | G-03 | The logical ERD/entity catalogue omits implemented records including MissionUpdateRequest, MissionValidationRun and DroneConnection, so design-to-schema traceability is incomplete. | SDD §2 ERD/entity table; Domain/AppDbContext | Planned – Ha Quang Nghia – 06 Nov 2026; update ERD and entity catalogue from the verified schema. | Ha Quang Nghia | 06 Nov 2026 | G-04 | The four main workflows have designed cases but no recorded staging end-to-end execution evidence or pass results. | SRS main workflows; Report 5; CI | Planned – all workflow owners – 30 Nov 2026; automate and retain seeded staging evidence. | All workflow owners | 30 Nov 2026 | G-05 | Mission status spelling is not canonical across code and documents (for example InProgress and In Progress), which can create undocumented state variants. | SRS BR-13; state diagrams; application services | Planned – Ha Quang Nghia – 06 Nov 2026; introduce canonical state constants and align diagrams/migrations. | Ha Quang Nghia | 06 Nov 2026"
+  },
+  {
+    "i": 18,
+    "kind": "p",
+    "text": "6. Proposed Mandatory Features"
+  },
+  {
+    "i": 19,
+    "kind": "tbl",
+    "text": "ID | Feature | Actor | Acceptance criteria (testable) | Test | Status | F-01 | Identity, operator and UAV management | Operator; Manager | An authorized user can access only permitted profiles/UAVs; invalid or out-of-scope create/update/read requests are rejected and audited. | TC-F01-01..03 | In progress | F-02 | Mission planning, validation and approval | Operator; Manager | A route is checked at waypoint and segment level; only a current valid request can be approved; rejection leaves current mission content unchanged. | TC-F02-01..03 | In progress | F-03 | MAVLink telemetry and live monitoring | Operator; Manager; Gateway | Authenticated normalized samples are persisted idempotently and visible with source time, freshness, location, altitude, speed, battery and progress within the NFR threshold. | TC-F03-01..03 | In progress | F-04 | Operational incident lifecycle | Operator; Manager | Configured abnormal conditions create one traceable incident episode; acknowledgement and resolution retain actor, time, reason and frozen evidence. | TC-F04-01..03 | In progress | F-05 | Post-flight history, reports and analytics | Operator; Manager | A completed mission exposes scoped history, route playback, incidents, coverage and calculated metrics; missing evidence is shown as unavailable. | TC-F05-01..03 | In progress | F-06 | AI-assisted mission assessment | Operator; Manager | Authorized mission context returns traceable advisory output or an explicit unavailable state; provider failure never blocks manual review and AI never approves a mission. | TC-F06-01..03 | In progress"
+  },
+  {
+    "i": 20,
+    "kind": "p",
+    "text": "7. Non-Functional Requirements"
+  },
+  {
+    "i": 21,
+    "kind": "tbl",
+    "text": "ID | Quality attribute | Metric | Threshold | Measurement method | NFR-01 | API performance | 95th percentile list/detail latency | <= 2 s under P-01 | Run >=100 timed requests after warm-up; record hardware/network. | NFR-02 | Realtime performance | Gateway receipt-to-live-view latency | 95% <= 2 s | Correlate synchronized gateway-received and client-rendered timestamps. | NFR-03 | Validation performance | Pre-flight validation duration | 95% <= 3 s | Run >=30 controlled valid/invalid routes under P-01. | NFR-04 | Reliability | Monitoring continuity and persisted-record loss | 60 min; 0 crash; 0 acknowledged record loss | Controlled soak test plus database and trace comparison. | NFR-05 | Security | Unauthorized/out-of-scope operations rejected | 100% of authorization matrix | Positive/negative role and direct-ID API tests. | NFR-06 | Usability | Representative users completing prepared mission task | >=4/5 within 5 min after <=30 min onboarding | Timed task study with a prepared five-waypoint mission."
+  },
+  {
+    "i": 22,
+    "kind": "p",
+    "text": "8. Ownership Map"
+  },
+  {
+    "i": 23,
+    "kind": "tbl",
+    "text": "Member | Role | Owned parts (2–3) | Main workflow owned | Key decisions / PRs | Le Quoc Thong (SE172002) | Leader; frontend/dossier; MF2 | Web integration; gateway/live monitoring; CI/documentation | WF-02 | D1, D3; current implementation evidence to verify | Ha Quang Nghia (SE184490) | Backend/MF1 owner | Mission review; validation; schema/state alignment | WF-01 | D2; mission workflow services | Giang Nguyen Gia Khanh (SE182367) | AI/MF4 owner | AI context; provider adapter; advisory/failure handling | WF-04 | D5; AI assessment evidence to verify | Dang Dao Anh Duc (SE194009) | Post-flight/MF3 owner | History; reports; analytics/playback | WF-03 | D4; post-flight services"
+  },
+  {
+    "i": 24,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 25,
+    "kind": "p",
+    "text": "Appendix A – Defense 1.1 Targets"
+  },
+  {
+    "i": 26,
+    "kind": "p",
+    "text": "A1. Main Workflows"
+  },
+  {
+    "i": 27,
+    "kind": "tbl",
+    "text": "ID | Workflow | Actors | Trigger | Business outcome | Features | Entity states | Owner | WF-01 | Mission Planning and Pre-flight Validation | Operator; Manager | Operator submits a new or changed route. | A reviewed, safe plan is approved or rejected with evidence. | F-01, F-02 | Mission: Draft -> Pending Review -> Approved/Rejected | Ha Quang Nghia | WF-02 | Real-Time Monitoring and Incident Management | Gateway; Operator; Manager | An approved mission starts and telemetry arrives. | Live state is visible and abnormal events are handled traceably. | F-03, F-04 | Mission: Approved -> In Progress; Incident: Open -> Acknowledged -> Resolved | Le Quoc Thong | WF-03 | Post-Flight Analysis and Mission History | Gateway; Operator; Manager | A trusted completion event is recorded. | Users review route, evidence, incidents, report and analytics. | F-05 | Mission: In Progress -> Completed; Report: Queued -> Generating -> Available/Failed | Dang Dao Anh Duc | WF-04 | AI-Assisted Mission Risk Assessment | Operator; Manager; AI Provider | An authorized user requests an assessment. | Advisory risks and precautions or an explicit failure state support human review. | F-06 | Assessment: Pending -> Available/Failed; Mission unchanged | Giang Nguyen Gia Khanh"
+  },
+  {
+    "i": 28,
+    "kind": "p",
+    "text": "A2. Demo Scenarios"
+  },
+  {
+    "i": 29,
+    "kind": "tbl",
+    "text": "ID | Workflow | Type | Preconditions and data | Main steps | Expected result | Presenter | DS-01 | WF-01 | Main | Seeded Operator, Manager, UAV and valid restriction set | Create route; validate; submit; Manager reviews and approves | Same mission becomes Approved with decision and current evidence | Ha Quang Nghia | DS-02 | WF-01 | Exception | Approved mission and invalid proposed route | Submit edit; validation fails; attempt approval/reject | Approval blocked or proposal rejected; approved content is unchanged | Ha Quang Nghia | DS-03 | WF-02 | Main | Approved active mission; authenticated gateway replay | Stream normal/abnormal samples; acknowledge and resolve incident | Live view updates and complete incident timeline is retained | Le Quoc Thong | DS-04 | WF-02 | Exception | Active replay with controllable packet loss | Stop samples; observe timeout; reconnect with two valid samples | One communication-loss episode opens and recovery is traceable | Le Quoc Thong | DS-05 | WF-03 | Main | Completed seeded mission with telemetry/incidents | Open history, playback, report and analytics | Authorized evidence and metrics show correct units/coverage | Dang Dao Anh Duc | DS-06 | WF-03 | Exception | Completed mission with a telemetry gap | Generate/open report | Missing coverage is explicit and is not reported as zero risk | Dang Dao Anh Duc | DS-07 | WF-04 | Main | Authorized mission and configured provider stub | Request assessment and inspect provenance | Advice is displayed and mission state is unchanged | Giang Nguyen Gia Khanh | DS-08 | WF-04 | Exception | Provider timeout/rate-limit fixture | Request assessment; open manual review | Unavailable/retry state appears; manual review remains usable | Giang Nguyen Gia Khanh"
+  },
+  {
+    "i": 30,
+    "kind": "p",
+    "text": "A3. Functional Test Case Target"
+  },
+  {
+    "i": 31,
+    "kind": "tbl",
+    "text": "Source | Count | Minimum per item | Subtotal | Mandatory features | 6 | 3 | 18 | Main workflows (end-to-end) | 4 | 1 | 4 | State transitions of main entities | 12 | 1 | 12 | Committed total |  |  | 34 | Automated in CI target |  | >= 50% | 18 (52.9%)"
+  },
+  {
+    "i": 32,
+    "kind": "p",
+    "text": "Automatic flight preparation and workflow ownership"
+  },
+  {
+    "i": 33,
+    "kind": "p",
+    "text": "Current ownership: MF1 / WF-01 — NghiaHQ (Ha Quang Nghia), planning and preflight; MF2 / WF-02 — ThongLQ (Le Quoc Thong), realtime monitoring, incidents and flight preparation; MF3 / WF-03 — DucDDA (Dang Dao Anh Duc), post-flight; MF4 / WF-04 — KhanhGNG (Giang Nguyen Gia Khanh), AI assessment. ThongLQ remains team leader and dossier coordinator."
+  },
+  {
+    "i": 34,
+    "kind": "p",
+    "text": "Implemented scope"
+  },
+  {
+    "i": 35,
+    "kind": "p",
+    "text": "AutomaticFlightRequested is optional and defaults to false. Changes follow the mission proposal and approval workflow. This release prepares readiness; dispatchEnabled is false. Neither confirmation nor gateway enrollment uploads a mission, arms motors, sends TAKEOFF/AUTO/MISSION_START, or changes the mission to InProgress."
+  },
+  {
+    "i": 36,
+    "kind": "p",
+    "text": "Confirmation conditions"
+  },
+  {
+    "i": 37,
+    "kind": "p",
+    "text": "For an approved, opted-in mission with a schedule, the backend opens confirmation at T minus 5 minutes and closes it at the scheduled start. The authenticated operator must keep a visible browser tab online. Presence is sent every 10 seconds and expires after 30 seconds. The selected, unrevoked mission connection must match the active UAV and flight-controller UID, with gateway heartbeat within 30 seconds and telemetry within 15 seconds."
+  },
+  {
+    "i": 38,
+    "kind": "p",
+    "text": "Readiness evidence"
+  },
+  {
+    "i": 39,
+    "kind": "p",
+    "text": "Confirmation reruns preflight and binds readiness to the exact plan hash and connection ID. Readiness requires a passing preflight for that hash from the last minute. Changed plan/connection, stale presence or missing telemetry invalidates the conditions; the operator must review and confirm again. Dismissal, a hidden/offline tab or a missed window is not flight consent."
+  },
+  {
+    "i": 40,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "i": 41,
+    "kind": "p",
+    "text": "Autopilot execution remains a separate development phase: firmware/airframe capability detection, mission compilation and upload/read-back, command IDs/deadlines and replay protection, scheduled condition rechecks, local pre-arm/failsafe enforcement, and ACK plus observed flight-state verification. Validate ArduPilot/PX4 SITL, propeller-free bench operation and supervised flight before enabling dispatch. AI advice cannot authorize launch."
+  },
+  {
+    "i": 42,
+    "kind": "p",
+    "text": "Service and API boundary"
+  },
+  {
+    "i": 43,
+    "kind": "p",
+    "text": "MissionAutomationService and MissionAutomationController provide GET /api/missions/automation/due and GET /api/missions/{id}/automation, POST presence/confirm/cancel and GET plan below that mission automation route. Owner authorization and uav_operator role apply. MissionAutomationState retains presence/confirmation, confirmed plan hash and connection ID; trusted enrollment and mission leases remain separate. FlightPreparationPrompt polls only when visible/online. Migration: 20261104115300_gateway_enrollment_and_flight_preparation.sql; deploy backend, frontend and gateway package together."
+  },
+  {
+    "i": 44,
+    "kind": "p",
+    "text": "Diagram maintenance"
+  },
+  {
+    "i": 45,
+    "kind": "p",
+    "text": "Existing diagrams are unchanged. Update architecture, ERD, mission state and planning/gateway sequences for enrollment and readiness. Confirmation must not transition the mission to InProgress."
+  },
+  {
+    "i": 46,
+    "kind": "sectPr",
+    "text": ""
+  }
+]
