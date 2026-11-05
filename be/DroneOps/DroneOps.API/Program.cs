@@ -12,7 +12,7 @@ using DroneOps.Application.DTOs.Options;
 
 var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
-    "--migrate-auth", "--bootstrap-manager",
+    "--migrate-auth", "--bootstrap-manager", "--monitor-only",
     "--migrate-telemetry", "--check-telemetry-schema",
     "--migrate-postflight", "--check-postflight-schema",
     "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows"
@@ -29,6 +29,8 @@ if (builder.Environment.IsDevelopment())
 }
 builder.Configuration.AddEnvironmentVariables();
 builder.Configuration.AddCommandLine(configurationArgs);
+var monitoringEnabled = args.Contains("--monitor-only") ||
+    builder.Configuration.GetValue("Monitoring:Enabled", true);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -83,7 +85,7 @@ if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-s
 builder.Services.AddControllers(options => options.Filters.Add<MissionValidationExceptionFilter>());
 builder.Services.Configure<MissionWeatherOptions>(
     builder.Configuration.GetSection("MissionWeather"));
-builder.Services.AddHostedService<MissionPreflightMonitor>();
+if (monitoringEnabled) builder.Services.AddHostedService<MissionPreflightMonitor>();
 builder.Services.AddHttpClient<DroneOps.Application.Services.Storage.UserMediaStorage>();
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 106 * 1024 * 1024);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 106 * 1024 * 1024);
@@ -131,8 +133,11 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
-builder.Services.AddHostedService<CommunicationLossMonitor>();
-builder.Services.AddHostedService<PostFlightCompletionMonitor>();
+if (monitoringEnabled)
+{
+    builder.Services.AddHostedService<CommunicationLossMonitor>();
+    builder.Services.AddHostedService<PostFlightCompletionMonitor>();
+}
 
 // 2. Kích hoạt dịch vụ giải mã và kiểm tra JWT Token (Chuẩn bảo mật Production)
 // Đọc cấu hình Jwt từ appsettings.json và đăng ký vào DI Container
@@ -185,6 +190,10 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<TrustedGatewayStore>();
+builder.Services.AddScoped<MissionAutomationService>();
+builder.Services.AddScoped<FlightControlService>();
+builder.Services.AddScoped<FlightPreparationReminders>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
@@ -202,6 +211,7 @@ var app = builder.Build();
 await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await AccountWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await FlightPreparationSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 // Detect a missing deployment migration before background monitoring starts.
 //await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
@@ -219,6 +229,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.UseWebSockets(new WebSocketOptions
 {
     KeepAliveInterval = TimeSpan.FromSeconds(20)

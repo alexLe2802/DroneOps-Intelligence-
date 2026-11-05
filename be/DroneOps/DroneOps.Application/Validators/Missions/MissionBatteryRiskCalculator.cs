@@ -76,6 +76,26 @@ public static class MissionBatteryRiskCalculator
         var estimatedFlightSeconds =
             (decimal)result.RouteDistanceMeters /
             mission.AverageSpeedMetersPerSecond.Value;
+        if (mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } limits
+            && limits.TakeoffSpeedMetersPerSecond > 0 && limits.ClimbSpeedMetersPerSecond > 0
+            && limits.DescentSpeedMetersPerSecond > 0 && limits.LandingSpeedMetersPerSecond > 0)
+        {
+            estimatedFlightSeconds = 0;
+            for (var index = 1; index < orderedWaypoints.Count; index++)
+            {
+                var previous = orderedWaypoints[index - 1]; var current = orderedWaypoints[index];
+                var speed = current.Navigation?.SpeedMetersPerSecond ?? mission.AverageSpeedMetersPerSecond.Value;
+                if (speed > 0) estimatedFlightSeconds += (decimal)HaversineDistanceMeters(previous.Latitude, previous.Longitude, current.Latitude, current.Longitude) / speed;
+                var delta = (current.Altitude ?? 0) - (previous.Altitude ?? 0);
+                estimatedFlightSeconds += delta >= 0 ? delta / limits.ClimbSpeedMetersPerSecond : -delta / Math.Min(limits.DescentSpeedMetersPerSecond, limits.LandingSpeedMetersPerSecond);
+            }
+            estimatedFlightSeconds += Math.Max(0, orderedWaypoints[0].Altitude ?? 0) / limits.TakeoffSpeedMetersPerSecond;
+            var landingGround = orderedWaypoints[^1].Navigation?.LandingGroundAltitudeMeters ?? 0;
+            estimatedFlightSeconds += Math.Max(0, (orderedWaypoints[^1].Altitude ?? 0) - landingGround) / limits.LandingSpeedMetersPerSecond;
+            estimatedFlightSeconds += orderedWaypoints.Sum(w => Math.Max(0, w.Navigation?.HoldTimeSeconds ?? 0));
+            result.Reasons.Add("Automatic estimate conservatively adds horizontal travel, vertical travel, takeoff, landing and entered holds. Unknown landing ground uses Home level for estimation only, not landing clearance.");
+            result.Warnings.Add("This remains an uncalibrated endurance estimate; it does not verify emergency-return energy, aircraft power or landing safety.");
+        }
 
         result.EstimatedFlightMinutes = decimal.Round(
             estimatedFlightSeconds / 60m,
@@ -243,7 +263,7 @@ public static class MissionBatteryRiskCalculator
         else
         {
             reasons.Add(
-                "Wind-related battery adjustment is limited because the UAV maximum wind speed is not configured.");
+                "Wind power adjustment is limited without a calibrated aircraft model; a mission wind limit is not a manufacturer capability or power model.");
         }
 
         if (weather.MaxRainMillimetersPerHour is > 0)

@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Request.Missions;
@@ -332,6 +332,9 @@ public sealed class MissionValidationService(
             Snapshot(mission),
             JsonOptions);
 
+        // Preserve existing manual-plan evidence; opt-in changes invalidate approval evidence.
+        if (mission.AutomaticFlightRequested) json += "|automatic-flight-v1|envelope-v1|" + JsonSerializer.Serialize(mission.AutomaticFlightLimits, JsonOptions) + "|navigation-v1|" + JsonSerializer.Serialize(mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => w.Navigation), JsonOptions);
+
         return Convert.ToHexString(
             SHA256.HashData(
                 Encoding.UTF8.GetBytes(json)));
@@ -371,6 +374,8 @@ public sealed class MissionValidationService(
                 {
                     planHash = Hash(mission),
                     plan = Snapshot(mission),
+                    automaticFlightLimits = mission.AutomaticFlightLimits,
+                    waypointNavigation = mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => new { w.SequenceOrder, w.Navigation }),
                     findings = result.Findings,
                     restrictions = result.RestrictionEvidence
                 },
@@ -408,9 +413,14 @@ public sealed class MissionValidationService(
         // -----------------------------------------------------
         // Structural validation
         // -----------------------------------------------------
+        result.AutomaticFlightLimits = mission.AutomaticFlightLimits;
+        if (mission.AutomaticFlightRequested && mission.AutomaticFlightLimits == null)
+            result.Issues.Add("Automatic flight requires a newly approved operational envelope. Resubmit the mission.");
 
         var dto = new CreateMissionRequest
         {
+            AutomaticFlightRequested = mission.AutomaticFlightRequested,
+            AutomaticFlightLimits = mission.AutomaticFlightLimits,
             Name = mission.Name,
             Description = mission.Description,
             AltitudeReference = mission.AltitudeReference,
@@ -430,6 +440,7 @@ public sealed class MissionValidationService(
                     Latitude = x.Latitude,
                     Longitude = x.Longitude,
                     Altitude = x.Altitude,
+                    Navigation = x.Navigation,
                     ActionType = x.ActionType
                 })
                 .ToList()
@@ -859,6 +870,18 @@ public sealed class MissionValidationService(
 
         result.Warnings.AddRange(
             result.Weather.Warnings);
+        if (mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } envelope)
+        {
+            if (result.Weather.Status != "Available" || result.Weather.ExpiresAt <= DateTimeOffset.UtcNow
+                || result.Weather.MaxWindMetersPerSecond == null || result.Weather.MaxGustMetersPerSecond == null)
+            {
+                result.Incomplete = true;
+                result.Issues.Add("Automatic flight requires a fresh wind and gust forecast within the approved envelope.");
+            }
+            else if (result.Weather.MaxWindMetersPerSecond > envelope.MaxWindMetersPerSecond
+                || result.Weather.MaxGustMetersPerSecond > envelope.MaxGustMetersPerSecond)
+                result.Issues.Add("Forecast wind or gust exceeds the automatic mission's approved operating envelope.");
+        }
 
         // -----------------------------------------------------
         // Battery risk validation

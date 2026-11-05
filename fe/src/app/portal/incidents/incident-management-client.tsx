@@ -1,5 +1,7 @@
 "use client";
 
+import { apiInstant } from "@/lib/portal/vietnam-time";
+
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import type { Account } from "@/lib/auth/types";
@@ -19,13 +21,14 @@ type Summary = { total: number; open: number; acknowledged: number; resolved: nu
 
 const keyOf = (value: string | null | undefined) => (value ?? "unknown").replace(/\s+/g, "").toLowerCase();
 const displayLabel = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ");
-const apiDate = (value: string, endOfDay = false) => value ? `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z` : undefined;
+const apiDate = (value: string, endOfDay = false) => value ? new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}+07:00`).toISOString() : undefined;
 
 function formatDate(value: string | null | undefined, includeTime = true) {
   if (!value) return "Unavailable";
-  const date = new Date(value);
+  const date = apiInstant(value);
   if (Number.isNaN(date.getTime())) return "Unavailable";
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
     day: "2-digit", month: "short", year: "numeric",
     ...(includeTime ? { hour: "2-digit", minute: "2-digit", second: "2-digit" } : {}),
   }).format(date);

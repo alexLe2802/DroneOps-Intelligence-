@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "container",
+  "regions": ["icn1"],
+  "daemons": {
+    "monitor": {
+      "root": ".",
+      "entrypoint": "Dockerfile",
+      "command": ["dotnet", "DroneOps.API.dll", "--monitor-only"],
+      "instances": { "icn1": 1 },
+      "livenessProbe": {
+        "httpGet": { "port": 8080, "path": "/health" },
+        "initialDelaySeconds": 30,
+        "timeoutSeconds": 5
+      }
+    }
+  }
+}
