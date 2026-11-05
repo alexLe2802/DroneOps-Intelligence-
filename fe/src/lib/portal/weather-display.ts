@@ -10,6 +10,12 @@ const signature = (p: Point) => JSON.stringify([
   p.cloudCoverPercent, p.weatherCode, p.status, p.riskLevel,
   p.warnings.map(warningText).sort(),
 ]);
+const sampleIdentity = (p: Point) => JSON.stringify([Boolean(p.isRouteSample),
+  p.isRouteSample ? p.sampleOrder : null, p.isRouteSample ? p.segmentFrom : null,
+  p.isRouteSample ? p.segmentTo : null]);
+export const weatherPointLabel = (p: Point) => p.isRouteSample
+  ? `Route sample ${p.sampleOrder ?? "—"} · WP${p.segmentFrom ?? "—"}–WP${p.segmentTo ?? "—"}`
+  : `WP${p.sequenceOrder}`;
 function distanceMeters(a: Point, b: Point) {
   if (![a.latitude, a.longitude, b.latitude, b.longitude].every(Number.isFinite)) return Infinity;
   const rad = (n: number) => n * Math.PI / 180;
@@ -18,17 +24,21 @@ function distanceMeters(a: Point, b: Point) {
   return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, h)));
 }
 export function groupWeatherWaypoints(points: Point[]) {
-  const groups: { point: Point; sequences: number[] }[] = [];
+  const groups: { key: string; point: Point; sequences: number[] }[] = [];
   for (const point of [...points].sort((a, b) => a.sequenceOrder - b.sequenceOrder)) {
-    const group = groups.find(g => signature(g.point) === signature(point) && distanceMeters(g.point, point) <= 1000);
-    if (group) group.sequences.push(point.sequenceOrder);
-    else groups.push({ point, sequences: [point.sequenceOrder] });
+    const group = groups.find(g => sampleIdentity(g.point) === sampleIdentity(point) && signature(g.point) === signature(point) && distanceMeters(g.point, point) <= 1000);
+    if (group) { if (!group.sequences.includes(point.sequenceOrder)) group.sequences.push(point.sequenceOrder); }
+    else groups.push({
+      key: JSON.stringify([sampleIdentity(point), point.sequenceOrder, point.latitude, point.longitude, signature(point)]),
+      point, sequences: [point.sequenceOrder],
+    });
   }
   return groups;
 }
 export function weatherWarnings(weather: MissionWeather) {
   const representatives = new Map<number, number>();
   for (const group of groupWeatherWaypoints(weather.waypoints)) {
+    if (group.point.isRouteSample) continue;
     for (const sequence of group.sequences) representatives.set(sequence, group.point.sequenceOrder);
   }
   return [...new Set(weather.warnings.map(text => text.replace(/^WP(\d+):/, (prefix, sequence) => {
