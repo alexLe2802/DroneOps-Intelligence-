@@ -31,6 +31,24 @@ public sealed class MissionValidationService(
             + $"{Local(conflict.StartTime)} – {Local(conflict.EndTime)} (GMT+7). {guidance}";
     }
 
+    public async Task<List<MissionUpdateSummary>> HistoryAsync(Guid missionId, Guid actor, bool manager,
+        CancellationToken cancellationToken = default)
+    {
+        var mission = await repository.GetMissionAsync(missionId, false, cancellationToken)
+            ?? throw new KeyNotFoundException("Mission not found.");
+        if (!manager && mission.CreatedBy != actor)
+            throw new UnauthorizedAccessException("Mission is outside your scope.");
+        var history = await repository.GetReviewHistoryAsync(missionId, cancellationToken);
+        return history.Select(row => new MissionUpdateSummary {
+            Id = row.Request.Id, Status = row.Request.Status, IsInitial = row.Request.IsInitial,
+            CreatedAt = row.Request.CreatedAt, ActorId = row.Request.ActorId,
+            ReviewedBy = row.Request.ReviewedBy, ReviewedAt = row.Request.ReviewedAt, Reason = row.Request.Reason,
+            BasePlan = row.Request.IsInitial ? null : JsonSerializer.Deserialize<CreateMissionRequest>(row.Request.BasePlanJson, JsonOptions),
+            ProposedPlan = JsonSerializer.Deserialize<CreateMissionRequest>(row.Request.ProposedPlanJson, JsonOptions) ?? new(),
+            Validation = Decode(row.Validation)
+        }).ToList();
+    }
+
     public static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web)
         {

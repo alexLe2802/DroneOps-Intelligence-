@@ -25,6 +25,13 @@ public sealed class MissionEvidenceController(
     private bool Manager =>
         User.IsInRole("operation_manager");
 
+    [HttpGet("{id:guid}/history")]
+    public async Task<IActionResult> History(Guid id, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        return Ok(await validation.HistoryAsync(id, Actor, Manager, ct));
+    }
+
     // =========================================================
     // LATEST VALIDATION
     // =========================================================

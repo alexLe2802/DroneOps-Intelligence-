@@ -1,10 +1,13 @@
-﻿using DroneOps.Application.DTOs.Response.Missions;
+using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Domain.Entities;
 
 namespace DroneOps.Application.Interfaces.Validators;
 
 public interface IMissionValidationService
 {
+    Task<List<MissionUpdateSummary>> HistoryAsync(Guid missionId, Guid actor, bool manager,
+        CancellationToken cancellationToken = default);
+
     Task<MissionValidationResult?> LatestAsync(
         Guid missionId,
         CancellationToken cancellationToken = default);

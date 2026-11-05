@@ -9,6 +9,9 @@ public interface IMissionValidationRepository
         bool tracking = false,
         CancellationToken cancellationToken = default);
 
+    Task<List<MissionReviewHistoryRecord>> GetReviewHistoryAsync(
+        Guid missionId, CancellationToken cancellationToken = default);
+
     Task<Mission?> GetMissionAsync(
         Guid missionId,
         bool tracking = false,
@@ -81,3 +84,5 @@ public interface IMissionValidationRepository
 
 public sealed record MissionScheduleConflict(Guid MissionId, string MissionName, string Status,
     DateTime StartTime, DateTime EndTime, bool UavConflict, bool OperatorConflict);
+
+public sealed record MissionReviewHistoryRecord(MissionUpdateRequest Request, MissionValidationRun? Validation);
