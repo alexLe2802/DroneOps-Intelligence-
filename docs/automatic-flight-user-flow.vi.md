@@ -174,6 +174,33 @@ waypoint của **response GET automation/plan hiện có**, để người dùng
 - SITL từng firmware và lỗi kết hợp; thử FC/drone thật có giám sát.
 - Chỉ sau khi vượt các kiểm tra trên mới cân nhắc bật execution flags.
 
+### Ưu tiên ArduCopter 4.7.1 và kiểm tra không cần bay thật
+
+FC đang có là ArduCopter 4.7.1; triển khai adapter và SITL cho firmware này
+trước. PX4 vẫn nằm trong hợp đồng dữ liệu nhưng không được coi là đã được kiểm
+chứng. Mission Planner dùng màn hình Failsafe/Full Parameter để thiết lập
+`BATT_*`, `FS_THR_ENABLE`, `FS_GCS_ENABLE`, `FS_OPTIONS`, và màn hình PLAN để
+upload mission/fence/rally riêng. RTL native có thể chọn rally point gần nhất,
+không xét năng lượng còn lại theo chính sách Home-first của DroneOps. Vì vậy
+không thể suy ra ``điểm gần nhất = điểm hạ cánh đủ pin`` từ cấu hình RTL.
+
+`gateway/fc_audit.py` nay xuất thêm `recoveryPreflight` cho ArduPilot: soát
+read-only các tham số pin, RC/GCS/EKF, fence, tốc độ RTL, GPS/Home và điện áp
+live; báo từng blocker. Kết quả luôn `flightAuthorized=false`, dù các giá trị
+đều có vẻ hợp lệ. Không phát PARAM_SET, ARM, đổi mode hoặc upload từ audit.
+
+**Chưa cần bay thật để phát triển và kiểm thử logic, protocol, SITL.** Pin bay
+thật qua power module trên bàn cho phép đối chiếu voltage/current và GPS/Home
+ngoài trời khi vẫn tháo cánh; log tiêu thụ năng lượng, tải, gió, độ ổn định,
+tránh vật cản và quỹ đạo thu hồi cuối cùng cần thử bay có giám sát. Trước bước
+đó không thể kết luận mô hình pin hoặc điểm đáp an toàn cho drone thật.
+
+Nguồn đối chiếu: [Mission Planner battery failsafe](https://ardupilot.org/copter/docs/failsafe-battery.html),
+[GCS failsafe](https://ardupilot.org/copter/docs/gcs-failsafe.html),
+[fences](https://ardupilot.org/copter/docs/common-geofencing-landing-page.html),
+[RTL/rally](https://ardupilot.org/copter/docs/rtl-mode.html),
+[ArduCopter SITL](https://ardupilot.org/dev/docs/using-sitl-for-ardupilot-testing.html).
+
 ## Bổ sung phần chuẩn bị thu hồi không cần kết nối FC
 
 Theo yêu cầu mới, việc đọc lại/xác minh cấu hình FC thật được hoãn. Không bật

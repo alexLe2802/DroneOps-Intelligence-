@@ -45,6 +45,8 @@ class AuditTests(unittest.TestCase):
         link.mav.param_set_send.assert_not_called()
         link.mav.mission_count_send.assert_not_called()
         self.assertFalse(report['flightAuthorized'])
+        self.assertFalse(report['recoveryPreflight']['flightAuthorized'])
+        self.assertIn('No 3D GPS fix from FC.', report['recoveryPreflight']['blockers'])
 
     def test_unrequested_and_nonfinite_parameters_are_discarded(self):
         report, _ = self.run_audit([
