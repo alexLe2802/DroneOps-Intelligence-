@@ -247,3 +247,10 @@ Không tạo endpoint mới. Request create/update mission hiện có bổ sung
 có, không cần migration/Supabase DDL cho phần bổ sung này.
 
 Tài liệu tham số và nguồn chính thức: [Operating envelope](automatic-flight-operating-envelope.md).
+
+## Kiểm tra FC thực ngày 05/11/2026
+
+Đã kết nối Jetson với Pixhawk 6C và đọc ArduCopter 4.7.1. Việc hoãn đọc FC
+ở các mục trước đã được thay bằng [kết quả audit thực tế](fc-commissioning-2026-11-05.vi.md).
+Gateway đã cập nhật và ghép đôi. GPS/Home, nguồn pin/hiệu chỉnh, adapter áp dụng
+và kiểm thử failsafe vẫn chưa đạt điều kiện phát hành ARM/Start tự động.
