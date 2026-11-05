@@ -266,7 +266,6 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
             `Pack voltage: ${valueOr(batteryTelemetry?.batteryVoltageVolts, " V", 2)}`,
             `Current: ${valueOr(batteryTelemetry?.batteryCurrentAmps, " A", 2)}`,
             `Consumed charge (FC): ${valueOr(batteryTelemetry?.batteryConsumedMah, " mAh", 0)}`,
-            `Pack capacity (UAV configuration): ${valueOr(packCapacityMah, " mAh", 0)}`,
             `Estimated remaining charge: ${valueOr(remainingChargeMah, " mAh", 0)}`,
             `State: ${arming.label}`,
           ]} />
