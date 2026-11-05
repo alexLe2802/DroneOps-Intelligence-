@@ -184,6 +184,7 @@ public sealed class UavRepository
     public async Task<(IReadOnlyList<UAV> Items, int TotalCount)> GetAllPagedAsync(
         string? keyword,
         string? status,
+        string? imageModerationStatus,
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -224,6 +225,14 @@ public sealed class UavRepository
                 query = query.Where(uav =>
                     uav.Status.ToLower() == normalizedStatus);
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(imageModerationStatus))
+        {
+            var normalizedModerationStatus = imageModerationStatus.Trim().ToLowerInvariant();
+            query = query.Where(uav =>
+                uav.ImageModerationStatus != null &&
+                uav.ImageModerationStatus.ToLower() == normalizedModerationStatus);
         }
 
         int totalCount = await query.CountAsync(cancellationToken);

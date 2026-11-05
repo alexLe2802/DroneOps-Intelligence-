@@ -19,7 +19,6 @@ public sealed class UavService : IUavService
     private readonly INotificationService _notificationService;
     private readonly ILogger<UavService> _logger;
     private readonly IUserMediaStorage _storage;
-    private readonly IUavImageModerationService _imageModeration;
 
     public UavService(
         IUavRepository uavRepository,
@@ -34,7 +33,7 @@ public sealed class UavService : IUavService
         _notificationService = notificationService;
         _logger = logger;
         _storage = storage;
-        _imageModeration = imageModeration;
+        _ = imageModeration; // Resolved here for configuration validation; moderation runs in the durable API worker.
     }
 
     // 1. Tạo mới UAV: Trạng thái mặc định là "Pending" (chờ duyệt)
@@ -410,17 +409,6 @@ public sealed class UavService : IUavService
             fileSize,
             cancellationToken);
 
-        var isAllowed = await _imageModeration.IsAllowedAsync(
-            imageBytes,
-            normalizedContentType,
-            cancellationToken);
-
-        if (!isAllowed)
-        {
-            throw new ArgumentException(
-                "Invalid image content: The uploaded photo must be a valid UAV/Drone image and must not contain inappropriate content.");
-        }
-
         var extension = normalizedContentType switch
         {
             "image/jpeg" => ".jpg",
@@ -450,6 +438,11 @@ public sealed class UavService : IUavService
         uav.ImageStoragePath = newPath;
         uav.ImageContentType = normalizedContentType;
         uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+        uav.ImageModerationStatus = "Pending";
+        uav.ImageModerationAttempts = 0;
+        uav.ImageModerationNextAttemptAt = DateTimeOffset.UtcNow;
+        uav.ImageModeratedAt = null;
+        uav.ImageModerationReason = "Waiting for AI moderation.";
 
         // Bất kỳ thay đổi nào của UAV cũng cần duyệt lại
         uav.Status = "Pending";
@@ -476,14 +469,9 @@ public sealed class UavService : IUavService
             await CleanupImageAsync(oldPath);
         }
 
-        // Thông báo cho manager/admin rằng UAV cần được duyệt lại
-        await TryPublishToManagersAsync(
-            "UavUpdatePending",
-            "UAV Update Pending Approval",
-            $"UAV '{uav.Code} - {uav.Name}' image has been updated and requires approval.",
-            actorUserId,
-            uav.Id,
-            cancellationToken);
+        // Image moderation runs silently. Managers are notified only if AI exhausts
+        // its retries and the aggregate manual-review queue becomes non-empty.
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(
             uav,
@@ -533,6 +521,11 @@ public sealed class UavService : IUavService
         uav.ImageStoragePath = null;
         uav.ImageContentType = null;
         uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+        uav.ImageModerationStatus = null;
+        uav.ImageModerationAttempts = 0;
+        uav.ImageModerationNextAttemptAt = null;
+        uav.ImageModeratedAt = null;
+        uav.ImageModerationReason = null;
 
         // Có thay đổi thông tin UAV -> cần duyệt lại
         uav.Status = "Pending";
@@ -544,14 +537,7 @@ public sealed class UavService : IUavService
         // DB thành công rồi mới xóa file trên storage
         await CleanupImageAsync(oldPath);
 
-        // Notify manager/admin để duyệt lại
-        await TryPublishToManagersAsync(
-            "UavUpdatePending",
-            "UAV Update Pending Approval",
-            $"UAV '{uav.Code} - {uav.Name}' image has been removed and requires approval.",
-            actorUserId,
-            uav.Id,
-            cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return true;
     }
@@ -575,6 +561,7 @@ public sealed class UavService : IUavService
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await TryPublishDecisionAsync(uav, false, cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -616,10 +603,12 @@ public sealed class UavService : IUavService
         }
 
         EnsureStatus(uav, "Pending", "approve");
+        EnsureImageModerationAllowsApproval(uav);
         uav.Status = "Active";
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await TryPublishDecisionAsync(uav, true, cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -651,6 +640,8 @@ public sealed class UavService : IUavService
                 $"Cannot activate UAV with status '{uav.Status}'. Only Pending or Inactive UAVs can be activated.");
         }
 
+        EnsureImageModerationAllowsApproval(uav);
+
         if (!currentStatus.Equals("Active", StringComparison.OrdinalIgnoreCase))
         {
             uav.Status = "Active";
@@ -660,6 +651,7 @@ public sealed class UavService : IUavService
             {
                 await TryPublishDecisionAsync(uav, true, cancellationToken);
             }
+            await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
         }
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
@@ -691,6 +683,7 @@ public sealed class UavService : IUavService
             await _uavRepository.GetAllPagedAsync(
                 keyword,
                 status,
+                request.ImageModerationStatus,
                 pageNumber,
                 pageSize,
                 cancellationToken);
@@ -722,6 +715,27 @@ public sealed class UavService : IUavService
             throw new InvalidOperationException(
                 $"Cannot {action} UAV with status '{uav.Status}'. Only {expectedStatus} UAVs can be {action}d.");
         }
+    }
+
+    private static void EnsureImageModerationAllowsApproval(UAV uav)
+    {
+        if (string.IsNullOrWhiteSpace(uav.ImageStoragePath)) return;
+
+        var status = uav.ImageModerationStatus?.Trim();
+        if (string.Equals(status, "Approved", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, "ManualReview", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (string.Equals(status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "The UAV image was rejected by moderation. Replace it before approving the UAV.");
+        }
+
+        throw new InvalidOperationException(
+            "The UAV image is still waiting for AI moderation. Retry approval after the image check completes.");
     }
 
     private static void EnsureImagePermission(UAV uav, Guid actorUserId, string actorRole)
@@ -827,6 +841,9 @@ public sealed class UavService : IUavService
             ImageUrl = string.IsNullOrWhiteSpace(uav.ImageStoragePath)
                 ? null
                 : $"/api/uavs/{uav.Id}/image?v={Uri.EscapeDataString(uav.ImageStoragePath)}",
+            ImageModerationStatus = uav.ImageModerationStatus,
+            ImageModeratedAt = uav.ImageModeratedAt,
+            ImageModerationReason = uav.ImageModerationReason,
 
             CreatedAt = uav.CreatedAt
         };
