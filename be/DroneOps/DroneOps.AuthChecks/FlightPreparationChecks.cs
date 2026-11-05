@@ -228,6 +228,7 @@ internal static class FlightPreparationChecks
             await db.SaveChangesAsync(ct);
             return result;
         }
+        public Task<List<MissionUpdateSummary>> HistoryAsync(Guid id, Guid actor, bool manager, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<MissionValidationResult?> LatestAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<MissionValidationResult?> LatestPreflightAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<MissionValidationResult?> ReadAsync(Guid id, Guid actor, bool manager, CancellationToken ct = default) => throw new NotSupportedException();

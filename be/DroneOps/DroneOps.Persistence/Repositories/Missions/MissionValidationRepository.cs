@@ -31,6 +31,18 @@ public sealed class MissionValidationRepository(
             cancellationToken);
     }
 
+    public async Task<List<MissionReviewHistoryRecord>> GetReviewHistoryAsync(
+        Guid missionId, CancellationToken cancellationToken = default)
+    {
+        return await (from request in db.MissionUpdateRequests.AsNoTracking()
+            join run in db.MissionValidationRuns.AsNoTracking().Where(r => r.MissionId == missionId)
+                on request.ValidationRunId equals (Guid?)run.Id into runs
+            from run in runs.DefaultIfEmpty()
+            where request.MissionId == missionId
+            orderby request.CreatedAt descending, request.Id descending
+            select new MissionReviewHistoryRecord(request, run)).ToListAsync(cancellationToken);
+    }
+
     public async Task<Mission?> GetMissionAsync(
         Guid missionId,
         bool tracking = false,
