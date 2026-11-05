@@ -44,6 +44,7 @@ jobs:
         run: |
           dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --automatic-flight-policy
           dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --mission-compiler
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --mission-schedule
           dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --automatic-failsafe
           dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --recovery-energy
       - name: Run realtime telemetry and incident regression checks
