@@ -20,7 +20,11 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         var ready = await preparation.ReadAsync(id, actor, ct);
         state.Tick(now, Authorized(ready, now) && Enabled && EnvelopeVerified(state));
         if (presence) state.PilotAt = now;
-        return View(state, ready, now);
+        var sample = ready.DroneConnected && state.Fresh(now)
+            ? await db.TelemetryRecords.AsNoTracking().Where(t => t.MissionId == id && t.UAVId == mission.UAVId && t.IsValid
+                && t.SourceTimestamp >= now.AddSeconds(-3) && t.SourceTimestamp <= now && t.ReceivedAt >= now.AddSeconds(-3) && t.ReceivedAt <= now)
+                .OrderByDescending(t => t.SourceTimestamp).FirstOrDefaultAsync(ct) : null;
+        return View(mission, state, ready, now, sample);
     }, ct);
 
     public Task<object> ConfigureAsync(Guid id, Guid actor, string hash, MissionCompileOptions options, CancellationToken ct) => Locked(id, actor, async (mission, row, state) =>
@@ -36,7 +40,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         state.Options = options; state.PlanHash = compiled.SourcePlanHash; state.CompiledHash = compiled.CompiledMissionHash;
         state.UploadVerified = false; state.Stage = "AwaitingGateway"; state.Message = "Waiting for the bound FC to connect, disarmed and on the ground, for upload.";
         row.ConfirmedAt = null; row.ConfirmedPlanHash = null; row.ConnectionId = null;
-        return View(state, await preparation.ReadAsync(id, actor, ct), Now);
+        return View(mission, state, await preparation.ReadAsync(id, actor, ct), Now);
     }, ct);
 
     public Task<object> ActAsync(Guid id, Guid actor, string action, Guid operationId, string hash, CancellationToken ct) => Locked(id, actor, async (mission, row, state) =>
@@ -44,7 +48,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         var now = Now;
         var ready = await preparation.ReadAsync(id, actor, ct);
         if (operationId == Guid.Empty) throw new InvalidOperationException("An operation ID is required.");
-        if (state.Commands.Any(c => c.Id == operationId)) return View(state, ready, now);
+        if (state.Commands.Any(c => c.Id == operationId)) return View(mission, state, ready, now);
         state.Tick(now, Authorized(ready, now) && Enabled && EnvelopeVerified(state));
         if (!Enabled) throw new InvalidOperationException("Aircraft commands are disabled pending firmware SITL and failsafe verification.");
         if (hash != state.CompiledHash) throw new InvalidOperationException("The FC plan changed. Refresh and review again.");
@@ -62,7 +66,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         }
         else throw new InvalidOperationException("Unsupported aircraft action.");
         state.Queue(action, now, operationId);
-        return View(state, ready, now);
+        return View(mission, state, ready, now);
     }, ct);
 
     // Invoked only after the existing gateway token + hardware UID validation.
@@ -162,7 +166,18 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
 
     private static bool EnvelopeVerified(FlightControlState state) => state.CompiledHash != null && state.Evidence?.VerifiedEnvelopeHash == state.CompiledHash;
 
-    private object View(FlightControlState state, FlightPreparation ready, DateTimeOffset now) => new {
+    private object View(Mission mission, FlightControlState state, FlightPreparation ready, DateTimeOffset now, TelemetryRecord? sample = null) => new {
+        recoveryAssessment = RecoveryEnergyCalculator.Assess(mission, sample,
+            state.Fresh(now) && state.Evidence?.HomeLatitudeDegrees is { } lat && state.Evidence.HomeLongitudeDegrees is { } lon
+                ? new RecoveryPosition(lat, lon, 0) : null, now),
+        readinessChecks = new[] {
+            new { key = "confirmation", label = "Pilot confirmation", satisfied = ready.ReadinessConfirmed, detail = ready.ReadinessConfirmed ? "Current plan and connection confirmed" : "Confirm the current mission in Live Monitoring" },
+            new { key = "connection", label = "Bound drone connection", satisfied = ready.DroneConnected, detail = ready.DroneConnected ? "Fresh bound connection" : "Connect the assigned drone" },
+            new { key = "operator", label = "Pilot online", satisfied = ready.OperatorOnline, detail = "Keep Live Monitoring visible and online" },
+            new { key = "preflight", label = "Preflight validation", satisfied = ready.PreflightReady, detail = "Fresh passing validation for this exact plan" },
+            new { key = "fc-profile", label = "FC safety profile", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && EnvelopeVerified(state), detail = "FC parameter verification deferred; required before launch" },
+            new { key = "upload", label = "Mission read-back", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && state.UploadVerified, detail = "Uploaded items must match the compiled plan" }
+        },
         enabled = Enabled, serverNow = now, scheduledAt = ready.ScheduledAt, endsAt = ready.EndsAt,
         state.Stage, state.Message, state.Options, state.CompiledHash, state.UploadVerified, state.LaunchAt,
         armed = state.Fresh(now) ? state.Evidence?.Armed : null,

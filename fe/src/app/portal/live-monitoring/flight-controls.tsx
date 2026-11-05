@@ -9,6 +9,10 @@ type Options = { firmwareTarget: string; vehicleClass: string; acceptanceRadiusM
 type Execution = { enabled: boolean; serverNow: string; scheduledAt: string; endsAt: string; stage: string;
   message: string; options: Options | null; compiledHash: string | null; uploadVerified: boolean; launchAt: string | null;
   armed: boolean | null; onGround: boolean; canArm: boolean; canDisarm: boolean; reason: string | null;
+  readinessChecks?: {key: string; label: string; satisfied: boolean; detail: string}[];
+  recoveryAssessment?: {status: string; availableEnergyWh: number | null; reserveEnergyWh: number | null;
+    canAuthorizeRecovery: boolean; missingData: string[]; sites: {siteId: string; distanceMeters: number | null;
+      requiredEnergyWh: number | null; fitsDeclaredEnergyBudget: boolean | null; surveyDeclaredCurrent: boolean; missingData: string[]}[]};
   homeLatitudeDegrees?: number | null; homeLongitudeDegrees?: number | null; homeAltitudeMslMeters?: number | null };
 
 export default function FlightControls({ missionId, planHash, confirmed }: { missionId: string; planHash: string; confirmed: boolean }) {
@@ -103,6 +107,17 @@ export default function FlightControls({ missionId, planHash, confirmed }: { mis
         ? `${state.homeLatitudeDegrees.toFixed(7)}, ${state.homeLongitudeDegrees.toFixed(7)} · ${state.homeAltitudeMslMeters ?? "unknown"} m MSL`
         : "Waiting for fresh Home from the bound flight controller"}. This is the FC reference, not a map-click estimate.</p>
       {state.reason && <p>{state.reason}</p>}
+      {state.readinessChecks && <details className={styles.readiness}>
+        <summary>Flight readiness <span>{state.readinessChecks.filter(check => check.satisfied && fresh).length}/{state.readinessChecks.length} conditions</span></summary>
+        <ul>{state.readinessChecks.map(check => <li key={check.key}><strong data-ready={check.satisfied && fresh}>{check.satisfied && fresh ? "Ready" : "Pending"}</strong><div><b>{check.label}</b><small>{!fresh ? "Waiting for a fresh server status" : check.detail}</small></div></li>)}</ul>
+      </details>}
+      {state.recoveryAssessment && <details className={styles.readiness}>
+        <summary>Recovery preparation <span>Planning only</span></summary>
+        <p>Declared energy budget: {fresh && state.recoveryAssessment.availableEnergyWh != null ? `${state.recoveryAssessment.availableEnergyWh.toFixed(2)} Wh · reserve ${state.recoveryAssessment.reserveEnergyWh?.toFixed(2)} Wh` : "Waiting for measured data and fresh telemetry"}.</p>
+        <p>Site inspections and energy measurements are declarations reviewed with the plan. They do not authorize a recovery maneuver.</p>
+        {state.recoveryAssessment.sites.length > 0 && <div className={styles.siteTable}><table><thead><tr><th>Site</th><th>Direct distance</th><th>Energy + reserve</th><th>Declared survey</th></tr></thead><tbody>{state.recoveryAssessment.sites.map(site => <tr key={site.siteId}><td>{site.siteId}</td><td>{fresh && site.distanceMeters != null ? `${site.distanceMeters.toFixed(0)} m` : "Unavailable"}</td><td>{fresh && site.requiredEnergyWh != null ? `${site.requiredEnergyWh.toFixed(2)} + ${state.recoveryAssessment?.reserveEnergyWh?.toFixed(2) ?? "?"} Wh · ${site.fitsDeclaredEnergyBudget ? "within declared budget" : "insufficient budget"}` : "Missing data"}</td><td>{fresh && site.surveyDeclaredCurrent ? "Current declaration" : "Required / refresh"}</td></tr>)}</tbody></table></div>}
+        <ul>{state.recoveryAssessment.missingData.map(reason => <li key={reason}>{reason}</li>)}</ul>
+      </details>}
       {(confirmed || state.armed === true) && <div className={styles.actions}>
         <button className="module-primary" disabled={busy || !confirmed || !fresh || ended || !state.canArm} onClick={() => void act("arm")}>ARM — TAKE OFF AFTER 10s</button>
         <button className="module-secondary" disabled={busy || !fresh || !state.canDisarm} onClick={() => void act("disarm")}>DISARM ON GROUND</button>

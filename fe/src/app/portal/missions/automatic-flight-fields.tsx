@@ -2,6 +2,7 @@
 import { RotateCcw } from "lucide-react";
 import type { AutomaticFlightLimits } from "@/lib/portal/types";
 import styles from "./mission-authoring.module.css";
+import RecoveryEnergyProfileFields from "./recovery-energy-profile";
 
 export const defaultAutomaticLimits = (): AutomaticFlightLimits => ({
   takeoffSpeedMetersPerSecond: 1, climbSpeedMetersPerSecond: 1,
@@ -25,7 +26,7 @@ const groups = [
 export default function AutomaticFlightFields({ value, onChange }: { value: AutomaticFlightLimits; onChange: (value: AutomaticFlightLimits) => void }) {
   return <section className={`mission-fields ${styles.limits}`} aria-label="Automatic flight operating envelope">
     <header className={styles.heading}><div><h2>Automatic flight limits</h2><p>Optional overrides · system defaults are prefilled</p></div>
-      <button type="button" className={styles.reset} onClick={() => onChange(defaultAutomaticLimits())}><RotateCcw size={14} aria-hidden="true" />Reset defaults</button>
+      <button type="button" className={styles.reset} onClick={() => onChange({ ...defaultAutomaticLimits(), recoveryEnergyProfile: value.recoveryEnergyProfile })}><RotateCcw size={14} aria-hidden="true" />Reset defaults</button>
     </header>
     {groups.map(group => <fieldset className={styles.group} key={group.title}>
       <legend>{group.title}</legend>
@@ -36,5 +37,6 @@ export default function AutomaticFlightFields({ value, onChange }: { value: Auto
       </label>)}</div>
     </fieldset>)}
     <p className={styles.footnote}>Takeoff ≤ climb · Landing ≤ descent · Wind ≤ gust</p>
+    <RecoveryEnergyProfileFields value={value.recoveryEnergyProfile} onChange={profile => onChange({ ...value, recoveryEnergyProfile: profile })} />
   </section>;
 }

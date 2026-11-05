@@ -36,6 +36,10 @@ internal static class FlightControlDatabaseChecks
         try { await control.ReadAsync(id, Guid.NewGuid(), true, default); throw new Exception("Unauthorized owner accepted."); }
         catch (KeyNotFoundException) { Check(true, "flight controls cannot access another owner's mission"); }
         var options = new MissionCompileOptions("PX4", AcceptanceRadiusMeters: 2, YawPolicy: "Autopilot", LandingGroundAltitudeMeters: 0);
+        var readiness = Value(await control.ReadAsync(id, actor, false, default));
+        Check(readiness.GetProperty("readinessChecks").GetArrayLength() == 6
+            && !readiness.GetProperty("recoveryAssessment").GetProperty("canAuthorizeRecovery").GetBoolean(),
+            "existing execution API reports readiness and advisory recovery without authorizing maneuvers");
         var firmware = new FirmwareParameterSnapshot("1.17.0", new() { ["NAV_ACC_RAD"] = 2, ["MPC_XY_CRUISE"] = 3 }, clock.Now, "untrusted-claimed-uid");
         var evidence = new FlightControllerEvidence(Guid.NewGuid(), "PX4", false, 1, true, true, null, firmware);
         await control.PollAsync(connection, evidence, null, default);
@@ -145,6 +149,18 @@ internal static class FlightControlDatabaseChecks
         var verifiedAutomatic = Value(await control.PollAsync(automaticConnection.Id, automaticEvidence with {
             VerifiedEnvelopeHash=prepared.GetProperty("requiredEnvelopeHash").GetString() }, null, default));
         Check(verifiedAutomatic.GetProperty("command").GetProperty("action").GetString() == "Upload", "only a matching simulated FC envelope receipt releases upload in the fixture");
+        var measured = new RecoveryEnergyProfile("synthetic database fixture only", original.UavId, "fixture-pack", "fixture-airframe",
+            DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1), 0.2m, 5, 5, 40, 100,
+            200, 250, 150, 150, 150, 2, 20, 10, 2, 1.3m, [new(0, 0), new(50, 40), new(100, 100)]);
+        var recoveryJson = JsonSerializer.Serialize(new AutomaticFlightLimits(RecoveryEnergyProfile: measured), Json);
+        var surveyedJson = JsonSerializer.Serialize(new WaypointNavigation(LandingGroundAltitudeMeters: 0,
+            LandingSiteSurvey: new(DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddHours(2), true, true, "synthetic database survey")), Json);
+        await db.Missions.Where(m => m.Id == automatic.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.AutomaticFlightLimitsJson, recoveryJson));
+        await db.Waypoints.Where(w => w.MissionId == automatic.Id && w.SequenceOrder == 2).ExecuteUpdateAsync(s => s.SetProperty(w => w.NavigationJson, surveyedJson));
+        var savedRecovery = await db.Missions.AsNoTracking().Include(m => m.Waypoints).SingleAsync(m => m.Id == automatic.Id);
+        Check(savedRecovery.AutomaticFlightLimits?.RecoveryEnergyProfile?.UsableCapacityWh == 100
+            && savedRecovery.Waypoints.Single(w => w.SequenceOrder == 2).Navigation?.LandingSiteSurvey?.EvidenceReference == "synthetic database survey",
+            "energy measurements and survey declarations round-trip through existing JSON columns without schema changes");
     }
 
     private sealed class FixtureTime : TimeProvider

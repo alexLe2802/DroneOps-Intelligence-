@@ -8,7 +8,9 @@ public sealed record WaypointNavigation(
     decimal? YawDegrees = null,
     bool EmergencyLandingCandidate = false,
     decimal? LandingGroundAltitudeMeters = null,
-    string? LandingSiteNotes = null);
+    string? LandingSiteNotes = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    LandingSiteSurvey? LandingSiteSurvey = null);
 
 public sealed record FirmwareParameterSnapshot(string FirmwareVersion, Dictionary<string, decimal> Values,
     DateTimeOffset ObservedAtUtc, string? HardwareIdentity = null, string Source = "FC MAVLink");

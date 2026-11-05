@@ -6,6 +6,13 @@ not a claim of Mission Planner/QGroundControl feature parity or successful SITL.
 Vietnamese field requirements, operator workflow and failsafe review matrix:
 [Automatic-flight user flow](automatic-flight-user-flow.vi.md).
 
+FC hardware verification is deferred at the user's request. Offline preparation
+now includes pilot-declared measured energy profiles, dated landing-site surveys,
+per-site conservative planning costs and a Live Monitoring readiness checklist.
+These declarations are bound to the reviewed plan; recovery assessments always
+return `canAuthorizeRecovery=false`. They do not constitute independently
+verified calibration, obstacle clearance or onboard parameter enforcement.
+
 ## Authoring modes and required data
 
 The existing `automaticFlightRequested` flag selects the mode; no duplicate
