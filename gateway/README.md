@@ -143,3 +143,13 @@ dotnet run --project be/DroneOps/DroneOps.TelemetryChecks -- --gateway /absolute
 
 Đặt DRONEOPS_GATEWAY_PYTHON trỏ đến Python có dependencies cho loopback gateway.
 PTY chỉ chạy POSIX; loopback không chứng minh phần cứng thật. Không commit token.
+
+## Audit firmware chỉ đọc
+
+`python fc_audit.py --device udpin:127.0.0.1:14552 --duration 30`
+
+Dùng endpoint router riêng đã cấu hình cho audit (14552 chỉ là ví dụ), không
+tranh cổng 14551 với gateway đang chạy hoặc mở trực tiếp USB đang do router giữ.
+Công cụ chỉ yêu cầu đọc message/parameter, báo thiếu tham số theo firmware và
+không cấp quyền bay. Không phát heartbeat GCS, không ghi tham số hoặc lệnh bay.
+Xem [kết quả Pixhawk 6C / ArduCopter 4.7.1](../docs/fc-commissioning-2026-11-05.vi.md).

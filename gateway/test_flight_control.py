@@ -75,6 +75,21 @@ class FlightControlTests(unittest.TestCase):
         self.control.accept(wrong, self.link)
         self.assertNotIn('NAV_ACC_RAD', self.control.evidence()['firmwareParameters']['values'])
 
+    def test_arducopter_47_native_units_are_preserved(self):
+        self.feed(autopilot=3)
+        self.control.tick(self.link)
+        names = [call.args[2] for call in self.link.mav.param_request_read_send.call_args_list]
+        self.assertIn(b'WP_RADIUS_M', names)
+        self.assertIn(b'LAND_SPD_MS', names)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=(4 << 24) | (7 << 16) | (1 << 8)), self.link)
+        for name, value in [('WP_RADIUS_M', 2), ('WP_SPD', 10), ('LAND_SPD_MS', .5)]:
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+        snapshot = self.control.evidence()['firmwareParameters']
+        self.assertEqual(snapshot['firmwareVersion'], '4.7.1')
+        self.assertEqual(snapshot['values']['WP_RADIUS_M'], 2)
+        self.assertEqual(snapshot['values']['LAND_SPD_MS'], .5)
+        self.link.mav.param_set_send.assert_not_called()
+
     def test_nonfinite_or_stale_fc_parameters_are_not_defaults(self):
         self.control.accept(message('PARAM_VALUE', param_id='NAV_ACC_RAD', param_value=float('nan')), self.link)
         self.assertIsNone(self.control.evidence()['firmwareParameters'])

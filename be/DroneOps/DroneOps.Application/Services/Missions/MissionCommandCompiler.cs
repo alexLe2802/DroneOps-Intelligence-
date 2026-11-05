@@ -43,7 +43,7 @@ public static class MissionCommandCompiler
         if (mission.AutomaticFlightRequested)
             errors.AddRange(AutomaticFlightPolicy.NavigationErrors(mission.Waypoints.Select(w => (w.Navigation, w.ActionType)), mission.MaxSpeedMetersPerSecond ?? 0));
         decimal? FcValue(string name, decimal scale = 1m) => firmwareDefaults?.Values?.TryGetValue(name, out var value) == true ? value * scale : null;
-        var radius = options.AcceptanceRadiusMeters ?? (options.FirmwareTarget == "PX4" ? FcValue("NAV_ACC_RAD") : FcValue("WPNAV_RADIUS", 0.01m));
+        var radius = options.AcceptanceRadiusMeters ?? (options.FirmwareTarget == "PX4" ? FcValue("NAV_ACC_RAD") : (FcValue("WP_RADIUS_M") ?? FcValue("WPNAV_RADIUS", 0.01m)));
         var executionBlocks = new[] {
             "Failsafe policy and compiler options must be approved and bound to the compiled hash.",
             "Detect and verify hardware UID, connection lease, firmware version, vehicle type and capabilities.",
@@ -89,7 +89,7 @@ public static class MissionCommandCompiler
         var items = new List<MissionWireItem>();
         float? yaw = options.YawPolicy == "Fixed" ? (float)options.YawDegrees!.Value : null;
         var cruise = mission.AverageSpeedMetersPerSecond!.Value;
-        var fcCruise = options.FirmwareTarget == "PX4" ? FcValue("MPC_XY_CRUISE") : FcValue("WPNAV_SPEED", 0.01m) ?? FcValue("WP_SPD");
+        var fcCruise = options.FirmwareTarget == "PX4" ? FcValue("MPC_XY_CRUISE") : FcValue("WP_SPD") ?? FcValue("WPNAV_SPEED", 0.01m);
         if (fcCruise is > 0) cruise = Math.Min(cruise, fcCruise.Value);
         decimal currentSpeed = cruise;
         foreach (var point in points)

@@ -27,6 +27,8 @@ public static class BatteryAssessmentCalculator
             result.CurrentBatteryPercent = telemetry.BatteryLevel is >= 0 and <= 100 ? telemetry.BatteryLevel : null;
             result.ConsumedMah = telemetry.BatteryConsumedMah is >= 0 ? telemetry.BatteryConsumedMah : null;
             if (!result.CurrentBatteryPercent.HasValue) result.MissingData.Add("The flight controller is not reporting a valid remaining battery percentage.");
+            if (telemetry.BatteryVoltageVolts is < 1m)
+                result.MissingData.Add("Reported pack voltage is below 1 V. Verify battery power and voltage/current monitor calibration; reported percentage alone cannot establish available flight energy.");
             if (!result.ConsumedMah.HasValue) result.Warnings.Add("Consumed charge (mAh) is not reported by the flight controller; it is not inferred from voltage.");
         }
         if (!result.ConfiguredCapacityMah.HasValue)

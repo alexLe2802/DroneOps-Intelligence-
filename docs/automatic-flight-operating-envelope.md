@@ -200,3 +200,23 @@ and private Storage before application; do not enable aircraft execution.
 - [ArduPilot battery failsafe](https://ardupilot.org/copter/docs/failsafe-battery.html)
 - [ArduPilot rally points](https://ardupilot.org/copter/docs/common-rally-points.html)
 - [PX4 failsafe configuration](https://docs.px4.io/main/en/config/safety)
+
+## Observed ArduCopter 4.7.1 parameter mapping (2026-11-05)
+
+The Pixhawk 6C audit confirmed a new parameter family. The ArduPilot column
+above describes older names where present; do not apply those names/scales
+unconditionally to 4.7.1.
+
+| Quantity | ArduCopter 4.7.1 | Earlier name / units |
+|---|---|---|
+| Cruise | `WP_SPD`, m/s | `WPNAV_SPEED`, cm/s |
+| Climb / descent | `WP_SPD_UP` / `WP_SPD_DN`, m/s | `WPNAV_SPEED_UP` / `WPNAV_SPEED_DN`, cm/s |
+| Acceptance radius | `WP_RADIUS_M`, m | `WPNAV_RADIUS`, cm |
+| Final / initial landing speed | `LAND_SPD_MS` / `LAND_SPD_HIGH_MS`, m/s | `LAND_SPEED` / `LAND_SPEED_HIGH`, cm/s |
+| RTL height / speed | `RTL_ALT_M`, m / `RTL_SPEED_MS`, m/s | `RTL_ALT`, cm / `RTL_SPEED`, cm/s |
+
+Compiler and gateway now resolve the observed radius/cruise values, including
+legacy unit conversion. This is read-only evidence and preview compilation,
+not native parameter enforcement. See the [actual commissioning report](fc-commissioning-2026-11-05.vi.md)
+for missing GPS/Home, inconsistent battery voltage and disabled GCS/fence
+configuration. Existing execution gates remain in place.
