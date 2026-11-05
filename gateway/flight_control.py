@@ -104,7 +104,7 @@ class FlightControl:
         if not heartbeat:
             return
         names = ('WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED',
-                 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS') if heartbeat.autopilot == 3 else (
+                 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS') if heartbeat.autopilot == 3 else (
                  'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN',
                  'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST') if heartbeat.autopilot == 12 else ()
         for name in names:
@@ -129,7 +129,7 @@ class FlightControl:
         if kind == 'PARAM_VALUE':
             name = message.param_id.decode('ascii', errors='ignore') if isinstance(message.param_id, bytes) else message.param_id
             name = name.split('\0')[0]
-            allowed = {'WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED', 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS',
+            allowed = {'WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED', 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS',
                 'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN', 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST'}
             if name in allowed and math.isfinite(message.param_value):
                 self.parameters[name] = (message.param_value, self.clock(), dt.datetime.now(dt.timezone.utc).isoformat())

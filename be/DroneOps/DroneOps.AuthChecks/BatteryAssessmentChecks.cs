@@ -20,6 +20,11 @@ internal static class BatteryAssessmentChecks
         Check(result.EstimatedRemainingChargeMah == 3640 && result.ConfiguredCapacityMah == 5200, "remaining charge is explicitly estimated from configured capacity, never inferred from consumed mAh");
         Check(result.RequiredBatteryPercent > 20 && result.EstimatedRequiredChargeMah == decimal.Round(5200m * result.RequiredBatteryPercent!.Value / 100m, 1), "mission charge requirement reuses the existing route/endurance calculator including reserve");
         Check(result.MeetsEstimatedRequirement == true && result.CapacitySource.Contains("not reported"), "an estimate identifies the configured source and cannot claim measured full capacity");
+        sample.BatteryVoltageVolts = 0.003m;
+        result = BatteryAssessmentCalculator.Calculate(mission, uav, sample, null, now);
+        Check(result.CurrentBatteryPercent == 70 && result.RequiredBatteryPercent == null && result.MeetsEstimatedRequirement == null
+            && result.MissingData.Any(text => text.Contains("below 1 V")), "USB-powered FC reporting percentage with millivolt pack voltage cannot establish flight energy");
+        sample.BatteryVoltageVolts = null;
         sample.BatteryLevel = 0; sample.BatteryConsumedMah = 0;
         result = BatteryAssessmentCalculator.Calculate(mission, uav, sample, null, now);
         Check(result.CurrentBatteryPercent == 0 && result.ConsumedMah == 0 && result.MeetsEstimatedRequirement == false, "real zero battery and zero consumed charge remain valid values");

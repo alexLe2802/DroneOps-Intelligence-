@@ -24,6 +24,14 @@ internal static class MissionCommandCompilerChecks
         Check(px4.CanEncode && px4.CompiledMissionHash != result.CompiledMissionHash && !px4.CanUpload, "PX4 has a separately identified preview and still requires its runtime adapter checks");
         var missing = MissionCommandCompiler.Compile(mission, new MissionCompileOptions("ArduPilot"));
         Check(!missing.CanEncode && missing.Items.Count == 0 && missing.CompiledMissionHash == null, "unresolved radius, hover and landing input never creates a partial executable plan");
+        var modern = new FirmwareParameterSnapshot("4.7.1", new() { ["WP_RADIUS_M"] = 2, ["WP_SPD"] = 3 }, DateTimeOffset.UtcNow);
+        var modernPlan = MissionCommandCompiler.Compile(mission, options with { AcceptanceRadiusMeters = null }, modern);
+        Check(modernPlan.CanEncode && modernPlan.Items.Single(i => i.Command == 178).Param2 == 3
+            && modernPlan.Items.Where(i => i.Command == 16).All(i => i.Param2 == 2), "ArduCopter 4.7 uses metre/second speed and metre radius without centimetre conversion");
+        var legacy = new FirmwareParameterSnapshot("4.6.3", new() { ["WPNAV_RADIUS"] = 200, ["WPNAV_SPEED"] = 300 }, DateTimeOffset.UtcNow);
+        var legacyPlan = MissionCommandCompiler.Compile(mission, options with { AcceptanceRadiusMeters = null }, legacy);
+        Check(legacyPlan.CanEncode && legacyPlan.Items.Single(i => i.Command == 178).Param2 == 3
+            && legacyPlan.Items.Where(i => i.Command == 16).All(i => i.Param2 == 2), "legacy centimetre speed and radius remain supported");
         mission.AltitudeReference = "MSL";
         Check(MissionCommandCompiler.Compile(mission, options).Items[0].Frame == 0, "MSL uses global frame with integer coordinate encoding");
         mission.AltitudeReference = "AGL";
