@@ -21,6 +21,14 @@ public static class AutomaticFlightPolicy
             if (nav?.EmergencyLandingCandidate == true && (nav.LandingGroundAltitudeMeters is null or < 0 || string.IsNullOrWhiteSpace(nav.LandingSiteNotes) || nav.LandingSiteNotes.Length < 10))
                 errors.Add("A proposed emergency landing site needs its ground altitude and clearance notes (at least 10 characters); marking a waypoint does not verify landing safety.");
             if (nav?.LandingSiteNotes?.Length > 500) errors.Add("Landing-site notes must not exceed 500 characters.");
+            if (nav?.LandingSiteSurvey is { } survey)
+            {
+                if (nav.EmergencyLandingCandidate != true && !string.Equals(action, "Land", StringComparison.OrdinalIgnoreCase))
+                    errors.Add("A site survey applies only to the LAND endpoint or a proposed emergency landing candidate.");
+                if (survey.ValidUntilUtc <= survey.SurveyedAtUtc || survey.SurveyedAtUtc > DateTimeOffset.UtcNow
+                    || string.IsNullOrWhiteSpace(survey.EvidenceReference) || survey.EvidenceReference.Length is < 10 or > 1000)
+                    errors.Add("A landing-site survey needs a past survey time, a later expiry and an evidence reference of 10–1000 characters.");
+            }
         }
         return errors.Distinct().ToArray();
     }
@@ -46,6 +54,7 @@ public static class AutomaticFlightPolicy
             errors.Add("Automatic wind limit must be > 0 and <= 3 m/s; gust limit must be >= wind and <= 5 m/s.");
         if (points.Any(p => p.Altitude is null || p.Altitude < 0 || p.Altitude > limits.MaxAltitudeMeters))
             errors.Add("Every automatic mission waypoint must have an altitude within its approved altitude ceiling.");
+        errors.AddRange(RecoveryEnergyCalculator.ProfileErrors(limits.RecoveryEnergyProfile, limits, DateTimeOffset.UtcNow));
         return errors;
     }
 }

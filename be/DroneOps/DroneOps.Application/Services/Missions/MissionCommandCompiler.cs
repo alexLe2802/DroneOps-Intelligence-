@@ -34,6 +34,9 @@ public static class MissionCommandCompiler
     {
         var sourceHash = MissionValidationService.Hash(mission);
         var errors = new List<string>();
+        if (mission.AutomaticFlightLimits is { } recoveryLimits)
+            errors.AddRange(RecoveryEnergyCalculator.ProfileErrors(recoveryLimits.RecoveryEnergyProfile, recoveryLimits,
+                DateTimeOffset.UtcNow, expectedUav: mission.UAVId));
         errors.AddRange(AutomaticFlightPolicy.Errors(mission.AutomaticFlightRequested, mission.AltitudeReference,
             mission.AverageSpeedMetersPerSecond ?? 0, mission.MaxSpeedMetersPerSecond ?? 0, mission.AutomaticFlightLimits,
             mission.Waypoints.Select(w => (w.Altitude, w.ActionType))));
@@ -45,7 +48,7 @@ public static class MissionCommandCompiler
             "Failsafe policy and compiler options must be approved and bound to the compiled hash.",
             "Detect and verify hardware UID, connection lease, firmware version, vehicle type and capabilities.",
             "Resolve home/altitude evidence and firmware-specific home/sequence conventions before upload.",
-            "Upload ACK, canonical read-back and current compiled hash confirmation are not implemented yet.",
+            "Upload ACK, canonical read-back and current compiled hash confirmation must succeed on the bound FC.",
             "Fresh pre-arm checks, landed/armed state, battery sufficiency, mission deadline and pilot presence are required.",
             "Aircraft command execution is disabled; this preview cannot upload, arm or start a mission."
         };

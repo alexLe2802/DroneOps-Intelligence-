@@ -90,6 +90,13 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
                 Precaution = "Correct the mission and obtain fresh validation and manager approval. AI cannot override an operating limit." });
         if (mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } limits)
         {
+            missing.Add(limits.RecoveryEnergyProfile == null
+                ? "Measured recovery-energy data is missing; the endurance heuristic cannot authorize Home/alternate routing."
+                : "Recovery measurements are pilot-declared and require actual battery/configuration/payload/condition matching and independent calibration verification before recovery authorization.");
+            foreach (var point in mission.Waypoints.Where(w => w.Navigation?.EmergencyLandingCandidate == true || w.ActionType == "Land"))
+                if (point.Navigation?.LandingSiteSurvey is not { GroundClear: true, ApproachClear: true } survey
+                    || survey.SurveyedAtUtc > now || survey.ValidUntilUtc <= now)
+                    missing.Add($"Waypoint {point.SequenceOrder} has no current declared ground/approach inspection. Coordinates alone do not establish landing clearance.");
             if (weather?.Status != "Available" || weather.ExpiresAt <= now || weather.MaxWindMetersPerSecond == null || weather.MaxGustMetersPerSecond == null)
                 missing.Add("Fresh route wind and gust evidence is required for the automatic operating envelope.");
             else if (weather.MaxWindMetersPerSecond > limits.MaxWindMetersPerSecond || weather.MaxGustMetersPerSecond > limits.MaxGustMetersPerSecond)
