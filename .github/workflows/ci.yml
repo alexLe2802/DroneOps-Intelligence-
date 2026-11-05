@@ -80,10 +80,25 @@ jobs:
       - name: Build Next.js production application
         run: npm run build
 
+  gateway:
+    name: Gateway checks (no FC)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install gateway dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r gateway/requirements.txt
+      - name: Run gateway and ArduCopter recovery audit checks
+        run: PYTHONPATH=gateway .venv/bin/python -m unittest discover -s gateway -p 'test_*.py'
+
   quality-gate:
     name: PR Quality Gate
     if: ${{ always() }}
-    needs: [backend, frontend]
+    needs: [backend, frontend, gateway]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -91,8 +106,11 @@ jobs:
         env:
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
+          GATEWAY_RESULT: ${{ needs.gateway.result }}
         run: |
           echo "Backend: $BACKEND_RESULT"
           echo "Frontend: $FRONTEND_RESULT"
+          echo "Gateway: $GATEWAY_RESULT"
           test "$BACKEND_RESULT" = success
           test "$FRONTEND_RESULT" = success
+          test "$GATEWAY_RESULT" = success
