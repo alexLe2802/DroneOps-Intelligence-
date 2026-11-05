@@ -95,6 +95,10 @@ public class AppDbContext : DbContext
             .HasIndex(x => new { x.RecipientUserId, x.IsRead, x.CreatedAt })
             .IsDescending(false, false, true);
         modelBuilder.Entity<Notification>()
+            .HasIndex(x => x.RecipientUserId)
+            .HasFilter("\"Type\" = 'UavManualReview' AND \"ReferenceType\" = 'UAVManualReviewQueueActive'")
+            .IsUnique();
+        modelBuilder.Entity<Notification>()
             .HasOne(x => x.Recipient)
             .WithMany()
             .HasForeignKey(x => x.RecipientUserId)
