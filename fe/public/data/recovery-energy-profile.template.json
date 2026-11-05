@@ -1,0 +1,28 @@
+{
+  "measurementReference": "REPLACE with aircraft, battery ID, configuration and measured test report reference",
+  "uavId": "",
+  "batteryIdentifier": "",
+  "airframeConfiguration": "",
+  "measuredAtUtc": "",
+  "validUntilUtc": "",
+  "payloadKg": null,
+  "maxWindMetersPerSecond": null,
+  "minTemperatureCelsius": null,
+  "maxTemperatureCelsius": null,
+  "usableCapacityWh": null,
+  "cruisePowerWatts": null,
+  "climbPowerWatts": null,
+  "descentPowerWatts": null,
+  "landingPowerWatts": null,
+  "hoverPowerWatts": null,
+  "minimumGroundSpeedMetersPerSecond": null,
+  "returnAltitudeMeters": null,
+  "landingDurationSeconds": null,
+  "holdDurationSeconds": null,
+  "energyMarginFactor": null,
+  "remainingEnergyCurve": [
+    { "batteryPercent": 0, "lowerBoundWh": 0 },
+    { "batteryPercent": null, "lowerBoundWh": null },
+    { "batteryPercent": 100, "lowerBoundWh": null }
+  ]
+}

@@ -40,6 +40,12 @@ jobs:
         run: dotnet format analyzers be/DroneOps/DroneOps.sln --no-restore --verify-no-changes --severity warn
       - name: Run offline authorization and validation checks
         run: dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release
+      - name: Run automatic flight planning and recovery checks (no FC)
+        run: |
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --automatic-flight-policy
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --mission-compiler
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --automatic-failsafe
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release --no-build -- --recovery-energy
       - name: Run realtime telemetry and incident regression checks
         run: dotnet run --project be/DroneOps/DroneOps.TelemetryChecks --configuration Release --no-build
       - name: Run post-flight regression checks

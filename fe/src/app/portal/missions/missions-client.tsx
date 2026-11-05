@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getPilotMissions } from "@/lib/portal/client";
@@ -33,7 +35,7 @@ const missionBucket = (status: string): Exclude<MissionBucket, "all"> => {
   return "draft";
 };
 const formatStatus = (value: string) => value.replace(/([A-Z])/g, " $1").trim();
-const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
+const formatDate = (value: string | null) => value ? formatVietnamDateTime(value) : "Not scheduled";
 const statusClass = (value: string) => value.toLowerCase().replaceAll(" ", "");
 
 export default function MissionsClient() {

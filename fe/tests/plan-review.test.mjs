@@ -23,14 +23,17 @@ test('matches waypoint sequence and identifies added, removed and action-only ed
   assert.deepEqual(rows.map(row => [row.sequence,row.status]), [[1,'Unchanged'],[2,'Changed'],[3,'Added'],[4,'Removed']]);
 });
 let evidenceSource = await readFile(new URL('../src/app/portal/missions/mission-validation-evidence.tsx', import.meta.url), 'utf8');
+const vietnamTime = compile(await readFile(new URL('../src/lib/portal/vietnam-time.ts', import.meta.url), 'utf8'));
+evidenceSource = evidenceSource.replace('from "@/lib/portal/vietnam-time"', `from ${JSON.stringify(vietnamTime)}`);
 evidenceSource = evidenceSource.replace('from "@/lib/portal/mission-review"', `from ${JSON.stringify(reviewHelper)}`);
 evidenceSource = evidenceSource.replace('import styles from "./mission-evidence.module.css";', 'const styles = { validationEvidence: "validationEvidence" };');
 // Resolve the JSX runtime in data URL modules against this test package.
 const evidenceJs = ts.transpileModule(evidenceSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText.replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href));
 const evidenceModule = 'data:text/javascript;base64,' + Buffer.from(evidenceJs).toString('base64');
 const { default: Evidence } = await import(evidenceModule);
+const envelopeHelper = compile(await readFile(new URL("../src/lib/portal/automatic-flight-limits.ts", import.meta.url), "utf8"));
 let component = await readFile(new URL('../src/app/portal/missions/mission-plan-comparison.tsx', import.meta.url), 'utf8');
-component = component.replace('from "react"', `from ${JSON.stringify(pathToFileURL(require.resolve('react')).href)}`)
+component = component.replace('from "@/lib/portal/automatic-flight-limits"', `from ${JSON.stringify(envelopeHelper)}`).replace('from "react"', `from ${JSON.stringify(pathToFileURL(require.resolve('react')).href)}`)
   .replace('import { getGeofences } from "@/lib/portal/client";', 'const getGeofences = async () => [];')
   .replace('import { formatWeatherTime } from "@/lib/portal/weather-display";', 'const formatWeatherTime = value => value || "Unavailable";')
   .replace('from "@/lib/portal/plan-review"', `from ${JSON.stringify(helper)}`)
@@ -79,4 +82,22 @@ test('Error evidence cannot render a passed route with a contradictory isValid f
   const html = renderToStaticMarkup(React.createElement(Comparison, { current: plan, proposed: plan, validation: { isValid: true, error: true, message: 'Provider failed' } }));
   assert.match(html, /Validation: Error/);
   assert.doesNotMatch(html, /Waypoints and route checks passed/);
+});
+
+test('operational envelope changes are highlighted; JSON key order is irrelevant', () => {
+ const a = {takeoffSpeedMetersPerSecond:1,maxAltitudeMeters:30};
+ assert.deepEqual(planFieldChanges({...plan,automaticFlightLimits:a},{...plan,automaticFlightLimits:{maxAltitudeMeters:30,takeoffSpeedMetersPerSecond:1}}),[]);
+ assert.deepEqual(planFieldChanges({...plan,automaticFlightLimits:a},{...plan,automaticFlightLimits:{...a,maxAltitudeMeters:20}}),['automaticFlightLimits']);
+ const html=renderToStaticMarkup(React.createElement(Comparison,{isInitial:true,proposed:{...plan,automaticFlightLimits:{...a,climbSpeedMetersPerSecond:1,descentSpeedMetersPerSecond:0.7,landingSpeedMetersPerSecond:0.7,maxWindMetersPerSecond:3,maxGustMetersPerSecond:5,policyVersion:'multicopter-envelope-v1'}}}));
+ assert.match(html,/Automatic operating limits/); assert.match(html,/Takeoff 1 m\/s/); assert.match(html,/Ceiling 30 m/);
+});
+
+test('nested measurement/survey key order does not fabricate a plan change',()=>{
+ const one={...plan,automaticFlightLimits:{recoveryEnergyProfile:{measurementReference:'report',remainingEnergyCurve:[{batteryPercent:0,lowerBoundWh:0},{batteryPercent:100,lowerBoundWh:80}]}}};
+ const two={...plan,automaticFlightLimits:{recoveryEnergyProfile:{remainingEnergyCurve:[{lowerBoundWh:0,batteryPercent:0},{lowerBoundWh:80,batteryPercent:100}],measurementReference:'report'}}};
+ assert.deepEqual(planFieldChanges(one,two),[]);
+ const p=point(1,{navigation:{landingSiteSurvey:{groundClear:true,evidenceReference:'survey'}}});
+ const q=point(1,{navigation:{landingSiteSurvey:{evidenceReference:'survey',groundClear:true}}});
+ assert.equal(waypointReviewRows([p],[q])[0].changed,false);
+ assert.equal(waypointReviewRows([p],[{...q,navigation:{landingSiteSurvey:{evidenceReference:'different survey',groundClear:true}}}])[0].changed,true);
 });

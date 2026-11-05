@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { getMissionWeather } from "@/lib/portal/client";
@@ -10,7 +12,7 @@ type ForecastState = { weather?: MissionWeather; error?: string; loading?: boole
 function timeLabel(value: string | null | undefined) {
   if (!value) return "Time unavailable";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Time unavailable" : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "Time unavailable" : formatVietnamDateTime(date);
 }
 
 export default function DashboardRouteWeather({ missions }: { missions: FlightHistoryItem[] }) {

@@ -1,9 +1,11 @@
-﻿namespace DroneOps.Application.DTOs.Response.Missions;
+namespace DroneOps.Application.DTOs.Response.Missions;
 
 public sealed class MissionResponse
 {
     public MissionUpdateSummary? PendingUpdate { get; set; }
     public string? AltitudeReference { get; set; }
+    public bool AutomaticFlightRequested { get; set; }
+    public DroneOps.Domain.Entities.AutomaticFlightLimits? AutomaticFlightLimits { get; set; }
 
     public MissionValidationResult? PreflightValidation { get; set; }
     public MissionValidationResult? Validation { get; set; }

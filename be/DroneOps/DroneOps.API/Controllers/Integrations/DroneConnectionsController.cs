@@ -7,11 +7,23 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace DroneOps.API.Controllers.Integrations;
 
 [ApiController,Route("api/drone-connections"),Authorize(Roles="uav_operator")]
-public sealed class DroneConnectionsController(IDroneConnectionService service) : ControllerBase
+public sealed class DroneConnectionsController(IDroneConnectionService service, TrustedGatewayStore? trustedGateways = null) : ControllerBase
 {
     private Guid Actor => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier),out var id) ? id : throw new System.Security.Authentication.AuthenticationException("Invalid pilot identity.");
+    [HttpDelete("aircraft/{uavId:guid}/gateway")]
+    public async Task<IActionResult> ForgetGateway(Guid uavId, CancellationToken ct)
+    {
+        if (trustedGateways is null) return StatusCode(503);
+        await trustedGateways.RevokeAsync(uavId, Actor, ct);
+        return NoContent();
+    }
     [HttpGet("aircraft")]
-    public async Task<IActionResult> Bindings(CancellationToken ct) => Ok(await service.BindingsAsync(Actor,ct));
+    public async Task<IActionResult> Bindings(CancellationToken ct)
+    {
+        var bindings = await service.BindingsAsync(Actor, ct);
+        var registered = trustedGateways is null ? [] : await trustedGateways.RegisteredUavsAsync(Actor, ct);
+        return Ok(bindings.Select(binding => binding with { GatewayRegistered = registered.Contains(binding.UavId) }));
+    }
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await service.ListAsync(Actor,ct));
     [HttpPost,EnableRateLimiting("gateway-pairing")]

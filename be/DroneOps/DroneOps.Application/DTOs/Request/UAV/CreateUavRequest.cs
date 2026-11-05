@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace DroneOps.Application.DTOs.Request.UAVs;
 
@@ -40,7 +40,8 @@ public sealed class CreateUavRequest
     public int? BatteryCapacityMah { get; set; }
 
     [Range(0.01, double.MaxValue)]
-    public decimal? BatteryVoltage { get; set; }
+    public decimal? BatteryVoltage { get; set; } // Legacy nominal voltage; never reinterpret as full-charge voltage.
+    public decimal? BatteryMaxVoltage { get; set; }
 
     [Range(1, 100)]
     public int? BatteryCellCount { get; set; }

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDate } from "@/lib/portal/vietnam-time";
+
 import { useEffect, useState } from "react";
 import { api } from "@/lib/auth/client";
 import styles from "./pilot-roster.module.css";
@@ -50,7 +52,7 @@ export default function PilotRoster() {
   const items = pilots.slice((currentPage - 1) * 20, currentPage * 20);
   const selected = pilots.find(pilot => pilot.id === selectedId) ?? items[0];
   const unavailable = loading || Boolean(error);
-  const date = (value: string) => new Date(value).toLocaleDateString("en-GB");
+  const date = (value: string) => formatVietnamDate(value);
   return <div className={styles.page}>
     <header className={styles.hero}>
       <div><div className={styles.eyebrow}><span>PERSONNEL REGISTRY</span> OPERATIONS / PILOTS</div><h1>Certified UAV Operator Roster</h1><p>Review pilot accounts, flight credentials, and operator records.</p></div>

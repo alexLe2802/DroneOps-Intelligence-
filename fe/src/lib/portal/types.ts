@@ -1,8 +1,26 @@
+export type AutomaticFlightLimits = {
+  takeoffSpeedMetersPerSecond: number; climbSpeedMetersPerSecond: number;
+  descentSpeedMetersPerSecond: number; landingSpeedMetersPerSecond: number;
+  maxAltitudeMeters: number; maxWindMetersPerSecond: number; maxGustMetersPerSecond: number;
+  policyVersion: string;
+  recoveryEnergyProfile?: RecoveryEnergyProfile | null;
+};
+export type RecoveryEnergyProfile = {
+  measurementReference: string; uavId: string; batteryIdentifier: string; airframeConfiguration: string; measuredAtUtc: string; validUntilUtc: string;
+  payloadKg: number; maxWindMetersPerSecond: number; minTemperatureCelsius: number; maxTemperatureCelsius: number;
+  usableCapacityWh: number; cruisePowerWatts: number; climbPowerWatts: number; descentPowerWatts: number;
+  landingPowerWatts: number; hoverPowerWatts: number; minimumGroundSpeedMetersPerSecond: number;
+  returnAltitudeMeters: number; landingDurationSeconds: number; holdDurationSeconds: number; energyMarginFactor: number;
+  remainingEnergyCurve: {batteryPercent: number; lowerBoundWh: number}[];
+};
+export type LandingSiteSurvey = { surveyedAtUtc: string; validUntilUtc: string; groundClear: boolean; approachClear: boolean; evidenceReference: string };
 import type { AccountRole } from "@/lib/auth/types";
 
 export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Pending Confirm" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
 
 export type PilotMission = {
+  automaticFlightRequested?: boolean;
+  automaticFlightLimits?: AutomaticFlightLimits | null;
   id: string;
   createdBy?: string;
   name: string;
@@ -25,8 +43,12 @@ export type PagedResponse<T> = {
   totalPages: number;
 };
 
+// CapturePhoto is retained only to read historical records; new camera actions are deferred.
 export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
+export type WaypointNavigation = { speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
+export type FirmwareParameterSnapshot = { firmwareVersion: string; values: Record<string, number>; observedAtUtc: string; hardwareIdentity?: string | null; source: string };
 export type MissionWaypoint = {
+  navigation?: WaypointNavigation | null;
   sequenceOrder: number;
   latitude: number;
   longitude: number;
@@ -34,6 +56,8 @@ export type MissionWaypoint = {
   actionType: WaypointAction;
 };
 export type CreateMissionRequest = {
+  automaticFlightRequested?: boolean;
+  automaticFlightLimits?: AutomaticFlightLimits | null;
   operationId?: string;
   altitudeReference?: "AGL" | "MSL" | "Relative" | null;
   uavId: string;
@@ -62,7 +86,7 @@ export type MissionValidationResult = {
 export type MissionWeather = {
   missionId?: string; updateRequestId?: string | null; status: "Available" | "Partial" | "Unavailable" | "Stale"; provider: string; available: boolean; fetchedAt: string; generatedAt: string; expiresAt: string; flightStartTime?: string | null; flightEndTime?: string | null; overallRisk: string; warnings: string[];
   maxWindMetersPerSecond: number | null; maxGustMetersPerSecond: number | null; maxRainMillimetersPerHour: number | null; thunderstormForecast: boolean;
-  waypoints: { sequenceOrder: number; latitude: number; longitude: number; altitudeMeters: number | null; estimatedArrivalTime: string | null; arrivalTimeReason: string | null; forecastTime: string | null; sourceFetchedAt: string | null; temperatureCelsius: number | null; relativeHumidityPercent: number | null; windSpeedMetersPerSecond: number | null; windDirectionDegrees: number | null; windGustMetersPerSecond: number | null; windReferenceHeightMeters: number; precipitationProbabilityPercent: number | null; precipitationMillimeters: number | null; visibilityMeters: number | null; cloudCoverPercent: number | null; weatherCode: number | null; status: string; riskLevel: string; warnings: string[] }[];
+  waypoints: { isRouteSample?: boolean; sampleOrder?: number; segmentFrom?: number | null; segmentTo?: number | null; sequenceOrder: number; latitude: number; longitude: number; altitudeMeters: number | null; estimatedArrivalTime: string | null; arrivalTimeReason: string | null; forecastTime: string | null; sourceFetchedAt: string | null; temperatureCelsius: number | null; relativeHumidityPercent: number | null; windSpeedMetersPerSecond: number | null; windDirectionDegrees: number | null; windGustMetersPerSecond: number | null; windReferenceHeightMeters: number; precipitationProbabilityPercent: number | null; precipitationMillimeters: number | null; visibilityMeters: number | null; cloudCoverPercent: number | null; weatherCode: number | null; status: string; riskLevel: string; warnings: string[] }[];
 };
 
 export type LiveMission = {
@@ -226,6 +250,7 @@ export type MissionDecision = {
 export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
 export type AssignedUav = {
+  firmwareNavigationDefaults?: FirmwareParameterSnapshot | null;
   id: string;
   code: string;
   name: string;
@@ -241,6 +266,7 @@ export type AssignedUav = {
   batteryType: string | null;
   batteryCapacityMah: number | null;
   batteryVoltage: number | null;
+  batteryMaxVoltage?: number | null;
   batteryCellCount: number | null;
   maxFlightTimeMinutes: number | null;
   maxRangeKm: number | null;
@@ -268,6 +294,7 @@ export type CreateUavRequest = {
   batteryType: string | null;
   batteryCapacityMah: number | null;
   batteryVoltage: number | null;
+  batteryMaxVoltage?: number | null;
   batteryCellCount: number | null;
   maxFlightTimeMinutes: number | null;
   maxRangeKm: number | null;
@@ -347,24 +374,19 @@ export type UserProfile = {
 // Matches DroneOps.Application.DTOs.Users.UpdateProfileRequest.
 export type UpdateProfileRequest = { fullName: string; expectedVersion: number };
 
-export type AiAssessmentRequest = {
-  missionRef: string;
-  missionName: string;
-  missionVersion: number;
-  missionStatus: string;
-  uavCode: string | null;
-  startTime: string | null;
-  endTime: string | null;
-  waypoints: Array<{ latitude: number; longitude: number; altitude: number; action: string }>;
-  validationSummary: string;
-  incidents: string[];
-  telemetrySummary: string | null;
+export type AiAssessmentRequest = { missionRef: string; missionVersion: number };
+export type BatteryAssessment = {
+  status: "MissingData" | "EstimateOnly"; model: string; capacitySource: string;
+  configuredCapacityMah: number | null; currentBatteryPercent: number | null; consumedMah: number | null;
+  telemetrySourceTimestamp: string | null; estimatedRemainingChargeMah: number | null;
+  requiredBatteryPercent: number | null; estimatedRequiredChargeMah: number | null;
+  meetsEstimatedRequirement: boolean | null; missingData: string[]; warnings: string[];
 };
 export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
   status: "Pending" | "Available" | "Failed";
-  result: { summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
+  result: { automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
     retrieval?: { method: string; featureSchema: string; maximumResults: number };
     historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; incidentIds: string[] }> } | null;
   errorCode: string | null; createdAt: string; completedAt: string | null;

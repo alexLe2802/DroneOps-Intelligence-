@@ -115,6 +115,18 @@ void Check(bool condition, string name)
     passed++;
 }
 
+var scheduled = DateTimeOffset.UtcNow.AddMinutes(10);
+Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5).AddTicks(-1), scheduled, scheduled.AddMinutes(30)), "automatic confirmation rejects times before T-5");
+Check(MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5), scheduled, scheduled.AddMinutes(30)), "automatic confirmation opens exactly at T-5");
+Check(MissionAutomationService.InConfirmationWindow(scheduled, scheduled, scheduled.AddMinutes(30)), "late confirmation remains available before mission end");
+Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(30), scheduled, scheduled.AddMinutes(30)), "confirmation closes exactly at mission end");
+var reviewedPlan = new Mission { Id = Guid.NewGuid(), CreatedBy = Guid.NewGuid(), Name = "Review fingerprint" };
+var manualHash = DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan);
+reviewedPlan.AutomaticFlightRequested = true;
+Check(manualHash != DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan), "automatic opt-in invalidates manual-plan approval and confirmation evidence");
+reviewedPlan.AutomaticFlightRequested = false;
+Check(manualHash == DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan), "legacy manual plan fingerprints remain compatible");
+
 HttpRequestMessage Ingest(string key, object payload, string? credential = integrationKey)
 {
     var request = new HttpRequestMessage(HttpMethod.Post, "/api/integrations/telemetry/samples");
