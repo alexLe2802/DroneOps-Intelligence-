@@ -91,3 +91,13 @@ test('operational envelope changes are highlighted; JSON key order is irrelevant
  const html=renderToStaticMarkup(React.createElement(Comparison,{isInitial:true,proposed:{...plan,automaticFlightLimits:{...a,climbSpeedMetersPerSecond:1,descentSpeedMetersPerSecond:0.7,landingSpeedMetersPerSecond:0.7,maxWindMetersPerSecond:3,maxGustMetersPerSecond:5,policyVersion:'multicopter-envelope-v1'}}}));
  assert.match(html,/Automatic operating limits/); assert.match(html,/Takeoff 1 m\/s/); assert.match(html,/Ceiling 30 m/);
 });
+
+test('nested measurement/survey key order does not fabricate a plan change',()=>{
+ const one={...plan,automaticFlightLimits:{recoveryEnergyProfile:{measurementReference:'report',remainingEnergyCurve:[{batteryPercent:0,lowerBoundWh:0},{batteryPercent:100,lowerBoundWh:80}]}}};
+ const two={...plan,automaticFlightLimits:{recoveryEnergyProfile:{remainingEnergyCurve:[{lowerBoundWh:0,batteryPercent:0},{lowerBoundWh:80,batteryPercent:100}],measurementReference:'report'}}};
+ assert.deepEqual(planFieldChanges(one,two),[]);
+ const p=point(1,{navigation:{landingSiteSurvey:{groundClear:true,evidenceReference:'survey'}}});
+ const q=point(1,{navigation:{landingSiteSurvey:{evidenceReference:'survey',groundClear:true}}});
+ assert.equal(waypointReviewRows([p],[q])[0].changed,false);
+ assert.equal(waypointReviewRows([p],[{...q,navigation:{landingSiteSurvey:{evidenceReference:'different survey',groundClear:true}}}])[0].changed,true);
+});

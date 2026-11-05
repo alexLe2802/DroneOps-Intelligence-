@@ -22,9 +22,19 @@ public sealed class CreateMissionRequestValidator
                 x.AutomaticFlightLimits ?? new DroneOps.Domain.Entities.AutomaticFlightLimits(), (x.Waypoints ?? []).Select(w => (w.Altitude, w.ActionType))))
                 context.AddFailure("AutomaticFlightLimits", error);
             if (x.AutomaticFlightRequested)
+            {
                 foreach (var error in DroneOps.Application.Services.Missions.AutomaticFlightPolicy.NavigationErrors(
                     (x.Waypoints ?? []).Select(w => (w.Navigation, w.ActionType)), x.MaxSpeedMetersPerSecond))
                     context.AddFailure("Waypoints.Navigation", error);
+                if (x.AutomaticFlightLimits is { } limits)
+                    foreach (var error in DroneOps.Application.Services.Missions.RecoveryEnergyCalculator.ProfileErrors(
+                        limits.RecoveryEnergyProfile, limits, DateTimeOffset.UtcNow,
+                        new DateTimeOffset(DateTime.SpecifyKind(x.EndTime, DateTimeKind.Utc)), x.UavId))
+                        context.AddFailure("AutomaticFlightLimits.RecoveryEnergyProfile", error);
+                if ((x.Waypoints ?? []).Any(w => w.Navigation?.LandingSiteSurvey is { } survey
+                    && survey.ValidUntilUtc.UtcDateTime < x.EndTime))
+                    context.AddFailure("Waypoints.Navigation.LandingSiteSurvey", "Landing-site inspections must remain valid through the mission end.");
+            }
         });
         RuleFor(x=>x.AltitudeReference).Must(x=>x is null or "AGL" or "MSL" or "Relative").WithMessage("Altitude reference must be AGL, MSL or Relative.");
         RuleFor(x => x.UavId)

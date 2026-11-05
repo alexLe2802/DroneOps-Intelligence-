@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
-const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source.replace('import styles from "./mission-authoring.module.css";', 'const styles = new Proxy({}, {get: (_, key) => key});').replace('from "lucide-react"', `from ${JSON.stringify(pathToFileURL(require.resolve('lucide-react')).href)}`), {
+const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source.replace('import RecoveryEnergyProfileFields from "./recovery-energy-profile";', 'const RecoveryEnergyProfileFields = () => null;').replace('import styles from "./mission-authoring.module.css";', 'const styles = new Proxy({}, {get: (_, key) => key});').replace('from "lucide-react"', `from ${JSON.stringify(pathToFileURL(require.resolve('lucide-react')).href)}`), {
   compilerOptions: {module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX},
 }).outputText.replace('"react/jsx-runtime"',JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href))).toString('base64');
 const {automaticFlightError} = await import(compile(await readFile(new URL('../src/lib/portal/automatic-flight-limits.ts',import.meta.url),'utf8')));

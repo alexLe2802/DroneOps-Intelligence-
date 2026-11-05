@@ -3,7 +3,17 @@ export type AutomaticFlightLimits = {
   descentSpeedMetersPerSecond: number; landingSpeedMetersPerSecond: number;
   maxAltitudeMeters: number; maxWindMetersPerSecond: number; maxGustMetersPerSecond: number;
   policyVersion: string;
+  recoveryEnergyProfile?: RecoveryEnergyProfile | null;
 };
+export type RecoveryEnergyProfile = {
+  measurementReference: string; uavId: string; batteryIdentifier: string; airframeConfiguration: string; measuredAtUtc: string; validUntilUtc: string;
+  payloadKg: number; maxWindMetersPerSecond: number; minTemperatureCelsius: number; maxTemperatureCelsius: number;
+  usableCapacityWh: number; cruisePowerWatts: number; climbPowerWatts: number; descentPowerWatts: number;
+  landingPowerWatts: number; hoverPowerWatts: number; minimumGroundSpeedMetersPerSecond: number;
+  returnAltitudeMeters: number; landingDurationSeconds: number; holdDurationSeconds: number; energyMarginFactor: number;
+  remainingEnergyCurve: {batteryPercent: number; lowerBoundWh: number}[];
+};
+export type LandingSiteSurvey = { surveyedAtUtc: string; validUntilUtc: string; groundClear: boolean; approachClear: boolean; evidenceReference: string };
 import type { AccountRole } from "@/lib/auth/types";
 
 export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Pending Confirm" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
@@ -35,7 +45,7 @@ export type PagedResponse<T> = {
 
 // CapturePhoto is retained only to read historical records; new camera actions are deferred.
 export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
-export type WaypointNavigation = { speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null };
+export type WaypointNavigation = { speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
 export type FirmwareParameterSnapshot = { firmwareVersion: string; values: Record<string, number>; observedAtUtc: string; hardwareIdentity?: string | null; source: string };
 export type MissionWaypoint = {
   navigation?: WaypointNavigation | null;

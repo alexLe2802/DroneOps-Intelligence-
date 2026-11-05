@@ -1,6 +1,6 @@
 import type { AutomaticFlightLimits, MissionWaypoint } from "./types";
 export function formatAutomaticLimits(value: AutomaticFlightLimits | null | undefined): string {
-  return value ? `Takeoff ${value.takeoffSpeedMetersPerSecond} m/s · Climb ${value.climbSpeedMetersPerSecond} m/s · Descent ${value.descentSpeedMetersPerSecond} m/s · Landing ${value.landingSpeedMetersPerSecond} m/s · Ceiling ${value.maxAltitudeMeters} m relative to home · Wind ${value.maxWindMetersPerSecond} m/s · Gust ${value.maxGustMetersPerSecond} m/s · ${value.policyVersion}` : "Not provided";
+  return value ? `Takeoff ${value.takeoffSpeedMetersPerSecond} m/s · Climb ${value.climbSpeedMetersPerSecond} m/s · Descent ${value.descentSpeedMetersPerSecond} m/s · Landing ${value.landingSpeedMetersPerSecond} m/s · Ceiling ${value.maxAltitudeMeters} m relative to home · Wind ${value.maxWindMetersPerSecond} m/s · Gust ${value.maxGustMetersPerSecond} m/s · ${value.policyVersion}${value.recoveryEnergyProfile ? ` · Recovery measurements: ${value.recoveryEnergyProfile.measurementReference}; ${value.recoveryEnergyProfile.usableCapacityWh} Wh; ${value.recoveryEnergyProfile.payloadKg} kg payload; ${value.recoveryEnergyProfile.remainingEnergyCurve.length} SOC points — review full measurements below` : ""}` : "Not provided";
 }
 
 // Immediate authoring feedback; the API independently validates the same policy.

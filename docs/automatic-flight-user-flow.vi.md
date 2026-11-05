@@ -174,4 +174,76 @@ waypoint của **response GET automation/plan hiện có**, để người dùng
 - SITL từng firmware và lỗi kết hợp; thử FC/drone thật có giám sát.
 - Chỉ sau khi vượt các kiểm tra trên mới cân nhắc bật execution flags.
 
+## Bổ sung phần chuẩn bị thu hồi không cần kết nối FC
+
+Theo yêu cầu mới, việc đọc lại/xác minh cấu hình FC thật được hoãn. Không bật
+aircraft execution và không coi dữ liệu khai báo dưới đây là receipt từ FC.
+
+### Hồ sơ đo năng lượng
+
+Trong Automatic flight limits có mục thu gọn **Recovery energy measurements**.
+Người vận hành có thể tải template và import JSON đo thực tế. Không có số đo
+giả điền sẵn; các giá trị null trong template phải được thay bằng số liệu đo.
+Form không bắt buộc nộp hồ sơ này ngay khi tạo nhiệm vụ.
+
+Hồ sơ gồm:
+
+- `uavId`, `batteryIdentifier`, `airframeConfiguration`, `payloadKg`: phạm vi
+  UAV/pin/cấu hình/tải trọng của phép đo. Server từ chối profile của UAV khác.
+- `measurementReference`, `measuredAtUtc`, `validUntilUtc`: nguồn báo cáo, thời
+  điểm đo và hạn hiệu lực; phải còn hiệu lực đến hết nhiệm vụ. ISO timestamp
+  trong file phải có Z hoặc UTC offset; UI hiển thị GMT+7.
+- `usableCapacityWh`: năng lượng sử dụng thực tế đã đo, không lấy max pack
+  voltage thay nominal voltage.
+- `cruisePowerWatts`, `climbPowerWatts`, `descentPowerWatts`,
+  `landingPowerWatts`, `hoverPowerWatts`: cận trên công suất theo pha đo.
+- `minimumGroundSpeedMetersPerSecond`, `maxWindMetersPerSecond`,
+  `minTemperatureCelsius`, `maxTemperatureCelsius`: điều kiện áp dụng. Phạm vi
+  gió phải bao phủ gust limit đã duyệt; nhiệt độ pin hiện tại phải có và nằm
+  trong phạm vi đo mới tính budget live.
+- `returnAltitudeMeters`, `landingDurationSeconds`, `holdDurationSeconds`,
+  `energyMarginFactor`: hình học/chi phí thu hồi; return altitude không vượt
+  ceiling; landing duration 5–600 s; margin 1,2–3.
+- `remainingEnergyCurve`: 3–101 điểm SOC tăng dần từ 0%/0 Wh đến 100%, Wh là
+  cận dưới đo được, không giảm và không vượt usable capacity. Khi SOC nằm giữa
+  hai mốc, dùng mốc thấp hơn; không nội suy lên để tạo thêm năng lượng.
+
+Ví dụ: nếu bảng đo có 20%→8 Wh và 50%→40 Wh, SOC 49% chỉ được lấy cận dưới
+8 Wh trong ước tính. Các số này chỉ minh họa thuật toán, không dùng để khai báo
+pin hoặc điều khiển drone thật.
+
+Chi phí site gồm chặng ngang, lên độ cao thu hồi, xuống mặt đất, thời gian
+landing và hold, sau đó nhân margin. Cộng thêm reserve bằng 20% usable Wh
+mới so với budget. Site với ground altitude không hợp lệ hoặc thiếu dữ liệu
+không có giá trị chi phí giả. Thiếu telemetry không hiển thị khoảng cách 0 m.
+
+### Khảo sát điểm hạ cánh
+
+Ở điểm Land hoặc emergency landing candidate, có lựa chọn **Record site
+inspection**: thời gian khảo sát, hiệu lực, ground clear, approach clear và
+tham chiếu bằng chứng 10–1000 ký tự. Đây là khai báo của pilot, được manager
+xem cùng kế hoạch; phần mềm không tự coi checkbox là chứng minh vật cản đã
+được khảo sát độc lập. Khảo sát cần còn hiệu lực qua EndTime.
+
+Hồ sơ năng lượng và khảo sát đều nằm trong hash kế hoạch. Sửa chúng cần duyệt
+và xác nhận lại. Trang manager có phần xem đầy đủ hồ sơ đo; AI nhận chúng qua
+limits/navigation trong context hiện có. Reset giới hạn bay không xóa hồ sơ
+đo đã import; có nút Remove measurements riêng.
+
+### Live Monitoring và phạm vi API
+
+- **Flight readiness** hiển thị tình trạng consent, connection, presence,
+  preflight, FC profile và upload/read-back. Không coi dữ liệu cũ là Ready.
+- **Recovery preparation** hiển thị các site, khoảng cách, chi phí ước tính,
+  budget/reserve và những thông tin còn thiếu khi có dữ liệu live hợp lệ.
+- Response luôn ghi `canAuthorizeRecovery=false`: kết quả mới là ước tính
+  chuẩn bị. Khớp pin/cấu hình/tải trọng/điều kiện thực tế, đường về không vật
+  cản, phép đo hiệu chỉnh độc lập và thực thi FC vẫn phải được xác minh sau.
+
+Không tạo endpoint mới. Request create/update mission hiện có bổ sung
+`automaticFlightLimits.recoveryEnergyProfile` và
+`waypoints[].navigation.landingSiteSurvey`. Response execution hiện có thêm
+`readinessChecks` và `recoveryAssessment`. Dữ liệu lưu trong hai cột JSON hiện
+có, không cần migration/Supabase DDL cho phần bổ sung này.
+
 Tài liệu tham số và nguồn chính thức: [Operating envelope](automatic-flight-operating-envelope.md).

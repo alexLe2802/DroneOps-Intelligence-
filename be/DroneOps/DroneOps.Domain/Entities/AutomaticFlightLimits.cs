@@ -9,4 +9,6 @@ public sealed record AutomaticFlightLimits(
     decimal MaxAltitudeMeters = 30m,
     decimal MaxWindMetersPerSecond = 3m,
     decimal MaxGustMetersPerSecond = 5m,
-    string PolicyVersion = "multicopter-envelope-v1");
+    string PolicyVersion = "multicopter-envelope-v1",
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    RecoveryEnergyProfile? RecoveryEnergyProfile = null);
