@@ -220,6 +220,8 @@ internal static class LicenseWorkflowChecks
             => Task.CompletedTask;
         public Task<string> SignAsync(string path, CancellationToken cancellationToken = default)
             => Task.FromResult("https://test.invalid/" + path);
+        public Task<byte[]> DownloadAsync(string path, CancellationToken cancellationToken = default)
+            => Task.FromResult(Array.Empty<byte>());
         public Task DeleteAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
@@ -231,6 +233,7 @@ internal static class LicenseWorkflowChecks
         public Task UploadAsync(string path,Stream stream,string contentType,CancellationToken ct=default)=>throw new HttpRequestException("fixture");
         public Task<byte[]> ReadValidatedUavImageAsync(Stream stream,string fileName,string contentType,long fileSize,CancellationToken ct=default)=>Task.FromResult(Array.Empty<byte>());
         public Task<string> SignAsync(string path,CancellationToken ct=default)=>Task.FromResult("https://test.invalid");
+        public Task<byte[]> DownloadAsync(string path,CancellationToken ct=default)=>throw new HttpRequestException("fixture");
         public Task DeleteAsync(IEnumerable<string> paths,CancellationToken ct=default)=>Task.CompletedTask;
     }
 }

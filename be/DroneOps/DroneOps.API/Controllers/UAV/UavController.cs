@@ -110,7 +110,7 @@ public class UavController : ControllerBase
             var result = await _uavService.UploadOrReplaceUavImageAsync(
                 id, actorUserId, actorRole, stream, file.FileName,
                 file.ContentType, file.Length, cancellationToken);
-            return Ok(result);
+            return Accepted(result);
         }
         catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
         catch (UnauthorizedAccessException exception) { return StatusCode(403, new { message = exception.Message }); }
