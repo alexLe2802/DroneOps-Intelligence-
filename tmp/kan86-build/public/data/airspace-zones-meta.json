@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2026-10-06T11:36:52.867Z",
+  "aipEffectiveDate": "2026-10-01",
+  "aipFeatureCount": 72,
+  "removedContainedAipFeatures": [
+    {
+      "code": "VVR33",
+      "coveredBy": "VVR37",
+      "category": "restricted"
+    }
+  ],
+  "modTileCount": 12,
+  "unresolvedAipDefinitions": [
+    {
+      "code": "VVR19",
+      "name": "BIEN HOA",
+      "reason": "AIP description has no directly machine-readable polygon or circle"
+    }
+  ],
+  "counts": {
+    "prohibited:matched_spatially": 4,
+    "restricted:matched_spatially": 3,
+    "restricted:aip_only": 16,
+    "danger:aip_only": 49,
+    "prohibited:mod_only_supplement": 1,
+    "restricted:mod_only_supplement": 1
+  },
+  "sources": [
+    "https://aim.vatm.vn/images/stories/vnaic.vn/SanPhamDichVu/AIPVietNam/AIP/2026-10-01-AIRAC/html/eAIP/VV-ENR-5.1-en-GB.html",
+    "https://cambay.mod.gov.vn/"
+  ],
+  "methodology": "AIP polygons/circles are the baseline. Public MOD vector-tile polygons are dissolved by CB/HCB type; spatial remainder is added as a supplementary layer. aip_only is retained for review and is never auto-deleted."
+}

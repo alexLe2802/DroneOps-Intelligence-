@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DroneOps.Domain.Entities;
 
@@ -18,6 +18,15 @@ public sealed class Mission
     public string Status { get; set; } = "Draft";
 
     public string? AltitudeReference { get; set; }
+    public bool AutomaticFlightRequested { get; set; }
+    private static readonly System.Text.Json.JsonSerializerOptions PlanReadOptions = new() { PropertyNameCaseInsensitive = true };
+    public string? AutomaticFlightLimitsJson { get; set; }
+    [NotMapped]
+    public AutomaticFlightLimits? AutomaticFlightLimits
+    {
+        get => AutomaticFlightLimitsJson == null ? null : System.Text.Json.JsonSerializer.Deserialize<AutomaticFlightLimits>(AutomaticFlightLimitsJson, PlanReadOptions);
+        set => AutomaticFlightLimitsJson = value == null ? null : System.Text.Json.JsonSerializer.Serialize(value);
+    }
 
     public DateTime? StartTime { get; set; }
 

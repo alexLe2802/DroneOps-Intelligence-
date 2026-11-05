@@ -1,6 +1,9 @@
 "use client";
 
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
+import { formatAutomaticLimits } from "@/lib/portal/automatic-flight-limits";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AccountRole } from "@/lib/auth/types";
 import { cancelMission, getGeofences, getMission, startMission, updateMission, validateMission } from "@/lib/portal/client";
@@ -14,7 +17,7 @@ import MissionPlanComparison from "../mission-plan-comparison";
 import MissionEvidencePanel from "../mission-evidence-panel";
 import MissionValidationEvidence from "../mission-validation-evidence";
 
-const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Not scheduled";
+const formatDate = (value: string | null) => value ? formatVietnamDateTime(value) : "Not scheduled";
 const formatStatus = (value: string) => value.replace(/([A-Z])/g, " $1").trim();
 const statusKey = (value: string) => value.toLowerCase().replaceAll(" ", "");
 type MissionDialog = "cancel" | null;
@@ -157,6 +160,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
         uavId: mission.uavId, startTime: mission.startTime, endTime: mission.endTime,
         averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond,
         maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond,
+        automaticFlightRequested: mission.automaticFlightRequested, automaticFlightLimits: mission.automaticFlightLimits,
         altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null,
         waypoints: mission.waypoints,
       });
@@ -196,6 +200,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       </div>
       <div className="heading-actions"><Link className="module-secondary module-link" href={isManager ? "/portal/mission-planning" : "/portal/missions"}>&lt; {isManager ? "MISSION PLANNING" : "MY MISSIONS"}</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}{actions?.review && <Link className="module-primary module-link" href={`/portal/mission-approvals?missionId=${encodeURIComponent(mission.id)}`}>REVIEW REQUEST</Link>}</div>
     </header>
+    {mission.automaticFlightRequested && <p className="form-warning" role="status">Automatic flight preparation requested. Keep the pilot portal open and the bound drone connected for the five-minute confirmation prompt. Aircraft launch commands are not enabled. <a href={`/api/missions/${mission.id}/automation/plan`} target="_blank" rel="noreferrer">VIEW FLIGHT PLAN DATA</a></p>}
     {mission.detailAvailable === false && <p className="api-pending-banner" role="status"><b>MISSION DETAIL API PENDING</b> Showing the available mission summary. Route and waypoint data will appear when the backend returns a response from GET /api/missions/{mission.id}.</p>}
 
     <section className="mission-action-feedback" aria-label="Persisted mission validation">
@@ -205,7 +210,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
 
     {mission.pendingUpdate && <>
       <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
-      <MissionPlanComparison key={mission.pendingUpdate.id} missionId={mission.id} isInitial={mission.pendingUpdate.isInitial} current={{ uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
+      <MissionPlanComparison key={mission.pendingUpdate.id} missionId={mission.id} isInitial={mission.pendingUpdate.isInitial} current={{ automaticFlightLimits: mission.automaticFlightLimits, automaticFlightRequested: mission.automaticFlightRequested ?? false, uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
     </>}
     <MissionValidationEvidence missionId={id} validation={readinessValidation} />
     <MissionEvidencePanel key={`${id}-${mission.status}-${mission.pendingUpdate?.id ?? "current"}`} id={id} />
@@ -245,6 +250,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
           <div><dt>End time</dt><dd>{formatDate(mission.endTime)}</dd></div>
           <div><dt>Average speed</dt><dd>{mission.averageSpeedMetersPerSecond == null ? "Not provided" : `${mission.averageSpeedMetersPerSecond} m/s`}</dd></div>
           <div><dt>Maximum speed</dt><dd>{mission.maxSpeedMetersPerSecond == null ? "Not provided" : `${mission.maxSpeedMetersPerSecond} m/s`}</dd></div>
+          {mission.automaticFlightRequested && <div><dt>Automatic operating envelope</dt><dd>{formatAutomaticLimits(mission.automaticFlightLimits)}</dd></div>}
           <div><dt>Created</dt><dd>{mission.createdAt ? formatDate(mission.createdAt) : "Not provided"}</dd></div>
           <div><dt>Mission ID</dt><dd className="mission-id-value">{mission.id}</dd></div>
         </dl>
@@ -262,7 +268,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     </section>
 
     <section className="mission-review-grid">
-      <article><span className={`review-state ${busy === "validate" ? "running" : validationState(validation) === "Pass" ? "passed" : validation ? "failed" : "pending"}`}>{busy === "validate" ? "..." : validationState(validation) === "Pass" ? "OK" : validation ? "!" : "--"}</span><div><p className="module-kicker">BACKEND VALIDATION</p><h2>{busy === "validate" ? "Validation in progress" : validationState(validation) === "Pass" ? "Pre-flight check passed" : validation ? "Pre-flight check failed" : "Not validated"}</h2><p>{validation?.message ?? "No persisted validation result is available for this mission."}</p>{validatedAt && <time>Checked {validatedAt.toLocaleString()}</time>}</div></article>
+      <article><span className={`review-state ${busy === "validate" ? "running" : validationState(validation) === "Pass" ? "passed" : validation ? "failed" : "pending"}`}>{busy === "validate" ? "..." : validationState(validation) === "Pass" ? "OK" : validation ? "!" : "--"}</span><div><p className="module-kicker">BACKEND VALIDATION</p><h2>{busy === "validate" ? "Validation in progress" : validationState(validation) === "Pass" ? "Pre-flight check passed" : validation ? "Pre-flight check failed" : "Not validated"}</h2><p>{validation?.message ?? "No persisted validation result is available for this mission."}</p>{validatedAt && <time>Checked {formatVietnamDateTime(validatedAt)}</time>}</div></article>
       <article><span className={`review-state ${currentStatus === "approved" ? "passed" : currentStatus === "rejected" || currentStatus === "cancelled" ? "failed" : awaitingApproval ? "running" : ""}`}>{currentStatus === "approved" ? "OK" : currentStatus === "rejected" || currentStatus === "cancelled" ? "!" : awaitingApproval ? "..." : "--"}</span><div><p className="module-kicker">MANAGER APPROVAL</p><h2>{approvalTitle}</h2><p>{approvalCopy}</p></div></article>
     </section>
 

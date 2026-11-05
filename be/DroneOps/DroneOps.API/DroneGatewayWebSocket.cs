@@ -28,6 +28,7 @@ public static class DroneGatewayWebSocket
         GatewaySession? session = null;
         var windowStarted = DateTimeOffset.UtcNow;
         var messagesInWindow = 0;
+        var preparationChecked = false;
 
         try
         {
@@ -41,8 +42,25 @@ public static class DroneGatewayWebSocket
                 await using var scope = context.RequestServices.CreateAsyncScope();
                 var credential = await scope.ServiceProvider.GetRequiredService<IDroneConnectionService>()
                     .PairAsync(request, context.RequestAborted);
+                if (request.RememberGateway)
+                    credential = credential with { DeviceToken = await scope.ServiceProvider.GetRequiredService<TrustedGatewayStore>().EnrollAsync(credential, context.RequestAborted) };
                 session = new(credential.ConnectionId, credential.Token, credential.HardwareIdentity);
-                await SendAsync(socket, new { type = "session", payload = credential }, context.RequestAborted);
+                await SendAsync(socket, new { type = "session", payload = credential, executionProtocol = 1 }, context.RequestAborted);
+            }
+            else if (type == "deviceResume")
+            {
+                var request = RequiredPayload<ResumeDevice>(hello.RootElement);
+                await using var scope = context.RequestServices.CreateAsyncScope();
+                var credential = await scope.ServiceProvider.GetRequiredService<TrustedGatewayStore>()
+                    .ResumeAsync(request.UavId, request.DeviceToken, request.HardwareIdentity, context.RequestAborted);
+                if (credential is null)
+                {
+                    await SendAsync(socket, new { type = "waiting", message = "No selected eligible mission. Select this UAV and create a connection on the web." }, context.RequestAborted);
+                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Waiting for mission selection.", context.RequestAborted);
+                    return;
+                }
+                session = new(credential.ConnectionId, credential.Token, credential.HardwareIdentity);
+                await SendAsync(socket, new { type = "session", payload = credential, executionProtocol = 1 }, context.RequestAborted);
             }
             else if (type == "resume")
             {
@@ -51,7 +69,7 @@ public static class DroneGatewayWebSocket
                 await using var scope = context.RequestServices.CreateAsyncScope();
                 await scope.ServiceProvider.GetRequiredService<IDroneConnectionService>()
                     .HeartbeatAsync(session.ConnectionId, session.Token, session.HardwareIdentity, context.RequestAborted);
-                await SendAsync(socket, new { type = "ready" }, context.RequestAborted);
+                await SendAsync(socket, new { type = "ready", executionProtocol = 1 }, context.RequestAborted);
             }
             else
             {
@@ -81,6 +99,24 @@ public static class DroneGatewayWebSocket
                     await service.HeartbeatAsync(session.ConnectionId, session.Token, session.HardwareIdentity, context.RequestAborted);
                     await SendAsync(socket, new { type = "heartbeatAck", receivedAt = now }, context.RequestAborted);
                 }
+                else if (type == "controlPoll")
+                {
+                    await service.HeartbeatAsync(session.ConnectionId, session.Token, session.HardwareIdentity, context.RequestAborted);
+                    var request = RequiredPayload<ControlPoll>(message.RootElement);
+                    try
+                    {
+                        var result = await scope.ServiceProvider.GetRequiredService<FlightControlService>()
+                            .PollAsync(session.ConnectionId, request.Evidence, request.Report, context.RequestAborted);
+                        await SendAsync(socket, new { type = "controlAck", payload = result }, context.RequestAborted);
+                    }
+                    catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException)
+                    {
+                        // Manual/ended missions can still stream telemetry. A control rejection
+                        // revokes the launch lease instead of disconnecting monitoring.
+                        await SendAsync(socket, new { type = "controlAck", payload = new { enabled = false,
+                            leaseSeconds = 0, stage = "Unavailable", message = error.Message } }, context.RequestAborted);
+                    }
+                }
                 else if (type == "telemetry")
                 {
                     var key = RequiredString(message.RootElement, "idempotencyKey");
@@ -91,6 +127,21 @@ public static class DroneGatewayWebSocket
                         throw new ArgumentException(string.Join("; ", validation.Errors.Select(x => x.ErrorMessage)));
                     var result = await service.SampleAsync(session.ConnectionId, session.Token, session.HardwareIdentity, key, sample, context.RequestAborted);
                     await SendAsync(socket, new { type = "telemetryAck", idempotencyKey = key, payload = result }, context.RequestAborted);
+                    if (!preparationChecked)
+                    {
+                        preparationChecked = true;
+                        try
+                        {
+                            await scope.ServiceProvider.GetRequiredService<FlightPreparationReminders>()
+                                .ProcessConnectionAsync(session.ConnectionId, context.RequestAborted);
+                        }
+                        catch (Exception error) when (!context.RequestAborted.IsCancellationRequested)
+                        {
+                            // Notification failure must not interrupt telemetry; the existing monitor retries.
+                            scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("FlightPreparation")
+                                .LogWarning(error, "Immediate flight preparation reminder failed; monitor will retry");
+                        }
+                    }
                 }
                 else
                 {
@@ -144,5 +195,7 @@ public static class DroneGatewayWebSocket
     }
 
     private sealed record ResumeGateway(Guid ConnectionId, string Token, string HardwareIdentity);
+    private sealed record ControlPoll(FlightControllerEvidence Evidence, FlightControlReport? Report);
+    private sealed record ResumeDevice(Guid UavId, string DeviceToken, string HardwareIdentity);
     private sealed record GatewaySession(Guid ConnectionId, string Token, string HardwareIdentity);
 }

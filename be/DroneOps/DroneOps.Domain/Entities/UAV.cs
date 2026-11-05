@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DroneOps.Domain.Entities;
 
@@ -26,7 +26,9 @@ public class UAV
     // Battery specifications
     public string? BatteryType { get; set; }
     public int? BatteryCapacityMah { get; set; }
-    public decimal? BatteryVoltage { get; set; }
+    public decimal? BatteryVoltage { get; set; } // Legacy nominal voltage; never reinterpret as full-charge voltage.
+    public decimal? BatteryMaxVoltage { get; set; }
+    public string? FirmwareNavigationDefaultsJson { get; set; }
     public int? BatteryCellCount { get; set; }
 
     // Flight capabilities

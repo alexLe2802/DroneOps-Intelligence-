@@ -1,0 +1,824 @@
+[
+  {
+    "file": "FA26SE238_DRONEOPS_INTELLIGENCE_AN_AI_ASSISTED_MIS_tripm14.docx",
+    "i": 23,
+    "kind": "p",
+    "text": "b) Proposed Solutions:"
+  },
+  {
+    "file": "FA26SE238_DRONEOPS_INTELLIGENCE_AN_AI_ASSISTED_MIS_tripm14.docx",
+    "i": 30,
+    "kind": "p",
+    "text": "Implement an AI Decision-Support service using similarity retrieval (k-NN/vector search) to retrieve historical missions similar to a proposed/current mission."
+  },
+  {
+    "file": "FA26SE238_DRONEOPS_INTELLIGENCE_AN_AI_ASSISTED_MIS_tripm14.docx",
+    "i": 62,
+    "kind": "p",
+    "text": "Construct feature representations for historical and proposed missions."
+  },
+  {
+    "file": "FA26SE238_DRONEOPS_INTELLIGENCE_AN_AI_ASSISTED_MIS_tripm14.docx",
+    "i": 100,
+    "kind": "p",
+    "text": "g) Proposed Tasks:"
+  },
+  {
+    "file": "FA26SE238_DRONEOPS_INTELLIGENCE_AN_AI_ASSISTED_MIS_tripm14.docx",
+    "i": 143,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 22,
+    "kind": "sdt",
+    "text": "I. Record of Changes3 | II. Project Introduction4 | 1. Overview4 | 1.1 Project Information4 | 1.2 Project Team4 | 2. Product Background4 | 3. Existing Systems5 | 3.1 QgroundControl5 | 3.2 Mission Planner6 | 4. Business Opportunity6 | 5. Software Product Vision7 | 6. Project Scope & Limitations7 | 6.1 Major Features7 | FE-01: UAV and Operator Management7 | FE-02: Mission Planning and Management7 | FE-03: Mission Approval Workflow7 | FE-04: Geofence and Flight Path Validation7 | FE-05: MAVLink Telemetry Integration8 | FE-06: Real-Time Mission Monitoring8 | FE-07: Operational Alert and Incident Detection8 | FE-08: Incident Management and Post-Flight Analysis8 | FE-09: AI-Assisted Mission Decision Support8 | FE-10: Mission and Operational Dashboard8 | 6.2 Limitations & Exclusions14 | LI-01: No Low-Level Flight Control Development:14 | LI-02: Dependence on MAVLink-Compatible Data Sources:14 | LI-03: AI Provides Decision Support Only:14 | LI-04: AI Performance Depends on Historical Data:14 | LI-05: Configured Operational Restrictions:14 | LI-06: No Replacement for Ground Control or Autopilot Systems:14 | 7. Target Users14 | "
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 28,
+    "kind": "tbl",
+    "text": "Date | A*M, D | In charge | Change Description | 07/09/26 | A | ThongLQ | Added project information and team information. | 07/09/26 | A | NghiaHQ | Added product background, existing system relation, business opportunity. | 08/09/26 | A | KhanhGNG | Added 3 diagrams FE-02, FE-03, FE-04, | 08/09/26 | A | DucDDA | Added 3 diagrams FE-05, FE-06, FE-10 | 08/09/26 | A | ThongLQ | Added diagram FE-01 | 09/09/26 | A | NghiaHQ | Added 3 diagrams FE-07, FE-08, FE-09 | 09/09/26 | A | ThongLQ | Added limitations & exclusions | 09/09/26 | A | DucDDA | Added Targeted user & Technology stacks | 10/09/26 | M | ThongLQ | Deleted Technology Stack as this part will be reported in Report 2 & Modified Table of Contents | 12/09/26 | M | ThongLQ | Adjust content due to changes in mainflows. | 16/09/26 | M | Project team | Recorded confirmed mainflow ownership: NghiaHQ MF1, KhanhGNG MF2, DucDDA MF3, ThongLQ MF4; aligned remaining AI descriptions with the existing external API feature. |  |  |  |  |  |  |  | "
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 45,
+    "kind": "p",
+    "text": "To address these problems, DroneOps Intelligence is proposed as an integrated software platform for UAV mission planning, monitoring, and incident analytics. The platform focuses on the software layer surrounding UAV operations rather than the development of low-level flight-control algorithms. It provides centralized management of UAVs, operators, missions, waypoints, reviewed mission updates, and flight histories.\nThe platform supports pre-flight Geofencing and Flight Path Validation to automatically check planned routes against configured No-Fly Zones, restricted areas, and altitude constraints before a mission is approved. During mission execution, standardized UAV telemetry based on MAVLink is delivered to platform services through technologies such as WebSocket or MQTT, allowing operators to monitor the UAV and mission status in real time and detect abnormal operational events.\nIn addition, DroneOps Intelligence integrates a configured external AI API to summarize supplied mission context, identify potential risks and suggest precautions. Operators and managers review the advice alongside the source mission data; API failures do not block manual review. Therefore, DroneOps Intelligence aims to provide a unified operational environment covering the UAV mission lifecycle from mission planning → pre-flight validation → approval → real-time monitoring → incident detection → post-flight analysis → AI-assisted decision support. By integrating these activities into a single platform, the project aims to improve mission traceability, operational safety, monitoring efficiency, and the effective use of historical UAV mission data."
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 70,
+    "kind": "p",
+    "text": "4. Business OpportunityThe growing use of UAVs creates a need for more efficient and centralized mission-operation management. Existing Ground Control Station systems provide strong capabilities for flight planning, vehicle configuration, and real-time monitoring. However, UAV operations also require effective management of mission records, safety validation, incident histories, and historical flight data to support operational decisions.DroneOps Intelligence addresses this opportunity by providing an integrated platform for mission planning, pre-flight validation, real-time monitoring, incident management, and post-flight analysis. The system validates planned routes against geofences, No-Fly Zones, restricted areas, and altitude limits, while using standardized MAVLink telemetry to monitor UAV operations in real time.A key value of the proposed platform is its ability to consolidate mission information and provide AI-assisted operational insights. By integrating an external AI API, the platform can summarize available mission data and suggest potential risks and precautions for operators and managers to review. This supports mission assessment while keeping the project focused on software integration and operational workflows.Rather than replacing existing flight-control or Ground Control Station software, DroneOps Intelligence focuses on the mission-operation and decision-support layer. By integrating mission validation, telemetry monitoring, incident analytics, and AI-assisted mission assessment into one platform, the system has the potential to improve operational safety, traceability, monitoring efficiency, and data-driven decision-making in UAV operations."
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 77,
+    "kind": "p",
+    "text": "DroneOps Intelligence focuses on providing a software platform for managing UAV mission operations, including mission planning, pre-flight validation, real-time monitoring, incident management, and AI-assisted decision support. The system integrates with MAVLink-compatible UAVs or simulators to receive telemetry data but does not develop or replace low-level flight-control or autopilot algorithms."
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 127,
+    "kind": "p",
+    "text": "AI-generated summaries and recommendations support operators and managers in reviewing missions. They may be incomplete or inaccurate and must be reviewed against the available mission data. The AI component does not autonomously approve, reject, or control UAV missions."
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 133,
+    "kind": "p",
+    "text": "DroneOps Intelligence does not autonomously execute UAV flights. Actual flight execution and vehicle control remain the responsibility of compatible UAV autopilot or Ground Control Station systems."
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 134,
+    "kind": "p",
+    "text": "7. Target Users"
+  },
+  {
+    "file": "Report1_Project Introduction.docx",
+    "i": 150,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 24,
+    "kind": "tbl",
+    "text": "Date | A*M, D | In charge | Change Description | 09/09/26 | A | ThongLQ | Created Project Management Plan based on Report 1 and SEP490 execution schedule. | 09/09/26 | A | NghiaHQ | Added scope estimation, quality objectives and project risks. | 09/09/26 | A | KhanhGNG | Added process, deliverables and quality/testing activities. | 09/09/26 | A | DucDDA | Added training, communication, configuration management and infrastructure plan. |  | 12/09/26 |  | M |  | Project team |  | Revised working plan: four main flows, external AI API scope, flow ownership, testing and risks; aligned dates with Project Schedule and standardized tables. |  | 12/09/26 |  | M |  | Project team |  | Aligned with supplied Sep 2026 council roadmap: common dossier deadlines, W6 scope freeze, W7 Package 1, W8-W9 Review 2, W14 eligibility and W15 defense; recurring tracking, submission lead times and conditional Council 2. Dates remain provisional. | 16/09/26 | M | Project team | Aligned flow ownership and existing cross-cutting assignments with the team decision; updated existing Web/database/version-control entries to Next.js, Supabase PostgreSQL and GitHub. No additional setup or Auth feature added. |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 19/10/2026 | M | Project team | Added Review 2 readiness gates, mission update decision, source/design gaps and unchanged-registration scope clarification."
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 34,
+    "kind": "p",
+    "text": "Deliver a traceable UAV mission-operations platform for planning, pre-flight validation, real-time monitoring, incident management, post-flight review and AI-assisted risk assessment. AI uses a configured external OpenAI or Gemini API; the team implements context preparation, API integration, result display and error handling. Operators and Operations Managers review the advice; approval and operational decisions remain with authorized users. No model training or low-level autopilot algorithm development is planned. Flight preparation is implemented; aircraft command execution is future scope as specified below."
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 38,
+    "kind": "p",
+    "text": "• Milestone timeliness: ≥ 90% of planned milestones completed within the target week.• Critical-flow readiness: 100% of the four main flows demonstrable by system-test/council readiness.• Release quality: 0 open Critical defects and no Major defect that blocks an end-to-end main flow.• Traceability: all baseline FRs mapped to design, implementation, test evidence and demo where applicable."
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 56,
+    "kind": "p",
+    "text": "Training is performed as targeted self-study and technical prototyping before the corresponding implementation increment. Knowledge is shared through short internal walkthroughs and code reviews."
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 61,
+    "kind": "tbl",
+    "text": "# | Deliverable | Due Date | Notes | 1 | Report 1 - Project Introduction | End W1 | Scope, ten features, actors, context and four main flows | 2 | Report 2 + Project Schedule | End W2 | Management plan, WBS, risks, responsibilities and schedule | 3 | Review 1 dossier | End W3 | Registration; Reports 1-2; Report 3 overview (Product Overview, User Requirements, System Functional Overview); Project Tracking and review slides | 4 | Review 1 minutes / feedback | W4-W5 | Review appointment TBA; agree/circulate minutes before session end; 48-calendar-hour feedback window | 5 | Confirmed registration / scope baseline | End W6 | Update if required by Review 1; supervisor confirmation; scope frozen after W6 | 6 | Review 2 dossier + Software Package 1 | End W7 | Full Report 3 SRS; Report 4 SDD; Report 5 Test Plan; Iteration 1 source/database scripts; updated Reports 1-2, Tracking and slides | 7 | Review 2 minutes / mandatory feature list | W8-W9 | Requirements and design feedback; required features remain within the W6 registration scope | 8 | Software Package 2 + Reports 3-5 updates | End W11 | Complete MF2 increment, source/database scripts, updated design and test records | 9 | Council 1.1 dossier / Full Software Package | End W13 | Reports 1-6; complete Report 5 test cases/results/defect list; draft Report 6; registration, review minutes, Tracking and demo | 10 | Council 1.1 eligibility decision | W14 | Three-member council checks product against registration, SRS, design and required feature list | 11 | Council 1.2 dossier / Report 7 / final package | At least 2 working days before defense | Report 7, defense slides, source/database scripts, testing documents and Tracking. Provisional submission Tue 15 Dec for Fri 18 Dec defense | 12 | Council 1.2 - official defense | W15 | Conditional on passing Council 1.1; all members present/demo/respond | 13 | Weekly Report / Project Tracking | Every week | GVHD meeting; WBS, Issues, Defects, Q&A, risk/capacity and feedback tracking | 14 | Council 2 recovery package (conditional) | About W19; date TBA | Only after failure at Council 1.1 or 1.2; next semester, about four weeks after W15; revised product/docs and feedback-response matrix; submit at least 2 working days before session"
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 64,
+    "kind": "tbl",
+    "text": "Week | Phase / Gate | Key Activities | Primary Output | W1 | Initiation | Registration, supervisor coordination, scope and context | Report 1 by end W1 | W2 | Planning / Feasibility | PMP, Schedule, risks and technical prototypes | Report 2 + Schedule by end W2 | W3 | Requirements Overview | Report 3 overview, Tracking and Review 1 slides/dossier | Review 1 dossier submitted by end W3 | W4 | Review 1 window | Provisional review Fri W4; official window W4-W5; record minutes | Feasibility/scope feedback | W5 | Scope refinement / preparation | Review 1 if assigned W5; feedback; SRS, architecture and MF1 design | Updated requirements/design drafts | W6 | Scope freeze | Resolve scope feedback; supervisor-confirmed registration; design preparation | Registration frozen by end W6 | W7 | Iteration 1 / Review 2 submission | Complete MF1/shared FE-01; finalize SRS, SDD and Test Plan | Package 1 + Review 2 dossier by end W7 | W8 | Review 2 window | Provisional review Fri W8; official window W8-W9 | Minutes, design feedback and required features | W9 | Review 2 / feedback closure | Review if assigned W9; baseline feature list and revise backlog | Updated SRS/SDD/Test Plan within frozen scope | W10 | Iteration 2 | MF2 gateway, persistence and monitoring | Integrated monitoring build | W11 | Iteration 2 completion | MF2 incidents/alerts; tests and Reports 3-5 updates | Software Package 2 by end W11 | W12 | Iteration 3 | MF3 post-flight and MF4 AI API in parallel; integrate; draft user guides | Internal feature-complete build | W13 | System tests / Council submission | System tests, defects, complete Report 5 and draft Report 6; full package | Council 1.1 dossier by end W13 | W14 | Council 1.1 - Eligibility | Three-member council; product/document review; prepare defense draft | Eligibility decision and feedback | W15 | Council 1.2 - Defense | Close feedback; submit dossier at least 2 working days before defense; rehearse | Report 7, final product and official defense if eligible"
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 71,
+    "kind": "tbl",
+    "text": "Communication Item | Who/ Target | Purpose | When, Frequency | Type, Tool, Method(s) | Weekly GVHD meeting / Weekly Report | All members + supervisors | Review progress/capacity; update WBS, Issues, Defects and Q&A | Weekly W1-W15 | Meeting, Project Tracking and Project Weekly Report | Daily team coordination | All members | Task progress, blockers and shared implementation | Working days | Team chat + task board | Pull Request / Code Review | Developers + reviewer | Source quality and reproducible evidence | Per PR | Repository PR, review comments and CI | Review/Council dossier submission | Team to supervisors/reviewers/council | Send registration, slides and required documents | End W3/W7/W13; defense >=2 working days before | Use the announced channel; apply earlier deadline if actual appointment requires it | Review meeting / minutes | All members, GVHD and reviewers | Present; agree checklist/findings; record and circulate minutes | W4-W5 and W8-W9; minutes before session end | Prescribed minutes and email procedure; retain evidence | Supplementary review feedback | Team, GVHD and reviewers | Resolve or record additions to agreed minutes | Within 48 calendar hours after review | Reply to review minutes thread; archive correspondence | Council sessions / feedback | All members + council | W14 eligibility; W15 defense if eligible | W14 / W15, appointments TBA | Demo, presentation, minutes and feedback-response tracking | Risk/Issue Escalation | Owner -> leader -> supervisors | Resolve high-impact delivery issues | As needed; within 24h for high impact | Issue tracker + direct communication"
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 84,
+    "kind": "tbl",
+    "text": "Workstream | Owner from existing PMP | Review 2 action / acceptance | MF1 | Ha Quang Nghia | Implement/review pending-update staging and reject-preserves-approved behavior; verify scope and persisted validation. | MF2 | Le Quoc Thong | Verify telemetry source; complete incident action/detector and FE monitoring integration. | MF3 | Dang Dao Anh Duc | Verify report aggregation, coverage, authorization and execution linkage. | MF4 | Giang Nguyen Gia Khanh | Own AI context, provider integration and failure handling. ThongLQ retains dossier/CI coordination. | All members | Peer reviewers | Review own/assigned vs managed scope, test results and actual demo evidence; confirm final SRS decisions."
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 85,
+    "kind": "tbl",
+    "text": "Risk | Mitigation / evidence | Pending update overwrites approved mission | Staging + atomic approval + regression cases M03/M04. | Registered AI scope differs from implementation | Supervisor decision recorded separately; retain registration unchanged. | MAVLink gateway / realtime demo unavailable | Prepare deterministic recorded fixture, labelled playback; never present it as real flight. | SRS finalization items unresolved | Decision checklist with owner/response before submission; reviewer decisions are recorded in the designated confirmation fields. | No live test evidence in this dossier | Five integration cases have recorded Pass results with build identity and raw logs in Report 5/test-evidence; staging acceptance is tracked separately."
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 96,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "Report2_Project_Management_Plan.docx",
+    "i": 99,
+    "kind": "p",
+    "text": "ThongLQ owns the MF2 gateway/readiness increment and its integration evidence; NghiaHQ reviews planning/hash/preflight dependencies; KhanhGNG owns MF4 AI risks and provider tests. Current schedule dates and effort totals are historical planning estimates, not evidence that command execution is implemented. Plan SITL/upload/dispatch work separately before committing execution dates."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 39,
+    "kind": "p",
+    "text": "Scope exclusions: no low-level navigation, stabilization, autonomous flight execution or replacement of GCS/autopilot software. Custom model training and autonomous AI approval are outside scope. Restriction checks cover configured data only; they do not certify compliance with unprovided restrictions."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 49,
+    "kind": "tbl",
+    "text": "ID | Actor | Responsibilities | ACT-01 | UAV Operator / Pilot | Create and submit own/assigned missions; review validation, decisions, live telemetry, alerts, history and AI evidence; manage own profile and credentials. Operator Web/mobile scope follows IF-02. | ACT-02 | Operations Manager | Manage UAV/operator/area data and restrictions; review and approve/reject missions; monitor operations and review reports/AI advice. | ACT-03 | UAV/Autopilot or Simulator | Supply MAVLink telemetry and configured mission-state events. These are alternative compatible data sources; no human login is required. | ACT-04 | External AI Provider | Return advisory content or API errors for authorized backend requests to the configured OpenAI or Gemini service. | ACT-05 | Pilot Applicant | Register a pilot account, verify the proposed email and provide license evidence; operational access is granted only after Manager approval."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 63,
+    "kind": "tbl",
+    "text": "ID | Use Case | Actors | Outcome | UC-01 | Sign in and sign out | Operator; Manager | Authenticated role-scoped session or signed-out state. | UC-02 | Manage UAV records | Operator (own UAV registration and updates); Manager (review and status management) | Registered UAV and traceable Manager registration/update decision; approved current information retained. | UC-03 | Manage operators and assignments | Manager | Reviewed operator records and traceable mission allocations; UAV ownership unchanged. | UC-04 | Configure operational restrictions | Manager | Versioned operational restrictions available to validation. | UC-05 | Create a mission plan | Operator | Draft mission owned by the creator. | UC-06 | Edit a route and request mission updates | Operator; Manager | A proposed update stored with author/time and sent to Manager review; current mission content is preserved until approval. | UC-07 | View or cancel a mission plan | Operator; Manager | Mission details shown or planning record cancelled with audit evidence. | UC-08 | Submit a mission for validation | Operator | Mission/update request visible for Manager review with validation outcome; failed, incomplete or stale checks block approval. | UC-09 | Approve or reject a mission | Manager | Immutable decision linked to mission and update request; approval applies proposed content, rejection preserves current content and any existing approval. | UC-10 | Review approval history | Operator; Manager | Traceable approval history. | UC-11 | Validate waypoints and route segments | Operator (via submission) | Mission/update-request-linked validation result and map evidence. | UC-12 | Review mapped validation results | Operator; Manager | User can locate violations and decide whether to edit/resubmit. | UC-13 | Provide and ingest telemetry | UAV/Autopilot or Simulator | Stored telemetry and updated UAV/mission projection without flight-control commands. | UC-14 | Monitor an active mission | Operator; Manager | Real-time operational view with explicit freshness. | UC-15 | Detect incidents and deliver alerts | UAV/Simulator (data source); Operator; Manager | Persisted incident and available in-app alert; no autonomous control action. | UC-16 | Review and manage an incident | Operator; Manager | Reviewed incident with append-only status history. | UC-17 | Finalize a flight and generate a post-flight report | UAV/Autopilot or Simulator (completion source) | Completed flight history and available or explicitly failed report. | UC-18 | Review mission history and post-flight results | Operator; Manager | User reviews recorded flight evidence and report. | UC-19 | Request an AI-assisted risk assessment | Operator; Manager | Available assessment or explicit failed status; no change to mission approval. | UC-20 | Review AI advice and supplied context | Operator; Manager | Human-reviewed advisory evidence, with manual mission review still available. | UC-21 | View an operational dashboard | Operator; Manager | Role-scoped operational overview. | UC-22 | Review operational analytics | Operator; Manager | Explainable aggregate view backed by recorded data. | UC-23 | Register a pilot account and review registration | Applicant; Manager | Verified registration and immutable review outcome; only approved pilots receive operational access. | UC-24 | Edit profile and avatar | Operator; Manager (own profile) | Saved profile fields and avatar with visible success/error feedback. | UC-25 | Change email with verification | Operator; Manager (own account) | Verified new account email or unchanged current email on any failure. | UC-26 | Request and review a license change | Operator; Manager reviewer | Approved replacement or unchanged current credentials with traceable pending/rejected outcome."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 71,
+    "kind": "tbl",
+    "text": "ID | Feature | Screen | Description / Navigation | SCR-01 | FE-01 | Sign In | Login page before authentication. Form and invalid-credential message. | SCR-02 | FE-10 | Operational Dashboard | Dashboard. Summary cards, active missions, recent alerts and navigation. | SCR-03 | FE-01 | UAV Management | Pilot: My UAVs > Register / Details / Edit. Manager: UAV Management > Review registration or changes / Activate / Deactivate. | SCR-04 | FE-01 | Operator Management | Management > Operators. Review pilot accounts, credentials and eligibility; inspect mission allocations. | SCR-05 | FE-01/04 | Areas & Restrictions | Management > Operational Areas & Restrictions. Map, polygon editor, restriction type and altitude fields. | SCR-06 | FE-02 | Mission List | Missions. Search/filter, status column and New Mission action. | SCR-07 | FE-02 | Mission Editor | Missions > New Mission or Details > Edit. Metadata, UAV/operator selection, ordered waypoint list and route map. | SCR-08 | FE-02/03/04 | Mission Details & Validation | Missions > select mission. Overview, current/proposed content and review decisions and validation map with failing segments. | SCR-09 | FE-03 | Approval Review | Approvals > pending mission. Submitted mission/update request, evidence, Approve/Reject and rejection-reason dialog. | SCR-10 | FE-05/06/07 | Live Monitoring | Live Monitoring > select mission. Live map, six telemetry indicators, timestamp/freshness, progress and alerts. | SCR-11 | FE-07/08 | Incident List | Incidents. Filters, type/severity/status and affected mission. | SCR-12 | FE-08 | Incident Details | Incidents > select incident. Event evidence, linked telemetry, history and acknowledgement/resolution controls. | SCR-13 | FE-08 | Mission History | Mission History. Completed flight list with date/UAV/status filters. | SCR-14 | FE-08 | Flight Details & Post-Flight Report | Mission History > select flight. Recorded route, telemetry summary, incidents and report status/content. | SCR-15 | FE-09 | AI Assessment | Mission Details or Live Monitoring > AI Assessment. Mission context, Generate/Retry, summary, risks, precautions and unavailable state. | SCR-16 | FE-10 | Operational Analytics | Dashboard > Analytics. Date/UAV filters, defined metrics/charts and links to histories. | SCR-17 | FE-01 | Pilot Registration | Public registration and email verification; application status and rejection feedback. | SCR-18 | FE-01 | My Profile | Phone, date of birth, brief flight experience and avatar; own account only. | SCR-19 | FE-01 | Change Email | New email, send/resend code, confirm and prominent outcome feedback. | SCR-20 | FE-01 | My Flight Credentials | Current approved credentials/image and proposed replacement status/history. | SCR-21 | FE-01 | License Change Review | Manager list/detail, current/proposed credentials and images, Approve/Reject with reason."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 74,
+    "kind": "tbl",
+    "text": "Screen / Action | Operator / Pilot | Operations Manager | Sign in/out; Dashboard | Approved active Operator; own/assigned data | Yes; managed scope | UAVs — view / create / edit / deactivate | Register, view and update own UAV records; submit changes for Manager review; no approval or fleet-wide access. | View fleet; approve/reject UAV registrations and updates; manage status and preserve history; no ownership reassignment. | Operators — registration review / account status / mission allocation | View own profile; no account administration | Manage within scope | Areas & Restrictions — view / edit | View relevant restrictions; no edits | Configure/revise; trigger stale-validation policy | Missions — create | Yes | Not permitted | Mission Editor — edit | Own/assigned Draft, Pending Review, Rejected or Approved mission; Save creates a reviewed proposal; executing/terminal missions are read-only. | Managed pre-flight mission; same proposal policy; another Manager must approve the author’s update. | Mission Details — view / submit | Own/assigned view; initial Submit for Draft/Rejected; later edits automatically request review. | View managed; approval role does not imply Operator submission | Cancel mission plan | Own/assigned non-executing plan | Managed non-executing plan | Approval Review — approve/reject | No | Managed scope with fresh passing validation; the author cannot approve their own proposed update. | Live Monitoring — view | Own/assigned | Managed scope | Incident List/Details — view / acknowledge | Own/assigned view and acknowledge | Managed view and acknowledge | Incident Details — resolve | No | Yes with reason/note | Mission History / Post-Flight Report | View own/assigned | View managed flights; retry/regenerate reports for completed flights with audit history. | AI Assessment — generate / retry / view | Yes for own/assigned mission | Yes for managed mission | AI Assessment — edit stored provider answer | No; request a new assessment instead | No; can edit permitted mission context and regenerate | Dashboard / Analytics — change filters | Yes within own/assigned scope | Yes within managed scope | Dashboard / Analytics — edit measured telemetry/history | No | No; source evidence is retained | Pilot Registration | Public application and email verification; no role selection | Review applications in managed scope | Profile / Avatar / Change Email | Own account only | Own account only | Flight Credentials — submit / view | Own credentials and request history | Scoped view; cannot decide own request | License Change Review — decide | No | Scoped review by another Manager; rejection reason required"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 79,
+    "kind": "p",
+    "text": "The entity relationship diagrams describe the mission planning and operational data model. A mission stores the current plan; a separate update request stores proposed changes pending Manager review. Validation, decisions, telemetry, incidents and reports retain their relationship to the relevant mission."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 94,
+    "kind": "p",
+    "text": "A new mission begins in Draft. Initial submission triggers validation and Manager review. Every subsequent accepted pre-flight edit creates a pending update for the same mission and automatically triggers validation and review. The current mission remains unchanged while review is pending. The lifecycle and concurrency rules are defined in BR-13 and CR-05."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 98,
+    "kind": "p",
+    "text": "Figure 14. Pending update request lifecycle."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 99,
+    "kind": "p",
+    "text": "Approval atomically applies proposed content to the same mission ID. Rejecting an update preserves current content and operational status, including an existing Approved status. A mission with a pending update cannot begin execution. Cancellation affects the planning record and never sends a flight-control command."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 111,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator (own UAV registration and updates); Manager (review and status management) | SCR-03 | Trigger | Pilot registers or updates an own UAV; Manager opens the submission to approve/reject or changes an eligible UAV operational status. | Preconditions | The user is authenticated and has permission to access the selected mission or record. | Input / Data | Unique UAV code, name, model, operational status and configured telemetry identity. | FR-02.1 — Normal flow | Pilots register UAVs belonging to their own account and submit registration or information changes for Operations Manager review. The Manager approves or rejects the submission, records reviewer/time/reason and manages operational status across the fleet. A pilot cannot approve a UAV or access another pilot’s UAV. UAV mission allocation does not transfer ownership. New UAVs enter Pending; approval sets Active and rejection sets Rejected with a reason. Resubmission returns a corrected registration to Pending. Changes to an Active UAV are reviewed separately before replacing approved information. | FR-02.2 — Validation / Alternative flow | Reject duplicate UAV identifiers, invalid specifications and out-of-scope mutations. A pending update cannot silently replace approved information; rejection retains the approved record. Identity or safety-related changes block new mission use until resolved. Conflicting updates require reload. Manager deactivation requires confirmation, preserves mission history and is blocked while the UAV is flying. | FR-02.3 — Postcondition | Persist the registering pilot, current approved UAV information, registration/update status and review history with actor, timestamp and decision reason. Only Active, approved UAVs may be selected for new flights. | Business rules | BR-02; BR-12 | Traceability | UC-02"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 129,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Applicant; Manager | SCR-17 / SCR-04 | Trigger | Open Register; Manager opens Registration Requests. | Preconditions | Registration is public; review requires an authenticated authorized Manager. | Input / Data | Full name, unique email, password, phone, date of birth, brief flight experience, license number/expiry and JPEG/PNG/WebP license image up to 5 MB. | FR-23.1 — Normal flow | Validate fields, verify email using a one-time code and create Pending Review registration. Manager reviews identity and license evidence, approves or rejects with a reason, and records the decision. Approval activates Operator access; pending/rejected accounts cannot access operational functions. | FR-23.2 — Validation / Alternative flow | Reject duplicate normalized email, invalid phone/date, expired license or unsupported upload. Email verification uses a six-digit code valid for 10 minutes, at most five attempts and a 60-second resend interval; resending invalidates the prior code. A rejected application may be corrected and resubmitted without creating a second account. Review retries are idempotent; applicants cannot select Manager privileges. | FR-23.3 — Postcondition | Verified registration and immutable review outcome; only approved pilots receive operational access. | Business rules | BR-01; BR-12; BR-16; BR-17; CR-01; CR-02; CR-05 | Traceability | UC-23"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 131,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager (own profile) | SCR-18 | Trigger | Profile > Edit details or Change avatar. | Preconditions | Authenticated account. | Input / Data | Phone, date of birth, brief flight experience and optional avatar image. | FR-24.1 — Normal flow | Allow the user to update their own phone, date of birth and brief flight experience, and replace their avatar. Show the saved avatar in the profile and authorized Manager operator roster/detail. Use the label Briefly describe your flight experience. | FR-24.2 — Validation / Alternative flow | Require a nonfuture birth date and valid phone; do not accept profile fields that change role, account status or approved license. Accept JPEG/PNG/WebP up to 5 MB, validate file content and retain the previous avatar on failure. Stale updates require reload. | FR-24.3 — Postcondition | Saved profile fields and avatar with visible success/error feedback. | Business rules | BR-01; BR-12; BR-16; BR-17; CR-01; CR-02; CR-05 | Traceability | UC-24"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 133,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager (own account) | SCR-19 | Trigger | Profile > Change email > Send verification code > Confirm. | Preconditions | Authenticated account; proposed email differs from the current one. | Input / Data | New email and verification code. | FR-25.1 — Normal flow | Reject an already registered normalized email before sending a code. Send the code to the new address and visibly state the destination. Keep the current email until confirmation succeeds. On success atomically reserve the unique new email, update the account and invalidate pending codes. | FR-25.2 — Validation / Alternative flow | Use a six-digit code valid for 10 minutes, maximum five verification attempts and a 60-second resend interval. A resend invalidates the previous code. Scope the challenge to account and proposed email; store a protected verifier, never the raw code. Delivery failure leaves the current email unchanged. Recheck uniqueness on confirmation and require reauthentication after change. | FR-25.3 — Postcondition | Verified new account email or unchanged current email on any failure. | Business rules | BR-01; BR-12; BR-16; BR-17; CR-01; CR-02; CR-05 | Traceability | UC-25"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 135,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager reviewer | SCR-20 / SCR-21 | Trigger | Profile > Flight credentials > Request change; Manager > License Changes. | Preconditions | Authenticated pilot for submission; scoped Manager other than request author for decision. | Input / Data | Proposed license number, expiry date and private supporting image. | FR-26.1 — Normal flow | Store proposed credentials and image separately and create Pending Review request. Display current license and request status to the pilot. Manager sees the pilot avatar/profile, current and proposed credentials and accessible images; Approve atomically replaces current credentials, Reject retains them and requires a reason. Notify the pilot in-app and retain decision history. | FR-26.2 — Validation / Alternative flow | Require a future expiry, nonblank license number and valid JPEG/PNG/WebP up to 5 MB. Permit one pending request per account; a replacement supersedes the prior pending request and cannot be approved from a stale screen. Failed upload cannot create an incomplete request. Rejection does not extend the old license validity. | FR-26.3 — Postcondition | Approved replacement or unchanged current credentials with traceable pending/rejected outcome. | Business rules | BR-01; BR-12; BR-16; BR-17; CR-01; CR-02; CR-05 | Traceability | UC-26"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 138,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator | SCR-07 | Trigger | Missions > New Mission. | Preconditions | The Operator is authenticated and an approved Active UAV registered to that pilot is available; the pilot is eligible for the scheduled flight. | Input / Data | Name, purpose, UAV/operator, operational area and proposed schedule if used. | FR-05.1 — Normal flow | Create a Draft mission with one mission ID and the selected owner, UAV, operational area and scheduled start/end. The creation form may save an initial ordered route without review. After creation, accepted changes follow UC-06; initial submission follows UC-08. No mission versions are created. | FR-05.2 — Validation / Alternative flow | Require a name, active UAV, eligible assigned pilot, valid operational area and an end time later than the start time. Reject conflicting UAV/pilot bookings. A route requires at least two ordered waypoints before submission. Warn before navigating away from unsaved form changes. | FR-05.3 — Postcondition | The system shall provide: Draft mission owned by the creator. | Business rules | BR-02; BR-05 | Traceability | UC-05"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 145,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager | SCR-07 | Trigger | Missions > Mission Details > Edit Plan. | Preconditions | The mission exists within the user’s scope and has not entered execution. | Input / Data | Ordered waypoint coordinates and planned altitude; mission metadata. | FR-06.1 — Normal flow | An authorized Operator or Manager may propose metadata, schedule, assignment and route changes to an eligible pre-flight mission. Each accepted Save stores a complete proposed payload separately, creates a request identity, runs validation and automatically sends the request to Manager review. The current mission content and status remain unchanged until approval; no second manual Submit is required. | FR-06.2 — Validation / Alternative flow | Reject changes to In Progress, Completed or Cancelled missions, malformed coordinates, invalid assignments and schedule conflicts. Only one pending update may exist per mission. A later accepted Save atomically supersedes the earlier pending request, preserves its history and invalidates its evidence; the superseded request cannot be decided. A stale form or decision returns a conflict and requires reload. Proposed content cannot reuse validation for different content. | FR-06.3 — Postcondition | The system shall provide: Proposed update stored with author/time and automatically sent to Manager; current mission remains unchanged until approval. | Business rules | BR-04; BR-05; BR-06 | Traceability | UC-06"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 147,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager | SCR-06 / SCR-08 | Trigger | Missions > select mission; choose Cancel if permitted. | Preconditions | The user is authenticated and has permission to access the selected mission or record. | Input / Data | Mission ID, search/filter and cancellation reason. | FR-07.1 — Normal flow | The system shall support the following behavior: Display current mission, proposed updates, validation and decisions. If cancellation is permitted, confirm the action, preserve history and mark the plan Cancelled. | FR-07.2 — Validation / Alternative flow | Draft, Pending Review, Rejected and Approved missions may be cancelled by an authorized owner/assigned Operator or scoped Manager with a nonblank reason. Cancellation closes any pending submission/update as Cancelled, retains decisions and releases future bookings. In Progress, Completed and already Cancelled missions cannot be cancelled by this action. | FR-07.3 — Postcondition | The system shall provide: Mission details shown or planning record cancelled with audit evidence. | Business rules | BR-01; BR-05; BR-06 | Traceability | UC-07"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 156,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator | SCR-08 | Trigger | Mission Details > Submit. | Preconditions | The mission has a saved route and required assignment data. | Input / Data | Current mission or proposed update request with route and required assignment data. | FR-08.1 — Normal flow | For an initial Draft or Rejected mission, Submit validates required fields, assignments and schedule, captures the submitted plan, invokes UC-11 and moves the mission to Pending Review. For an edit to an existing mission, Save already creates the review request and invokes validation through UC-06. Failed, incomplete or stale results remain visible to the Manager and block approval; they do not authorize flight. | FR-08.2 — Validation / Alternative flow | Missing required fields prevent acceptance. Validation service failure produces Error or Incomplete, never Pass. Retrying the same operation identity returns the existing result rather than creating another submission. Initial submitted content cannot be overwritten in place; a subsequent edit follows the reviewed-update policy and supersedes the previous pending review. | FR-08.3 — Postcondition | The system shall provide: Mission/update request visible to Manager with validation outcome; failed/incomplete/stale checks block approval. | Business rules | BR-03; BR-05; BR-06 | Traceability | UC-08"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 158,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Manager | SCR-09 | Trigger | Approvals > select pending mission. | Preconditions | The Manager is authenticated and the submission or update request is awaiting review. | Input / Data | Current mission, proposed content, update request ID, validation evidence and decision reason. | FR-09.1 — Normal flow | The Manager shall compare current and submitted/proposed content and check fresh mandatory validation and assignment eligibility. For an initial submission, Approve changes the mission to Approved and Reject changes it to Rejected. For an update, Approve atomically applies the proposed content to the same mission ID and sets Approved; Reject changes only the request to Rejected and preserves current content and mission status. Record reviewer, time, reason and reviewed payload/evidence identity; notify the Operator in-app. | FR-09.2 — Validation / Alternative flow | Require a nonblank rejection reason. The author of a proposed update cannot approve it; another authorized Manager must decide it. Pending requests may be rejected even when validation failed, but approval requires Pass against current restrictions and unchanged proposed content. Stale, superseded, cancelled or already decided requests cannot receive a conflicting decision. Repeated identical decisions are idempotent. Concurrent content/restriction changes force refresh and revalidation. | FR-09.3 — Postcondition | The system shall provide: Immutable decision linked to mission and review request; approve applies proposed content, reject preserves existing content and prior approval. | Business rules | BR-03; BR-05; BR-06 | Traceability | UC-09"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 166,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator (via submission) | SCR-08 / background | Trigger | Submission or an authorized revalidation request. | Preconditions | The mission route and active configured restrictions are available for validation. | Input / Data | Current mission route or proposed update payload and current configured restrictions. | FR-11.1 — Normal flow | Validate all waypoints and their connecting straight segments against active operational boundaries, No-Fly Zones, restricted polygons and altitude limits. Use WGS84 latitude/longitude in decimal degrees and metres above mean sea level (MSL) for planned altitude. A route touching or crossing a prohibited polygon boundary is a violation; an operational-area boundary is included. Persist Pass/Fail/Incomplete/Error, affected waypoint/segment, rule, restriction revision and checked payload identity. | FR-11.2 — Validation / Alternative flow | Latitude shall be within [-90, 90] and longitude within [-180, 180]. Require at least two waypoints and unique contiguous sequence numbers. Polygon rings must be closed, non-self-intersecting and contain at least three distinct vertices. Altitude limits are inclusive; no-flight restrictions override allowed areas. AGL-only restrictions require an available terrain/reference conversion to MSL; missing conversion or restriction data produces Incomplete. Empty configured prohibited-zone results are distinct from an unavailable restriction service. | FR-11.3 — Postcondition | The system shall provide: Mission/update-request-linked validation result and map evidence. | Business rules | BR-03; BR-04 | Traceability | UC-11"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 171,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | UAV/Autopilot or Simulator | Non-screen | Trigger | Configured source sends MAVLink data to the integration gateway. | Preconditions | A configured telemetry source identifies the UAV and supplies a timestamped sample. | Input / Data | Source identity, message timestamp and supported location/altitude/speed/battery/state fields. | FR-13.1 — Normal flow | The system shall support the following behavior: Accept a configured source; normalize units/fields; persist timestamps and validity; associate data with the correct UAV and, when known, flight; update latest valid state and publish an update. | FR-13.2 — Validation / Alternative flow | Reject malformed packets and unknown source/UAV mappings; retain diagnostics without treating missing values as zero. Deduplicate using source identity, boot/session identity, message type and source sequence/time. Exact replay creates no second persisted event. Out-of-order samples may be retained as historical evidence but cannot replace newer live state or create retrospective live alerts. A configured UAV may map to at most one active flight; ambiguous data remains unassociated and cannot advance a mission state. | FR-13.3 — Postcondition | The system shall provide: Stored telemetry and updated UAV/mission projection without flight-control commands. | Business rules | BR-07; BR-08 | Traceability | UC-13"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 180,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | UAV/Simulator (data source); Operator; Manager | SCR-10 / SCR-11 / background | Trigger | Accepted telemetry or connectivity-check timer. | Preconditions | A configured source/UAV mapping and enabled detection rules exist. Background evaluation uses an authorized integration identity and does not require a human session. | Input / Data | Telemetry, last-seen time and configured abnormal-event rules. | FR-15.1 — Normal flow | The system shall support the following behavior: Evaluate communication loss, low battery and abnormal altitude/speed; create an incident linked to UAV/mission and evidence; persist it and deliver an in-app alert to permitted users. Run communication-loss checks even with no new packet. | FR-15.2 — Validation / Alternative flow | Missing measurements disable only the affected rule and expose Unavailable. Deduplicate incidents by UAV, rule and abnormal episode, including concurrent timer/packet evaluation. A delivery failure retains the incident and unread in-app alert for subsequent retrieval. Recovery follows BR-15; acknowledgement or resolution cannot manufacture a recovery sample. | FR-15.3 — Postcondition | The system shall provide: Persisted incident and available in-app alert; no autonomous control action. | Business rules | BR-08; BR-09 | Traceability | UC-15"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 203,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager | SCR-15 | Trigger | Mission Details or Live Monitoring > AI Assessment > Generate. | Preconditions | The user is authenticated and has permission to access the selected mission or record. | Input / Data | Selected current mission or proposed update payload, validation results and available telemetry/incidents. | FR-19.1 — Normal flow | Authorize the mission or pending proposal, capture its context and validation/telemetry availability, and retrieve up to five similar completed flights using normalized route, duration, altitude, vehicle and incident features. Retain source record identifiers and similarity scores. A configured OpenAI or Gemini adapter may summarize the retrieved evidence into mission summary, potential risks and precautions; preserve source links and distinguish observed historical evidence from generated advice. | FR-19.2 — Validation / Alternative flow | Missing essential plan data blocks assessment. No historical matches produces an explicit No historical evidence result, not a zero-risk conclusion. Timeout, rate limiting or invalid provider output shows MSG-11 while preserving retrieved evidence and manual review. Never present generated or fabricated missions as historical evidence. Credentials remain server-side. | FR-19.3 — Postcondition | The system shall provide: Available assessment or explicit failed status; no change to mission approval. | Business rules | BR-11; BR-12 | Traceability | UC-19"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 216,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager | SCR-16 | Trigger | Dashboard > Analytics. | Preconditions | The user is authenticated and has permission to access the selected mission or record. | Input / Data | Permitted date range, UAV/mission filters and recorded histories/incidents. | FR-22.1 — Normal flow | Show completion rate, flight duration, recorded distance, incident counts by type/severity and trends within the authorized date/UAV scope. Calculate completion rate as Completed flights divided by all started flights in the selected start-time window, with an empty denominator shown as Unavailable. Duration uses trusted flight start/end timestamps. Recorded distance sums consecutive valid GPS positions and excludes gaps longer than the communication-loss threshold, reporting excluded coverage. Counts use distinct incident IDs, not status events. Display units, window and source links. | FR-22.2 — Validation / Alternative flow | Invalid date ranges shall be rejected. Missing data shall be displayed as unavailable and shall not be interpreted as zero risk. | FR-22.3 — Postcondition | The system shall provide: Explainable aggregate view backed by recorded data. | Business rules | BR-01; BR-10 | Traceability | UC-22"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 237,
+    "kind": "tbl",
+    "text": "ID | Requirement | Verification | NFR-C01 | The Web application shall support Chrome and Edge at desktop viewport widths of 1280 and 1440 pixels. | Record exact tested versions at release; responsive screen review. | NFR-C02 | The system shall support scheduled backups and restoration of persisted records and linked private media according to NFR-C03. | Backup/restore rehearsal. | NFR-C03 | Daily backups shall cover mission, review, account/license metadata, telemetry and incident records. Recovery point objective is 24 hours and recovery time objective is 4 hours for the reference deployment. Storage-object recovery shall be included in the rehearsal. | Restore a backup and linked media in an isolated environment; measure data gap and elapsed time."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 240,
+    "kind": "tbl",
+    "text": "ID | Rule Definition | BR-01 | Every human request is authenticated and authorized for the action and record scope; external telemetry/AI integrations use configured integration credentials, not human login. | BR-02 | UAVs and pilots must be active and eligible. A pilot license must be approved, unrevoked and valid through the scheduled flight end. Deactivation preserves history and is blocked for an active flight. Assignment conflicts follow BR-14. | BR-03 | Approval applies only to the reviewed mission or proposed update after mandatory spatial checks pass with current evidence. Applying a proposal updates the same mission atomically. Incomplete/error/stale validation cannot authorize approval. | BR-04 | Both waypoints and connecting route segments shall be validated against active restrictions using their configured coordinate units, altitude reference and boundary rules. | BR-05 | Initial mission submission and every later pre-flight edit require Manager review. Initial Draft creation is not submission. No application action issues low-level flight-control commands. Lifecycle rules follow BR-13. | BR-06 | Mission changes, validation runs and decisions link to mission ID and update request ID. Every accepted edit requires Manager review. Approved current content and status remain unchanged until a proposal is approved; rejected proposals never overwrite them. Earlier evidence cannot authorize changed content. | BR-07 | Telemetry and displayed summaries retain source/received timestamps and missing-data indicators. Unknown or stale measurements must not appear as fresh valid data. | BR-08 | Communication loss shall be evaluated by an independent timer as well as on packet arrival. Timeout and recovery conditions shall be configurable. | BR-09 | Incidents shall retain type, time, UAV/mission association and frozen event evidence. Acknowledgement and resolution shall record actor, timestamp and reason without rewriting source telemetry. | BR-10 | Post-flight reports and analytics shall use stored mission, telemetry and incident evidence and show missing data and coverage explicitly. Calculated metrics shall retain their units and covered time window. | BR-11 | AI output provides mission summaries, risk observations and precautions for human review. It does not approve/reject a mission or command a UAV. API failure must not block manual review. | BR-12 | Record actor/integration identity, action, target and timestamp for material changes; protect credentials and restrict source context sent to AI to permitted mission data. | BR-13 | Mission lifecycle: Draft -> Pending Review -> Approved or Rejected. Draft/Rejected may be initially submitted; each accepted edit to a non-executing mission creates a pending update without changing current content/status. Update approval applies content and sets Approved; update rejection preserves current content/status. A newer accepted proposal supersedes the previous pending review. Draft/Pending Review/Rejected/Approved may be cancelled; executing or terminal missions cannot be edited. Flight start requires Approved, fresh validation, eligible assignments and no pending update. A trusted start event creates one flight and moves the mission to In Progress; a trusted completion event moves it to Completed. Reflight requires a new mission. | BR-14 | Schedules use UTC instants and display the user time zone. End must exceed start. Approved missions reserve UAV/pilot intervals [start,end); adjacent intervals do not conflict. Pending submissions/proposals are checked again atomically at approval and flight start. A proposal cannot reserve over another approved booking; its existing approved reservation is replaced only on approval. | BR-15 | Default detector settings: communication loss after 10 seconds without a valid mapped sample, checked at least once per second; recovery requires two consecutive valid samples. Battery below 20% for two consecutive samples is Warning; recovery requires two samples at or above 25%. Altitude outside the approved/configured MSL range and speed above the configured UAV maximum for two consecutive samples are Critical; recovery requires two samples within limits. Communication loss is Critical. Missing thresholds or altitude conversion disable the affected rule with visible diagnostics. Manager-configured changes are audited; severity escalations update the same incident with retained evidence. | BR-16 | The author cannot approve their own proposed mission update or license-change request. Another authorized Manager must review it. No mission may start with a pending proposal; no flight-control action is issued to enforce this planning decision. | BR-17 | Keep current account email and approved license until replacement verification/review succeeds. A rejected or cancelled license request does not modify current credentials. Expiry of the current license still affects eligibility while a replacement is pending. | BR-18 | Historical similarity retrieval uses up to five completed flights in the authorized data scope. Normalize numeric features with a recorded feature schema and score method; display fewer than five when fewer eligible records exist. Store feature/index configuration and evidence IDs with each assessment. AI provider output cannot change approval or detector thresholds."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 242,
+    "kind": "tbl",
+    "text": "ID | Requirement | CR-01 | Enforce authentication/action/record authorization at the backend; session expiry returns the user to sign-in without treating an unsaved change as persisted. | CR-02 | Validate required fields, ranges and unique identifiers on the server and provide field-level feedback. Do not rely solely on client validation. | CR-03 | Persist timestamps in UTC and display them with an explicit user-zone label; default display zone is Asia/Ho_Chi_Minh. Display metres MSL for planned altitude, m/s for speed, metres/kilometres for distance and percent for battery. Preserve incoming altitude reference; unavailable conversion is explicit. | CR-04 | Search/filter/pagination must preserve permitted scope and show explicit loading, empty, error and stale states; default page size is a UI decision. | CR-05 | Prevent silent concurrent overwrite using request identity, a current-payload fingerprint and an atomic pending-request pointer, without mission versioning. Only the current pending request may be decided. A stale form returns a conflict; retry of the same operation does not duplicate a review, decision, flight, alert or incident. Preserve the approved execution snapshot independently of later source changes. | CR-06 | Confirm destructive/deactivation/cancellation actions; preserve history required by references and retention policy. No user-facing Cancel action issues a UAV stop command. | CR-07 | Changes and material automated outcomes retain actor/source, target, time and result evidence; do not expose credentials in errors or audit output. | CR-08 | Use consistent English application messages; escape substituted values before display. Show field-level failures and prominent success/error feedback with keyboard-accessible status text. Changing presentation language does not alter persisted evidence."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 244,
+    "kind": "tbl",
+    "text": "Code | Type | Context | Content | MSG-01 | Inline | Required/invalid field | Enter a valid {field}. | MSG-02 | Inline | Invalid login | Unable to sign in. Check your credentials. | MSG-03 | Page / toast | Access denied | You do not have permission to perform this action. | MSG-04 | Toast | Save succeeds | Changes saved successfully. | MSG-05 | Dialog | Concurrent update | This record has changed. Reload before saving. | MSG-06 | Banner | Mandatory validation failure | Mission validation failed. Review the highlighted violations. | MSG-07 | Banner | Validation incomplete | Validation is unavailable or incomplete. Approval is blocked. | MSG-08 | Toast | Submitted | Mission submitted for review. | MSG-09 | Banner | Stale telemetry | Telemetry is stale. Last update: {timestamp}. | MSG-10 | In-app alert | Incident raised | {incidentType} detected for {uavName}. Open incident details. | MSG-11 | Banner | AI unavailable | AI assessment is unavailable. Retry later or continue manual review. | MSG-12 | Banner | Outdated assessment | Mission data has changed since this assessment. Generate a new assessment. | MSG-13 | Empty state | No matching data | No matching records found. | MSG-14 | Report status | Generation failed | The report could not be generated. Flight data is preserved. | MSG-15 | Confirmation | Cancel plan | Cancel this mission plan? This does not stop or control a UAV. | MSG-16 | Inline | Rejection reason absent | Enter a reason for rejecting this mission. | MSG-17 | Banner | Map unavailable | The map is unavailable. Review the listed coordinates and validation results. | MSG-18 | Banner | Session expired | Your session has expired. Sign in again. | MSG-19 | Inline / banner | Email already registered | This email is already registered. Enter another email. | MSG-20 | Success banner | Verification sent | A verification code was sent to {email}. Check your inbox. | MSG-21 | Inline | Invalid or expired code | The verification code is invalid or expired. Request a new code. | MSG-22 | Success banner | Email changed | Your email has been changed. Sign in again. | MSG-23 | Banner | License request submitted | Your license change is awaiting review. Your current license remains unchanged. | MSG-24 | Banner | License decision | Your license change was {decision}. {reason} | MSG-25 | Banner | Pending mission update | An update is awaiting review. This mission cannot start until review is complete. | MSG-26 | Banner | No historical evidence | No similar historical flights are available. Continue manual review. | MSG-27 | Inline | Verification rate limit | Please wait {seconds} seconds before requesting another code."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 249,
+    "kind": "p",
+    "text": "Mission: the current planning record with one stable ID. Mission update request: a separately stored proposed change requiring review, not an executable mission or mission version. Flight: the immutable execution record created from an approved mission at start."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 261,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 264,
+    "kind": "p",
+    "text": "Actor: mission owner; reviewer: authorized Manager. Saving a changed automatic-flight option creates reviewed proposed content. Acceptance: the option defaults off, unapproved changes do not replace approved content, and readiness is unavailable for a non-opted-in or non-approved mission."
+  },
+  {
+    "file": "Report3_Software Requirement Specification.docx",
+    "i": 266,
+    "kind": "p",
+    "text": "Actor: authenticated mission owner with uav_operator role. Acceptance: only T-5 minutes <= backend now < start permits confirmation; another owner cannot access the mission; missing/stale presence, heartbeat, telemetry or preflight blocks readiness. Success stores the current plan hash and connection, without sending aircraft commands."
+  },
+  {
+    "file": "Report4_Software Design Document.docx",
+    "i": 32,
+    "kind": "tbl",
+    "text": "No | Component | Description | 1 | Next.js Web + proxy | Role-specific pages, client validation, map, same-origin forwarding. Backend remains authoritative for authorization and state. | 2 | API + Application | JWT/canonical roles, DTO validation, business services and outcome errors. Controllers delegate business operations to services; the composition root configures persistence and external adapters. | 3 | Persistence + Domain | EF entities/repositories plus Npgsql stores. Application depends on repository interfaces in Persistence and entities in Domain. | 4 | PostgreSQL / media | Transactional domain records; proposed request/evidence storage. Private user media uses protected backend read/upload and short-lived access; no public server secret. | 5 | Integration gateway / SSE | Normalized sample HTTP endpoint exists. Raw MAVLink adapter and background loss timer remain gaps; latest snapshot and SSE support frontend monitoring. | 6 | External AI / email | Configured outbound calls with bounded timeout, provenance and error handling. AI advice cannot approve missions."
+  },
+  {
+    "file": "Report4_Software Design Document.docx",
+    "i": 46,
+    "kind": "p",
+    "text": "The planning model stores the current mission and proposed updates awaiting review. Telemetry, incidents, review decisions, reports and assessments retain their mission relationships. Database keys and attributes are specified below."
+  },
+  {
+    "file": "Report4_Software Design Document.docx",
+    "i": 53,
+    "kind": "p",
+    "text": "Indexes support ordered mission waypoints, pending requests, latest mission telemetry, incident status and recipient alerts. Ingestion uses an idempotency key, while decisions use a unique request identity and terminal-state check. Backend authorization protects mission, history, media and streaming operations."
+  },
+  {
+    "file": "Report4_Software Design Document.docx",
+    "i": 57,
+    "kind": "p",
+    "text": "This feature covers mission submission, pre-flight validation, proposed updates and Manager decisions. Approval applies accepted content to the same mission; rejection preserves current content and any existing approval."
+  },
+  {
+    "file": "Report4_Software Design Document.docx",
+    "i": 59,
+    "kind": "p",
+    "text": "The classes below separate mission editing, proposed content, review decisions and the approval transaction."
+  },
+  {
+    "file": "Report4_Software Design Document.docx",
+    "i": 63,
+    "kind": "tbl",
+    "text": "No | Class / Operation | Specification | 1 | MissionService.UpdateAsync | Input mission ID, authenticated operator and metadata/route. Authorize scope/state; reject malformed geometry; persist separate review request; run mandatory validation; return request ID/current mission summary. Current in-place update must be replaced. | 2 | MissionUpdateRequest | Owns proposed payload, author/time and review state, not a mission version. Current content remains outside payload and authoritative. | 3 | MissionApprovalService | Approve/reject exact request, require current evidence; commit accepted data atomically or reject without content mutation. Repeated/stale decisions return current outcome or conflict. | 4 | Review transaction / validation | One DB unit of work, request identity, input fingerprint and restriction revision. Concurrent edits cannot reuse validation or overwrite a newer accepted proposal."
+  },
+  {
+    "file": "Report4_Software Design Document.docx",
+    "i": 97,
+    "kind": "p",
+    "text": "PostFlightService provides history queries, report generation, telemetry playback, mission incidents and operational analytics. Aggregation uses authorized persisted samples and UTC coverage windows. Missing metrics remain null. Mission completion follows the external execution event; it is not a browser flight-control command."
+  },
+  {
+    "file": "Report4_Software Design Document.docx",
+    "i": 125,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "Report5_Test Documentation.docx",
+    "i": 71,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "Report5_Test Documentation.docx",
+    "i": 74,
+    "kind": "p",
+    "text": "The following flight-preparation cases are planned acceptance/regression targets. No execution date, pass result or physical-aircraft evidence is claimed by this document update. MF2 owner ThongLQ coordinates execution; NghiaHQ reviews preflight fixtures; KhanhGNG verifies that AI advice cannot bypass readiness."
+  },
+  {
+    "file": "Report5_Test Documentation.docx",
+    "i": 80,
+    "kind": "p",
+    "text": "Try another owner, wrong UAV/UID, revoked/expired connection and inactive UAV. Expect denial or blocked readiness; no aircraft command."
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 6,
+    "kind": "tbl",
+    "text": "Final version | Pending Review 2 confirmation | Approved at Review 2 (Yes/No) | Pending Review 2 confirmation | Attached file name | SWP490_FA26SE238_R2_Registration.pdf (to be finalized after Review 2)"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 12,
+    "kind": "p",
+    "text": "5. Out of Scope"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 13,
+    "kind": "tbl",
+    "text": "Item | Reason | Low-level flight control/autopilot | External to mission-operations software. | Aviation certification/unprovided restrictions | Configured-data validation is not a legal guarantee. | Custom model training | Configured provider integration only. | Native mobile client | Proposed BM03 change; pending Review 2 decision."
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 18,
+    "kind": "tbl",
+    "text": "Workflow name | Mission Planning and Pre-flight Validation | Owner (one member) | Ha Quang Nghia | Supporting members | Le Quoc Thong | Actors | Operator; Manager | Trigger | Operator submits a new or changed route. | Business outcome | A reviewed, safe plan is approved or rejected with evidence. | Main entity state path | Mission: Draft -> Pending Review -> Approved/Rejected | Activity diagram (Report 4 section) | Report 4 §3.1, Figure 12"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 26,
+    "kind": "tbl",
+    "text": "Criterion | Committed | Runs end-to-end on staging with seeded data | Committed; evidence pending | Main scenario passes | Committed; evidence pending | Exception scenarios passing | 100% committed | Test pass rate for this workflow | 100% committed | Open Critical / High defects | 0 required at Defense 1.1"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 28,
+    "kind": "tbl",
+    "text": "Note | Pending Review 2 confirmation."
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 38,
+    "kind": "tbl",
+    "text": "Criterion | Committed | Runs end-to-end on staging with seeded data | Committed; evidence pending | Main scenario passes | Committed; evidence pending | Exception scenarios passing | 100% committed | Test pass rate for this workflow | 100% committed | Open Critical / High defects | 0 required at Defense 1.1"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 40,
+    "kind": "tbl",
+    "text": "Note | Pending Review 2 confirmation."
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 46,
+    "kind": "tbl",
+    "text": "Scenario ID | Type | Preconditions and data | Main steps | Expected result | Presenter | DS-03a | Main | Completed mission with known evidence | Open history, playback, report and analytics | Correct scoped metrics, units and coverage | Dang Dao Anh Duc | DS-03b | Exception | Completed mission with telemetry gap | Generate and inspect report | Gap is unavailable, never silently zero | Dang Dao Anh Duc"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 50,
+    "kind": "tbl",
+    "text": "Criterion | Committed | Runs end-to-end on staging with seeded data | Committed; evidence pending | Main scenario passes | Committed; evidence pending | Exception scenarios passing | 100% committed | Test pass rate for this workflow | 100% committed | Open Critical / High defects | 0 required at Defense 1.1"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 52,
+    "kind": "tbl",
+    "text": "Note | Pending Review 2 confirmation."
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 54,
+    "kind": "tbl",
+    "text": "Workflow name | AI-Assisted Mission Risk Assessment | Owner (one member) | Giang Nguyen Gia Khanh | Supporting members | Dang Dao Anh Duc | Actors | Operator; Manager; AI Provider | Trigger | An authorized user requests an assessment. | Business outcome | Advisory risks and precautions or an explicit failure state support human review. | Main entity state path | Assessment: Pending -> Available/Failed; Mission unchanged | Activity diagram (Report 4 section) | Report 4 §3.4, Figure 19"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 62,
+    "kind": "tbl",
+    "text": "Criterion | Committed | Runs end-to-end on staging with seeded data | Committed; evidence pending | Main scenario passes | Committed; evidence pending | Exception scenarios passing | 100% committed | Test pass rate for this workflow | 100% committed | Open Critical / High defects | 0 required at Defense 1.1"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 64,
+    "kind": "tbl",
+    "text": "Note | Pending Review 2 confirmation."
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 75,
+    "kind": "tbl",
+    "text": "Result | Weak points observed | Follow-up (by whom, by when) | ☐ Verified ☐ Partly verified ☐ Not verified | Pending Review 2 verification | Reviewers/team after session"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 85,
+    "kind": "tbl",
+    "text": "Result | Weak points observed | Follow-up (by whom, by when) | ☐ Verified ☐ Partly verified ☐ Not verified | Pending Review 2 verification | Reviewers/team after session"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 95,
+    "kind": "tbl",
+    "text": "Result | Weak points observed | Follow-up (by whom, by when) | ☐ Verified ☐ Partly verified ☐ Not verified | Pending Review 2 verification | Reviewers/team after session"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 105,
+    "kind": "tbl",
+    "text": "Result | Weak points observed | Follow-up (by whom, by when) | ☐ Verified ☐ Partly verified ☐ Not verified | Pending Review 2 verification | Reviewers/team after session"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 113,
+    "kind": "tbl",
+    "text": "Member | Workflows owned | Features | Test cases | Automated | Demo scenarios | Review 2 verification | Le Quoc Thong | WF-02 | F-03, F-04 | 11 | 6 | 2 | Pending Review 2 | Ha Quang Nghia | WF-01 | F-01, F-02 | 11 | 6 | 2 | Pending Review 2 | Giang Nguyen Gia Khanh | WF-04 | F-06 | 6 | 3 | 2 | Pending Review 2 | Dang Dao Anh Duc | WF-03 | F-05 | 6 | 3 | 2 | Pending Review 2"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 118,
+    "kind": "tbl",
+    "text": "Criterion | Minimum threshold | Agreed threshold | Main workflows | 100% run end-to-end | 4 (100%) | Demo scenarios | 100% main; ≥ 80% exception | 4 main (100%); 4 exception (100%) | Test case count | ≥ committed number | 34 | Test pass rate | ≥ 90% overall; 100% main-path tests of mandatory features | 18 / 34 (52.9%) | Automation | ≥ 50% run in CI | 100% per workflow | Defects | No open Critical or High defects | 0 | Individual | Each member demos the workflow they own and meets their delivery commitments | Pending reviewer confirmation"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_Commitment.docx",
+    "i": 136,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 6,
+    "kind": "tbl",
+    "text": "Section | Current | Proposed | Reason | AI decision support | Top-k historical similarity retrieval with evidence | Configured external AI advisory service; remove mandatory vector retrieval | Iteration 1 technology/data constraint; requires Review 2 approval | Mission changes | Mission versions | One current mission plus separately reviewed update requests | Iteration 1 finding: prevents rejected edits overwriting approved content | Client platforms | Web and Mobile App | Web platform for Review 2 baseline | Team capacity and no mobile implementation baseline; requires Review 2 approval"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 7,
+    "kind": "p",
+    "text": "1.2 Out of Scope"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 13,
+    "kind": "tbl",
+    "text": "ID | Decision | Options considered | Chosen option and rationale | Owner | Related FR / diagram | D1 | Use layered Web/API/domain/persistence architecture | Monolith; microservices; layered modular application | Layered modular application matches four-person delivery while keeping business and persistence boundaries testable. | Le Quoc Thong | All FRs; SDD Figures 1–4 | D2 | Review mission edits before applying them | In-place edit; immutable versions; pending update request | Pending requests preserve approved content and allow atomic accept/reject on the same mission ID. | Ha Quang Nghia | FR-05..10; SDD Figures 6–12 | D3 | Normalize telemetry at a gateway boundary | Direct browser link; broker-only; authenticated gateway/API | The gateway isolates MAVLink transport and supplies idempotent normalized samples to the API. | Le Quoc Thong | FR-11..13; SDD Figures 14–16 | D4 | Persist post-flight evidence and coverage | Ephemeral dashboard; raw logs only; reports over stored evidence | Stored samples/incidents support scoped playback, reproducible metrics and explicit missing coverage. | Dang Dao Anh Duc | FR-17..18/22; SDD Figures 17–18 | D5 | Keep AI advisory and fail-open for manual review | Autonomous approval; local model; configured external API | External API reduces model scope; provenance and failure states preserve human authority and mission availability. | Giang Nguyen Gia Khanh | FR-19; SDD Figure 19"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 15,
+    "kind": "tbl",
+    "text": "ID | Risk | Impact | How we verify or mitigate | Owner | R1 | Registered Top-k retrieval is not implemented. | Defense scope may be incomplete. | Obtain BM03 decision; if retained, implement labeled k=5 retrieval and Precision@5 evidence. | Giang Nguyen Gia Khanh | R2 | Realtime/staging workflow evidence is incomplete. | Monitoring or incidents may fail during defense. | Run deterministic gateway replay, disconnect/reconnect, acknowledgement and resolution scenarios. | Le Quoc Thong | R3 | Design/schema/state documentation differs from code. | Reviewers cannot trace behavior reliably. | Regenerate ERD/state mappings from migrations and canonicalize status values. | Ha Quang Nghia"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 16,
+    "kind": "p",
+    "text": "5. Known Gaps"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 17,
+    "kind": "tbl",
+    "text": "ID | Gap | Location | Plan | Owner | Due | G-01 | Registered Top-k similarity/vector retrieval is specified in the SRS but has no implementation in the source; the implemented OpenAI adapter is not a substitute for retrieved historical evidence. | Registration §3.2(b–g); SRS FR-19/NFR-M02; source | Planned – Giang Nguyen Gia Khanh – 30 Nov 2026; implement and evaluate retrieval unless BM03 change is accepted. | Giang Nguyen Gia Khanh | 30 Nov 2026 | G-02 | The project material identifies a Mobile App/operator mobile client, but the repository contains only the Next.js Web client and no defined mobile feature subset or mobile package. | Report 1 §1.1/§7; SRS mobile statements; source | Planned – Le Quoc Thong – 30 Nov 2026; remove mobile scope only if BM03 change is accepted, otherwise define and deliver its subset. | Le Quoc Thong | 30 Nov 2026 | G-03 | The logical ERD/entity catalogue omits implemented records including MissionUpdateRequest, MissionValidationRun and DroneConnection, so design-to-schema traceability is incomplete. | SDD §2 ERD/entity table; Domain/AppDbContext | Planned – Ha Quang Nghia – 06 Nov 2026; update ERD and entity catalogue from the verified schema. | Ha Quang Nghia | 06 Nov 2026 | G-04 | The four main workflows have designed cases but no recorded staging end-to-end execution evidence or pass results. | SRS main workflows; Report 5; CI | Planned – all workflow owners – 30 Nov 2026; automate and retain seeded staging evidence. | All workflow owners | 30 Nov 2026 | G-05 | Mission status spelling is not canonical across code and documents (for example InProgress and In Progress), which can create undocumented state variants. | SRS BR-13; state diagrams; application services | Planned – Ha Quang Nghia – 06 Nov 2026; introduce canonical state constants and align diagrams/migrations. | Ha Quang Nghia | 06 Nov 2026"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 18,
+    "kind": "p",
+    "text": "6. Proposed Mandatory Features"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 25,
+    "kind": "p",
+    "text": "Appendix A – Defense 1.1 Targets"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 27,
+    "kind": "tbl",
+    "text": "ID | Workflow | Actors | Trigger | Business outcome | Features | Entity states | Owner | WF-01 | Mission Planning and Pre-flight Validation | Operator; Manager | Operator submits a new or changed route. | A reviewed, safe plan is approved or rejected with evidence. | F-01, F-02 | Mission: Draft -> Pending Review -> Approved/Rejected | Ha Quang Nghia | WF-02 | Real-Time Monitoring and Incident Management | Gateway; Operator; Manager | An approved mission starts and telemetry arrives. | Live state is visible and abnormal events are handled traceably. | F-03, F-04 | Mission: Approved -> In Progress; Incident: Open -> Acknowledged -> Resolved | Le Quoc Thong | WF-03 | Post-Flight Analysis and Mission History | Gateway; Operator; Manager | A trusted completion event is recorded. | Users review route, evidence, incidents, report and analytics. | F-05 | Mission: In Progress -> Completed; Report: Queued -> Generating -> Available/Failed | Dang Dao Anh Duc | WF-04 | AI-Assisted Mission Risk Assessment | Operator; Manager; AI Provider | An authorized user requests an assessment. | Advisory risks and precautions or an explicit failure state support human review. | F-06 | Assessment: Pending -> Available/Failed; Mission unchanged | Giang Nguyen Gia Khanh"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 29,
+    "kind": "tbl",
+    "text": "ID | Workflow | Type | Preconditions and data | Main steps | Expected result | Presenter | DS-01 | WF-01 | Main | Seeded Operator, Manager, UAV and valid restriction set | Create route; validate; submit; Manager reviews and approves | Same mission becomes Approved with decision and current evidence | Ha Quang Nghia | DS-02 | WF-01 | Exception | Approved mission and invalid proposed route | Submit edit; validation fails; attempt approval/reject | Approval blocked or proposal rejected; approved content is unchanged | Ha Quang Nghia | DS-03 | WF-02 | Main | Approved active mission; authenticated gateway replay | Stream normal/abnormal samples; acknowledge and resolve incident | Live view updates and complete incident timeline is retained | Le Quoc Thong | DS-04 | WF-02 | Exception | Active replay with controllable packet loss | Stop samples; observe timeout; reconnect with two valid samples | One communication-loss episode opens and recovery is traceable | Le Quoc Thong | DS-05 | WF-03 | Main | Completed seeded mission with telemetry/incidents | Open history, playback, report and analytics | Authorized evidence and metrics show correct units/coverage | Dang Dao Anh Duc | DS-06 | WF-03 | Exception | Completed mission with a telemetry gap | Generate/open report | Missing coverage is explicit and is not reported as zero risk | Dang Dao Anh Duc | DS-07 | WF-04 | Main | Authorized mission and configured provider stub | Request assessment and inspect provenance | Advice is displayed and mission state is unchanged | Giang Nguyen Gia Khanh | DS-08 | WF-04 | Exception | Provider timeout/rate-limit fixture | Request assessment; open manual review | Unavailable/retry state appears; manual review remains usable | Giang Nguyen Gia Khanh"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 30,
+    "kind": "p",
+    "text": "A3. Functional Test Case Target"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 31,
+    "kind": "tbl",
+    "text": "Source | Count | Minimum per item | Subtotal | Mandatory features | 6 | 3 | 18 | Main workflows (end-to-end) | 4 | 1 | 4 | State transitions of main entities | 12 | 1 | 12 | Committed total |  |  | 34 | Automated in CI target |  | >= 50% | 18 (52.9%)"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_DesignBrief.docx",
+    "i": 40,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_RecordOfChanges.docx",
+    "i": 3,
+    "kind": "tbl",
+    "text": "Project code | FA26SE238 | Project name | DroneOps Intelligence | Team | GFA26SE167 | Supervisor | Pham Minh Tri; Dang Ngoc Minh Duc | Current registration version | Approved registration dated 05 September 2026 | Proposed version | Review 2 proposal dated 27 October 2026 | Version | Review 2 submission v1.0 | Date | 27 October 2026"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_RecordOfChanges.docx",
+    "i": 7,
+    "kind": "tbl",
+    "text": "No. | Section | Current content | Proposed content | Reason | Proposed by | 1 | §3.2(b,c,f,g); §3.3 | Mandatory k-NN/vector Top-k similarity retrieval with relevance evaluation. | Use a configured external AI API for authorized mission summaries, risk observations and precautions; retain provenance, explicit failure handling and human decision authority. No mandatory vector-retrieval evaluation. | Constraint from available historical labeled data and Iteration 1 technology; preserves decision-support complexity but requires reviewer approval. | Le Quoc Thong | 2 | §3.2(b,c) | Manage mission versions. | Maintain one current mission and separate immutable proposed update requests. Every accepted edit is validated and reviewed; rejection preserves current approved content. | Iteration 1 finding: explicit proposal records give safer atomic review and clearer auditability than ambiguous version semantics. | Ha Quang Nghia | 3 | Product/client scope | Project reports identify Web and Mobile App access. | Set the Review 2 delivery baseline to the responsive Web platform; a native mobile client is excluded unless separately re-approved. | Team capacity and technology constraint; no mobile implementation/package exists at the Review 2 baseline. | Le Quoc Thong"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_SelfReview.docx",
+    "i": 3,
+    "kind": "tbl",
+    "text": "Project code | FA26SE238 | Project name | DroneOps Intelligence | Team | GFA26SE167 | Supervisor | Pham Minh Tri; Dang Ngoc Minh Duc | AI tool and model | OpenAI Codex (repository-assisted review) | Run date | 27 October 2026 | Repository tag / commit | No review-2 tag present; commit 48aea3ce17b017bfbcf95ad34791fb53beaffab1 | Registration form version used | Approved registration dated 05 September 2026 plus proposed BM03 changes | Version | Review 2 submission v1.0 | Date | 27 October 2026"
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_SelfReview.docx",
+    "i": 9,
+    "kind": "tbl",
+    "text": "ID | Category | Location | Finding | Severity | Evidence | Team response | SR-01 | Scope | Registration §3.2(b–g); SRS FR-19/NFR-M02; source | Registered Top-k similarity/vector retrieval is specified in the SRS but has no implementation in the source; the implemented OpenAI adapter is not a substitute for retrieved historical evidence. | High | Registration requires k-NN/vector search; SRS FR-19.1/BR-18/NFR-M02 retain it; source contains OpenAIService but no vector index or retrieval service. | Planned – Giang Nguyen Gia Khanh – 30 Nov 2026; implement and evaluate retrieval unless BM03 change is accepted. | SR-02 | Scope | Report 1 §1.1/§7; SRS mobile statements; source | The project material identifies a Mobile App/operator mobile client, but the repository contains only the Next.js Web client and no defined mobile feature subset or mobile package. | High | Report 1 says “Web, Mobile App”; fe/ is Next.js; no Android/iOS/Flutter/React Native project was found. | Planned – Le Quoc Thong – 30 Nov 2026; remove mobile scope only if BM03 change is accepted, otherwise define and deliver its subset. | SR-03 | Data | SDD §2 ERD/entity table; Domain/AppDbContext | The logical ERD/entity catalogue omits implemented records including MissionUpdateRequest, MissionValidationRun and DroneConnection, so design-to-schema traceability is incomplete. | High | Domain entities and AppDbContext DbSets exist; SDD entity table lists 21 entities but not these records. | Planned – Ha Quang Nghia – 06 Nov 2026; update ERD and entity catalogue from the verified schema. | SR-04 | Flows | SRS main workflows; Report 5; CI | The four main workflows have designed cases but no recorded staging end-to-end execution evidence or pass results. | High | The original dossier recorded 40 integration/system and 10 unit designs. The submitted test report now contains a five-case executed integration subset with raw logs; UT-05 and UT-06 conditions have service-regression evidence. Full staging workflow acceptance is a separate verification scope. | Planned – all workflow owners – 30 Nov 2026; automate and retain seeded staging evidence. | SR-05 | States | SRS BR-13; state diagrams; application services | Mission status spelling is not canonical across code and documents (for example InProgress and In Progress), which can create undocumented state variants. | High | TelemetryIngestionService and PostFlightService accept multiple literal variants; BR-13 names “In Progress”. | Planned – Ha Quang Nghia – 06 Nov 2026; introduce canonical state constants and align diagrams/migrations. | SR-06 | Architecture | SDD §1 architecture; gateway/ | The Python MAVLink gateway is present in the repository but is represented only generically as an integration gateway; its deployable boundary, authentication and failure behavior are not fully specified. | Medium | gateway/gateway.py and requirements.txt exist; SDD architecture component text describes an integration gateway without a concrete deployment contract. | Planned – Le Quoc Thong – 13 Nov 2026; add gateway deployment/interface detail. | SR-07 | Data | SDD §2 ERD; migrations | The ERD uses conceptual GeofenceRevision and ReviewDecision records whose mapping to actual revision tables/fields and MissionApproval/MissionUpdateRequest storage is not explicit. | Medium | Restriction revision routes and mission request migration exist; SDD does not provide a one-to-one physical mapping. | Planned – Ha Quang Nghia – 13 Nov 2026; add conceptual-to-physical mapping. | SR-08 | States | SRS BR-15; incident state diagram; IncidentLifecycleService | Automatic recovery can transition an incident directly from Open to Resolved, but this trigger/path is not clearly distinguished from Manager resolution in the state diagram. | Medium | IncidentLifecycleService.ResolveOpenByRuleAsync supports rule recovery; diagram documents the common Open/Acknowledged/Resolved lifecycle. | Planned – Le Quoc Thong – 06 Nov 2026; label automatic recovery transition and triggering FR/rule. | SR-09 | Requirements | SRS FR-01..FR-22; test documentation | Functional requirements have actors and behavior, but acceptance criteria are not consistently expressed as independent pass/fail statements linked to executable tests. | Medium | SRS detailed tables provide flows/postconditions; Report 5 cases are pending and not all FR sub-items have direct executed evidence. | Planned – all workflow owners – 20 Nov 2026; complete FR-to-test traceability and pass/fail criteria. | SR-10 | Architecture | SDD architecture; API configuration | Firebase authentication, weather data and email delivery used/configured by the application are not all shown as explicit third-party services and trust boundaries in the architecture diagram. | Medium | FirebaseAdmin dependency/auth code, weather query service and mail services are present; SDD component list mentions external AI/email but not every provider boundary. | Planned – Le Quoc Thong – 13 Nov 2026; update architecture and data-flow notes. | SR-11 | Design vs code | SDD §3.1; mission services | The SDD describes a dedicated MissionApprovalService/review transaction abstraction while current behavior is split across controllers, MissionApprovalService and MissionValidationService with JSON proposal payloads. | Medium | MissionApprovalService and MissionValidationService share request validation/review responsibilities; migration stores BasePlanJson/ProposedPlanJson. | Kept – current split is accepted for Iteration 1; Ha Quang Nghia will align SDD responsibility text by 06 Nov 2026. | SR-12 | Data | Logical ERD; database scripts | A complete attribute-level comparison cannot be verified from the diagram images/entity summary because the logical ERD does not enumerate every physical column, constraint and index. | Low | SDD provides entity descriptions; migrations define additional operational columns, partial indexes and checks. | Kept – conceptual ERD intentionally omits physical detail; migrations remain the physical source of truth."
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_SelfReview.docx",
+    "i": 14,
+    "kind": "p",
+    "text": "Every High finding marked Kept or Planned must also appear in section 5 (Known Gaps) of the Design Brief."
+  },
+  {
+    "file": "SWP490_FA26SE238_R2_SelfReview.docx",
+    "i": 23,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 39,
+    "kind": "p",
+    "text": "Scope exclusions: no low-level navigation, stabilization, autonomous flight execution or replacement of GCS/autopilot software. Custom model training and autonomous AI approval are outside scope. Restriction checks cover configured data only; they do not certify compliance with unprovided restrictions."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 49,
+    "kind": "tbl",
+    "text": "ID | Actor | Responsibilities | ACT-01 | UAV Operator / Pilot | Create and submit own/assigned missions; review validation, decisions, live telemetry, alerts, history and AI evidence; manage own profile and credentials. Operator Web/mobile scope follows IF-02. | ACT-02 | Operations Manager | Manage UAV/operator/area data and restrictions; review and approve/reject missions; monitor operations and review reports/AI advice. | ACT-03 | UAV/Autopilot or Simulator | Supply MAVLink telemetry and configured mission-state events. These are alternative compatible data sources; no human login is required. | ACT-04 | External AI Provider | Return advisory content or API errors for authorized backend requests to the configured OpenAI or Gemini service. | ACT-05 | Pilot Applicant | Register a pilot account, verify the proposed email and provide license evidence; operational access is granted only after Manager approval."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 63,
+    "kind": "tbl",
+    "text": "ID | Use Case | Actors | Outcome | UC-01 | Sign in and sign out | Operator; Manager | Authenticated role-scoped session or signed-out state. | UC-02 | Manage UAV records | Manager; Operator (view only) | Saved UAV record and recorded actor/time of change. | UC-03 | Manage operators and assignments | Manager | Updated operator/assignment records. | UC-04 | Configure operational restrictions | Manager | Versioned operational restrictions available to validation. | UC-05 | Create a mission plan | Operator | Draft mission owned by the creator. | UC-06 | Edit a route and request mission updates | Operator; Manager | A proposed update stored with author/time and sent to Manager review; current mission content is preserved until approval. | UC-07 | View or cancel a mission plan | Operator; Manager | Mission details shown or planning record cancelled with audit evidence. | UC-08 | Submit a mission for validation | Operator | Mission/update request visible for Manager review with validation outcome; failed, incomplete or stale checks block approval. | UC-09 | Approve or reject a mission | Manager | Immutable decision linked to mission and update request; approval applies proposed content, rejection preserves current content and any existing approval. | UC-10 | Review approval history | Operator; Manager | Traceable approval history. | UC-11 | Validate waypoints and route segments | Operator (via submission) | Mission/update-request-linked validation result and map evidence. | UC-12 | Review mapped validation results | Operator; Manager | User can locate violations and decide whether to edit/resubmit. | UC-13 | Provide and ingest telemetry | UAV/Autopilot or Simulator | Stored telemetry and updated UAV/mission projection without flight-control commands. | UC-14 | Monitor an active mission | Operator; Manager | Real-time operational view with explicit freshness. | UC-15 | Detect incidents and deliver alerts | UAV/Simulator (data source); Operator; Manager | Persisted incident and available in-app alert; no autonomous control action. | UC-16 | Review and manage an incident | Operator; Manager | Reviewed incident with append-only status history. | UC-17 | Finalize a flight and generate a post-flight report | UAV/Autopilot or Simulator (completion source) | Completed flight history and available or explicitly failed report. | UC-18 | Review mission history and post-flight results | Operator; Manager | User reviews recorded flight evidence and report. | UC-19 | Request an AI-assisted risk assessment | Operator; Manager | Available assessment or explicit failed status; no change to mission approval. | UC-20 | Review AI advice and supplied context | Operator; Manager | Human-reviewed advisory evidence, with manual mission review still available. | UC-21 | View an operational dashboard | Operator; Manager | Role-scoped operational overview. | UC-22 | Review operational analytics | Operator; Manager | Explainable aggregate view backed by recorded data. | UC-23 | Register a pilot account and review registration | Applicant; Manager | Verified registration and immutable review outcome; only approved pilots receive operational access. | UC-24 | Edit profile and avatar | Operator; Manager (own profile) | Saved profile fields and avatar with visible success/error feedback. | UC-25 | Change email with verification | Operator; Manager (own account) | Verified new account email or unchanged current email on any failure. | UC-26 | Request and review a license change | Operator; Manager reviewer | Approved replacement or unchanged current credentials with traceable pending/rejected outcome."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 79,
+    "kind": "p",
+    "text": "The entity relationship diagrams describe the mission planning and operational data model. A mission stores the current plan; a separate update request stores proposed changes pending Manager review. Validation, decisions, telemetry, incidents and reports retain their relationship to the relevant mission."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 94,
+    "kind": "p",
+    "text": "A new mission begins in Draft. Initial submission triggers validation and Manager review. Every subsequent accepted pre-flight edit creates a pending update for the same mission and automatically triggers validation and review. The current mission remains unchanged while review is pending. The lifecycle and concurrency rules are defined in BR-13 and CR-05."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 98,
+    "kind": "p",
+    "text": "Figure 14. Pending update request lifecycle."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 99,
+    "kind": "p",
+    "text": "Approval atomically applies proposed content to the same mission ID. Rejecting an update preserves current content and operational status, including an existing Approved status. A mission with a pending update cannot begin execution. Cancellation affects the planning record and never sends a flight-control command."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 129,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Applicant; Manager | SCR-03 / SCR-08 | Trigger | Open Register; Manager opens Registration Requests. | Preconditions | Registration is public; review requires an authenticated authorized Manager. | Input / Data | Full name, unique email, password, phone, date of birth, brief flight experience, license number/expiry and JPEG/PNG/WebP license image up to 5 MB. | FR-23.1 — Normal flow | Validate fields, verify email using a one-time code and create Pending Review registration. Manager reviews identity and license evidence, approves or rejects with a reason, and records the decision. Approval activates Operator access; pending/rejected accounts cannot access operational functions. | FR-23.2 — Validation / Alternative flow | Reject duplicate normalized email, invalid phone/date, expired license or unsupported upload. Email verification uses a six-digit code valid for 10 minutes, at most five attempts and a 60-second resend interval; resending invalidates the prior code. A rejected application may be corrected and resubmitted without creating a second account. Review retries are idempotent; applicants cannot select Manager privileges. | FR-23.3 — Postcondition | Verified registration and immutable review outcome; only approved pilots receive operational access. | Business rules | BR-01; BR-12; BR-16; BR-17; CR-01; CR-02; CR-05 | Traceability | UC-23"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 131,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager (own profile) | SCR-06 | Trigger | Profile > Edit details or Change avatar. | Preconditions | Authenticated account. | Input / Data | Phone, date of birth, brief flight experience and optional avatar image. | FR-24.1 — Normal flow | Allow the user to update their own phone, date of birth and brief flight experience, and replace their avatar. Show the saved avatar in the profile and authorized Manager operator roster/detail. Use the label Briefly describe your flight experience. | FR-24.2 — Validation / Alternative flow | Require a nonfuture birth date and valid phone; do not accept profile fields that change role, account status or approved license. Accept JPEG/PNG/WebP up to 5 MB, validate file content and retain the previous avatar on failure. Stale updates require reload. | FR-24.3 — Postcondition | Saved profile fields and avatar with visible success/error feedback. | Business rules | BR-01; BR-12; BR-16; BR-17; CR-01; CR-02; CR-05 | Traceability | UC-24"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 133,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager (own account) | SCR-06 | Trigger | Profile > Change email > Send verification code > Confirm. | Preconditions | Authenticated account; proposed email differs from the current one. | Input / Data | New email and verification code. | FR-25.1 — Normal flow | Reject an already registered normalized email before sending a code. Send the code to the new address and visibly state the destination. Keep the current email until confirmation succeeds. On success atomically reserve the unique new email, update the account and invalidate pending codes. | FR-25.2 — Validation / Alternative flow | Use a six-digit code valid for 10 minutes, maximum five verification attempts and a 60-second resend interval. A resend invalidates the previous code. Scope the challenge to account and proposed email; store a protected verifier, never the raw code. Delivery failure leaves the current email unchanged. Recheck uniqueness on confirmation and require reauthentication after change. | FR-25.3 — Postcondition | Verified new account email or unchanged current email on any failure. | Business rules | BR-01; BR-12; BR-16; BR-17; CR-01; CR-02; CR-05 | Traceability | UC-25"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 135,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager reviewer | SCR-06 / SCR-08 | Trigger | Profile > Flight credentials > Request change; Manager > License Changes. | Preconditions | Authenticated pilot for submission; scoped Manager other than request author for decision. | Input / Data | Proposed license number, expiry date and private supporting image. | FR-26.1 — Normal flow | Store proposed credentials and image separately and create Pending Review request. Display current license and request status to the pilot. Manager sees the pilot avatar/profile, current and proposed credentials and accessible images; Approve atomically replaces current credentials, Reject retains them and requires a reason. Notify the pilot in-app and retain decision history. | FR-26.2 — Validation / Alternative flow | Require a future expiry, nonblank license number and valid JPEG/PNG/WebP up to 5 MB. Permit one pending request per account; a replacement supersedes the prior pending request and cannot be approved from a stale screen. Failed upload cannot create an incomplete request. Rejection does not extend the old license validity. | FR-26.3 — Postcondition | Approved replacement or unchanged current credentials with traceable pending/rejected outcome. | Business rules | BR-01; BR-12; BR-16; BR-17; CR-01; CR-02; CR-05 | Traceability | UC-26"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 138,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator | SCR-23 / SCR-24 | Trigger | Missions > New Mission. | Preconditions | The Operator is authenticated and an eligible assigned UAV is available. | Input / Data | Name, purpose, UAV/operator, operational area and proposed schedule if used. | FR-05.1 — Normal flow | Create a Draft mission with one mission ID and the selected owner, UAV, operational area and scheduled start/end. The creation form may save an initial ordered route without review. After creation, accepted changes follow UC-06; initial submission follows UC-08. No mission versions are created. | FR-05.2 — Validation / Alternative flow | Require a name, active UAV, eligible assigned pilot, valid operational area and an end time later than the start time. Reject conflicting UAV/pilot bookings. A route requires at least two ordered waypoints before submission. Warn before navigating away from unsaved form changes. | FR-05.3 — Postcondition | The system shall provide: Draft mission owned by the creator. | Business rules | BR-02; BR-05 | Traceability | UC-05"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 145,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager | SCR-24 / SCR-13 | Trigger | Missions > Mission Details > Edit Plan. | Preconditions | The mission exists within the user’s scope and has not entered execution. | Input / Data | Ordered waypoint coordinates and planned altitude; mission metadata. | FR-06.1 — Normal flow | An authorized Operator or Manager may propose metadata, schedule, assignment and route changes to an eligible pre-flight mission. Each accepted Save stores a complete proposed payload separately, creates a request identity, runs validation and automatically sends the request to Manager review. The current mission content and status remain unchanged until approval; no second manual Submit is required. | FR-06.2 — Validation / Alternative flow | Reject changes to In Progress, Completed or Cancelled missions, malformed coordinates, invalid assignments and schedule conflicts. Only one pending update may exist per mission. A later accepted Save atomically supersedes the earlier pending request, preserves its history and invalidates its evidence; the superseded request cannot be decided. A stale form or decision returns a conflict and requires reload. Proposed content cannot reuse validation for different content. | FR-06.3 — Postcondition | The system shall provide: Proposed update stored with author/time and automatically sent to Manager; current mission remains unchanged until approval. | Business rules | BR-04; BR-05; BR-06 | Traceability | UC-06"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 147,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager | SCR-23 / SCR-24 / SCR-13 | Trigger | Missions > select mission; choose Cancel if permitted. | Preconditions | The user is authenticated and has permission to access the selected mission or record. | Input / Data | Mission ID, search/filter and cancellation reason. | FR-07.1 — Normal flow | The system shall support the following behavior: Display current mission, proposed updates, validation and decisions. If cancellation is permitted, confirm the action, preserve history and mark the plan Cancelled. | FR-07.2 — Validation / Alternative flow | Draft, Pending Review, Rejected and Approved missions may be cancelled by an authorized owner/assigned Operator or scoped Manager with a nonblank reason. Cancellation closes any pending submission/update as Cancelled, retains decisions and releases future bookings. In Progress, Completed and already Cancelled missions cannot be cancelled by this action. | FR-07.3 — Postcondition | The system shall provide: Mission details shown or planning record cancelled with audit evidence. | Business rules | BR-01; BR-05; BR-06 | Traceability | UC-07"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 156,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator | SCR-24 / SCR-25 | Trigger | Mission Details > Submit. | Preconditions | The mission has a saved route and required assignment data. | Input / Data | Current mission or proposed update request with route and required assignment data. | FR-08.1 — Normal flow | For an initial Draft or Rejected mission, Submit validates required fields, assignments and schedule, captures the submitted plan, invokes UC-11 and moves the mission to Pending Review. For an edit to an existing mission, Save already creates the review request and invokes validation through UC-06. Failed, incomplete or stale results remain visible to the Manager and block approval; they do not authorize flight. | FR-08.2 — Validation / Alternative flow | Missing required fields prevent acceptance. Validation service failure produces Error or Incomplete, never Pass. Retrying the same operation identity returns the existing result rather than creating another submission. Initial submitted content cannot be overwritten in place; a subsequent edit follows the reviewed-update policy and supersedes the previous pending review. | FR-08.3 — Postcondition | The system shall provide: Mission/update request visible to Manager with validation outcome; failed/incomplete/stale checks block approval. | Business rules | BR-03; BR-05; BR-06 | Traceability | UC-08"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 158,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Manager | SCR-12 / SCR-13 | Trigger | Validation & Approvals > select pending mission. | Preconditions | The Manager is authenticated and the submission or update request is awaiting review. | Input / Data | Current mission, proposed content, update request ID, validation evidence and decision reason. | FR-09.1 — Normal flow | The Manager shall compare current and submitted/proposed content and check fresh mandatory validation and assignment eligibility. For an initial submission, Approve changes the mission to Approved and Reject changes it to Rejected. For an update, Approve atomically applies the proposed content to the same mission ID and sets Approved; Reject changes only the request to Rejected and preserves current content and mission status. Record reviewer, time, reason and reviewed payload/evidence identity; notify the Operator in-app. | FR-09.2 — Validation / Alternative flow | Require a nonblank rejection reason. The author of a proposed update cannot approve it; another authorized Manager must decide it. Pending requests may be rejected even when validation failed, but approval requires Pass against current restrictions and unchanged proposed content. Stale, superseded, cancelled or already decided requests cannot receive a conflicting decision. Repeated identical decisions are idempotent. Concurrent content/restriction changes force refresh and revalidation. | FR-09.3 — Postcondition | The system shall provide: Immutable decision linked to mission and review request; approve applies proposed content, reject preserves existing content and prior approval. | Business rules | BR-03; BR-05; BR-06 | Traceability | UC-09"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 166,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator (via submission) | SCR-25 / background | Trigger | Submission or an authorized revalidation request. | Preconditions | The mission route and active configured restrictions are available for validation. | Input / Data | Current mission route or proposed update payload and current configured restrictions. | FR-11.1 — Normal flow | Validate all waypoints and their connecting straight segments against active operational boundaries, No-Fly Zones, restricted polygons and altitude limits. Use WGS84 latitude/longitude in decimal degrees and metres above mean sea level (MSL) for planned altitude. A route touching or crossing a prohibited polygon boundary is a violation; an operational-area boundary is included. Persist Pass/Fail/Incomplete/Error, affected waypoint/segment, rule, restriction revision and checked payload identity. | FR-11.2 — Validation / Alternative flow | Latitude shall be within [-90, 90] and longitude within [-180, 180]. Require at least two waypoints and unique contiguous sequence numbers. Polygon rings must be closed, non-self-intersecting and contain at least three distinct vertices. Altitude limits are inclusive; no-flight restrictions override allowed areas. AGL-only restrictions require an available terrain/reference conversion to MSL; missing conversion or restriction data produces Incomplete. Empty configured prohibited-zone results are distinct from an unavailable restriction service. | FR-11.3 — Postcondition | The system shall provide: Mission/update-request-linked validation result and map evidence. | Business rules | BR-03; BR-04 | Traceability | UC-11"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 171,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | UAV/Autopilot or Simulator | Non-screen | Trigger | Configured source sends MAVLink data to the integration gateway. | Preconditions | A configured telemetry source identifies the UAV and supplies a timestamped sample. | Input / Data | Source identity, message timestamp and supported location/altitude/speed/battery/state fields. | FR-13.1 — Normal flow | The system shall support the following behavior: Accept a configured source; normalize units/fields; persist timestamps and validity; associate data with the correct UAV and, when known, flight; update latest valid state and publish an update. | FR-13.2 — Validation / Alternative flow | Reject malformed packets and unknown source/UAV mappings; retain diagnostics without treating missing values as zero. Deduplicate using source identity, boot/session identity, message type and source sequence/time. Exact replay creates no second persisted event. Out-of-order samples may be retained as historical evidence but cannot replace newer live state or create retrospective live alerts. A configured UAV may map to at most one active flight; ambiguous data remains unassociated and cannot advance a mission state. | FR-13.3 — Postcondition | The system shall provide: Stored telemetry and updated UAV/mission projection without flight-control commands. | Business rules | BR-07; BR-08 | Traceability | UC-13"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 180,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | UAV/Simulator (data source); Operator; Manager | SCR-14 / SCR-15 / SCR-26 / background | Trigger | Accepted telemetry or connectivity-check timer. | Preconditions | A configured source/UAV mapping and enabled detection rules exist. Background evaluation uses an authorized integration identity and does not require a human session. | Input / Data | Telemetry, last-seen time and configured abnormal-event rules. | FR-15.1 — Normal flow | The system shall support the following behavior: Evaluate communication loss, low battery and abnormal altitude/speed; create an incident linked to UAV/mission and evidence; persist it and deliver an in-app alert to permitted users. Run communication-loss checks even with no new packet. | FR-15.2 — Validation / Alternative flow | Missing measurements disable only the affected rule and expose Unavailable. Deduplicate incidents by UAV, rule and abnormal episode, including concurrent timer/packet evaluation. A delivery failure retains the incident and unread in-app alert for subsequent retrieval. Recovery follows BR-15; acknowledgement or resolution cannot manufacture a recovery sample. | FR-15.3 — Postcondition | The system shall provide: Persisted incident and available in-app alert; no autonomous control action. | Business rules | BR-08; BR-09 | Traceability | UC-15"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 203,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager | SCR-19 | Trigger | New / Detail / Edit Mission or Live Monitoring > AI Risk Assessment > Generate. | Preconditions | The user is authenticated and has permission to access the selected mission or record. | Input / Data | Selected current mission or proposed update payload, validation results and available telemetry/incidents. | FR-19.1 — Normal flow | Authorize the mission or pending proposal, capture its context and validation/telemetry availability, and retrieve up to five similar completed flights using normalized route, duration, altitude, vehicle and incident features. Retain source record identifiers and similarity scores. A configured OpenAI or Gemini adapter may summarize the retrieved evidence into mission summary, potential risks and precautions; preserve source links and distinguish observed historical evidence from generated advice. | FR-19.2 — Validation / Alternative flow | Missing essential plan data blocks assessment. No historical matches produces an explicit No historical evidence result, not a zero-risk conclusion. Timeout, rate limiting or invalid provider output shows MSG-11 while preserving retrieved evidence and manual review. Never present generated or fabricated missions as historical evidence. Credentials remain server-side. | FR-19.3 — Postcondition | The system shall provide: Available assessment or explicit failed status; no change to mission approval. | Business rules | BR-11; BR-12 | Traceability | UC-19"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 216,
+    "kind": "tbl",
+    "text": "Specification | Details | Actors / Interface | Operator; Manager | SCR-05 | Trigger | Operational Dashboard > authorized history and summary links. | Preconditions | The user is authenticated and has permission to access the selected mission or record. | Input / Data | Permitted date range, UAV/mission filters and recorded histories/incidents. | FR-22.1 — Normal flow | Show completion rate, flight duration, recorded distance, incident counts by type/severity and trends within the authorized date/UAV scope. Calculate completion rate as Completed flights divided by all started flights in the selected start-time window, with an empty denominator shown as Unavailable. Duration uses trusted flight start/end timestamps. Recorded distance sums consecutive valid GPS positions and excludes gaps longer than the communication-loss threshold, reporting excluded coverage. Counts use distinct incident IDs, not status events. Display units, window and source links. | FR-22.2 — Validation / Alternative flow | Invalid date ranges shall be rejected. Missing data shall be displayed as unavailable and shall not be interpreted as zero risk. | FR-22.3 — Postcondition | The system shall provide: Explainable aggregate view backed by recorded data. | Business rules | BR-01; BR-10 | Traceability | UC-22"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 237,
+    "kind": "tbl",
+    "text": "ID | Requirement | Verification | NFR-C01 | The Web application shall support Chrome and Edge at desktop viewport widths of 1280 and 1440 pixels. | Record exact tested versions at release; responsive screen review. | NFR-C02 | The system shall support scheduled backups and restoration of persisted records and linked private media according to NFR-C03. | Backup/restore rehearsal. | NFR-C03 | Daily backups shall cover mission, review, account/license metadata, telemetry and incident records. Recovery point objective is 24 hours and recovery time objective is 4 hours for the reference deployment. Storage-object recovery shall be included in the rehearsal. | Restore a backup and linked media in an isolated environment; measure data gap and elapsed time."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 240,
+    "kind": "tbl",
+    "text": "ID | Rule Definition | BR-01 | Every human request is authenticated and authorized for the action and record scope; external telemetry/AI integrations use configured integration credentials, not human login. | BR-02 | UAVs and pilots must be active and eligible. A pilot license must be approved, unrevoked and valid through the scheduled flight end. Deactivation preserves history and is blocked for an active flight. Assignment conflicts follow BR-14. | BR-03 | Approval applies only to the reviewed mission or proposed update after mandatory spatial checks pass with current evidence. Applying a proposal updates the same mission atomically. Incomplete/error/stale validation cannot authorize approval. | BR-04 | Both waypoints and connecting route segments shall be validated against active restrictions using their configured coordinate units, altitude reference and boundary rules. | BR-05 | Initial mission submission and every later pre-flight edit require Manager review. Initial Draft creation is not submission. No application action issues low-level flight-control commands. Lifecycle rules follow BR-13. | BR-06 | Mission changes, validation runs and decisions link to mission ID and update request ID. Every accepted edit requires Manager review. Approved current content and status remain unchanged until a proposal is approved; rejected proposals never overwrite them. Earlier evidence cannot authorize changed content. | BR-07 | Telemetry and displayed summaries retain source/received timestamps and missing-data indicators. Unknown or stale measurements must not appear as fresh valid data. | BR-08 | Communication loss shall be evaluated by an independent timer as well as on packet arrival. Timeout and recovery conditions shall be configurable. | BR-09 | Incidents shall retain type, time, UAV/mission association and frozen event evidence. Acknowledgement and resolution shall record actor, timestamp and reason without rewriting source telemetry. | BR-10 | Post-flight reports and analytics shall use stored mission, telemetry and incident evidence and show missing data and coverage explicitly. Calculated metrics shall retain their units and covered time window. | BR-11 | AI output provides mission summaries, risk observations and precautions for human review. It does not approve/reject a mission or command a UAV. API failure must not block manual review. | BR-12 | Record actor/integration identity, action, target and timestamp for material changes; protect credentials and restrict source context sent to AI to permitted mission data. | BR-13 | Mission lifecycle: Draft -> Pending Review -> Approved or Rejected. Draft/Rejected may be initially submitted; each accepted edit to a non-executing mission creates a pending update without changing current content/status. Update approval applies content and sets Approved; update rejection preserves current content/status. A newer accepted proposal supersedes the previous pending review. Draft/Pending Review/Rejected/Approved may be cancelled; executing or terminal missions cannot be edited. Flight start requires Approved, fresh validation, eligible assignments and no pending update. A trusted start event creates one flight and moves the mission to In Progress; a trusted completion event moves it to Completed. Reflight requires a new mission. | BR-14 | Schedules use UTC instants and display the user time zone. End must exceed start. Approved missions reserve UAV/pilot intervals [start,end); adjacent intervals do not conflict. Pending submissions/proposals are checked again atomically at approval and flight start. A proposal cannot reserve over another approved booking; its existing approved reservation is replaced only on approval. | BR-15 | Default detector settings: communication loss after 10 seconds without a valid mapped sample, checked at least once per second; recovery requires two consecutive valid samples. Battery below 20% for two consecutive samples is Warning; recovery requires two samples at or above 25%. Altitude outside the approved/configured MSL range and speed above the configured UAV maximum for two consecutive samples are Critical; recovery requires two samples within limits. Communication loss is Critical. Missing thresholds or altitude conversion disable the affected rule with visible diagnostics. Manager-configured changes are audited; severity escalations update the same incident with retained evidence. | BR-16 | The author cannot approve their own proposed mission update or license-change request. Another authorized Manager must review it. No mission may start with a pending proposal; no flight-control action is issued to enforce this planning decision. | BR-17 | Keep current account email and approved license until replacement verification/review succeeds. A rejected or cancelled license request does not modify current credentials. Expiry of the current license still affects eligibility while a replacement is pending. | BR-18 | Historical similarity retrieval uses up to five completed flights in the authorized data scope. Normalize numeric features with a recorded feature schema and score method; display fewer than five when fewer eligible records exist. Store feature/index configuration and evidence IDs with each assessment. AI provider output cannot change approval or detector thresholds."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 242,
+    "kind": "tbl",
+    "text": "ID | Requirement | CR-01 | Enforce authentication/action/record authorization at the backend; session expiry returns the user to sign-in without treating an unsaved change as persisted. | CR-02 | Validate required fields, ranges and unique identifiers on the server and provide field-level feedback. Do not rely solely on client validation. | CR-03 | Persist timestamps in UTC and display them with an explicit user-zone label; default display zone is Asia/Ho_Chi_Minh. Display metres MSL for planned altitude, m/s for speed, metres/kilometres for distance and percent for battery. Preserve incoming altitude reference; unavailable conversion is explicit. | CR-04 | Search/filter/pagination must preserve permitted scope and show explicit loading, empty, error and stale states; default page size is a UI decision. | CR-05 | Prevent silent concurrent overwrite using request identity, a current-payload fingerprint and an atomic pending-request pointer, without mission versioning. Only the current pending request may be decided. A stale form returns a conflict; retry of the same operation does not duplicate a review, decision, flight, alert or incident. Preserve the approved execution snapshot independently of later source changes. | CR-06 | Confirm destructive/deactivation/cancellation actions; preserve history required by references and retention policy. No user-facing Cancel action issues a UAV stop command. | CR-07 | Changes and material automated outcomes retain actor/source, target, time and result evidence; do not expose credentials in errors or audit output. | CR-08 | Use consistent English application messages; escape substituted values before display. Show field-level failures and prominent success/error feedback with keyboard-accessible status text. Changing presentation language does not alter persisted evidence."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 244,
+    "kind": "tbl",
+    "text": "Code | Type | Context | Content | MSG-01 | Inline | Required/invalid field | Enter a valid {field}. | MSG-02 | Inline | Invalid login | Unable to sign in. Check your credentials. | MSG-03 | Page / toast | Access denied | You do not have permission to perform this action. | MSG-04 | Toast | Save succeeds | Changes saved successfully. | MSG-05 | Dialog | Concurrent update | This record has changed. Reload before saving. | MSG-06 | Banner | Mandatory validation failure | Mission validation failed. Review the highlighted violations. | MSG-07 | Banner | Validation incomplete | Validation is unavailable or incomplete. Approval is blocked. | MSG-08 | Toast | Submitted | Mission submitted for review. | MSG-09 | Banner | Stale telemetry | Telemetry is stale. Last update: {timestamp}. | MSG-10 | In-app alert | Incident raised | {incidentType} detected for {uavName}. Open incident details. | MSG-11 | Banner | AI unavailable | AI assessment is unavailable. Retry later or continue manual review. | MSG-12 | Banner | Outdated assessment | Mission data has changed since this assessment. Generate a new assessment. | MSG-13 | Empty state | No matching data | No matching records found. | MSG-14 | Report status | Generation failed | The report could not be generated. Flight data is preserved. | MSG-15 | Confirmation | Cancel plan | Cancel this mission plan? This does not stop or control a UAV. | MSG-16 | Inline | Rejection reason absent | Enter a reason for rejecting this mission. | MSG-17 | Banner | Map unavailable | The map is unavailable. Review the listed coordinates and validation results. | MSG-18 | Banner | Session expired | Your session has expired. Sign in again. | MSG-19 | Inline / banner | Email already registered | This email is already registered. Enter another email. | MSG-20 | Success banner | Verification sent | A verification code was sent to {email}. Check your inbox. | MSG-21 | Inline | Invalid or expired code | The verification code is invalid or expired. Request a new code. | MSG-22 | Success banner | Email changed | Your email has been changed. Sign in again. | MSG-23 | Banner | License request submitted | Your license change is awaiting review. Your current license remains unchanged. | MSG-24 | Banner | License decision | Your license change was {decision}. {reason} | MSG-25 | Banner | Pending mission update | An update is awaiting review. This mission cannot start until review is complete. | MSG-26 | Banner | No historical evidence | No similar historical flights are available. Continue manual review. | MSG-27 | Inline | Verification rate limit | Please wait {seconds} seconds before requesting another code."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 249,
+    "kind": "p",
+    "text": "Mission: the current planning record with one stable ID. Mission update request: a separately stored proposed change requiring review, not an executable mission or mission version. Flight: the immutable execution record created from an approved mission at start."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 261,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 264,
+    "kind": "p",
+    "text": "Actor: mission owner; reviewer: authorized Manager. Saving a changed automatic-flight option creates reviewed proposed content. Acceptance: the option defaults off, unapproved changes do not replace approved content, and readiness is unavailable for a non-opted-in or non-approved mission."
+  },
+  {
+    "file": "Report3_Software_Requirement_Specification_revised.docx",
+    "i": 266,
+    "kind": "p",
+    "text": "Actor: authenticated mission owner with uav_operator role. Acceptance: only T-5 minutes <= backend now < start permits confirmation; another owner cannot access the mission; missing/stale presence, heartbeat, telemetry or preflight blocks readiness. Success stores the current plan hash and connection, without sending aircraft commands."
+  }
+]

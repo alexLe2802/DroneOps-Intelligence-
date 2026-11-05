@@ -1,5 +1,7 @@
 "use client";
 
+import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
+
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,7 +12,7 @@ import { ModuleError, ModuleLoading } from "../../module-state";
 import FlightPathMap from "./flight-path-map";
 import styles from "../flight-history.module.css";
 
-const dateTime = (value: string | null) => value ? new Date(value).toLocaleString("en-GB") : "Not available";
+const dateTime = (value: string | null) => value ? formatVietnamDateTime(value) : "Not available";
 const metric = (value: number | null, unit: string, digits = 1) => value == null ? "N/A" : `${value.toFixed(digits)} ${unit}`;
 const duration = (minutes: number) => minutes >= 60 ? `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m` : `${Math.round(minutes)}m`;
 const label = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2");

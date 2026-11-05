@@ -8,12 +8,23 @@ Router tùy chọn gửi MAVLink đến QGroundControl laptop. Profile radio kh�
 chạy gateway trực tiếp trên laptop qua serial của ground radio hoặc UDP forwarding.
 Không cần camera. Xem phần profile radio trong hướng dẫn chung.
 
+- Jetson: chạy lệnh setup từ web một lần; systemd tự nối khi bật nguồn.
+- Radio + laptop: Windows mở `connect-drone.cmd`; macOS/Linux chạy
+  `bash connect-drone.sh`. Launcher dò USB/baud/ArduPilot hoặc PX4 và dùng domain
+  backend cố định. Giữ cửa sổ mở trong lúc nhận telemetry.
+- UID lấy từ flight controller, không lấy từ Jetson hoặc radio.
+- Gateway mặc định chỉ truyền telemetry. Có executor thử nghiệm bị khóa cho
+  upload/read-back và ARM/DISARM/mission start; chưa bật trên Jetson/production.
+  Chưa được dùng hai cờ opt-in để bay thật trước khi hoàn thành các gate trong
+  [Đề xuất bay tự động](../docs/automatic-flight-operations.md).
+
 ## Cài lần đầu trên Jetson: làm theo thứ tự
 
 Lệnh pairing không phải lệnh cài đặt. Trước khi chạy nó, phải nối phần cứng,
 xác nhận serial path rồi cài gateway. Các lệnh dưới đây chạy trên Jetson/SSH vào
 Jetson, không chạy trong PowerShell laptop.
 
+Khi chạy backend thử nghiệm trên LAN, `0.0.0.0` cho phép lắng nghe trên các interface mạng ở port 5159. Firewall vẫn cần cho phép kết nối đến port này:
 dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --urls http://0.0.0.0:5159 --environment Development
 
 ### 1. Nối Pixhawk với Jetson
@@ -97,62 +108,10 @@ Nếu file không tồn tại, bước cài đặt chưa hoàn tất; chạy l�
 
 Trong cùng phiên còn hợp lệ, chỉ cần bật nguồn Pixhawk/Jetson và mạng đã lưu có
 đường đến backend. Service tự chạy và nối lại khi mất mạng, không cần giữ SSH.
-Phiên hết hạn 12 giờ, revoke hoặc đổi mission cần mã mới và chạy lại bước 4.
-Không tự pair chỉ nhờ có Internet.
-
-#### Backend trên laptop và kết nối ở LAN khác
-
-Mỗi lần sử dụng, backend trên laptop phải đang chạy. Từ thư mục gốc repo trên
-laptop, chạy lệnh sau (giữ terminal mở):
-
-```powershell
-dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --urls http://0.0.0.0:5159 --environment Development
-```
-
-`0.0.0.0` là địa chỉ **lắng nghe** để backend nhận kết nối LAN; không phải IP cần
-đặt cho laptop hoặc nhập vào Jetson. `localhost` chỉ cho truy cập từ chính laptop.
-Jetson dùng IP LAN thật của laptop để gọi backend.
-
-Nếu vẫn cùng LAN/IP và phiên còn hợp lệ, không cần sửa cấu hình hoặc pair lại.
-Khi chuyển sang LAN khác (ví dụ đến lab), không cần chạy lại installer:
-
-1. Kết nối laptop và Jetson vào mạng mới, bật tự kết nối cho Wi-Fi Jetson.
-2. Chạy `ipconfig` trên laptop, lấy IPv4 của card đang nối LAN lab.
-3. Trên Jetson chạy `sudo nano /etc/droneops-gateway.env`, đổi backend origin.
-   Ví dụ nếu laptop là `192.168.10.20`:
-
-   ```ini
-   DRONEOPS_SERVER=http://192.168.10.20:5159
-   DRONEOPS_TRANSPORT_FLAG=--allow-insecure-websocket
-   ```
-
-   HTTP chỉ dùng cho LAN dev tin cậy. Giữ port 5159 nếu backend vẫn chạy port đó.
-   Không nhập `0.0.0.0`, `localhost` hoặc IP Jetson vào backend origin.
-4. Nếu dùng QGroundControl hoặc Mission Planner, chạy
-   `sudo nano /etc/droneops-router/main.conf`. Đổi `Address` trong hai endpoint
-   `[UdpEndpoint qgroundcontrol]` và `[UdpEndpoint missionplanner]` thành IP
-   laptop mới, giữ lần lượt port `14550` và `14551`, rồi chạy
-   `sudo systemctl restart droneops-router`. Không đổi endpoint gateway nội bộ
-   `127.0.0.1:14551`. Nếu không dùng GCS thì bỏ bước này.
-5. Kiểm tra từ Jetson bằng IP laptop mới:
-
-   ```bash
-   curl --connect-timeout 5 -i http://192.168.10.20:5159/ws/drone-gateway
-   ```
-
-   HTTP 426 với `Use the WebSocket protocol` xác nhận đã tới endpoint. Nếu timeout,
-   kiểm tra backend đang chạy, Windows Firewall và mạng lab có chặn client-to-client
-   không. Không cần tắt toàn bộ firewall.
-6. Vì backend origin đã đổi, tạo mã mới trên web và chạy lại helper pairing ở bước 4.
-   Helper đọc cấu hình mới và khởi động gateway. Nếu chỉ IP Jetson đổi còn backend
-   origin giữ nguyên, không cần pair lại chỉ vì đổi IP Jetson.
-
-Tóm tắt: backend **nghe** `0.0.0.0:5159`; Jetson **gọi** `http://IP_LAPTOP:5159`;
-Laptop IPv4 cho GCS là `IP_LAPTOP` không kèm scheme/port. Với backend cloud có domain
-HTTPS cố định, đổi LAN thường chỉ cần Jetson có Internet; endpoint GCS LAN vẫn cập
-nhật riêng nếu dùng. Không để cờ insecure khi chuyển sang cấu hình HTTPS production.
-
-#### Kiểm tra service
+Credential trusted gateway có hiệu lực đến khi bị thu hồi; mission lease có thời
+hạn 12 giờ. Chọn connection/mission hợp lệ trên web để gateway nhận lease tương ứng.
+Thu hồi đăng ký hoặc thay gateway yêu cầu ghép lại; Internet không tự cấp quyền.
+Kiểm tra:
 
 ```bash
 systemctl is-active droneops-router droneops-gateway
@@ -161,7 +120,11 @@ journalctl -u droneops-gateway -n 30 --no-pager
 ```
 
 Không chạy gateway và GCS trực tiếp trên cùng serial: router giữ serial và chia
-UDP cho từng chương trình. Gateway chỉ telemetry, không arm/cất cánh/upload mission.
+UDP cho từng chương trình. Telemetry và lệnh thực thi là hai hợp đồng riêng.
+Theo đặc tả cuối, gateway biên dịch/upload/read-back mission đã duyệt, kiểm tra
+envelope theo lịch và thực thi qua profile ArduPilot Copter/PX4 multicopter khi
+toàn bộ điều kiện hợp lệ. Consent không tự cất cánh; trạng thái bay được xác nhận
+bằng telemetry thực. Xem [Vận hành bay tự động](../docs/automatic-flight-operations.md).
 
 ## Nếu không có Jetson
 
@@ -181,16 +144,12 @@ dotnet run --project be/DroneOps/DroneOps.TelemetryChecks -- --gateway /absolute
 Đặt DRONEOPS_GATEWAY_PYTHON trỏ đến Python có dependencies cho loopback gateway.
 PTY chỉ chạy POSIX; loopback không chứng minh phần cứng thật. Không commit token.
 
-# Detailed battery telemetry
+## Audit firmware chỉ đọc
 
-Power & Cells uses primary `BATTERY_STATUS` battery ID 0, with `SYS_STATUS`
-as a fallback for percentage, pack voltage and current. Supported measurements
-include pack voltage (V), current (A), battery temperature (°C), consumed charge
-(mAh), and individual cell voltages when supplied by the flight controller.
-Whole-pack voltage is not presented as an individual cell. Missing MAVLink
-measurements remain unavailable, and readings expire after five seconds.
+`python fc_audit.py --device udpin:127.0.0.1:14552 --duration 30`
 
-Before deploying this gateway version, apply
-`database/migrations/010_battery_telemetry.sql` to the backend database (or run
-the API with `--migrate-telemetry`) and restart the backend. Update the installed
-gateway using the newly packaged web download and restart its service.
+Dùng endpoint router riêng đã cấu hình cho audit (14552 chỉ là ví dụ), không
+tranh cổng 14551 với gateway đang chạy hoặc mở trực tiếp USB đang do router giữ.
+Công cụ chỉ yêu cầu đọc message/parameter, báo thiếu tham số theo firmware và
+không cấp quyền bay. Không phát heartbeat GCS, không ghi tham số hoặc lệnh bay.
+Xem [kết quả Pixhawk 6C / ArduCopter 4.7.1](../docs/fc-commissioning-2026-11-05.vi.md).

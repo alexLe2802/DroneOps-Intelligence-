@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     ".hallmark/**",
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".cloudflare/**",
+    ".vinext/**",
+    "dist/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

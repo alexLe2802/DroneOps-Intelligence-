@@ -16,6 +16,11 @@ public sealed class AiAssessmentResponse
 
 public sealed class AiAssessmentResultResponse
 {
+    public DroneOps.Domain.Entities.AutomaticFlightLimits? AutomaticFlightLimits { get; set; }
+    public decimal? CruiseSpeedMetersPerSecond { get; set; }
+    public decimal? MaxSpeedMetersPerSecond { get; set; }
+    public DroneOps.Application.Services.Missions.AutomaticRecoveryContract? RecoveryPolicy { get; set; }
+    public BatteryAssessmentResponse? Battery { get; set; }
     public string Summary { get; set; } = string.Empty;
     public List<AiRiskResponse> Risks { get; set; } = [];
     public List<string> Precautions { get; set; } = [];

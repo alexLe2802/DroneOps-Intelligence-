@@ -1,7 +1,8 @@
-﻿namespace DroneOps.Application.DTOs.Response.UAVs;
+namespace DroneOps.Application.DTOs.Response.UAVs;
 
 public sealed class UavResponse
 {
+    public DroneOps.Domain.Entities.FirmwareParameterSnapshot? FirmwareNavigationDefaults { get; set; }
     public Guid Id { get; set; }
 
     public Guid PilotId { get; set; }
@@ -33,7 +34,8 @@ public sealed class UavResponse
 
     public int? BatteryCapacityMah { get; set; }
 
-    public decimal? BatteryVoltage { get; set; }
+    public decimal? BatteryVoltage { get; set; } // Legacy nominal voltage; never reinterpret as full-charge voltage.
+    public decimal? BatteryMaxVoltage { get; set; }
 
     public int? BatteryCellCount { get; set; }
 

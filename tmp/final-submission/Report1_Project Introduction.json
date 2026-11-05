@@ -1,0 +1,767 @@
+[
+  {
+    "i": 0,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 1,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 2,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 3,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 4,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 5,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 6,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 7,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 8,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 9,
+    "kind": "p",
+    "text": "CAPSTONE PROJECT REPORT"
+  },
+  {
+    "i": 10,
+    "kind": "p",
+    "text": "Report 1 – Project Introduction"
+  },
+  {
+    "i": 11,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 12,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 13,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 14,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 15,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 16,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 17,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 18,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 19,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 20,
+    "kind": "p",
+    "text": "– Ho Chi Minh, September 2026 –"
+  },
+  {
+    "i": 21,
+    "kind": "p",
+    "text": "Table of Contents"
+  },
+  {
+    "i": 22,
+    "kind": "sdt",
+    "text": "I. Record of Changes3 | II. Project Introduction4 | 1. Overview4 | 1.1 Project Information4 | 1.2 Project Team4 | 2. Product Background4 | 3. Existing Systems5 | 3.1 QgroundControl5 | 3.2 Mission Planner6 | 4. Business Opportunity6 | 5. Software Product Vision7 | 6. Project Scope & Limitations7 | 6.1 Major Features7 | FE-01: UAV and Operator Management7 | FE-02: Mission Planning and Management7 | FE-03: Mission Approval Workflow7 | FE-04: Geofence and Flight Path Validation7 | FE-05: MAVLink Telemetry Integration8 | FE-06: Real-Time Mission Monitoring8 | FE-07: Operational Alert and Incident Detection8 | FE-08: Incident Management and Post-Flight Analysis8 | FE-09: AI-Assisted Mission Decision Support8 | FE-10: Mission and Operational Dashboard8 | 6.2 Limitations & Exclusions14 | LI-01: No Low-Level Flight Control Development:14 | LI-02: Dependence on MAVLink-Compatible Data Sources:14 | LI-03: AI Provides Decision Support Only:14 | LI-04: AI Performance Depends on Historical Data:14 | LI-05: Configured Operational Restrictions:14 | LI-06: No Replacement for Ground Control or Autopilot Systems:14 | 7. Target Users14 | "
+  },
+  {
+    "i": 23,
+    "kind": "p",
+    "text": "   "
+  },
+  {
+    "i": 24,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 25,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 26,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 27,
+    "kind": "p",
+    "text": "I. Record of Changes"
+  },
+  {
+    "i": 28,
+    "kind": "tbl",
+    "text": "Date | A*M, D | In charge | Change Description | 07/09/26 | A | ThongLQ | Added project information and team information. | 07/09/26 | A | NghiaHQ | Added product background, existing system relation, business opportunity. | 08/09/26 | A | KhanhGNG | Added 3 diagrams FE-02, FE-03, FE-04, | 08/09/26 | A | DucDDA | Added 3 diagrams FE-05, FE-06, FE-10 | 08/09/26 | A | ThongLQ | Added diagram FE-01 | 09/09/26 | A | NghiaHQ | Added 3 diagrams FE-07, FE-08, FE-09 | 09/09/26 | A | ThongLQ | Added limitations & exclusions | 09/09/26 | A | DucDDA | Added Targeted user & Technology stacks | 10/09/26 | M | ThongLQ | Deleted Technology Stack as this part will be reported in Report 2 & Modified Table of Contents | 12/09/26 | M | ThongLQ | Adjust content due to changes in mainflows. | 16/09/26 | M | Project team | Recorded confirmed mainflow ownership: NghiaHQ MF1, KhanhGNG MF2, DucDDA MF3, ThongLQ MF4; aligned remaining AI descriptions with the existing external API feature. |  |  |  |  |  |  |  | "
+  },
+  {
+    "i": 29,
+    "kind": "p",
+    "text": "*A - Added M - Modified D - Deleted"
+  },
+  {
+    "i": 30,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 31,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 32,
+    "kind": "p",
+    "text": "II. Project Introduction"
+  },
+  {
+    "i": 33,
+    "kind": "p",
+    "text": "1. Overview"
+  },
+  {
+    "i": 34,
+    "kind": "p",
+    "text": "1.1 Project Information"
+  },
+  {
+    "i": 35,
+    "kind": "p",
+    "text": "Project name: DroneOps Intelligence"
+  },
+  {
+    "i": 36,
+    "kind": "p",
+    "text": "Project code: FA26SE238"
+  },
+  {
+    "i": 37,
+    "kind": "p",
+    "text": "Group name: GFA26SE167"
+  },
+  {
+    "i": 38,
+    "kind": "p",
+    "text": "Software type: Web, Mobile App"
+  },
+  {
+    "i": 39,
+    "kind": "p",
+    "text": "1.2 Project Team"
+  },
+  {
+    "i": 40,
+    "kind": "tbl",
+    "text": "Full Name | Role | Email |   Mobile | Pham Minh Tri | Lecturer | Tripm14@fe.edu.vn |   | Dang Ngoc Minh Duc | Lecturer | Ducdnm2@fe.edu.vn |  | Le Quoc Thong | Leader; MF2 | Impro2003@gmail.com | 0898243340 | Ha Quang Nghia | Member; MF1 | nghiahqse184490@fpt.edu.vn | 0978874316 | Giang Nguyen Gia Khanh | Member; MF4 | khanhgngse182367@fpt.edu.vn | 0889779093 | Dang Dao Anh Duc | Member; MF3 | danganhduc848@gmail.com | 0376793318"
+  },
+  {
+    "i": 41,
+    "kind": "p",
+    "text": "Confirmed mainflow allocation: MF1 — Mission Planning & Pre-flight Validation: Ha Quang Nghia; MF2 — Real-Time Monitoring & Incident Management: Le Quoc Thong; MF3 — Post-Flight Analysis & Mission History: Dang Dao Anh Duc; MF4 — AI-Assisted Mission Risk Assessment: Giang Nguyen Gia Khanh."
+  },
+  {
+    "i": 42,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 43,
+    "kind": "p",
+    "text": "2. Product Background"
+  },
+  {
+    "i": 44,
+    "kind": "p",
+    "text": "Unmanned Aerial Vehicles (UAVs) are increasingly used in operations that require structured mission planning, flight monitoring, and post-flight analysis. A typical UAV mission involves multiple stages, including defining flight routes and waypoints, performing pre-flight safety checks, monitoring telemetry during flight, and reviewing incidents after the mission. However, in many small-scale or experimental UAV operations, these activities are handled separately through flight-control software, mapping tools, spreadsheets, and manually reviewed flight logs. This fragmented approach makes it difficult to maintain consistent mission records, monitor operational conditions, and analyze previous missions effectively.Before a UAV mission is executed, its planned route must also comply with operational constraints such as geofences, No-Fly Zones, restricted areas, and altitude limits. Manually checking waypoints and flight-path segments against these constraints can become inefficient and difficult to manage as the number and complexity of missions increase. During flight, operators additionally need to monitor information such as UAV location, altitude, speed, battery level, connectivity, and mission progress. Abnormal conditions such as communication loss, low battery, or unusual altitude and speed may need to be detected and recorded for later investigation.Historical mission and incident data can also provide useful information for evaluating new UAV missions. However, when mission records and flight logs are stored separately or reviewed manually, it is difficult for operators to identify previous missions with similar characteristics and use their incident histories as evidence when assessing potential operational risks."
+  },
+  {
+    "i": 45,
+    "kind": "p",
+    "text": "To address these problems, DroneOps Intelligence is proposed as an integrated software platform for UAV mission planning, monitoring, and incident analytics. The platform focuses on the software layer surrounding UAV operations rather than the development of low-level flight-control algorithms. It provides centralized management of UAVs, operators, missions, waypoints, reviewed mission updates, and flight histories.\nThe platform supports pre-flight Geofencing and Flight Path Validation to automatically check planned routes against configured No-Fly Zones, restricted areas, and altitude constraints before a mission is approved. During mission execution, standardized UAV telemetry based on MAVLink is delivered to platform services through technologies such as WebSocket or MQTT, allowing operators to monitor the UAV and mission status in real time and detect abnormal operational events.\nIn addition, DroneOps Intelligence integrates a configured external AI API to summarize supplied mission context, identify potential risks and suggest precautions. Operators and managers review the advice alongside the source mission data; API failures do not block manual review. Therefore, DroneOps Intelligence aims to provide a unified operational environment covering the UAV mission lifecycle from mission planning → pre-flight validation → approval → real-time monitoring → incident detection → post-flight analysis → AI-assisted decision support. By integrating these activities into a single platform, the project aims to improve mission traceability, operational safety, monitoring efficiency, and the effective use of historical UAV mission data."
+  },
+  {
+    "i": 46,
+    "kind": "p",
+    "text": "3. Existing SystemsSeveral existing Ground Control Station (GCS) platforms provide useful references for UAV mission planning, flight monitoring, geofencing, and telemetry processing. However, DroneOps Intelligence focuses more on centralized mission management, incident analytics, and AI-assisted mission assessment through an external AI API."
+  },
+  {
+    "i": 47,
+    "kind": "p",
+    "text": "3.1 QgroundControlQGroundControl is an open-source Ground Control Station that supports UAVs using the MAVLink protocol, including PX4 and ArduPilot-based vehicles. It provides mission planning, waypoint management, real-time flight monitoring, vehicle configuration, geofencing, and multi-vehicle support.Main actors: UAV pilots, operators, and developers."
+  },
+  {
+    "i": 48,
+    "kind": "p",
+    "text": "Main features:"
+  },
+  {
+    "i": 49,
+    "kind": "p",
+    "text": "Mission and waypoint planning."
+  },
+  {
+    "i": 50,
+    "kind": "p",
+    "text": "MAVLink-based UAV communication."
+  },
+  {
+    "i": 51,
+    "kind": "p",
+    "text": "Real-time vehicle monitoring."
+  },
+  {
+    "i": 52,
+    "kind": "p",
+    "text": "Circular and polygonal geofence configuration."
+  },
+  {
+    "i": 53,
+    "kind": "p",
+    "text": "Flight-path and mission visualization."
+  },
+  {
+    "i": 54,
+    "kind": "p",
+    "text": "Multi-vehicle support."
+  },
+  {
+    "i": 55,
+    "kind": "p",
+    "text": "Advantages: Open-source, cross-platform, widely compatible with MAVLink-based UAVs, and provides comprehensive flight planning and control features."
+  },
+  {
+    "i": 56,
+    "kind": "p",
+    "text": "Limitations in relation to DroneOps Intelligence: QGroundControl mainly focuses on ground control, vehicle configuration, and flight operations. DroneOps Intelligence extends this concept toward centralized mission workflows, historical incident management, mission risk analysis, and AI-assisted mission assessment."
+  },
+  {
+    "i": 57,
+    "kind": "p",
+    "text": "3.2 Mission Planner"
+  },
+  {
+    "i": 58,
+    "kind": "p",
+    "text": "Mission Planner is a Ground Control Station primarily designed for the ArduPilot ecosystem. It allows operators to create autonomous missions using waypoints, configure UAV parameters, create geofences, monitor flight information, and download and analyze flight logs."
+  },
+  {
+    "i": 59,
+    "kind": "p",
+    "text": "Main actors: UAV pilots, operators, developers, and ArduPilot users."
+  },
+  {
+    "i": 60,
+    "kind": "p",
+    "text": "Main features:"
+  },
+  {
+    "i": 61,
+    "kind": "p",
+    "text": "Waypoint-based mission planning."
+  },
+  {
+    "i": 62,
+    "kind": "p",
+    "text": "UAV configuration and tuning."
+  },
+  {
+    "i": 63,
+    "kind": "p",
+    "text": "Geofence and exclusion/inclusion zone configuration."
+  },
+  {
+    "i": 64,
+    "kind": "p",
+    "text": "Real-time telemetry monitoring."
+  },
+  {
+    "i": 65,
+    "kind": "p",
+    "text": "MAVLink telemetry logging."
+  },
+  {
+    "i": 66,
+    "kind": "p",
+    "text": "Flight-log download and analysis. "
+  },
+  {
+    "i": 67,
+    "kind": "p",
+    "text": "UAV simulation support."
+  },
+  {
+    "i": 68,
+    "kind": "p",
+    "text": "Advantages: Provides extensive functionality for ArduPilot vehicles, detailed telemetry and log analysis, mission planning, and UAV configuration."
+  },
+  {
+    "i": 69,
+    "kind": "p",
+    "text": "Limitations in relation to DroneOps Intelligence: Mission Planner is primarily designed as a Ground Control Station and configuration tool. DroneOps Intelligence instead emphasizes centralized mission records and approval workflows, automated incident management, historical mission analytics, and external-API-based AI support for mission risk assessment.\n"
+  },
+  {
+    "i": 70,
+    "kind": "p",
+    "text": "4. Business OpportunityThe growing use of UAVs creates a need for more efficient and centralized mission-operation management. Existing Ground Control Station systems provide strong capabilities for flight planning, vehicle configuration, and real-time monitoring. However, UAV operations also require effective management of mission records, safety validation, incident histories, and historical flight data to support operational decisions.DroneOps Intelligence addresses this opportunity by providing an integrated platform for mission planning, pre-flight validation, real-time monitoring, incident management, and post-flight analysis. The system validates planned routes against geofences, No-Fly Zones, restricted areas, and altitude limits, while using standardized MAVLink telemetry to monitor UAV operations in real time.A key value of the proposed platform is its ability to consolidate mission information and provide AI-assisted operational insights. By integrating an external AI API, the platform can summarize available mission data and suggest potential risks and precautions for operators and managers to review. This supports mission assessment while keeping the project focused on software integration and operational workflows.Rather than replacing existing flight-control or Ground Control Station software, DroneOps Intelligence focuses on the mission-operation and decision-support layer. By integrating mission validation, telemetry monitoring, incident analytics, and AI-assisted mission assessment into one platform, the system has the potential to improve operational safety, traceability, monitoring efficiency, and data-driven decision-making in UAV operations."
+  },
+  {
+    "i": 71,
+    "kind": "p",
+    "text": "This significantly reduces the time and manual effort required for pre-flight safety checks."
+  },
+  {
+    "i": 72,
+    "kind": "p",
+    "text": "5. Software Product Vision"
+  },
+  {
+    "i": 73,
+    "kind": "p",
+    "text": "For UAV operators and operations managers who need a safer and more efficient way to manage UAV missions, DroneOps Intelligence is an integrated web-based platform that supports mission planning, pre-flight validation, real-time telemetry monitoring, incident management, and post-flight analysis."
+  },
+  {
+    "i": 74,
+    "kind": "p",
+    "text": "Unlike systems that primarily focus on flight control and Ground Control Station operations, DroneOps Intelligence focuses on the mission-operation and decision-support layer. The platform validates flight paths against geofences, No-Fly Zones, restricted areas, and altitude limits, while using MAVLink telemetry to monitor mission status and detect operational incidents in real time."
+  },
+  {
+    "i": 75,
+    "kind": "p",
+    "text": "In addition, the platform integrates an external AI API to generate mission summaries, potential risk observations, and suggested precautions from available mission data. These outputs support human review and decision-making. DroneOps Intelligence aims to create a unified and traceable UAV operational environment that improves safety, monitoring efficiency, incident analysis, and data-driven decision-making."
+  },
+  {
+    "i": 76,
+    "kind": "p",
+    "text": "6. Project Scope & Limitations"
+  },
+  {
+    "i": 77,
+    "kind": "p",
+    "text": "DroneOps Intelligence focuses on providing a software platform for managing UAV mission operations, including mission planning, pre-flight validation, real-time monitoring, incident management, and AI-assisted decision support. The system integrates with MAVLink-compatible UAVs or simulators to receive telemetry data but does not develop or replace low-level flight-control or autopilot algorithms."
+  },
+  {
+    "i": 78,
+    "kind": "p",
+    "text": "6.1 Major Features"
+  },
+  {
+    "i": 79,
+    "kind": "p",
+    "text": "FE-01: UAV and Operator Management"
+  },
+  {
+    "i": 80,
+    "kind": "p",
+    "text": "Pilots register UAVs belonging to their own account and submit registration or information changes for Operations Manager review. The Manager approves or rejects the submission, records reviewer/time/reason and manages operational status across the fleet. A pilot cannot approve a UAV or access another pilot’s UAV. UAV mission allocation does not transfer ownership. Manage operational areas, pilot credentials and related mission records."
+  },
+  {
+    "i": 81,
+    "kind": "p",
+    "text": "FE-02: Mission Planning and Management"
+  },
+  {
+    "i": 82,
+    "kind": "p",
+    "text": "Create, view, modify, and manage UAV mission plans, including waypoints, routes, mission versions, and flight histories."
+  },
+  {
+    "i": 83,
+    "kind": "p",
+    "text": "FE-03: Mission Approval Workflow"
+  },
+  {
+    "i": 84,
+    "kind": "p",
+    "text": "Allow operators to submit mission plans for validation and allow operations managers to review, approve, or reject missions according to operational policies."
+  },
+  {
+    "i": 85,
+    "kind": "p",
+    "text": "FE-04: Geofence and Flight Path Validation"
+  },
+  {
+    "i": 86,
+    "kind": "p",
+    "text": "Automatically validate mission waypoints and route segments against configured geofences, No-Fly Zones, restricted areas, and altitude limits. Violating segments are identified and displayed on the map."
+  },
+  {
+    "i": 87,
+    "kind": "p",
+    "text": "FE-05: MAVLink Telemetry Integration"
+  },
+  {
+    "i": 88,
+    "kind": "p",
+    "text": "Receive and normalize standardized MAVLink telemetry through an integration gateway using WebSocket or MQTT and maintain UAV and mission states."
+  },
+  {
+    "i": 89,
+    "kind": "p",
+    "text": "FE-06: Real-Time Mission Monitoring"
+  },
+  {
+    "i": 90,
+    "kind": "p",
+    "text": "Monitor UAV location, altitude, speed, battery level, connectivity, and mission progress in real time."
+  },
+  {
+    "i": 91,
+    "kind": "p",
+    "text": "FE-07: Operational Alert and Incident Detection"
+  },
+  {
+    "i": 92,
+    "kind": "p",
+    "text": "Detect and record predefined abnormal events such as communication loss, low battery, abnormal altitude or speed, and other configurable operational conditions."
+  },
+  {
+    "i": 93,
+    "kind": "p",
+    "text": "FE-08: Incident Management and Post-Flight Analysis"
+  },
+  {
+    "i": 94,
+    "kind": "p",
+    "text": "Maintain mission and incident histories and provide post-flight reports and incident analytics for operators and managers."
+  },
+  {
+    "i": 95,
+    "kind": "p",
+    "text": "FE-09: AI-Assisted Mission Decision Support"
+  },
+  {
+    "i": 96,
+    "kind": "p",
+    "text": "Collect mission information, validation results, and available telemetry and incident data, then call a configured external AI API to obtain a mission summary, potential risk observations, and suggested precautions. Display AI-generated advice alongside the supplied mission context for operators and managers to review. Handle API errors and timeouts without blocking manual mission review."
+  },
+  {
+    "i": 97,
+    "kind": "p",
+    "text": " FE-10: Mission and Operational Dashboard"
+  },
+  {
+    "i": 98,
+    "kind": "p",
+    "text": "Provide dashboards for active mission monitoring, mission histories, incident information, validation results, and operational analytics."
+  },
+  {
+    "i": 99,
+    "kind": "p",
+    "text": "DroneOps Intelligence — FE-01 / FE-02"
+  },
+  {
+    "i": 100,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 101,
+    "kind": "p",
+    "text": "Figure 6.1a. Feature → Actor / Automated Service → Functions"
+  },
+  {
+    "i": 102,
+    "kind": "p",
+    "text": "DroneOps Intelligence — FE-03 / FE-04"
+  },
+  {
+    "i": 103,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 104,
+    "kind": "p",
+    "text": "Figure 6.1b. Feature → Actor / Automated Service → Functions"
+  },
+  {
+    "i": 105,
+    "kind": "p",
+    "text": "DroneOps Intelligence — FE-05 / FE-06"
+  },
+  {
+    "i": 106,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 107,
+    "kind": "p",
+    "text": "Figure 6.1c. Feature → Actor / Automated Service → Functions"
+  },
+  {
+    "i": 108,
+    "kind": "p",
+    "text": "DroneOps Intelligence — FE-07 / FE-08"
+  },
+  {
+    "i": 109,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 110,
+    "kind": "p",
+    "text": "Figure 6.1d. Feature → Actor / Automated Service → Functions"
+  },
+  {
+    "i": 111,
+    "kind": "p",
+    "text": "DroneOps Intelligence — FE-09 / FE-10"
+  },
+  {
+    "i": 112,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 113,
+    "kind": "p",
+    "text": "Figure 6.1e. Prepare mission context → Call external AI API → Handle response/errors → Display AI advice → Human review."
+  },
+  {
+    "i": 114,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 115,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 116,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 117,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 118,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 119,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 120,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 121,
+    "kind": "p",
+    "text": "6.2 Limitations & Exclusions"
+  },
+  {
+    "i": 122,
+    "kind": "p",
+    "text": "LI-01: No Low-Level Flight Control Development:"
+  },
+  {
+    "i": 123,
+    "kind": "p",
+    "text": "DroneOps Intelligence will not develop low-level UAV flight-control, navigation, stabilization, or autopilot algorithms. The project focuses on mission-operation software."
+  },
+  {
+    "i": 124,
+    "kind": "p",
+    "text": "LI-02: Dependence on MAVLink-Compatible Data Sources:"
+  },
+  {
+    "i": 125,
+    "kind": "p",
+    "text": "Real-time UAV monitoring depends on telemetry provided through MAVLink-compatible UAVs, autopilots, or simulators. The system does not directly support proprietary telemetry protocols without an additional adapter."
+  },
+  {
+    "i": 126,
+    "kind": "p",
+    "text": "LI-03: AI Provides Decision Support Only:"
+  },
+  {
+    "i": 127,
+    "kind": "p",
+    "text": "AI-generated summaries and recommendations support operators and managers in reviewing missions. They may be incomplete or inaccurate and must be reviewed against the available mission data. The AI component does not autonomously approve, reject, or control UAV missions."
+  },
+  {
+    "i": 128,
+    "kind": "p",
+    "text": "LI-04: Dependence on External AI Services and Input Data:"
+  },
+  {
+    "i": 129,
+    "kind": "p",
+    "text": "The usefulness of AI-generated advice depends on the availability of the configured external AI service and the completeness and quality of supplied mission data. Limited input data or API failures may reduce the usefulness or availability of the advice; manual review remains available."
+  },
+  {
+    "i": 130,
+    "kind": "p",
+    "text": "LI-05: Configured Operational Restrictions:"
+  },
+  {
+    "i": 131,
+    "kind": "p",
+    "text": "Flight-path validation is based on the geofences, No-Fly Zones, restricted areas, and altitude restrictions configured or imported into the platform. The system cannot guarantee detection of restrictions that are unavailable or have not been provided to the platform."
+  },
+  {
+    "i": 132,
+    "kind": "p",
+    "text": "LI-06: No Replacement for Ground Control or Autopilot Systems:"
+  },
+  {
+    "i": 133,
+    "kind": "p",
+    "text": "DroneOps Intelligence does not autonomously execute UAV flights. Actual flight execution and vehicle control remain the responsibility of compatible UAV autopilot or Ground Control Station systems."
+  },
+  {
+    "i": 134,
+    "kind": "p",
+    "text": "7. Target Users"
+  },
+  {
+    "i": 135,
+    "kind": "p",
+    "text": "Operations Manager: Users who manage overall UAV operations, approve mission plans, configure restrictions (No-Fly Zones), and monitor mission dashboards. They primarily interact with the system via the Web application."
+  },
+  {
+    "i": 136,
+    "kind": "p",
+    "text": "UAV Operator / Pilot: Users who plan flight routes, submit missions for approval, and monitor real-time telemetry and alerts during execution. They can interact with the system via both the Web and Mobile App."
+  },
+  {
+    "i": 137,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 138,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 139,
+    "kind": "p",
+    "text": ""
+  },
+  {
+    "i": 140,
+    "kind": "p",
+    "text": "Review 2 baseline alignment — 19 October 2026"
+  },
+  {
+    "i": 141,
+    "kind": "p",
+    "text": "Mission versioning is replaced in the working design by one current mission and separately reviewed update requests. The supplied registration form remains unchanged. Its similarity-retrieval requirement differs from the external-AI integration described here and requires supervisor confirmation; no scope reduction is assumed."
+  },
+  {
+    "i": 142,
+    "kind": "p",
+    "text": "Automatic flight preparation and workflow ownership"
+  },
+  {
+    "i": 143,
+    "kind": "p",
+    "text": "Current ownership: MF1 / WF-01 — NghiaHQ (Ha Quang Nghia), planning and preflight; MF2 / WF-02 — ThongLQ (Le Quoc Thong), realtime monitoring, incidents and flight preparation; MF3 / WF-03 — DucDDA (Dang Dao Anh Duc), post-flight; MF4 / WF-04 — KhanhGNG (Giang Nguyen Gia Khanh), AI assessment. ThongLQ remains team leader and dossier coordinator."
+  },
+  {
+    "i": 144,
+    "kind": "p",
+    "text": "Implemented scope"
+  },
+  {
+    "i": 145,
+    "kind": "p",
+    "text": "AutomaticFlightRequested is optional and defaults to false. Changes follow the mission proposal and approval workflow. This release prepares readiness; dispatchEnabled is false. Neither confirmation nor gateway enrollment uploads a mission, arms motors, sends TAKEOFF/AUTO/MISSION_START, or changes the mission to InProgress."
+  },
+  {
+    "i": 146,
+    "kind": "p",
+    "text": "Confirmation conditions"
+  },
+  {
+    "i": 147,
+    "kind": "p",
+    "text": "For an approved, opted-in mission with a schedule, the backend opens confirmation at T minus 5 minutes and closes it at the scheduled start. The authenticated operator must keep a visible browser tab online. Presence is sent every 10 seconds and expires after 30 seconds. The selected, unrevoked mission connection must match the active UAV and flight-controller UID, with gateway heartbeat within 30 seconds and telemetry within 15 seconds."
+  },
+  {
+    "i": 148,
+    "kind": "p",
+    "text": "Readiness evidence"
+  },
+  {
+    "i": 149,
+    "kind": "p",
+    "text": "Confirmation reruns preflight and binds readiness to the exact plan hash and connection ID. Readiness requires a passing preflight for that hash from the last minute. Changed plan/connection, stale presence or missing telemetry invalidates the conditions; the operator must review and confirm again. Dismissal, a hidden/offline tab or a missed window is not flight consent."
+  },
+  {
+    "i": 150,
+    "kind": "p",
+    "text": "Future execution scope"
+  },
+  {
+    "i": 151,
+    "kind": "p",
+    "text": "Autopilot execution remains a separate development phase: firmware/airframe capability detection, mission compilation and upload/read-back, command IDs/deadlines and replay protection, scheduled condition rechecks, local pre-arm/failsafe enforcement, and ACK plus observed flight-state verification. Validate ArduPilot/PX4 SITL, propeller-free bench operation and supervised flight before enabling dispatch. AI advice cannot authorize launch."
+  },
+  {
+    "i": 152,
+    "kind": "sectPr",
+    "text": ""
+  }
+]

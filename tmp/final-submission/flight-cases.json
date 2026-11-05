@@ -1,0 +1,98 @@
+[
+  [
+    "AF-01",
+    "Reviewed opt in",
+    "Change the automatic option before and after approval.",
+    "Option defaults off; approved content changes only through review; a pending update blocks dispatch."
+  ],
+  [
+    "AF-02",
+    "Consent window",
+    "Exercise T−5 minus a tick, T−5, start minus a tick and start.",
+    "Consent accepted only in [T−5,start), using backend time; confirmation alone sends no start."
+  ],
+  [
+    "AF-03",
+    "Identity and authorization",
+    "Use another owner, wrong UID/UAV, expired/revoked lease or inactive UAV.",
+    "Access is denied or dispatch blocked; no aircraft command is issued."
+  ],
+  [
+    "AF-04",
+    "Freshness gates",
+    "Expire presence, heartbeat, telemetry and preflight independently.",
+    "The relevant gate blocks dispatch; restoring one condition cannot bypass the others."
+  ],
+  [
+    "AF-05",
+    "Changed execution context",
+    "Confirm, then replace plan, connection or uploaded mission.",
+    "Consent/read-back binding is invalidated; stale hashes cannot authorize execution."
+  ],
+  [
+    "AF-06",
+    "Cancel and missed window",
+    "Cancel before dispatch, hide tab, lose session and reconnect after deadline.",
+    "No implied consent or late catch-up start; cancelled authorization remains unusable."
+  ],
+  [
+    "AF-07",
+    "Plan and unit contract",
+    "Export owner/non-owner plans; test degrees/E7, altitude frame and missing values.",
+    "Correct units/order and scope; null altitude is rejected; dispatchEnabled reflects all gates."
+  ],
+  [
+    "AF-08",
+    "Eligible scheduled execution",
+    "Provide approved plan, verified upload, valid consent and all fresh gates at start.",
+    "One execution envelope reaches the correct gateway; no early arm/start; InProgress requires actual flight evidence."
+  ],
+  [
+    "AF-09",
+    "Firmware and payload capability",
+    "Use supported profiles, unsupported firmware and a missing-camera photo action.",
+    "Supported profile compiles; incompatible airframe/frame/action blocks before execution."
+  ],
+  [
+    "AF-10",
+    "Upload read-back integrity",
+    "Inject upload timeout, rejected ACK, reordered/wrong downloaded items and hash mismatch.",
+    "Bounded failure is visible; no dispatch until normalized read-back matches the compiled mission."
+  ],
+  [
+    "AF-11",
+    "Replay and delivery retry",
+    "Duplicate/reorder one commandId across reconnects and workers.",
+    "Same identity is deduplicated; delivery retries do not repeat physical start or create another execution."
+  ],
+  [
+    "AF-12",
+    "ACK versus flight evidence",
+    "Accept command ACK while vehicle remains on ground; then supply valid flight-state evidence.",
+    "ACK alone leaves mission Approved; one trusted execution/InProgress transition follows observed flight evidence."
+  ],
+  [
+    "AF-13",
+    "Dispatch deadline",
+    "Deliver immediately before and after scheduled start plus 5 seconds.",
+    "Only a valid, still-eligible envelope within deadline can execute; expired dispatch never catches up."
+  ],
+  [
+    "AF-14",
+    "Restart and uncertain outcome",
+    "Restart backend/gateway after accepting an envelope and during an uncertain start.",
+    "Durable identity survives; reconcile observed state; do not blindly re-arm or restart."
+  ],
+  [
+    "AF-15",
+    "Loss and pilot takeover",
+    "Lose web/backend link during an airborne SITL mission; exercise RC takeover.",
+    "Configured onboard failsafe and pilot authority apply; history remains traceable; no automatic duplicate launch."
+  ],
+  [
+    "AF-16",
+    "Completion and partial outcome",
+    "Repeat trusted completion; record an aborted/partial flight with telemetry gaps.",
+    "One execution/report; outcome and missing coverage remain explicit; no fabricated completed route."
+  ]
+]
