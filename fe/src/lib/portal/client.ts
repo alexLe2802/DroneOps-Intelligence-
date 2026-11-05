@@ -274,6 +274,9 @@ function normalizeUav(record: UavApiRecord): AssignedUav {
     totalFlightHours: Number(record.totalFlightHours ?? 0),
     totalFlights: Number(record.totalFlights ?? 0),
     imageUrl: record.imageUrl ?? null,
+    imageModerationStatus: record.imageModerationStatus ?? null,
+    imageModeratedAt: record.imageModeratedAt ?? null,
+    imageModerationReason: record.imageModerationReason ?? null,
     createdAt: record.createdAt ?? "",
   };
 }
