@@ -469,14 +469,9 @@ public sealed class UavService : IUavService
             await CleanupImageAsync(oldPath);
         }
 
-        // Thông báo cho manager/admin rằng UAV cần được duyệt lại
-        await TryPublishToManagersAsync(
-            "UavUpdatePending",
-            "UAV Update Pending Approval",
-            $"UAV '{uav.Code} - {uav.Name}' image has been updated and requires approval.",
-            actorUserId,
-            uav.Id,
-            cancellationToken);
+        // Image moderation runs silently. Managers are notified only if AI exhausts
+        // its retries and the aggregate manual-review queue becomes non-empty.
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(
             uav,
@@ -542,14 +537,7 @@ public sealed class UavService : IUavService
         // DB thành công rồi mới xóa file trên storage
         await CleanupImageAsync(oldPath);
 
-        // Notify manager/admin để duyệt lại
-        await TryPublishToManagersAsync(
-            "UavUpdatePending",
-            "UAV Update Pending Approval",
-            $"UAV '{uav.Code} - {uav.Name}' image has been removed and requires approval.",
-            actorUserId,
-            uav.Id,
-            cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return true;
     }
@@ -573,6 +561,7 @@ public sealed class UavService : IUavService
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await TryPublishDecisionAsync(uav, false, cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -619,6 +608,7 @@ public sealed class UavService : IUavService
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await TryPublishDecisionAsync(uav, true, cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -661,6 +651,7 @@ public sealed class UavService : IUavService
             {
                 await TryPublishDecisionAsync(uav, true, cancellationToken);
             }
+            await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
         }
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
@@ -692,6 +683,7 @@ public sealed class UavService : IUavService
             await _uavRepository.GetAllPagedAsync(
                 keyword,
                 status,
+                request.ImageModerationStatus,
                 pageNumber,
                 pageSize,
                 cancellationToken);

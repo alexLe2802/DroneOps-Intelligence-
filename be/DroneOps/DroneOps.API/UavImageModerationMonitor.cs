@@ -1,5 +1,6 @@
 using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Application.Interfaces.UAVs;
+using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -111,11 +112,30 @@ public sealed class UavImageModerationMonitor(
             : null;
         var reason = result.Reason.Length <= 500 ? result.Reason : result.Reason[..500];
 
-        await db.UAVs.Where(x => x.Id == id && x.ImageStoragePath == path && x.ImageModerationStatus == "Processing")
+        var updated = await db.UAVs.Where(x => x.Id == id && x.ImageStoragePath == path && x.ImageModerationStatus == "Processing")
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(x => x.ImageModerationStatus, status)
                 .SetProperty(x => x.ImageModerationNextAttemptAt, nextAttempt)
                 .SetProperty(x => x.ImageModeratedAt, status == "RetryScheduled" ? null : completedAt)
                 .SetProperty(x => x.ImageModerationReason, reason), cancellationToken);
+
+        if (updated == 1 && status == "ManualReview")
+        {
+            var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
+            await notifications.RefreshUavManualReviewAsync(cancellationToken);
+        }
+        else if (updated == 1 && status == "Rejected")
+        {
+            // A rejected image needs action from its owner, not from every manager.
+            var recipientUserId = await db.Pilots.AsNoTracking()
+                .Where(x => x.Id == image.PilotId)
+                .Select(x => x.UserId)
+                .SingleAsync(cancellationToken);
+            var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
+            await notifications.PublishToUserAsync(recipientUserId, "UavImageRejected",
+                "UAV Image Rejected",
+                $"The image for UAV '{image.Code} - {image.Name}' could not be verified. Please replace it.",
+                null, image.Id, "UAV", $"/portal/uav/{image.Id}/edit", cancellationToken);
+        }
     }
 }

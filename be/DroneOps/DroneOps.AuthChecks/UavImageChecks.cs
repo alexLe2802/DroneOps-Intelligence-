@@ -80,14 +80,19 @@ internal static class UavImageChecks
             .UseInMemoryDatabase("uav-image-check-" + Guid.NewGuid()).Options;
         await using var db = new AppDbContext(options);
         var roleId = Guid.NewGuid();
+        var managerRoleId = Guid.NewGuid();
+        var managerId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
         var otherId = Guid.NewGuid();
         var pilotId = Guid.NewGuid();
         var uavId = Guid.NewGuid();
-        db.Roles.Add(new Role { Id = roleId, Name = "uav_operator" });
+        db.Roles.AddRange(
+            new Role { Id = roleId, Name = "uav_operator" },
+            new Role { Id = managerRoleId, Name = "operation_manager" });
         db.Users.AddRange(
             new User { Id = ownerId, RoleId = roleId, FullName = "Owner", Email = "owner@fixture.test" },
-            new User { Id = otherId, RoleId = roleId, FullName = "Other", Email = "other@fixture.test" });
+            new User { Id = otherId, RoleId = roleId, FullName = "Other", Email = "other@fixture.test" },
+            new User { Id = managerId, RoleId = managerRoleId, FullName = "Manager", Email = "manager@fixture.test" });
         db.Pilots.Add(new Pilot { Id = pilotId, UserId = ownerId, PilotLicenseNo = "FIXTURE" });
         db.UAVs.Add(new UAV { Id = uavId, PilotId = pilotId, Code = "IMG-1", Name = "Image fixture", Status = "Active" });
         await db.SaveChangesAsync();
@@ -131,6 +136,43 @@ internal static class UavImageChecks
                 uavId, ownerId, "uav_operator", deferred, "deferred.png", "image/png", png.Length);
         Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageModerationStatus == "Pending",
             "provider outage never falsely rejects a valid upload");
+
+        var firstManual = await db.UAVs.SingleAsync(x => x.Id == uavId);
+        firstManual.Status = "Pending";
+        firstManual.ImageModerationStatus = "ManualReview";
+        await db.SaveChangesAsync();
+        await notifications.RefreshUavManualReviewAsync();
+        await notifications.RefreshUavManualReviewAsync();
+        Check(await db.Notifications.CountAsync(x => x.Type == "UavManualReview" &&
+                x.ReferenceType == "UAVManualReviewQueueActive") == 1,
+            "manual-review queue creates one aggregate manager notification without duplicates");
+
+        var secondUavId = Guid.NewGuid();
+        db.UAVs.Add(new UAV
+        {
+            Id = secondUavId, PilotId = pilotId, Code = "IMG-2", Name = "Second manual fixture",
+            Status = "Pending", ImageStoragePath = "uavs/fixture/second.png",
+            ImageModerationStatus = "ManualReview"
+        });
+        await db.SaveChangesAsync();
+        await notifications.RefreshUavManualReviewAsync();
+        var aggregate = await db.Notifications.SingleAsync(x => x.Type == "UavManualReview" &&
+            x.ReferenceType == "UAVManualReviewQueueActive");
+        Check(aggregate.Title.StartsWith("2 UAVs", StringComparison.Ordinal) &&
+                aggregate.ActionUrl == "/uav-management?imageModerationStatus=ManualReview",
+            "manual-review aggregate updates its count and links to the filtered queue");
+        var manualQueue = await new UavRepository(db).GetAllPagedAsync(
+            null, null, "ManualReview", 1, 10);
+        Check(manualQueue.TotalCount == 2 && manualQueue.Items.All(x => x.ImageModerationStatus == "ManualReview"),
+            "manager UAV API can filter the manual-review queue server-side");
+
+        firstManual.Status = "Active";
+        (await db.UAVs.SingleAsync(x => x.Id == secondUavId)).Status = "Rejected";
+        await db.SaveChangesAsync();
+        await notifications.RefreshUavManualReviewAsync();
+        aggregate = await db.Notifications.SingleAsync(x => x.Type == "UavManualReview");
+        Check(aggregate.IsRead && aggregate.ReferenceType == "UAVManualReviewQueueClosed",
+            "manual-review aggregate closes automatically after all items are resolved");
 
         return passed;
     }
