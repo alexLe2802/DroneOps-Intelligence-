@@ -231,7 +231,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
         </div>
       </section>
 
-      {value.automaticFlightRequested && <button type="button" className="module-secondary" onClick={() => patchValue({ averageSpeedMetersPerSecond: "2.77", maxSpeedMetersPerSecond: "2.77" })}>USE ≤10 KM/H TARGET (2.77 M/S)</button>}
+      {value.automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => patchValue({ averageSpeedMetersPerSecond: "2.77", maxSpeedMetersPerSecond: "2.77" })}>USE ≤10 KM/H TARGET (2.77 M/S)</button>}
       {value.automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === value.uavId)?.firmwareNavigationDefaults} />}
       {value.automaticFlightRequested && <AutomaticFlightFields value={value.automaticFlightLimits} onChange={automaticFlightLimits => patchValue({ automaticFlightLimits })} />}
       <section className="route-builder">
@@ -244,7 +244,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       </section>
       </fieldset>
 
-      <label>Altitude reference<select value={value.altitudeReference} onChange={event => setValue(current => current ? { ...current, altitudeReference: event.target.value as EditorValue["altitudeReference"] } : current)}><option value="">Not specified</option><option disabled={value.automaticFlightRequested} value="AGL">AGL</option><option disabled={value.automaticFlightRequested} value="MSL">MSL</option><option value="Relative">Relative</option></select></label>
+      <label className="mission-altitude-reference">Altitude reference<select value={value.altitudeReference} onChange={event => setValue(current => current ? { ...current, altitudeReference: event.target.value as EditorValue["altitudeReference"] } : current)}><option value="">Not specified</option><option disabled={value.automaticFlightRequested} value="AGL">AGL</option><option disabled={value.automaticFlightRequested} value="MSL">MSL</option><option value="Relative">Relative</option></select></label>
       {formError && <p className="form-error" role="alert" aria-live="assertive">{formError}</p>}
       {notice && <p className="mission-edit-notice" role="status" aria-live="polite">{notice}</p>}
       <footer className="builder-footer"><p><b>{value.waypoints.length}</b> WAYPOINTS · {dirty ? "CHANGES PENDING" : "UNCHANGED"}</p><div><Link className="module-secondary module-link" href={`/portal/missions/${id}`} onClick={leave}>CANCEL</Link><button type="submit" className="module-primary" disabled={!dirty || saving}>{saving ? "VALIDATING..." : "SAVE & SEND FOR REVIEW"}</button></div></footer>

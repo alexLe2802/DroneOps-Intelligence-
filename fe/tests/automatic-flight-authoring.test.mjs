@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
-const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source, {
+const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source.replace('import styles from "./mission-authoring.module.css";', 'const styles = new Proxy({}, {get: (_, key) => key});').replace('from "lucide-react"', `from ${JSON.stringify(pathToFileURL(require.resolve('lucide-react')).href)}`), {
   compilerOptions: {module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX},
 }).outputText.replace('"react/jsx-runtime"',JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href))).toString('base64');
 const {automaticFlightError} = await import(compile(await readFile(new URL('../src/lib/portal/automatic-flight-limits.ts',import.meta.url),'utf8')));
@@ -28,10 +28,10 @@ test('new mission requires a visible deliberate mode selection',()=>{
  assert.equal((html.match(/required=""/g)||[]).length,2);
  assert.doesNotMatch(html,/checked=""/);
 });
-test('automatic mode explains explicit pilot control and the FC verification gate',()=>{
+test('automatic mode keeps the compact selection without removed instructional copy',()=>{
  const html=renderToStaticMarkup(React.createElement(Mode,{value:'automatic',onChange:()=>{}}));
  assert.equal((html.match(/checked=""/g)||[]).length,1);
- assert.match(html,/Launch remains unavailable/); assert.match(html,/FC confirms ARM/);
+ assert.doesNotMatch(html,/You fly|Set bounded|Plan →|Launch remains unavailable/);
 });
 test('default and 10kmh profiles accept valid routes without invented landing ground',()=>{
  assert.equal(validate(),null);
