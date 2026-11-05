@@ -6,6 +6,7 @@
 DISARM, MISSION_START, thay đổi mode, PARAM_SET hoặc upload nhiệm vụ trong lần kiểm tra.
 Không đưa UID, token, mã pairing hoặc tọa độ chính xác vào tài liệu.
 
+- Chủ thiết bị xác nhận đang nối/cấp FC qua USB C–C; chưa xác nhận pin bay qua power module, số cell và kết nối GPS.
 - Board USB: Holybro Pixhawk 6C; cổng dữ liệu `if00`.
 - Firmware: ArduPilot / ArduCopter **4.7.1**, release type 255;
   custom firmware revision đọc từ FC: `dbe79216`.

@@ -17,6 +17,20 @@ public sealed class MissionValidationService(
     IMissionWeatherService weather)
     : IMissionValidationService
 {
+    public static string DescribeScheduleConflict(MissionScheduleConflict conflict)
+    {
+        var resource = conflict.UavConflict && conflict.OperatorConflict ? "The selected UAV and your operator schedule"
+            : conflict.UavConflict ? "The selected UAV" : "Your operator schedule";
+        // Database schedules are UTC; always show Vietnam time, independently of server locale.
+        static string Local(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc))
+            .ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        var guidance = conflict.OperatorConflict
+            ? "Choose a non-overlapping time; changing UAV alone does not resolve the operator conflict."
+            : "Choose another UAV or a non-overlapping time.";
+        return $"{resource}: overlap with mission \"{conflict.MissionName}\" ({conflict.Status}), "
+            + $"{Local(conflict.StartTime)} – {Local(conflict.EndTime)} (GMT+7). {guidance}";
+    }
+
     public static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web)
         {
@@ -593,8 +607,8 @@ public sealed class MissionValidationService(
         // Mission schedule conflict
         // -----------------------------------------------------
 
-        var hasConflict =
-            await repository.HasScheduleConflictAsync(
+        var conflicts =
+            await repository.GetScheduleConflictsAsync(
                 mission.Id,
                 mission.UAVId,
                 mission.CreatedBy,
@@ -602,11 +616,8 @@ public sealed class MissionValidationService(
                 mission.EndTime,
                 cancellationToken);
 
-        if (hasConflict)
-        {
-            result.Issues.Add(
-                "The UAV or operator has an overlapping approved/active mission.");
-        }
+        foreach (var conflict in conflicts)
+            result.Issues.Add(DescribeScheduleConflict(conflict));
         if (result.Issues.Count > 0)
         {
             return result;

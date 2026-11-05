@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using DroneOps.Domain.Constants;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
@@ -192,7 +192,7 @@ public sealed class MissionValidationRepository(
                 cancellationToken);
     }
 
-    public async Task<bool> HasScheduleConflictAsync(
+    public async Task<List<MissionScheduleConflict>> GetScheduleConflictsAsync(
         Guid missionId,
         Guid? uavId,
         Guid createdBy,
@@ -201,25 +201,18 @@ public sealed class MissionValidationRepository(
         CancellationToken cancellationToken = default)
     {
         if (startTime is null || endTime is null)
-        {
-            return false;
-        }
+            return [];
 
-        return await db.Missions
-            .AsNoTracking()
-            .AnyAsync(
-                x =>
-                    x.Id != missionId &&
-                    (x.UAVId == uavId ||
-                     x.CreatedBy == createdBy) &&
-                    (
-                        x.Status == "Approved" ||
-                        x.Status == "InProgress" ||
-                        x.Status == "In Progress"
-                    ) &&
-                    x.StartTime < endTime &&
-                    x.EndTime > startTime,
-                cancellationToken);
+        return await db.Missions.AsNoTracking()
+            .Where(x => x.Id != missionId
+                && ((uavId.HasValue && x.UAVId == uavId) || x.CreatedBy == createdBy)
+                && (x.Status == "Approved" || x.Status == "InProgress" || x.Status == "In Progress")
+                && x.StartTime < endTime && x.EndTime > startTime)
+            .OrderBy(x => x.StartTime).ThenBy(x => x.Id)
+            .Select(x => new MissionScheduleConflict(x.Id, x.Name ?? "Unnamed mission", x.Status,
+                x.StartTime!.Value, x.EndTime!.Value,
+                uavId.HasValue && x.UAVId == uavId, x.CreatedBy == createdBy))
+            .Take(5).ToListAsync(cancellationToken);
     }
 
     public async Task<Incident?> GetOpenPreflightIncidentAsync(
