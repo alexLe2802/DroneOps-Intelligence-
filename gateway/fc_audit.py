@@ -79,6 +79,9 @@ def audit(link, duration=30, clock=time.monotonic, sleep=time.sleep):
             sleep(.01)
     report['missingParameters'] = sorted(requested - report['parameters'].keys())
     report['heartbeatReceived'] = target is not None
+    if report['firmware'] == 'ArduPilot':
+        from arducopter_recovery import assess
+        report['recoveryPreflight'] = assess(report['parameters'], report['messages'])
     return report
 
 
