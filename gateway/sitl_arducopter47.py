@@ -14,6 +14,7 @@ import time
 
 from pymavlink import mavutil
 from arducopter47_adapter import apply_to_sitl, parameter_targets
+from envelope_verifier import EnvelopeVerifier
 
 
 INSTANCE = 8
@@ -89,13 +90,22 @@ def run(binary):
                 apply_to_sitl(link, BATTERY_PARAMETERS)
                 current = {name: read_parameter(link, name) for name in ('FENCE_TYPE', 'FS_OPTIONS', *BATTERY_PARAMETERS)}
                 targets = parameter_targets(ENVELOPE, current)
-                apply_to_sitl(link, targets)
+                verifier = EnvelopeVerifier(1, 1, time.monotonic)
+                verifier.begin('isolated-sitl-envelope', ENVELOPE, current, link)
+                deadline = time.monotonic() + 90
+                while verifier.phase and time.monotonic() < deadline:
+                    packet = link.recv_match(type='PARAM_VALUE', blocking=True, timeout=.2)
+                    if packet is not None:
+                        verifier.accept(packet, link)
+                    verifier.tick()
+                if verifier.verified_hash != 'isolated-sitl-envelope':
+                    raise RuntimeError(verifier.error or 'Nonblocking parameter verification did not complete.')
                 readback = {name: read_parameter(link, name) for name in targets}
                 for name, wanted in targets.items():
                     if abs(readback[name] - wanted) > 1e-4:
                         raise RuntimeError(f'SITL read-back mismatch: {name}')
                 print(json.dumps({'simulator': 'ArduCopter', 'version': firmware,
-                    'parameterCount': len(targets), 'independentReadback': True,
+                    'parameterCount': len(targets), 'independentReadback': True, 'nonblockingAdapter': True,
                     'flightAuthorized': False, 'flightFaultScenariosTested': False}))
             finally:
                 if link is not None:
