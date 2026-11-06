@@ -60,8 +60,11 @@ internal static class AutomaticFlightPolicyChecks
         var parameters = new FirmwareParameterSnapshot("1.17.0", new() { ["MPC_XY_CRUISE"]=2, ["NAV_ACC_RAD"]=2 }, DateTimeOffset.UtcNow);
         var compilation = MissionCommandCompiler.Compile(mission, new("PX4", YawPolicy:"Autopilot"), parameters);
         Check(compilation.CanEncode, "observed FC parameter snapshot can resolve optional radius/cruise for a preview");
-        var hover = compilation.Items.Single(i => i.Command == 16);
+        var hover = compilation.Items.Single(i => i.Command == 16 && i.X == 107010000 && i.Y == 1067010000);
         Check(hover.Param1 == 5 && hover.Param2 == 1.5f && hover.Param4 == 90, "hold, radius and yaw overrides compile into mission item parameters");
+        Check(compilation.Items.Count(i => i.Command == 16) == 2
+            && compilation.Items[^2] is { Command: 16, X: 107000000, Y: 1067000000, Z: 20, Param1: 0, Param2: 2 },
+            "final arrival waypoint uses its approved altitude and FC radius without inheriting Hover overrides");
         Check(compilation.Items.Where(i => i.Command == 178).Select(i => i.Param2).SequenceEqual(new float[] { 2, 1, 2 }), "FC cruise is bounded and per-waypoint override is restored at the next node");
         Check(compilation.Items.Last().Z == 0 && compilation.OperationalEnvelope?.FcParameterVerificationRequired == true && !compilation.CanStart, "LAND uses supplied ground; preview cannot bypass FC profile verification");
         var unchanged = MissionCommandCompiler.Compile(mission, new("PX4", YawPolicy:"Autopilot"), parameters with { ObservedAtUtc = parameters.ObservedAtUtc.AddSeconds(1) });
