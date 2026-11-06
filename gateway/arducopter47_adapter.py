@@ -1,7 +1,8 @@
 """ArduCopter 4.7 parameter adapter, initially exercised only against SITL.
 
-The caller must provide an isolated MAVLink link and assert it is connected to
-the simulator. This module never invents battery thresholds or landing sites.
+The synchronous apply_to_sitl helper accepts only an isolated simulator link.
+Runtime parameter mapping uses the nonblocking envelope verifier. This module
+never invents battery thresholds or landing sites.
 It cannot produce a flight authorization/verifiedEnvelopeHash by itself.
 """
 import math
@@ -17,18 +18,20 @@ def parameter_targets(envelope, current):
     if envelope.get('fcParameterVerificationRequired') is not True:
         raise ProfileError('Envelope must explicitly require FC verification.')
     limits = envelope.get('limits') or {}
-    if limits.get('policyVersion') != 'multicopter-envelope-v1':
+    if limits.get('policyVersion') not in ('multicopter-envelope-v1', 'multicopter-envelope-v2'):
         raise ProfileError('Unsupported policy version.')
     def number(value, name, minimum, maximum):
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not minimum <= value <= maximum:
             raise ProfileError(f'{name} is outside the approved profile.')
         return float(value)
-    cruise = number(envelope.get('cruiseSpeedMetersPerSecond'), 'cruise', .5, 5)
-    maximum = number(envelope.get('maxSpeedMetersPerSecond'), 'maximum speed', cruise, 5)
-    takeoff = number(limits.get('takeoffSpeedMetersPerSecond'), 'takeoff', 1, 1.5)
-    climb = number(limits.get('climbSpeedMetersPerSecond'), 'climb', takeoff, 1.5)
-    descent = number(limits.get('descentSpeedMetersPerSecond'), 'descent', .6, 1)
-    landing = number(limits.get('landingSpeedMetersPerSecond'), 'landing', .6, min(.7, descent))
+    v2 = limits['policyVersion'] == 'multicopter-envelope-v2'
+    horizontal_cap, climb_cap, descent_cap, landing_cap = (15, 8, 6, 1.5) if v2 else (5, 1.5, 1, .7)
+    cruise = number(envelope.get('cruiseSpeedMetersPerSecond'), 'cruise', .5, horizontal_cap)
+    maximum = number(envelope.get('maxSpeedMetersPerSecond'), 'maximum speed', cruise, horizontal_cap)
+    takeoff = number(limits.get('takeoffSpeedMetersPerSecond'), 'takeoff', 1, climb_cap)
+    climb = number(limits.get('climbSpeedMetersPerSecond'), 'climb', takeoff, climb_cap)
+    descent = number(limits.get('descentSpeedMetersPerSecond'), 'descent', .6, descent_cap)
+    landing = number(limits.get('landingSpeedMetersPerSecond'), 'landing', .6, min(landing_cap, descent))
     ceiling = number(limits.get('maxAltitudeMeters'), 'altitude ceiling', 10.1, 30)
     if takeoff != climb:
         raise ProfileError('ArduCopter 4.7 AUTO takeoff and climb share WP_SPD_UP; use equal limits until phase-specific enforcement is proven.')

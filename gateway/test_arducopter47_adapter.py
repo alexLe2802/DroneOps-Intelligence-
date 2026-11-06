@@ -44,8 +44,22 @@ class ParameterAdapterTests(unittest.TestCase):
         self.envelope['fcParameterVerificationRequired'] = False
         with self.assertRaises(ProfileError):
             parameter_targets(self.envelope, self.current)
+
         self.envelope['fcParameterVerificationRequired'] = True
         self.envelope['limits']['recoveryEnergyProfile']['returnAltitudeMeters'] = 40
+        with self.assertRaises(ProfileError):
+            parameter_targets(self.envelope, self.current)
+
+    def test_v2_rates_map_to_native_units_without_changing_v1_caps(self):
+        self.envelope.update(cruiseSpeedMetersPerSecond=11.2, maxSpeedMetersPerSecond=15)
+        self.envelope['limits'].update(policyVersion='multicopter-envelope-v2', takeoffSpeedMetersPerSecond=6.5,
+            climbSpeedMetersPerSecond=6.5, descentSpeedMetersPerSecond=5.8, landingSpeedMetersPerSecond=1)
+        targets = parameter_targets(self.envelope, self.current)
+        self.assertEqual(targets['WP_SPD'], 15)
+        self.assertEqual(targets['WP_SPD_UP'], 6.5)
+        self.assertEqual(targets['WP_SPD_DN'], 5.8)
+        self.assertEqual(targets['LAND_SPD_MS'], 1)
+        self.envelope['limits']['policyVersion'] = 'multicopter-envelope-v1'
         with self.assertRaises(ProfileError):
             parameter_targets(self.envelope, self.current)
 
