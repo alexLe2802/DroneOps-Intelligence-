@@ -34,7 +34,7 @@ class EnvelopeVerifier:
             return
         self.plan_hash, self.targets = plan_hash, targets
         self.guards = {name: value for name, value in current.items()
-                       if name.startswith('BATT_') or name in ('ARMING_CHECK', 'FS_EKF_ACTION')}
+                       if name.startswith('BATT_') or name in ('ARMING_CHECK', 'ARMING_SKIPCHK', 'FS_EKF_ACTION')}
         # Apply enable switches after thresholds and recovery actions.
         self.pending = sorted(targets, key=lambda key: key == 'FENCE_ENABLE')
         self.observed = {}
