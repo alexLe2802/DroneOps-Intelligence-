@@ -21,13 +21,18 @@ def assess(parameters, messages):
     """Return explicit blockers from FC observations; always require field trials."""
     values = {k: v for k, v in parameters.items()
               if isinstance(v, (int, float)) and math.isfinite(v)}
-    blockers = [f'Missing FC parameter: {name}' for name in REQUIRED if name not in values]
+    blockers = [f'Missing FC parameter: {name}' for name in REQUIRED if name not in values and name != 'ARMING_CHECK']
 
     def check(name, predicate, reason):
         if name in values and not predicate(values[name]):
             blockers.append(reason)
 
-    check('ARMING_CHECK', lambda x: x != 0, 'FC arming checks are disabled.')
+    if 'ARMING_SKIPCHK' in values:
+        check('ARMING_SKIPCHK', lambda x: x == 0, 'FC arming checks are skipped.')
+    elif 'ARMING_CHECK' in values:
+        check('ARMING_CHECK', lambda x: x == 1, 'FC arming checks are not all enabled.')
+    else:
+        blockers.append('Missing FC arming-check configuration (ARMING_SKIPCHK or legacy ARMING_CHECK).')
     check('FS_THR_ENABLE', lambda x: x != 0, 'RC-loss failsafe is disabled.')
     check('FS_GCS_ENABLE', lambda x: x in (1, 3, 4, 5, 6, 7),
           'GCS-loss failsafe is disabled or has an unreviewed action.')

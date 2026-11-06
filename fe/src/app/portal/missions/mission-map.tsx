@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import { describeGeofence } from "@/lib/maps/geofences";
-import type { Geofence, MissionWaypoint, MissionValidationResult } from "@/lib/portal/types";
+import type { Geofence, MissionWaypoint, MissionValidationResult, PlannedHome } from "@/lib/portal/types";
 
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
-export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings }: {
+export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false }: {
+  plannedHome?: PlannedHome | null; pickingHome?: boolean;
   waypoints: MissionWaypoint[]; geofences: Geofence[];
   onAdd?: (longitude: number, latitude: number) => void;
   onUpdate?: (index: number, patch: Partial<MissionWaypoint>) => void;
@@ -95,6 +96,12 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
         if (!readOnly) marker.on("dragend", () => { if (readOnlyRef.current) return; const value = marker.getLatLng(); onUpdateRef.current?.(index, { latitude: Number(value.lat.toFixed(6)), longitude: Number(value.lng.toFixed(6)) }); });
         return marker;
       });
+      if (plannedHome && Number.isFinite(plannedHome.latitude) && Number.isFinite(plannedHome.longitude)) {
+        const homeMarker = L.marker([plannedHome.latitude, plannedHome.longitude], {
+          icon: L.divIcon({ className: "waypoint-marker-shell", html: '<span class="waypoint-marker" style="background:#ffc857;color:#101a27;border-color:#fff"><b>H</b></span>', iconSize: [30, 30], iconAnchor: [15, 30] }),
+        }).bindTooltip("Planned Home").addTo(map);
+        markersRef.current.push(homeMarker);
+      }
       if (waypoints.length > 1) routeRef.current = L.polyline(waypoints.map(point => [point.latitude, point.longitude]), { color: "#25d6ff", weight: 4, opacity: .95 }).addTo(map);
       for (const finding of findings ?? []) {
         if (finding.segmentFrom == null || finding.segmentTo == null) continue;
@@ -107,11 +114,11 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
       }
     });
     return () => { cancelled = true; };
-  }, [waypoints, mapReady, readOnly, findings]);
+  }, [waypoints, mapReady, readOnly, findings, plannedHome]);
 
   return <div className="mission-map-wrap">
     <div ref={containerRef} className="mission-map" />
-    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS</div>
+    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS</div>
     <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
     {error && <div className="mission-map-error" role="alert">{error}</div>}
   </div>;

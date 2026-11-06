@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from flight_control import ControlBridge, FlightControl, same_item
+from flight_control import ControlBridge, FlightControl, same_item, planned_home_matches
 import test_arducopter47_adapter as adapter_fixtures
 
 
@@ -49,6 +49,33 @@ class FlightControlTests(unittest.TestCase):
         self.link.mav.command_long_send.assert_not_called()
         self.assertFalse(self.bridge.report['succeeded'])
 
+    def test_planned_home_requires_fresh_matching_fc_coordinates(self):
+        actual = SimpleNamespace(latitude=108231000, longitude=1066297000, altitude=12000)
+        self.assertTrue(planned_home_matches({'latitude': 10.8231, 'longitude': 106.6297}, actual))
+        self.assertTrue(planned_home_matches({'latitude': 10.8231, 'longitude': 106.6297, 'altitudeMslMeters': 12}, actual))
+        for expected in ({'latitude': 11, 'longitude': 106.6297},
+                         {'latitude': 10.8231, 'longitude': 106.6297, 'altitudeMslMeters': 30},
+                         {'latitude': float('nan'), 'longitude': 106.6297}):
+            self.assertFalse(planned_home_matches(expected, actual))
+        self.assertFalse(planned_home_matches({'latitude': 10.8231, 'longitude': 106.6297}, None))
+
+    def test_upload_checks_planned_home_but_keeps_actual_fc_home_header(self):
+        self.feed(autopilot=3)
+        item = dict(seq=0, command=22, frame=3, param1=0, param2=0, param3=0, param4=None, x=106000000, y=1070000000, z=20)
+        self.response('Upload', mission=dict(firmwareTarget='ArduPilot', items=[item],
+            plannedHome=dict(latitude=10.600001, longitude=107.0)), stage='Uploading')
+        self.link.mav.mission_count_send.assert_called_once()
+        self.assertEqual(self.control.items[0]['x'], 106000000)
+        self.assertEqual(self.control.items[0]['z'], 12)
+        self.link.mav.command_long_send.assert_not_called()
+
+    def test_upload_rejects_distant_planned_home_without_writing_mission(self):
+        self.feed(autopilot=3)
+        self.response('Upload', mission=dict(firmwareTarget='ArduPilot', items=[],
+            plannedHome=dict(latitude=11, longitude=107)), stage='Uploading')
+        self.link.mav.mission_count_send.assert_not_called()
+        self.assertFalse(self.bridge.report['succeeded'])
+
     def test_arm_requires_current_local_envelope_receipt_when_backend_requires_it(self):
         self.response('Arm', stage='Arming', requiredEnvelopeHash='hash')
         self.link.mav.command_long_send.assert_not_called()
@@ -59,7 +86,7 @@ class FlightControlTests(unittest.TestCase):
         fixture.setUp()
         self.feed(autopilot=3)
         self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100), self.link)
-        for name, value in dict(fixture.current, ARMING_CHECK=1, FS_EKF_ACTION=1).items():
+        for name, value in dict(fixture.current, ARMING_SKIPCHK=0, FS_EKF_ACTION=1).items():
             self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
         self.response(requiredEnvelopeHash='hash', operatingEnvelope=fixture.envelope, stage='AwaitingFcProfile')
         while self.control.envelope.pending:

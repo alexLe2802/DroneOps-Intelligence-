@@ -20,7 +20,7 @@ public sealed record MissionCompilationPreview(string CompilerVersion, string Fi
     string SourcePlanHash, string? CompiledMissionHash, string State, bool CanEncode,
     bool CanUpload, bool CanStart, MissionCompileOptions Options,
     IReadOnlyList<MissionWireItem> Items, IReadOnlyList<string> Errors, IReadOnlyList<string> ExecutionBlocks,
-    AutomaticExecutionEnvelope? OperationalEnvelope = null);
+    AutomaticExecutionEnvelope? OperationalEnvelope = null, PlannedHome? PlannedHome = null);
 
 public sealed record AutomaticExecutionEnvelope(decimal CruiseSpeedMetersPerSecond, decimal MaxSpeedMetersPerSecond,
     AutomaticFlightLimits Limits, bool FcParameterVerificationRequired = true);
@@ -67,6 +67,10 @@ public static class MissionCommandCompiler
             || mission.AverageSpeedMetersPerSecond > mission.MaxSpeedMetersPerSecond)
             errors.Add("Positive cruise and maximum speeds are required, with cruise <= maximum.");
         var points = mission.Waypoints.OrderBy(w => w.SequenceOrder).ToList();
+        var plannedHome = points.FirstOrDefault()?.Navigation?.PlannedHome;
+        if (points.Skip(1).Any(p => p.Navigation?.PlannedHome != null)
+            || plannedHome is { } home && (home.Latitude is < -90 or > 90 || home.Longitude is < -180 or > 180 || home.AltitudeMslMeters is < -500 or > 10000))
+            errors.Add("Planned Home must be on the first waypoint with valid WGS84 coordinates and MSL elevation.");
         if (points.Count < 2 || points.Count >= ushort.MaxValue) errors.Add("A route needs 2–65534 waypoints and space for the speed item.");
         if (!points.Select(w => w.SequenceOrder).SequenceEqual(Enumerable.Range(1, points.Count))) errors.Add("Waypoint sequence must be unique and continuous from 1.");
         static string Action(Waypoint point) => (point.ActionType ?? "FlyThrough").Trim().ToLowerInvariant();
@@ -117,7 +121,7 @@ public static class MissionCommandCompiler
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
         return new(Version, options.FirmwareTarget, sourceHash, hash, "PreviewOnly", true, false, false, options, items, [], executionBlocks,
             mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } limits
-                ? new(mission.AverageSpeedMetersPerSecond!.Value, mission.MaxSpeedMetersPerSecond!.Value, limits) : null);
+                ? new(mission.AverageSpeedMetersPerSecond!.Value, mission.MaxSpeedMetersPerSecond!.Value, limits) : null, plannedHome);
     }
 
     private static int E7(decimal degrees) => (int)decimal.Round(degrees * 10000000m, 0, MidpointRounding.AwayFromZero);

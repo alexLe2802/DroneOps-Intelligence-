@@ -99,6 +99,17 @@ Không đưa UID, token, mã pairing hoặc tọa độ chính xác vào tài li
 
 ## Những phần phần mềm đã bổ sung từ kiểm tra này
 
+- Kiểm tra lại trên FC và mã nguồn tag 4.7.1 xác nhận `ARMING_SKIPCHK=0`
+  thay cho tham số legacy `ARMING_CHECK`: không có kiểm tra arming nào bị bỏ.
+  Audit/gateway đã sửa để không chặn sai vì thiếu tên cũ.
+- Sau reboot, simulator được dựng lại trong `/home/dronelab/droneops-sitl`.
+  Harness adapter mới đã PASS trên ArduCopter 4.7.1, đọc lại 13 tham số với
+  `nonblockingAdapter=true`. Không tính đây là kiểm thử toàn luồng bay/lỗi kết hợp.
+- Lần đọc FC mới nhất: disarmed/on-ground, pin khoảng 15,50 V/0,44 A; GPS dao
+  động từ 3D fix/4 vệ tinh tới không fix/0 vệ tinh, chưa có Home. Tín hiệu tại
+  vị trí đang bị che chưa đủ điều kiện bay tự động. Chủ thiết bị xác nhận cánh
+  đã tháo, nhưng không thể chuyển GPS ra vị trí thoáng hơn trong phiên này.
+
 - Gateway đọc đúng các tên mới của ArduCopter 4.7, gồm `WP_RADIUS_M`,
   `LAND_SPD_MS`, `LAND_SPD_HIGH_MS`, `RTL_ALT_M`, `RTL_SPEED_MS`.
 - Compiler đọc `WP_RADIUS_M` theo mét, `WP_SPD` theo m/s. Vẫn hỗ trợ

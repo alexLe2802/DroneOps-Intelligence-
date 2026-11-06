@@ -66,6 +66,7 @@ class FlightControl:
         self.parameters = {}
         self.parameters_requested = float('-inf')
         self.envelope = EnvelopeVerifier(system, component, clock)
+        self.planned_home = None
 
     def fresh(self, kind, seconds=3):
         item = self.seen.get(kind)
@@ -112,7 +113,7 @@ class FlightControl:
                  'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN',
                  'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST', 'BAT1_CAPACITY') if heartbeat.autopilot == 12 else ()
         if heartbeat.autopilot == 3:
-            names = tuple(dict.fromkeys((*names, *ARDUCOPTER_RECOVERY_PARAMETERS)))
+            names = tuple(dict.fromkeys((*names, *ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK')))
         for name in names:
             link.mav.param_request_read_send(self.system, self.component, name.encode('ascii'), -1)
         self.parameters_requested = self.clock()
@@ -141,7 +142,7 @@ class FlightControl:
             name = name.split('\0')[0]
             allowed = {'WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED', 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS',
                 'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN', 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST', 'BATT_CAPACITY', 'BAT1_CAPACITY'}
-            allowed.update(ARDUCOPTER_RECOVERY_PARAMETERS)
+            allowed.update((*ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK'))
             if name in allowed and math.isfinite(message.param_value):
                 self.parameters[name] = (message.param_value, self.clock(), dt.datetime.now(dt.timezone.utc).isoformat())
         if kind == 'HEARTBEAT' and (message.type == 6 or message.autopilot == 8):
@@ -229,6 +230,7 @@ class FlightControl:
             self.finish(False)
             self.arm_at, self.uploaded_hash, self.lease = None, None, 0
             self.envelope.reset()
+            self.planned_home = None
         while True:
             try:
                 source, received, response = self.bridge.responses.get_nowait()
@@ -288,10 +290,13 @@ class FlightControl:
             return
         evidence = self.evidence()
         snapshot = evidence['firmwareParameters']
+        if response.get('plannedHome') is not None and not planned_home_matches(response['plannedHome'], self.fresh('HOME_POSITION', 15)):
+            self.envelope.error = 'Planned Home must match fresh FC Home before configuration and upload.'
+            return
         if (not self.grounded() or evidence['armed'] is not False or not evidence['navigationReady']
                 or evidence['firmware'] != 'ArduPilot' or not snapshot or snapshot['firmwareVersion'] != '4.7.1'):
             return
-        if snapshot['values'].get('ARMING_CHECK') != 1 or snapshot['values'].get('FS_EKF_ACTION') != 1:
+        if snapshot['values'].get('ARMING_SKIPCHK') != 0 or snapshot['values'].get('FS_EKF_ACTION') != 1:
             self.envelope.error = 'All FC arming checks and the reviewed EKF-loss LAND action are required.'
             return
         self.envelope.begin(wanted, response['operatingEnvelope'], snapshot['values'], link)
@@ -299,6 +304,9 @@ class FlightControl:
     def begin(self, link, response):
         evidence = self.evidence()
         action = self.active['action']
+        if action in ('Arm', 'Start') and self.planned_home is not None and not planned_home_matches(self.planned_home, self.fresh('HOME_POSITION', 15)):
+            self.finish(False)
+            return
         if action in ('Arm', 'Start') and response.get('requiredEnvelopeHash') and self.envelope.verified_hash != response['requiredEnvelopeHash']:
             self.finish(False)
             return
@@ -316,6 +324,12 @@ class FlightControl:
             if evidence['armed'] or not plan or plan.get('firmwareTarget') != evidence['firmware']:
                 self.finish(False)
                 return
+            actual_home = self.fresh('HOME_POSITION', 15)
+            if plan.get('plannedHome') is not None and not planned_home_matches(plan['plannedHome'], actual_home):
+                print('Planned Home does not match fresh FC Home (10 m horizontal / 5 m elevation). Upload blocked.', flush=True)
+                self.finish(False)
+                return
+            self.planned_home = plan.get('plannedHome')
             self.items = [dict(item) for item in plan['items']]
             if not self.items or len(self.items) > 500:
                 self.finish(False)
@@ -356,6 +370,27 @@ class FlightControl:
             link.mav.command_long_send(self.system, self.component, 300, 0, 0, 0, 0, 0, 0, 0, 0)
         else:
             self.finish(False)
+
+
+def planned_home_matches(planned, actual):
+    if actual is None or not isinstance(planned, dict):
+        return False
+    try:
+        lat, lon = planned['latitude'], planned['longitude']
+        altitude = planned.get('altitudeMslMeters')
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in (lat, lon)):
+            return False
+        if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+            return False
+        lat2, lon2 = actual.latitude / 1e7, actual.longitude / 1e7
+        if not -90 <= lat2 <= 90 or not -180 <= lon2 <= 180 or (lat2 == 0 and lon2 == 0):
+            return False
+        a = math.sin(math.radians(lat2 - lat) / 2) ** 2 + math.cos(math.radians(lat)) * math.cos(math.radians(lat2)) * math.sin(math.radians(lon2 - lon) / 2) ** 2
+        distance = 6371000 * 2 * math.asin(math.sqrt(min(1, max(0, a))))
+        return distance <= 10 and (altitude is None or not isinstance(altitude, bool) and isinstance(altitude, (int, float))
+            and math.isfinite(altitude) and abs(altitude - actual.altitude / 1000) <= 5)
+    except (KeyError, TypeError, AttributeError):
+        return False
 
 
 def mission_mode(heartbeat):

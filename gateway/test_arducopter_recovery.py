@@ -35,6 +35,13 @@ class RecoveryPreflightTests(unittest.TestCase):
         for term in ('geofence', 'GCS-loss', 'voltage', 'GPS', 'Home'):
             self.assertIn(term, blockers)
 
+    def test_47_skip_check_replaces_legacy_check_without_disabling_checks(self):
+        self.parameters.pop('ARMING_CHECK')
+        self.parameters['ARMING_SKIPCHK'] = 0
+        self.assertTrue(assess(self.parameters, self.messages)['parameterAuditPassed'])
+        self.parameters['ARMING_SKIPCHK'] = 8
+        self.assertIn('checks are skipped', ' '.join(assess(self.parameters, self.messages)['blockers']))
+
     def test_missing_or_nonfinite_parameters_fail_closed(self):
         self.parameters.pop('FS_THR_ENABLE')
         self.parameters['BATT_CRT_VOLT'] = float('nan')
