@@ -315,6 +315,46 @@ try
     await using (var scope = app.Services.CreateAsyncScope())
         Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.Status == "Resolved"), "two healthy samples automatically resolve the incident");
 
+    // Mission-specific keep-in fences reuse the existing incident lifecycle.
+    var fenceMissionId = Guid.NewGuid();
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Missions.Add(new Mission { Id=fenceMissionId,CreatedBy=pilotId,UAVId=fixtureUavId,Name="Mission fence check",Status="In Progress",
+            StartTime=DateTime.UtcNow.AddMinutes(-5),EndTime=DateTime.UtcNow.AddMinutes(20),CreatedAt=DateTime.UtcNow,
+            Waypoints=[new Waypoint {Id=Guid.NewGuid(),MissionId=fenceMissionId,SequenceOrder=1,Latitude=10.84m,Longitude=106.77m,
+                Navigation=new(MissionFences:[new MissionFence("test-circle","Circle",Center:new(10.84m,106.77m),RadiusMeters:100)])}] });
+        await db.SaveChangesAsync();
+    }
+    var fenceAt=DateTimeOffset.UtcNow.AddSeconds(-5);var fenceSequence=0;
+    async Task FenceSample(decimal? latitude,decimal? longitude)
+    {
+        fenceSequence++;
+        var response=await client.SendAsync(Ingest("mission-fence-"+fenceSequence,new IngestTelemetrySampleRequest {
+            SourceId="fence-source",UavId=fixtureUavId,MissionId=fenceMissionId,SourceTimestamp=fenceAt.AddMilliseconds(fenceSequence*200),
+            Latitude=latitude,Longitude=longitude,Armed=true,BatteryPercent=70,AltitudeMeters=20,GroundSpeedMetersPerSecond=2 }));
+        Check(response.IsSuccessStatusCode,"mission fence telemetry accepted");
+    }
+    await FenceSample(10.85m,106.77m);
+    await using(var scope=app.Services.CreateAsyncScope())
+        Check(!await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(i=>i.MissionId==fenceMissionId),"one outside sample does not raise a fence incident");
+    await FenceSample(10.85m,106.77m);await FenceSample(10.85m,106.77m);
+    await using(var scope=app.Services.CreateAsyncScope())
+    {
+        var incidents=await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.Where(i=>i.MissionId==fenceMissionId).ToListAsync();
+        Check(incidents.Count==1 && incidents[0].Type=="GeofenceBreach" && incidents[0].Evidence!.Contains("test-circle"),"outside samples create one existing GeofenceBreach with frozen mission-fence evidence");
+    }
+    await FenceSample(10.84m,106.77m);await FenceSample(10.84m,106.77m);
+    await using(var scope=app.Services.CreateAsyncScope())
+    {
+        var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Check(await db.Incidents.AnyAsync(i=>i.MissionId==fenceMissionId && i.Status=="Resolved"),"two inside samples resolve the mission-fence incident");
+        var ended=await db.Missions.FindAsync(fenceMissionId);ended!.EndTime=DateTime.UtcNow.AddSeconds(-1);await db.SaveChangesAsync();
+    }
+    await FenceSample(10.85m,106.77m);await FenceSample(10.85m,106.77m);
+    await using(var scope=app.Services.CreateAsyncScope())
+        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.CountAsync(i=>i.MissionId==fenceMissionId)==1,"ended mission does not generate a new fence incident");
+
     if (args.Length == 2 && args[0] == "--gateway")
     {
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId,"uav_operator"));

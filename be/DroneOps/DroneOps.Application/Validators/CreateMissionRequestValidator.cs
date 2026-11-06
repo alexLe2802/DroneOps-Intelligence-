@@ -17,9 +17,19 @@ public sealed class CreateMissionRequestValidator
     public CreateMissionRequestValidator()
     {
         RuleFor(x => x).Custom((x, context) => {
+            foreach (var point in x.Waypoints ?? [])
+                if (point.Navigation?.MissionFences is { } fences && (point.SequenceOrder != 1 || fences.Count > 20
+                    || fences.Any(f => !DroneOps.Application.Services.Missions.MissionFenceGeometry.Valid(f))
+                    || fences.Select(f => f?.Id).Distinct().Count() != fences.Count))
+                    context.AddFailure("Waypoints.Navigation.MissionFences", "Mission fences belong to waypoint 1; use up to 20 valid, uniquely identified polygons or circles.");
+            foreach (var point in x.Waypoints ?? [])
+                if (point.Navigation?.PlannedHome is { } home && (point.SequenceOrder != 1
+                    || home.Latitude is < -90 or > 90 || home.Longitude is < -180 or > 180
+                    || home.AltitudeMslMeters is < -500 or > 10000))
+                    context.AddFailure("Waypoints.Navigation.PlannedHome", "Planned Home must be on waypoint 1 with valid WGS84 coordinates and optional MSL elevation (-500 to 10000 m).");
             foreach (var error in DroneOps.Application.Services.Missions.AutomaticFlightPolicy.Errors(
                 x.AutomaticFlightRequested, x.AltitudeReference, x.AverageSpeedMetersPerSecond, x.MaxSpeedMetersPerSecond,
-                x.AutomaticFlightLimits ?? new DroneOps.Domain.Entities.AutomaticFlightLimits(), (x.Waypoints ?? []).Select(w => (w.Altitude, w.ActionType))))
+                x.AutomaticFlightLimits ?? DroneOps.Application.Services.Missions.AutomaticFlightPolicy.DefaultLimits(), (x.Waypoints ?? []).Select(w => (w.Altitude, w.ActionType))))
                 context.AddFailure("AutomaticFlightLimits", error);
             if (x.AutomaticFlightRequested)
             {

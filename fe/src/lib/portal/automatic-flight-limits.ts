@@ -6,11 +6,13 @@ export function formatAutomaticLimits(value: AutomaticFlightLimits | null | unde
 // Immediate authoring feedback; the API independently validates the same policy.
 export function automaticFlightError(frame: string, cruise: number, maximum: number, limits: AutomaticFlightLimits, waypoints: MissionWaypoint[]): string | null {
   if (frame !== "Relative") return "Automatic missions require altitude relative to FC Home.";
-  if (!Number.isFinite(cruise) || !Number.isFinite(maximum) || cruise < 0.5 || maximum > 5 || cruise > maximum) return "Automatic cruise must be at least 0.5 m/s and no higher than the speed ceiling (maximum 5 m/s).";
-  if (limits.policyVersion !== "multicopter-envelope-v1") return "This automatic-flight profile is unsupported. Reload the mission form.";
+  const v2 = limits.policyVersion === "multicopter-envelope-v2";
+  const horizontalCap = v2 ? 15 : 5, climbCap = v2 ? 8 : 1.5, descentCap = v2 ? 6 : 1, landingCap = v2 ? 1.5 : 0.7;
+  if (!Number.isFinite(cruise) || !Number.isFinite(maximum) || cruise < 0.5 || maximum > horizontalCap || cruise > maximum) return `Automatic cruise must be at least 0.5 m/s and no higher than the speed ceiling (maximum ${horizontalCap} m/s).`;
+  if (!["multicopter-envelope-v1", "multicopter-envelope-v2"].includes(limits.policyVersion)) return "This automatic-flight profile is unsupported. Reload the mission form.";
   if (Object.values(limits).some(value => typeof value === "number" && !Number.isFinite(value))) return "Complete the automatic flight limits or restore the system defaults.";
-  if (!(limits.takeoffSpeedMetersPerSecond >= 1 && limits.takeoffSpeedMetersPerSecond <= 1.5 && limits.climbSpeedMetersPerSecond >= limits.takeoffSpeedMetersPerSecond && limits.climbSpeedMetersPerSecond <= 1.5)) return "Takeoff speed must be 1–1.5 m/s; climb must be at least takeoff speed and no higher than 1.5 m/s.";
-  if (!(limits.descentSpeedMetersPerSecond >= 0.6 && limits.descentSpeedMetersPerSecond <= 1 && limits.landingSpeedMetersPerSecond >= 0.6 && limits.landingSpeedMetersPerSecond <= 0.7 && limits.landingSpeedMetersPerSecond <= limits.descentSpeedMetersPerSecond)) return "Descent must be 0.6–1 m/s; landing must be 0.6–0.7 m/s and no higher than descent speed.";
+  if (!(limits.takeoffSpeedMetersPerSecond >= 1 && limits.takeoffSpeedMetersPerSecond <= climbCap && limits.climbSpeedMetersPerSecond >= limits.takeoffSpeedMetersPerSecond && limits.climbSpeedMetersPerSecond <= climbCap)) return `Takeoff speed must be 1–${climbCap} m/s; climb must be at least takeoff speed and no higher than ${climbCap} m/s.`;
+  if (!(limits.descentSpeedMetersPerSecond >= 0.6 && limits.descentSpeedMetersPerSecond <= descentCap && limits.landingSpeedMetersPerSecond >= 0.6 && limits.landingSpeedMetersPerSecond <= landingCap && limits.landingSpeedMetersPerSecond <= limits.descentSpeedMetersPerSecond)) return `Descent must be 0.6–${descentCap} m/s; landing must be 0.6–${landingCap} m/s and no higher than descent speed.`;
   if (!(limits.maxAltitudeMeters > 10 && limits.maxAltitudeMeters <= 30)) return "Automatic altitude ceiling must be greater than 10 m and no higher than 30 m above Home.";
   if (!(limits.maxWindMetersPerSecond > 0 && limits.maxWindMetersPerSecond <= 3 && limits.maxGustMetersPerSecond >= limits.maxWindMetersPerSecond && limits.maxGustMetersPerSecond <= 5)) return "Forecast wind limit must be above 0 and at most 3 m/s; gust limit must be at least wind and at most 5 m/s.";
   for (const point of waypoints) {
