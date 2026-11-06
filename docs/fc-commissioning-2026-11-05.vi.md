@@ -19,6 +19,41 @@ Không đưa UID, token, mã pairing hoặc tọa độ chính xác vào tài li
   Không dùng SOC này để xác nhận đủ năng lượng bay. Cần kiểm tra nguồn pin,
   power module và hiệu chỉnh đo trước khi tính năng lượng.
 
+## Kiểm tra tiếp ngày 06/11/2026
+
+- Chủ thiết bị xác nhận nguồn bay là **LiPo 4S2P, nhãn 10.000 mAh**, FC và
+  Jetson cùng được cấp nguồn, toàn bộ cánh quạt đã tháo và drone cố định trên bàn.
+- Đọc trực tiếp cổng USB thứ hai của FC, chỉ nhận MAVLink: power module báo
+  khoảng **16,0 V**, **0,41 A**, SOC **98%**, consumed charge tăng theo thời gian.
+  Một cửa sổ khoảng 20 phút tăng từ 32 lên 171 mAh, phù hợp xấp xỉ với dòng
+  0,412 A khi đứng yên. Đây là kiểm tra phép đo **trên bàn**, chưa phải hiệu
+  chuẩn dung lượng hoặc mức tiêu thụ khi bay.
+- `BATT_CAPACITY` trong FC vẫn là **8.000 mAh**, khác nhãn pin 10.000 mAh.
+  Không suy dung lượng thật từ SOC hoặc số mAh đã tiêu thụ. Chưa thay ngưỡng pin.
+- RadioMaster Pocket ELRS đã bind với receiver theo xác nhận của chủ thiết bị.
+  FC nhận `RC_CHANNELS` trên các kênh 1–8. Khi chủ thiết bị di chuyển cần phải,
+  kênh 1 và 2 thay đổi; kênh 3 cũng thay đổi và cuối phiên đọc ở khoảng 1386 µs.
+  Cần xác nhận lại ánh xạ/hiệu chuẩn và ga thấp trước mọi phép thử ARM. Kênh 7
+  đang giữ ở khoảng 1503 µs; công tắc ARM riêng chưa được cấu hình hay thử.
+- GPS vẫn ở trong nhà, fix type 1, chưa có Home. Chủ thiết bị sẽ kiểm tra lại
+  ngoài trời. Không thay bằng GPS/Home giả để mở khóa bay thật.
+- Chỉ thực hiện quan sát thụ động; không gửi ARM, DISARM, thay mode, PARAM_SET
+  hoặc upload mission vào FC thật.
+- Mã nguồn ArduCopter tag `Copter-4.7.1` đã biên dịch SITL thành công trên
+  Jetson. Harness riêng kết nối `127.0.0.1` tới simulator, nhận diện firmware
+  4.7.1, áp dụng và đọc lại độc lập 13 tham số envelope/failsafe. Kết quả
+  `parameterCount=13`, `independentReadback=true`. Đây mới là kiểm tra tham số
+  trên mô phỏng; chưa chứng minh hành vi bay hoặc các lỗi kết hợp và không tạo
+  quyền bay thật.
+- Bài autotest chính thức `test.Copter.BatteryFailsafe` của ArduPilot 4.7.1
+  đã **PASS** trên SITL. Nó thử nhiều nhánh pin thấp/nguy cấp và phản ứng RTL/
+  LAND của firmware mô phỏng. Bài này dùng cấu hình pin mô phỏng của ArduPilot,
+  không xác nhận ngưỡng điện áp hay dung lượng của pack 4S2P thực tế.
+- Các bài autotest chính thức `test.Copter.GCSFailsafe`,
+  `test.Copter.ThrottleFailsafe` (mất RC) và `test.Copter.MaxAltFence` đều
+  **PASS** trên SITL. Chưa có bài tích hợp xác nhận đồng thời lỗi pin + RC/GCS
+  + mất GPS/vi phạm giới hạn với đúng envelope đã duyệt của ứng dụng.
+
 ## Thông số FC hiện có, chưa thay đổi
 
 | Mục | Giá trị đọc từ FC | Ý nghĩa với luồng app |
