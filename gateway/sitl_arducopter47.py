@@ -5,6 +5,7 @@ Starts its own simulator process and connects only to its localhost TCP port.
 Never accepts a real FC endpoint. This is not an in-flight failsafe test.
 """
 import argparse
+import copy
 import json
 import os
 from pathlib import Path
@@ -54,7 +55,12 @@ def read_parameter(link, name, timeout=5):
     raise RuntimeError(f'SITL did not return {name}')
 
 
-def run(binary):
+def run(binary, policy_version='multicopter-envelope-v1'):
+    envelope = copy.deepcopy(ENVELOPE)
+    if policy_version == 'multicopter-envelope-v2':
+        envelope.update(cruiseSpeedMetersPerSecond=11.2, maxSpeedMetersPerSecond=15)
+        envelope['limits'].update(policyVersion=policy_version, takeoffSpeedMetersPerSecond=6.5,
+            climbSpeedMetersPerSecond=6.5, descentSpeedMetersPerSecond=5.8, landingSpeedMetersPerSecond=1)
     binary = Path(binary).resolve(strict=True)
     with tempfile.TemporaryDirectory(prefix='droneops-sitl-47-') as work:
         with open(Path(work) / 'sitl.log', 'wb') as log:
@@ -89,9 +95,9 @@ def run(binary):
                 # must never be copied to a physical battery configuration.
                 apply_to_sitl(link, BATTERY_PARAMETERS)
                 current = {name: read_parameter(link, name) for name in ('FENCE_TYPE', 'FS_OPTIONS', *BATTERY_PARAMETERS)}
-                targets = parameter_targets(ENVELOPE, current)
+                targets = parameter_targets(envelope, current)
                 verifier = EnvelopeVerifier(1, 1, time.monotonic)
-                verifier.begin('isolated-sitl-envelope', ENVELOPE, current, link)
+                verifier.begin('isolated-sitl-envelope', envelope, current, link)
                 deadline = time.monotonic() + 90
                 while verifier.phase and time.monotonic() < deadline:
                     packet = link.recv_match(type='PARAM_VALUE', blocking=True, timeout=.2)
@@ -105,7 +111,7 @@ def run(binary):
                     if abs(readback[name] - wanted) > 1e-4:
                         raise RuntimeError(f'SITL read-back mismatch: {name}')
                 print(json.dumps({'simulator': 'ArduCopter', 'version': firmware,
-                    'parameterCount': len(targets), 'independentReadback': True, 'nonblockingAdapter': True,
+                    'policyVersion': policy_version, 'parameterCount': len(targets), 'independentReadback': True, 'nonblockingAdapter': True,
                     'flightAuthorized': False, 'flightFaultScenariosTested': False}))
             finally:
                 if link is not None:
@@ -120,4 +126,6 @@ def run(binary):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', required=True, help='Official ArduCopter 4.7.1 Linux SITL binary')
-    run(parser.parse_args().binary)
+    parser.add_argument('--policy-version', choices=['multicopter-envelope-v1', 'multicopter-envelope-v2'], default='multicopter-envelope-v1')
+    args = parser.parse_args()
+    run(args.binary, args.policy_version)

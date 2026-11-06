@@ -29,7 +29,7 @@ public sealed class CreateMissionRequestValidator
                     context.AddFailure("Waypoints.Navigation.PlannedHome", "Planned Home must be on waypoint 1 with valid WGS84 coordinates and optional MSL elevation (-500 to 10000 m).");
             foreach (var error in DroneOps.Application.Services.Missions.AutomaticFlightPolicy.Errors(
                 x.AutomaticFlightRequested, x.AltitudeReference, x.AverageSpeedMetersPerSecond, x.MaxSpeedMetersPerSecond,
-                x.AutomaticFlightLimits ?? new DroneOps.Domain.Entities.AutomaticFlightLimits(), (x.Waypoints ?? []).Select(w => (w.Altitude, w.ActionType))))
+                x.AutomaticFlightLimits ?? DroneOps.Application.Services.Missions.AutomaticFlightPolicy.DefaultLimits(), (x.Waypoints ?? []).Select(w => (w.Altitude, w.ActionType))))
                 context.AddFailure("AutomaticFlightLimits", error);
             if (x.AutomaticFlightRequested)
             {

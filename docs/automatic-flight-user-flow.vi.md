@@ -1,6 +1,9 @@
 # Luồng nhiệm vụ bay tự động và dữ liệu cần có
 
-Áp dụng cho profile multicopter `multicopter-envelope-v1`, ArduPilot/PX4.
+Áp dụng cho profile multicopter `multicopter-envelope-v1` và
+`multicopter-envelope-v2`, ArduPilot/PX4. Nhiệm vụ mới dùng v2: cruise 11,2 m/s
+(trần 15), takeoff/climb 6,5 (trần 8), descent 5,8 (trần 6), landing cuối 1
+(trần 1,5). Nhiệm vụ v1 không tự đổi; xem bảng phiên bản trong Operating envelope.
 Đây là tài liệu đối chiếu với code, không phải chứng nhận an toàn bay.
 
 ## Trạng thái triển khai

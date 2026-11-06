@@ -94,7 +94,11 @@ public static class MissionCommandCompiler
         float? yaw = options.YawPolicy == "Fixed" ? (float)options.YawDegrees!.Value : null;
         var cruise = mission.AverageSpeedMetersPerSecond!.Value;
         var fcCruise = options.FirmwareTarget == "PX4" ? FcValue("MPC_XY_CRUISE") : FcValue("WP_SPD") ?? FcValue("WPNAV_SPEED", 0.01m);
-        if (fcCruise is > 0) cruise = Math.Min(cruise, fcCruise.Value);
+        // Automatic missions use their explicitly approved speed. The adapter
+        // verifies the new FC envelope before upload; an old WP default must
+        // not silently lower that speed or change the hash after applying it.
+        if ((!mission.AutomaticFlightRequested || mission.AutomaticFlightLimits?.PolicyVersion != "multicopter-envelope-v2") && fcCruise is > 0)
+            cruise = Math.Min(cruise, fcCruise.Value);
         decimal currentSpeed = cruise;
         foreach (var point in points)
         {
