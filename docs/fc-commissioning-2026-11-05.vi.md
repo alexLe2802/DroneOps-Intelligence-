@@ -21,15 +21,29 @@ Không đưa UID, token, mã pairing hoặc tọa độ chính xác vào tài li
 
 ## Kiểm tra tiếp ngày 06/11/2026
 
-- Chủ thiết bị xác nhận nguồn bay là **LiPo 4S2P, nhãn 10.000 mAh**, FC và
-  Jetson cùng được cấp nguồn, toàn bộ cánh quạt đã tháo và drone cố định trên bàn.
+- Chủ thiết bị xác nhận nguồn bay là **LiPo 4S2P**; đã từng cung cấp con số
+  **10.000 mAh** nhưng nay cho biết nhãn pin không ghi dung lượng và chưa chắc
+  chắn về con số đó. Dung lượng thực **chưa xác minh**. FC và Jetson cùng được
+  cấp nguồn, toàn bộ cánh quạt đã tháo và drone cố định trên bàn.
 - Đọc trực tiếp cổng USB thứ hai của FC, chỉ nhận MAVLink: power module báo
   khoảng **16,0 V**, **0,41 A**, SOC **98%**, consumed charge tăng theo thời gian.
   Một cửa sổ khoảng 20 phút tăng từ 32 lên 171 mAh, phù hợp xấp xỉ với dòng
   0,412 A khi đứng yên. Đây là kiểm tra phép đo **trên bàn**, chưa phải hiệu
   chuẩn dung lượng hoặc mức tiêu thụ khi bay.
-- `BATT_CAPACITY` trong FC vẫn là **8.000 mAh**, khác nhãn pin 10.000 mAh.
-  Không suy dung lượng thật từ SOC hoặc số mAh đã tiêu thụ. Chưa thay ngưỡng pin.
+- `BATT_CAPACITY` trong FC là **8.000 mAh**: đây là tham số cấu hình đã đọc từ
+  FC, không phải số đo và không chứng minh pin có dung lượng 8.000 mAh. Chưa có
+  nguồn xác thực dung lượng thực của pack. Không suy dung lượng thật từ SOC
+  hoặc số mAh đã tiêu thụ; chưa thay tham số dung lượng hay ngưỡng pin.
+- Audit xuất `batteryCapacityEvidence`: số cấu hình từ `BATT_CAPACITY`, dung
+  lượng đo thực để trống, `capacityVerified=false` và
+  `remainingCapacityVerified=false`. Dung lượng cấu hình dương không chứng minh
+  đủ năng lượng bay. Cần dữ liệu nhà sản xuất hoặc phép đo dung lượng sử dụng
+  được bằng thiết bị phù hợp cùng hiệu chuẩn power module; không xả cạn pin
+  bằng động cơ trên bàn để tìm dung lượng.
+- Adapter kiểm tra thứ tự low/critical, ngưỡng mAh không vượt số cấu hình và
+  đúng hành động low RTL/critical LAND. Các kiểm tra này chỉ kiểm tra tính nhất
+  quán, không chứng nhận ngưỡng phù hợp pin thực. 10 bài unit test adapter/audit
+  đạt; chạy lại adapter cập nhật trên SITL 4.7.1 đọc lại đủ 13 tham số thành công.
 - RadioMaster Pocket ELRS đã bind với receiver theo xác nhận của chủ thiết bị.
   FC nhận `RC_CHANNELS` trên các kênh 1–8. Khi chủ thiết bị di chuyển cần phải,
   kênh 1 và 2 thay đổi; kênh 3 cũng thay đổi và cuối phiên đọc ở khoảng 1386 µs.

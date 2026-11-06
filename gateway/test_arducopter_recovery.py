@@ -20,6 +20,11 @@ class RecoveryPreflightTests(unittest.TestCase):
         self.assertTrue(result['parameterAuditPassed'])
         self.assertFalse(result['flightAuthorized'])
         self.assertTrue(result['remainingVerification'])
+        capacity = result['batteryCapacityEvidence']
+        self.assertEqual(capacity['configuredCapacityMah'], 8000)
+        self.assertIsNone(capacity['measuredCapacityMah'])
+        self.assertFalse(capacity['capacityVerified'])
+        self.assertFalse(capacity['remainingCapacityVerified'])
 
     def test_observed_usb_only_fc_reports_actual_blockers(self):
         self.parameters.update(WP_SPD=10, FENCE_ENABLE=0, FS_GCS_ENABLE=0,

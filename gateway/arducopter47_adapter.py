@@ -49,6 +49,15 @@ def parameter_targets(envelope, current):
         raise ProfileError('Critical battery threshold must be calibrated before applying flight limits.')
     if current['BATT_FS_LOW_ACT'] == 0 or current['BATT_FS_CRT_ACT'] == 0:
         raise ProfileError('Low/critical battery actions must be configured before applying flight limits.')
+    if current['BATT_FS_LOW_ACT'] != 2 or current['BATT_FS_CRT_ACT'] != 1:
+        raise ProfileError('This adapter requires reviewed low-battery RTL and critical-battery LAND actions.')
+    for low, critical in (('BATT_LOW_VOLT', 'BATT_CRT_VOLT'), ('BATT_LOW_MAH', 'BATT_CRT_MAH')):
+        if current[low] < 0 or current[critical] < 0:
+            raise ProfileError('Battery thresholds cannot be negative.')
+        if current[low] > 0 and current[critical] > 0 and current[critical] >= current[low]:
+            raise ProfileError('Critical battery threshold must be lower than low battery threshold.')
+    if any(current[name] > current['BATT_CAPACITY'] for name in ('BATT_LOW_MAH', 'BATT_CRT_MAH')):
+        raise ProfileError('Remaining-capacity thresholds exceed configured FC capacity; actual pack capacity still requires verification.')
     if int(current['FENCE_TYPE']) != current['FENCE_TYPE'] or int(current['FS_OPTIONS']) != current['FS_OPTIONS']:
         raise ProfileError('FC bitmask values must be integers.')
     # Clear continuation on RC/GCS loss, keep independent landing/gripper bits.

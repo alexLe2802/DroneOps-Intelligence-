@@ -49,6 +49,14 @@ class ParameterAdapterTests(unittest.TestCase):
         with self.assertRaises(ProfileError):
             parameter_targets(self.envelope, self.current)
 
+    def test_unreviewed_battery_actions_and_inverted_thresholds_rejected(self):
+        for changes in ({'BATT_FS_LOW_ACT': 1}, {'BATT_FS_CRT_ACT': 2},
+                        {'BATT_CRT_VOLT': 13}, {'BATT_LOW_MAH': -1},
+                        {'BATT_LOW_MAH': 100, 'BATT_CRT_MAH': 200},
+                        {'BATT_LOW_MAH': 9000}):
+            with self.subTest(changes=changes), self.assertRaises(ProfileError):
+                parameter_targets(self.envelope, dict(self.current, **changes))
+
     def test_ack_then_independent_readback_required(self):
         class Link:
             def __init__(self, match=True):

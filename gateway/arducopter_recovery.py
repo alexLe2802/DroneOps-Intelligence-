@@ -73,6 +73,13 @@ def assess(parameters, messages):
         blockers.append('No FC Home position.')
 
     return {'flightAuthorized': False, 'parameterAuditPassed': not blockers,
+            'batteryCapacityEvidence': {
+                'configuredCapacityMah': values.get('BATT_CAPACITY'),
+                'source': 'FC parameter BATT_CAPACITY',
+                'measuredCapacityMah': None,
+                'capacityVerified': False,
+                'remainingCapacityVerified': False,
+            },
             'blockers': blockers,
             'remainingVerification': [
                 'Check real battery chemistry/cell count, calibrated capacity, voltage and reserve.',
