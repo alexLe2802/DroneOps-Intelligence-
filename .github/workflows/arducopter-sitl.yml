@@ -7,6 +7,8 @@ on:
     paths:
       - 'gateway/arducopter47_adapter.py'
       - 'gateway/sitl_arducopter47.py'
+      - 'gateway/envelope_verifier.py'
+      - 'gateway/flight_control.py'
       - '.github/workflows/arducopter-sitl.yml'
 
 permissions:

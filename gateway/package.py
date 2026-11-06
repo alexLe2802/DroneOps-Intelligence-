@@ -8,6 +8,9 @@ with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
     files=(
         (root/'gateway.py','gateway.py'),
         (root/'flight_control.py','flight_control.py'),
+        (root/'arducopter_recovery.py','arducopter_recovery.py'),
+        (root/'arducopter47_adapter.py','arducopter47_adapter.py'),
+        (root/'envelope_verifier.py','envelope_verifier.py'),
         (root/'fc_audit.py','fc_audit.py'),
         (root/'connect.py','connect.py'),
         (root/'connect-drone.sh','connect-drone.sh'),

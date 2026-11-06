@@ -34,6 +34,10 @@ Không đưa UID, token, mã pairing hoặc tọa độ chính xác vào tài li
   FC, không phải số đo và không chứng minh pin có dung lượng 8.000 mAh. Chưa có
   nguồn xác thực dung lượng thực của pack. Không suy dung lượng thật từ SOC
   hoặc số mAh đã tiêu thụ; chưa thay tham số dung lượng hay ngưỡng pin.
+- Chủ thiết bị đã đối chiếu trong **Mission Planner** và xác nhận FC hiển thị
+  **8.000 mAh**. Như vậy giá trị cấu hình/nguồn đọc đã được xác nhận bằng GCS
+  thứ hai; app ưu tiên tự lấy giá trị này, không yêu cầu nhập lại. Điều này
+  không phải phép đo dung lượng sử dụng thực của pack.
 - Audit xuất `batteryCapacityEvidence`: số cấu hình từ `BATT_CAPACITY`, dung
   lượng đo thực để trống, `capacityVerified=false` và
   `remainingCapacityVerified=false`. Dung lượng cấu hình dương không chứng minh
