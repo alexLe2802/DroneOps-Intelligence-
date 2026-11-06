@@ -13,6 +13,12 @@ internal static class AutomaticFlightPolicyChecks
         bool Valid(AutomaticFlightLimits? value, decimal cruise = 3m, decimal maximum = 5m, string frame = "Relative") =>
             AutomaticFlightPolicy.Errors(true, frame, cruise, maximum, value, points).Count == 0;
         Check(Valid(limits), "trial multicopter defaults pass");
+        var v2 = AutomaticFlightPolicy.DefaultLimits();
+        Check(Valid(v2, 11.2m, 15m) && v2.TakeoffSpeedMetersPerSecond == 6.5m && v2.LandingSpeedMetersPerSecond == 1m,
+            "v2 higher default speeds pass their versioned limits");
+        Check(!Valid(v2, 11.2m, 15.1m) && !Valid(v2 with { ClimbSpeedMetersPerSecond = 8.1m }, 11.2m, 15m)
+            && !Valid(v2 with { DescentSpeedMetersPerSecond = 6.1m }, 11.2m, 15m)
+            && !Valid(v2 with { LandingSpeedMetersPerSecond = 1.6m }, 11.2m, 15m), "v2 speed ceilings are enforced by API");
         Check(!Valid(null), "legacy automatic mission needs explicit approved limits");
         Check(!Valid(limits, 6, 6), "horizontal cap cannot be bypassed through API");
         Check(!Valid(limits, 4, 3), "cruise cannot exceed selected maximum");
@@ -60,6 +66,14 @@ internal static class AutomaticFlightPolicyChecks
         Check(compilation.Items.Last().Z == 0 && compilation.OperationalEnvelope?.FcParameterVerificationRequired == true && !compilation.CanStart, "LAND uses supplied ground; preview cannot bypass FC profile verification");
         var unchanged = MissionCommandCompiler.Compile(mission, new("PX4", YawPolicy:"Autopilot"), parameters with { ObservedAtUtc = parameters.ObservedAtUtc.AddSeconds(1) });
         Check(compilation.CompiledMissionHash == unchanged.CompiledMissionHash, "refreshing the same FC values does not alter the compiled mission hash");
+        mission.AutomaticFlightLimits = v2;
+        mission.AverageSpeedMetersPerSecond = 11.2m; mission.MaxSpeedMetersPerSecond = 15;
+        var beforeApply = new FirmwareParameterSnapshot("4.7.1", new() { ["WP_RADIUS_M"] = 2, ["WP_SPD"] = 10 }, DateTimeOffset.UtcNow);
+        var v2Plan = MissionCommandCompiler.Compile(mission, new("ArduPilot"), beforeApply);
+        var afterApply = MissionCommandCompiler.Compile(mission, new("ArduPilot"), beforeApply with { Values = new() { ["WP_RADIUS_M"] = 2, ["WP_SPD"] = 15 } });
+        Check(v2Plan.CanEncode && v2Plan.Items.First(i => i.Command == 178).Param2 == 11.2f
+            && v2Plan.CompiledMissionHash == afterApply.CompiledMissionHash,
+            "v2 keeps approved speed and stable compiled hash when the adapter raises an older FC speed default");
         var batteryUav = new UAV { BatteryCapacityMah=1000, BatteryMaxVoltage=25.2m, MaxFlightTimeMinutes=20 };
         var maxOnly = MissionBatteryRiskCalculator.Calculate(mission, batteryUav, null);
         Check(maxOnly.BatteryEnergyWh == null, "full-charge maximum voltage is never substituted for nominal battery energy");

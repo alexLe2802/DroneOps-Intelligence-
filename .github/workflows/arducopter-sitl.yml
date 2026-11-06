@@ -33,4 +33,6 @@ jobs:
             --output /tmp/droneops-arducopter-4.7.1
           chmod 700 /tmp/droneops-arducopter-4.7.1
       - name: Apply and independently read back FC policy in SITL
-        run: PYTHONPATH=gateway .venv/bin/python gateway/sitl_arducopter47.py --binary /tmp/droneops-arducopter-4.7.1
+        run: |
+          PYTHONPATH=gateway .venv/bin/python gateway/sitl_arducopter47.py --binary /tmp/droneops-arducopter-4.7.1
+          PYTHONPATH=gateway .venv/bin/python gateway/sitl_arducopter47.py --binary /tmp/droneops-arducopter-4.7.1 --policy-version multicopter-envelope-v2

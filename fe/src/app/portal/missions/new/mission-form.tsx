@@ -133,8 +133,8 @@ export default function MissionForm() {
     const start = new Date(`${startTime}+07:00`), end = new Date(`${endTime}+07:00`);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) { setError("Enter a valid schedule with the end time later than the start time."); return; }
     if (start.getTime() <= Date.now()) { setError("Flight start time must be in the future. Update the start date and time."); return; }
-    const averageSpeedMetersPerSecond = Number(automaticFlightRequested && !averageSpeed.trim() ? "3" : averageSpeed);
-    const maxSpeedMetersPerSecond = Number(automaticFlightRequested && !maxSpeed.trim() ? "3" : maxSpeed);
+    const averageSpeedMetersPerSecond = Number(automaticFlightRequested && !averageSpeed.trim() ? "11.2" : averageSpeed);
+    const maxSpeedMetersPerSecond = Number(automaticFlightRequested && !maxSpeed.trim() ? "15" : maxSpeed);
     const invalidSpeed = missionSpeedError(averageSpeedMetersPerSecond, maxSpeedMetersPerSecond);
     if (invalidSpeed) { setError(invalidSpeed); return; }
     const invalidAutomatic = automaticFlightRequested ? automaticFlightError(altitudeReference, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, automaticFlightLimits, normalizedWaypoints) : null;
@@ -206,7 +206,7 @@ export default function MissionForm() {
       <PlannedHomeFields home={plannedHome} onChange={home => { setPlannedHome(home); setPickingHome(false); }} picking={pickingHome} onPick={() => { fenceDrawing.begin(null); setPickingHome(current => !current); }} first={waypoints[0]} disabled={saving} />
       <FlightModeFields value={flightMode} onChange={mode => {
         setFlightMode(mode);
-        if (mode === "automatic") { setAverageSpeed("3"); setMaxSpeed("3"); setAltitudeReference("Relative"); }
+        if (mode === "automatic") { setAverageSpeed("11.2"); setMaxSpeed("15"); setAltitudeReference("Relative"); }
       }} />
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
@@ -214,14 +214,14 @@ export default function MissionForm() {
           <label>ASSIGNED UAV · required<select value={uavId} onChange={event => { setUavId(event.target.value); setError(""); }} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME · required<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
           <label className="full-field">DESCRIPTION · optional<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
-          <label>CRUISE SPEED (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-average-speed" type="number" min={automaticFlightRequested ? "0.5" : "0.1"} max={automaticFlightRequested ? 5 : undefined} step="0.01" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — planning default 3" : "10.0"} required={!automaticFlightRequested} /><small>{averageSpeed ? `${(Number(averageSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
-          <label>SPEED CEILING (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-max-speed" type="number" min="0.1" max={automaticFlightRequested ? 5 : undefined} step="0.01" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — planning ceiling 3" : "15.0"} required={!automaticFlightRequested} /><small>{maxSpeed ? `${(Number(maxSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
+          <label>CRUISE SPEED (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-average-speed" type="number" min={automaticFlightRequested ? "0.5" : "0.1"} max={automaticFlightRequested ? 15 : undefined} step="0.01" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — flight default 11.2" : "10.0"} required={!automaticFlightRequested} /><small>{averageSpeed ? `${(Number(averageSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
+          <label>SPEED CEILING (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-max-speed" type="number" min="0.1" max={automaticFlightRequested ? 15 : undefined} step="0.01" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — speed ceiling 15" : "15.0"} required={!automaticFlightRequested} /><small>{maxSpeed ? `${(Number(maxSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
           <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME · required</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setStartTime(event.target.value); setError(""); }} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">VIETNAM GMT+7 / START MUST BE IN THE FUTURE</small></div>
           <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME · required</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setEndTime(event.target.value); setError(""); }} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">VIETNAM GMT+7 / MUST BE LATER THAN START</small></div>
         </div>
         {activeAircraft.length === 0 && <p className="form-warning">No active UAV is ready for mission planning.</p>}
       </section>
-      {automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => { setAverageSpeed("2.77"); setMaxSpeed("2.77"); }}>USE ≤10 KM/H TARGET (2.77 M/S)</button>}
+      {automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => { setAverageSpeed("11.2"); setMaxSpeed("15"); setAutomaticFlightLimits(defaultAutomaticLimits()); }}>USE V2 DEFAULT SPEEDS (11.2 M/S)</button>}
       {automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === uavId)?.firmwareNavigationDefaults} />}
       {automaticFlightRequested && <AutomaticFlightFields value={automaticFlightLimits} onChange={setAutomaticFlightLimits} />}
       <section className="route-builder">

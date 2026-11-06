@@ -179,8 +179,8 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
     const invalidRoute = routeError(normalizedWaypoints);
     if (invalidRoute) { setFormError(invalidRoute); return; }
     if (new Date(value.endTime) <= new Date(value.startTime)) { setFormError("End time must be later than start time."); return; }
-    const averageSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.averageSpeedMetersPerSecond.trim() ? "3" : value.averageSpeedMetersPerSecond);
-    const maxSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.maxSpeedMetersPerSecond.trim() ? "3" : value.maxSpeedMetersPerSecond);
+    const averageSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.averageSpeedMetersPerSecond.trim() ? (value.automaticFlightLimits.policyVersion === "multicopter-envelope-v2" ? "11.2" : "3") : value.averageSpeedMetersPerSecond);
+    const maxSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.maxSpeedMetersPerSecond.trim() ? (value.automaticFlightLimits.policyVersion === "multicopter-envelope-v2" ? "15" : "3") : value.maxSpeedMetersPerSecond);
     const invalidSpeed = missionSpeedError(averageSpeedMetersPerSecond, maxSpeedMetersPerSecond);
     if (invalidSpeed) { setFormError(invalidSpeed); return; }
     const invalidAutomatic = value.automaticFlightRequested ? automaticFlightError(value.altitudeReference, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, value.automaticFlightLimits, normalizedWaypoints) : null;
@@ -236,7 +236,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       <MissionFenceFields fences={value.missionFences} onChange={fences => patchValue({ missionFences: fences })} drawing={fenceDrawing.drawing} onDraw={shape => { setPickingHome(false); fenceDrawing.begin(shape); }} vertexCount={fenceDrawing.draft.length} onFinish={fenceDrawing.finish} disabled={saving} />
       <PlannedHomeFields home={value.plannedHome} onChange={home => { patchValue({ plannedHome: home }); setPickingHome(false); }} picking={pickingHome} onPick={() => { fenceDrawing.begin(null); setPickingHome(current => !current); }} first={value.waypoints[0]} disabled={saving} />
       <FlightModeFields value={value.automaticFlightRequested ? "automatic" : "manual"} onChange={mode => patchValue(mode === "automatic"
-        ? { automaticFlightRequested: true, averageSpeedMetersPerSecond: "3", maxSpeedMetersPerSecond: "3", altitudeReference: "Relative" }
+        ? { automaticFlightRequested: true, averageSpeedMetersPerSecond: "11.2", maxSpeedMetersPerSecond: "15", automaticFlightLimits: defaultAutomaticLimits(), altitudeReference: "Relative" }
         : { automaticFlightRequested: false })} />
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Plan configuration</h2><p>Revise the assigned aircraft, schedule and mission brief.</p></div><button type="button" className="text-action" disabled={!dirty} onClick={resetChanges}>RESET CHANGES</button></div>
@@ -244,14 +244,14 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
           <label>ASSIGNED UAV · required<select value={value.uavId} onChange={event => patchValue({ uavId: event.target.value })} required><option value="">Select an active UAV</option>{approvedAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME · required<input value={value.name} onChange={event => patchValue({ name: event.target.value })} minLength={2} maxLength={200} required /></label>
           <label className="full-field">DESCRIPTION · optional<textarea value={value.description} onChange={event => patchValue({ description: event.target.value })} maxLength={2000} /></label>
-          <label>CRUISE SPEED (M/S) · optional for automatic mode<input type="number" min="0.1" step="0.01" max={value.automaticFlightRequested ? 5 : undefined} value={value.averageSpeedMetersPerSecond} onChange={event => patchValue({ averageSpeedMetersPerSecond: event.target.value })} required={!value.automaticFlightRequested} /></label>
-          <label>SPEED CEILING (M/S) · optional for automatic mode<input type="number" min="0.1" step="0.01" max={value.automaticFlightRequested ? 5 : undefined} value={value.maxSpeedMetersPerSecond} onChange={event => patchValue({ maxSpeedMetersPerSecond: event.target.value })} required={!value.automaticFlightRequested} /></label>
+          <label>CRUISE SPEED (M/S) · optional for automatic mode<input type="number" min="0.1" step="0.01" max={value.automaticFlightRequested ? (value.automaticFlightLimits.policyVersion === "multicopter-envelope-v2" ? 15 : 5) : undefined} value={value.averageSpeedMetersPerSecond} onChange={event => patchValue({ averageSpeedMetersPerSecond: event.target.value })} required={!value.automaticFlightRequested} /></label>
+          <label>SPEED CEILING (M/S) · optional for automatic mode<input type="number" min="0.1" step="0.01" max={value.automaticFlightRequested ? (value.automaticFlightLimits.policyVersion === "multicopter-envelope-v2" ? 15 : 5) : undefined} value={value.maxSpeedMetersPerSecond} onChange={event => patchValue({ maxSpeedMetersPerSecond: event.target.value })} required={!value.automaticFlightRequested} /></label>
           <label>START TIME (GMT+7) · required<input type="datetime-local" value={value.startTime} onChange={event => patchValue({ startTime: event.target.value })} required /></label>
           <label>END TIME (GMT+7) · required<input type="datetime-local" value={value.endTime} onChange={event => patchValue({ endTime: event.target.value })} required /></label>
         </div>
       </section>
 
-      {value.automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => patchValue({ averageSpeedMetersPerSecond: "2.77", maxSpeedMetersPerSecond: "2.77" })}>USE ≤10 KM/H TARGET (2.77 M/S)</button>}
+      {value.automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => patchValue({ averageSpeedMetersPerSecond: "11.2", maxSpeedMetersPerSecond: "15", automaticFlightLimits: defaultAutomaticLimits() })}>USE V2 DEFAULT SPEEDS (11.2 M/S)</button>}
       {value.automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === value.uavId)?.firmwareNavigationDefaults} />}
       {value.automaticFlightRequested && <AutomaticFlightFields value={value.automaticFlightLimits} onChange={automaticFlightLimits => patchValue({ automaticFlightLimits })} />}
       <section className="route-builder">
