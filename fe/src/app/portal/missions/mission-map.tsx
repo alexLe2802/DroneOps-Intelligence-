@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import { describeGeofence } from "@/lib/maps/geofences";
-import type { Geofence, MissionWaypoint, MissionValidationResult, PlannedHome } from "@/lib/portal/types";
+import type { Geofence, MissionWaypoint, MissionValidationResult, PlannedHome, MissionFence, GeofenceCoordinate } from "@/lib/portal/types";
 
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
-export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false }: {
+export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false, missionFences = waypoints[0]?.navigation?.missionFences ?? [], draftFence = [], drawingFence = null, onFenceUpdate }: {
+  missionFences?: MissionFence[]; draftFence?: GeofenceCoordinate[]; drawingFence?: "Polygon" | "Circle" | null; onFenceUpdate?: (fence: MissionFence) => void;
   plannedHome?: PlannedHome | null; pickingHome?: boolean;
   waypoints: MissionWaypoint[]; geofences: Geofence[];
   onAdd?: (longitude: number, latitude: number) => void;
@@ -21,6 +22,8 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
   const routeRef = useRef<Leaflet.Polyline | null>(null);
   const markersRef = useRef<Leaflet.Marker[]>([]);
   const readOnlyRef = useRef(readOnly);
+  const fenceUpdateRef = useRef(onFenceUpdate);
+  useEffect(() => { fenceUpdateRef.current = onFenceUpdate; }, [onFenceUpdate]);
   const onAddRef = useRef(onAdd);
   const onUpdateRef = useRef(onUpdate);
   const [error, setError] = useState("");
@@ -116,9 +119,44 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
     return () => { cancelled = true; };
   }, [waypoints, mapReady, readOnly, findings, plannedHome]);
 
+  useEffect(() => {
+    if (!mapReady) return;
+    let cancelled = false;
+    let layer: Leaflet.LayerGroup | null = null;
+    void import("leaflet").then(({ default: L }) => {
+      if (cancelled || mapRef.current !== mapReady) return;
+      layer = L.layerGroup().addTo(mapReady);
+      const color = "#58e6b0";
+      const handle = () => L.divIcon({className:"",html:'<span style="display:block;width:16px;height:16px;border:3px solid #fff;border-radius:50%;background:#14785e;box-shadow:0 1px 6px #0008"></span>',iconSize:[16,16],iconAnchor:[8,8]});
+      const latlng = (p: GeofenceCoordinate): Leaflet.LatLngTuple => [p.latitude, p.longitude];
+      for (const fence of missionFences) {
+        if (fence.shape === "Circle" && fence.center && Number.isFinite(fence.center.latitude) && Number.isFinite(fence.center.longitude) && Number.isFinite(fence.radiusMeters) && fence.radiusMeters! > 0) {
+          L.circle(latlng(fence.center), {radius: fence.radiusMeters!,color,fillOpacity:.1,weight:2}).bindTooltip("Permitted circle").addTo(layer);
+          if(!readOnly) L.marker(latlng(fence.center),{draggable:true,icon:handle()}).bindTooltip("Drag fence center").on("dragend",event=>{
+            if(readOnlyRef.current) return;
+            const p=(event.target as Leaflet.Marker).getLatLng();
+            fenceUpdateRef.current?.({...fence,center:{latitude:p.lat,longitude:p.lng}});
+          }).addTo(layer);
+        } else if(fence.shape === "Polygon" && fence.vertices?.length && fence.vertices.every(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))) {
+          L.polygon(fence.vertices.map(latlng),{color,fillOpacity:.1,weight:2}).bindTooltip("Permitted polygon").addTo(layer);
+          if(!readOnly) fence.vertices.forEach((p,i)=> L.marker(latlng(p),{draggable:true,icon:handle()}).bindTooltip(`Fence vertex ${i+1}`).on("dragend",event=>{
+            if(readOnlyRef.current) return;
+            const location=(event.target as Leaflet.Marker).getLatLng();
+            fenceUpdateRef.current?.({...fence,vertices:fence.vertices!.map((v,j)=>j===i?{latitude:location.lat,longitude:location.lng}:v)});
+          }).addTo(layer!));
+        }
+      }
+      if(draftFence.length) {
+        L.polyline(draftFence.map(latlng),{color:"#ffc857",dashArray:"6 4"}).addTo(layer);
+        draftFence.forEach(p=>L.circleMarker(latlng(p),{radius:5,color:"#ffc857"}).addTo(layer!));
+      }
+    });
+    return ()=>{cancelled=true;layer?.remove();};
+  }, [mapReady, missionFences, draftFence, readOnly]);
+
   return <div className="mission-map-wrap">
     <div ref={containerRef} className="mission-map" />
-    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS</div>
+    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : drawingFence ? `DRAW ${drawingFence.toUpperCase()} FENCE` : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS</div>
     <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
     {error && <div className="mission-map-error" role="alert">{error}</div>}
   </div>;

@@ -7,7 +7,7 @@ import { CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { cancelHighRiskMission, confirmHighRiskMission, createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
-import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, PlannedHome, WaypointAction } from "@/lib/portal/types";
+import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, MissionFence, PlannedHome, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 import HighRiskConfirmation from "./high-risk-confirmation";
@@ -21,6 +21,8 @@ import AutomaticFlightFields, { defaultAutomaticLimits } from "../automatic-flig
 import FlightModeFields, { type FlightMode } from "../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
 
+import MissionFenceFields, { useFenceDrawing } from "../mission-fence-fields";
+import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
 import PlannedHomeFields from "../planned-home-fields";
 import { plannedHomeError, withPlannedHome } from "@/lib/maps/planned-home";
 
@@ -55,6 +57,8 @@ export default function MissionForm() {
   const [automaticFlightLimits, setAutomaticFlightLimits] = useState(defaultAutomaticLimits);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [missionFences, setMissionFences] = useState<MissionFence[]>([]);
+  const fenceDrawing = useFenceDrawing(missionFences, setMissionFences);
   const [plannedHome, setPlannedHome] = useState<PlannedHome | null>(null);
   const [pickingHome, setPickingHome] = useState(false);
   const [waypoints, setWaypoints] = useState<MissionWaypoint[]>([]);
@@ -65,7 +69,7 @@ export default function MissionForm() {
   const [highRiskMission, setHighRiskMission] = useState<MissionDetail | null>(null);
   const [riskBusy, setRiskBusy] = useState<"confirm" | "cancel" | null>(null);
   const [riskError, setRiskError] = useState("");
-  useUnsavedChanges(!saved && Boolean(plannedHome || flightMode || name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
+  useUnsavedChanges(!saved && Boolean(missionFences.length || fenceDrawing.draft.length || plannedHome || flightMode || name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
   function load() {
     setAircraft(null); setLoadError(null);
     void Promise.allSettled([getAssignedUavs(), getGeofences()]).then(([uavs, zones]) => {
@@ -87,6 +91,7 @@ export default function MissionForm() {
     return () => { active = false; };
   }, []);
   function addWaypoint(longitude?: number, latitude?: number) {
+    if (latitude != null && longitude != null && fenceDrawing.point(longitude, latitude)) return;
     if (pickingHome && latitude != null && longitude != null) { setPlannedHome({ latitude, longitude }); setPickingHome(false); return; }
     setWaypoints(current => {
       const last = current[current.length - 1];
@@ -118,9 +123,11 @@ export default function MissionForm() {
     if (flightMode === null) { setError("Choose Manual operation or Automatic mission before submitting."); return; }
     if (!name.trim()) { setError("Enter a mission name."); return; }
     if (!aircraft?.some(item => item.id === uavId && item.status.toLowerCase() === "active")) { setError("Select an active UAV assigned to you."); return; }
+    const fenceError = missionFencesError(missionFences);
+    if (fenceDrawing.drawing || fenceError) { setError(fenceError || "Finish or cancel fence drawing before saving."); return; }
     const homeError = plannedHomeError(plannedHome);
     if (homeError) { setError(homeError); return; }
-    const normalizedWaypoints = withPlannedHome(normalizeWaypointActions(waypoints), plannedHome);
+    const normalizedWaypoints = withPlannedHome(withMissionFences(normalizeWaypointActions(waypoints), missionFences), plannedHome);
     const invalidRoute = routeError(normalizedWaypoints);
     if (invalidRoute) { setError(invalidRoute); return; }
     const start = new Date(`${startTime}+07:00`), end = new Date(`${endTime}+07:00`);
@@ -195,7 +202,8 @@ export default function MissionForm() {
       setError(`${label}: ${message}`);
     }}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
-      <PlannedHomeFields home={plannedHome} onChange={home => { setPlannedHome(home); setPickingHome(false); }} picking={pickingHome} onPick={() => setPickingHome(current => !current)} first={waypoints[0]} disabled={saving} />
+      <MissionFenceFields fences={missionFences} onChange={setMissionFences} drawing={fenceDrawing.drawing} onDraw={shape => { setPickingHome(false); fenceDrawing.begin(shape); }} vertexCount={fenceDrawing.draft.length} onFinish={fenceDrawing.finish} disabled={saving} />
+      <PlannedHomeFields home={plannedHome} onChange={home => { setPlannedHome(home); setPickingHome(false); }} picking={pickingHome} onPick={() => { fenceDrawing.begin(null); setPickingHome(current => !current); }} first={waypoints[0]} disabled={saving} />
       <FlightModeFields value={flightMode} onChange={mode => {
         setFlightMode(mode);
         if (mode === "automatic") { setAverageSpeed("3"); setMaxSpeed("3"); setAltitudeReference("Relative"); }
@@ -219,7 +227,7 @@ export default function MissionForm() {
       <section className="route-builder">
         <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>Click the map in flight order, then configure altitude and action.</p></div><button type="button" className="text-action" disabled={!waypoints.length} onClick={() => { if (window.confirm("Clear all waypoints?")) setWaypoints([]); }}>CLEAR ROUTE</button></div>
         {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
-        <MissionMap plannedHome={plannedHome} pickingHome={pickingHome} waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
+        <MissionMap missionFences={missionFences} draftFence={fenceDrawing.draft} drawingFence={fenceDrawing.drawing} onFenceUpdate={fence => setMissionFences(current => current.map(f => f.id === fence.id ? fence : f))} plannedHome={plannedHome} pickingHome={pickingHome} waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
         <button type="button" className="module-secondary mission-add-waypoint" onClick={() => addWaypoint()}>ADD WAYPOINT MANUALLY</button>
         <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => {
           const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : index === waypoints.length - 1 ? "Land" : null;

@@ -12,7 +12,13 @@ public sealed record WaypointNavigation(
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     LandingSiteSurvey? LandingSiteSurvey = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    PlannedHome? PlannedHome = null);
+    PlannedHome? PlannedHome = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<MissionFence>? MissionFences = null);
+
+public sealed record FenceCoordinate(decimal Latitude, decimal Longitude);
+public sealed record MissionFence(string Id, string Shape, IReadOnlyList<FenceCoordinate>? Vertices = null,
+    FenceCoordinate? Center = null, decimal? RadiusMeters = null);
 
 // Plan metadata stored on the first waypoint's existing navigation JSON.
 // It is not a command to relocate the vehicle's actual HOME_POSITION.
