@@ -6,7 +6,7 @@ from arducopter47_adapter import ProfileError, apply_to_sitl, parameter_targets
 
 class ParameterAdapterTests(unittest.TestCase):
     def setUp(self):
-        self.envelope = {'fcParameterVerificationRequired': True,
+        self.envelope = {'fcParameterVerificationRequired': True, 'configureRecovery': True,
             'cruiseSpeedMetersPerSecond': 3, 'maxSpeedMetersPerSecond': 5,
             'limits': {'policyVersion': 'multicopter-envelope-v1',
                 'takeoffSpeedMetersPerSecond': 1, 'climbSpeedMetersPerSecond': 1,
@@ -17,6 +17,13 @@ class ParameterAdapterTests(unittest.TestCase):
             'BATT_CAPACITY': 8000, 'BATT_LOW_VOLT': 12.4, 'BATT_CRT_VOLT': 12,
             'BATT_LOW_MAH': 0, 'BATT_CRT_MAH': 0,
             'BATT_FS_LOW_ACT': 2, 'BATT_FS_CRT_ACT': 1}
+
+    def test_basic_waypoint_flight_preserves_all_recovery_parameters(self):
+        self.envelope.pop('configureRecovery')
+        self.envelope['limits'].pop('recoveryEnergyProfile')
+        targets = parameter_targets(self.envelope, {})
+        self.assertEqual(targets, {'WP_SPD': 5, 'WP_SPD_UP': 1,
+                                  'WP_SPD_DN': .7, 'LAND_SPD_MS': .7})
 
     def test_native_47_targets_bound_to_policy_and_preserve_unrelated_fence_bits(self):
         result = parameter_targets(self.envelope, self.current)

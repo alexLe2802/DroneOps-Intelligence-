@@ -27,7 +27,7 @@ BATTERY_PARAMETERS = {
     'BATT_FS_LOW_ACT': 2, 'BATT_FS_CRT_ACT': 1,
 }
 ENVELOPE = {
-    'fcParameterVerificationRequired': True,
+    'fcParameterVerificationRequired': True, 'configureRecovery': True,
     'cruiseSpeedMetersPerSecond': 3,
     'maxSpeedMetersPerSecond': 5,
     'limits': {
