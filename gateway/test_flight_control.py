@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from flight_control import ControlBridge, FlightControl, same_item
+import test_arducopter47_adapter as adapter_fixtures
 
 
 def message(kind, **values):
@@ -48,6 +49,30 @@ class FlightControlTests(unittest.TestCase):
         self.link.mav.command_long_send.assert_not_called()
         self.assertFalse(self.bridge.report['succeeded'])
 
+    def test_arm_requires_current_local_envelope_receipt_when_backend_requires_it(self):
+        self.response('Arm', stage='Arming', requiredEnvelopeHash='hash')
+        self.link.mav.command_long_send.assert_not_called()
+        self.assertFalse(self.bridge.report['succeeded'])
+
+    def test_approved_envelope_is_applied_nonblocking_and_receipt_bound_to_hash(self):
+        fixture = adapter_fixtures.ParameterAdapterTests()
+        fixture.setUp()
+        self.feed(autopilot=3)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100), self.link)
+        for name, value in dict(fixture.current, ARMING_CHECK=1, FS_EKF_ACTION=1).items():
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+        self.response(requiredEnvelopeHash='hash', operatingEnvelope=fixture.envelope, stage='AwaitingFcProfile')
+        while self.control.envelope.pending:
+            name = self.control.envelope.pending[0]
+            value = self.control.envelope.targets[name]
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+            self.assertIsNone(self.control.evidence()['verifiedEnvelopeHash'])
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+        self.assertEqual(self.control.evidence()['verifiedEnvelopeHash'], 'hash')
+        self.bridge.reconnect()
+        self.control.tick(self.link)
+        self.assertIsNone(self.control.evidence()['verifiedEnvelopeHash'])
+
     def test_backend_disable_does_not_emit_gcs_heartbeat_or_commands(self):
         self.response('Arm', enabled=False)
         self.link.mav.command_long_send.assert_not_called()
@@ -81,6 +106,7 @@ class FlightControlTests(unittest.TestCase):
         names = [call.args[2] for call in self.link.mav.param_request_read_send.call_args_list]
         self.assertIn(b'WP_RADIUS_M', names)
         self.assertIn(b'LAND_SPD_MS', names)
+        self.assertIn(b'BATT_CAPACITY', names)
         self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=(4 << 24) | (7 << 16) | (1 << 8)), self.link)
         for name, value in [('WP_RADIUS_M', 2), ('WP_SPD', 10), ('LAND_SPD_MS', .5)]:
             self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
@@ -88,6 +114,17 @@ class FlightControlTests(unittest.TestCase):
         self.assertEqual(snapshot['firmwareVersion'], '4.7.1')
         self.assertEqual(snapshot['values']['WP_RADIUS_M'], 2)
         self.assertEqual(snapshot['values']['LAND_SPD_MS'], .5)
+        self.link.mav.param_set_send.assert_not_called()
+
+    def test_battery_capacity_is_automatically_read_for_both_firmwares(self):
+        for autopilot, parameter in ((3, 'BATT_CAPACITY'), (12, 'BAT1_CAPACITY')):
+            self.control.parameters_requested = float('-inf')
+            self.feed(autopilot=autopilot)
+            self.control.tick(self.link)
+            self.assertIn(parameter.encode(), [call.args[2] for call in self.link.mav.param_request_read_send.call_args_list])
+            self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100), self.link)
+            self.control.accept(message('PARAM_VALUE', param_id=parameter, param_value=8000), self.link)
+            self.assertEqual(self.control.evidence()['firmwareParameters']['values'][parameter], 8000)
         self.link.mav.param_set_send.assert_not_called()
 
     def test_nonfinite_or_stale_fc_parameters_are_not_defaults(self):

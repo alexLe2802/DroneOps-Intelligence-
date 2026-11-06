@@ -184,7 +184,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
           <header><span>03</span><div><h2>Battery system</h2><p>Electrical configuration and rated capacity.</p></div></header>
           <div className="uav-form-grid">
             <label>BATTERY TYPE<input value={form.batteryType} onChange={event => set("batteryType", event.target.value)} placeholder="LiPo 6S" maxLength={50} /></label>
-            <label>INSTALLED PACK CAPACITY (mAh)<input type="number" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="5880" min="1" step="1" /><small>Use the capacity of the installed battery. This configured value is separate from the consumed mAh reported by telemetry.</small></label>
+            <label>PACK CAPACITY (mAh) · OPTIONAL<input type="number" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="Read from FC when connected" min="1" step="1" /><small>Leave blank if unknown. FC capacity is preferred when available; enter a fallback only if you know the installed pack capacity.</small></label>
             <label>MAX PACK VOLTAGE (V)<input type="number" value={form.batteryMaxVoltage} onChange={event => set("batteryMaxVoltage", event.target.value)} placeholder="25.2 for standard 6S LiPo" min="0.01" step="0.01" /><small>Full-charge voltage for the whole installed pack. Use the battery label; this is different from nominal voltage and live telemetry.</small></label>
             <label>CELL COUNT<input type="number" value={form.batteryCellCount} onChange={event => set("batteryCellCount", event.target.value)} placeholder="6" min="1" max="100" step="1" /></label>
           </div>

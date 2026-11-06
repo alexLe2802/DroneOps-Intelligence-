@@ -7,10 +7,38 @@
 
 Đã có form tạo/sửa nhiệm vụ, xét duyệt, validate, dữ liệu AI, nhắc kết nối/xác
 nhận, Live Monitoring, compiler MAVLink và logic ARM/đếm ngược. Luồng gửi lệnh
-thực tế vẫn bị khóa: chưa có adapter áp dụng/đọc lại toàn bộ cấu hình FC và
-chưa kiểm chứng failsafe trên SITL của cả hai firmware hoặc drone thật.
+thực tế vẫn bị khóa. Adapter ArduCopter 4.7.1 đã được nối vào gateway để áp dụng/
+đọc lại tham số theo từng bước; phiên bản tích hợp này còn cần chạy SITL thực
+tế và kiểm thử lỗi kết hợp. PX4 chưa có adapter ghi/xác minh tương đương.
 Không được coi một nhiệm vụ đã duyệt, một giá trị cache hay unit test là bằng
 chứng drone đã được cấu hình để thực thi an toàn.
+
+### Tự nhận dữ liệu cho drone bất kỳ — cập nhật 06/11/2026
+
+- Khi kết nối, gateway tự đọc firmware và tham số hỗ trợ, gồm `BATT_CAPACITY`
+  cho ArduPilot hoặc `BAT1_CAPACITY` cho PX4. Dữ liệu đi qua payload gateway
+  và cache FC hiện có, không tạo API cấu hình pin mới.
+- AI ưu tiên dung lượng cấu hình FC còn mới; nếu không có thì dùng dung lượng
+  UAV người dùng tự khai làm fallback có ghi nguồn. Thiếu cả hai vẫn phân tích
+  theo % FC báo, chỉ bỏ kết quả mAh; không bắt buộc nhập dung lượng để nhận
+  telemetry. Khả năng đáp ứng nhiệm vụ vẫn là ước lượng theo endurance.
+- Live Monitoring dùng %/điện áp/dòng/mAh tiêu thụ từ FC. Đã bỏ phép tính mAh
+  còn lại lấy dung lượng pilot nhập trừ consumed. Dữ liệu không được báo thì
+  hiện unavailable; không tự tạo số đo. Giao diện hiện theo pin chính ID 0,
+  chưa tương đương QGroundControl về nhiều pack/thời gian còn lại/charge state.
+- Adapter runtime ArduCopter 4.7.1 chỉ được ghi khi backend và gateway cùng bật
+  thực thi, có lease, đúng hash nhiệm vụ, disarmed/on-ground, navigation hợp lệ,
+  all arming checks và EKF-loss LAND. Từng tham số phải có ACK và đọc lại.
+  Receipt hết hiệu lực khi cấu hình/firmware đổi, quá hạn hoặc kết nối lại.
+  Không chứng nhận pin đã hiệu chuẩn chỉ vì có tham số capacity.
+- Nếu không có mô hình năng lượng đo thực, adapter có thể dùng cao độ RTL đã
+  đọc từ FC nếu nằm trong trần nhiệm vụ. Không tạo mô hình hoặc tuyên bố tự chọn
+  điểm hạ cánh dự phòng theo năng lượng khi chưa triển khai/kiểm chứng cơ chế đó.
+- API thay đổi tương thích: payload evidence thêm `fcProfileError` tùy chọn;
+  snapshot tham số cho phép tối đa 64 thay vì 32 để chứa cả giới hạn và failsafe.
+  Dùng endpoint/các trường receipt sẵn có. Không đổi schema DB, không migrate.
+- Unit tests không thay thế SITL tích hợp. Jetson đang không kết nối mạng nên
+  chưa chạy lại harness mới trên simulator từ máy đó; cờ thực thi vẫn tắt.
 
 ## Các bước trên website
 

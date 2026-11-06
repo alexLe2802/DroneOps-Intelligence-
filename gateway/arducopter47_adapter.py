@@ -33,9 +33,11 @@ def parameter_targets(envelope, current):
     if takeoff != climb:
         raise ProfileError('ArduCopter 4.7 AUTO takeoff and climb share WP_SPD_UP; use equal limits until phase-specific enforcement is proven.')
     profile = limits.get('recoveryEnergyProfile') or {}
-    rtl_alt = number(profile.get('returnAltitudeMeters'), 'RTL altitude', 1, ceiling)
     if not isinstance(current, dict):
         raise ProfileError('Fresh ArduCopter parameter snapshot is required.')
+    # A calibrated energy model is optional for native RTL; preserve the FC's
+    # existing return height only if it already fits the approved envelope.
+    rtl_alt = number(profile.get('returnAltitudeMeters', current.get('RTL_ALT_M')), 'RTL altitude', 1, ceiling)
     for name in ('FENCE_TYPE', 'FS_OPTIONS', 'BATT_MONITOR', 'BATT_CAPACITY',
                  'BATT_LOW_VOLT', 'BATT_CRT_VOLT', 'BATT_LOW_MAH', 'BATT_CRT_MAH',
                  'BATT_FS_LOW_ACT', 'BATT_FS_CRT_ACT'):
