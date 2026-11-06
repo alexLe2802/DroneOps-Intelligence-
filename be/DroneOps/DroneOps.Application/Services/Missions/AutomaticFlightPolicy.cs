@@ -32,23 +32,29 @@ public static class AutomaticFlightPolicy
         }
         return errors.Distinct().ToArray();
     }
-    public const decimal DefaultCruise = 3m, MaximumHorizontal = 5m, MaximumAltitude = 30m;
+    public const decimal DefaultCruise = 11.2m, MaximumHorizontal = 15m, MaximumAltitude = 30m;
+    public static AutomaticFlightLimits DefaultLimits() => new(6.5m, 6.5m, 5.8m, 1m, PolicyVersion: "multicopter-envelope-v2");
     public static IReadOnlyList<string> Errors(bool automatic, string? frame, decimal cruise, decimal maximum,
         AutomaticFlightLimits? limits, IEnumerable<(decimal? Altitude, string? Action)> points)
     {
         if (!automatic) return [];
         var errors = new List<string>();
         if (limits == null) { errors.Add("Automatic flight requires an explicit operational envelope. Resubmit the mission for approval."); return errors; }
-        if (limits.PolicyVersion != "multicopter-envelope-v1") errors.Add("Unsupported automatic-flight policy version.");
-        if (frame != "Relative") errors.Add("Automatic-flight v1 requires Relative altitude. Terrain/MSL profiles need separate verified support.");
-        if (cruise < 0.5m || maximum > MaximumHorizontal || maximum < cruise || maximum <= 0)
-            errors.Add("Automatic cruise must be >= 0.5 m/s and <= the mission maximum; horizontal maximum must be <= 5 m/s (18 km/h).");
-        if (limits.TakeoffSpeedMetersPerSecond is < 1m or > 1.5m) errors.Add("Automatic takeoff speed must be 1–1.5 m/s.");
-        if (limits.ClimbSpeedMetersPerSecond < limits.TakeoffSpeedMetersPerSecond || limits.ClimbSpeedMetersPerSecond > 1.5m)
-            errors.Add("Climb speed must be >= takeoff speed and <= 1.5 m/s.");
-        if (limits.DescentSpeedMetersPerSecond is < 0.6m or > 1m) errors.Add("Automatic descent speed must be 0.6–1 m/s.");
-        if (limits.LandingSpeedMetersPerSecond is < 0.6m or > 0.7m || limits.LandingSpeedMetersPerSecond > limits.DescentSpeedMetersPerSecond)
-            errors.Add("Landing speed must be 0.6–0.7 m/s and <= descent speed.");
+        if (limits.PolicyVersion is not ("multicopter-envelope-v1" or "multicopter-envelope-v2")) errors.Add("Unsupported automatic-flight policy version.");
+        if (frame != "Relative") errors.Add("Automatic flight requires Relative altitude. Terrain/MSL profiles need separate verified support.");
+        var v2 = limits.PolicyVersion == "multicopter-envelope-v2";
+        var horizontalCap = v2 ? 15m : 5m;
+        var climbCap = v2 ? 8m : 1.5m;
+        var descentCap = v2 ? 6m : 1m;
+        var landingCap = v2 ? 1.5m : 0.7m;
+        if (cruise < 0.5m || maximum > horizontalCap || maximum < cruise || maximum <= 0)
+            errors.Add($"Automatic cruise must be >= 0.5 m/s and <= the mission maximum; horizontal maximum must be <= {horizontalCap} m/s.");
+        if (limits.TakeoffSpeedMetersPerSecond < 1m || limits.TakeoffSpeedMetersPerSecond > climbCap) errors.Add($"Automatic takeoff speed must be 1–{climbCap} m/s.");
+        if (limits.ClimbSpeedMetersPerSecond < limits.TakeoffSpeedMetersPerSecond || limits.ClimbSpeedMetersPerSecond > climbCap)
+            errors.Add($"Climb speed must be >= takeoff speed and <= {climbCap} m/s.");
+        if (limits.DescentSpeedMetersPerSecond < 0.6m || limits.DescentSpeedMetersPerSecond > descentCap) errors.Add($"Automatic descent speed must be 0.6–{descentCap} m/s.");
+        if (limits.LandingSpeedMetersPerSecond < 0.6m || limits.LandingSpeedMetersPerSecond > landingCap || limits.LandingSpeedMetersPerSecond > limits.DescentSpeedMetersPerSecond)
+            errors.Add($"Landing speed must be 0.6–{landingCap} m/s and <= descent speed.");
         if (limits.MaxAltitudeMeters is <= 10m or > MaximumAltitude) errors.Add("Automatic altitude ceiling must be > 10 m and <= 30 m above takeoff home.");
         if (limits.MaxWindMetersPerSecond is <= 0m or > 3m || limits.MaxGustMetersPerSecond < limits.MaxWindMetersPerSecond || limits.MaxGustMetersPerSecond > 5m)
             errors.Add("Automatic wind limit must be > 0 and <= 3 m/s; gust limit must be >= wind and <= 5 m/s.");
