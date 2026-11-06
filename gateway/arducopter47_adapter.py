@@ -35,6 +35,12 @@ def parameter_targets(envelope, current):
     ceiling = number(limits.get('maxAltitudeMeters'), 'altitude ceiling', 10.1, 30)
     if takeoff != climb:
         raise ProfileError('ArduCopter 4.7 AUTO takeoff and climb share WP_SPD_UP; use equal limits until phase-specific enforcement is proven.')
+    flight_targets = {'WP_SPD': maximum, 'WP_SPD_UP': climb, 'WP_SPD_DN': descent,
+                      'LAND_SPD_MS': landing}
+    # Basic waypoint flight preserves the aircraft's existing recovery configuration.
+    # The older, complete recovery adapter remains available by explicit opt-in.
+    if envelope.get('configureRecovery') is not True:
+        return flight_targets
     profile = limits.get('recoveryEnergyProfile') or {}
     if not isinstance(current, dict):
         raise ProfileError('Fresh ArduCopter parameter snapshot is required.')

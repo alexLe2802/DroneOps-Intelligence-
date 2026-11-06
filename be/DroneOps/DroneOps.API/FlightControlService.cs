@@ -50,7 +50,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         if (operationId == Guid.Empty) throw new InvalidOperationException("An operation ID is required.");
         if (state.Commands.Any(c => c.Id == operationId)) return View(mission, state, ready, now);
         state.Tick(now, Authorized(ready, now) && Enabled && EnvelopeVerified(state));
-        if (!Enabled) throw new InvalidOperationException("Aircraft commands are disabled pending firmware SITL and failsafe verification.");
+        if (!Enabled) throw new InvalidOperationException("Aircraft commands are disabled. Enable FlightExecution:Enabled on the backend and --enable-flight-control on the gateway.");
         if (hash != state.CompiledHash) throw new InvalidOperationException("The FC plan changed. Refresh and review again.");
         if (!state.OnGround(now)) throw new InvalidOperationException("Fresh FC ON_GROUND state is required. In-air disarm is blocked.");
         if (action == "Arm")
@@ -106,15 +106,16 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             // pilot to invent autopilot parameters or a remote landing elevation.
             var landingGround = mission.Waypoints.OrderBy(w => w.SequenceOrder).LastOrDefault()?.Navigation?.LandingGroundAltitudeMeters;
             if (state.Options == null && evidence.Firmware is "ArduPilot" or "PX4" && evidence.Armed == false
-                && evidence.LandedState == 1 && landingGround != null)
+                && evidence.LandedState == 1 && (evidence.Firmware == "ArduPilot" || landingGround != null))
             {
-                var automaticOptions = new MissionCompileOptions(evidence.Firmware, YawPolicy: "Autopilot", LandingGroundAltitudeMeters: landingGround);
+                var automaticOptions = new MissionCompileOptions(evidence.Firmware, YawPolicy: "Autopilot", LandingGroundAltitudeMeters: landingGround,
+                    ConfigureRecovery: configuration.GetValue<bool>("FlightExecution:ConfigureRecovery"));
                 var resolved = MissionCommandCompiler.Compile(mission, automaticOptions, evidence.FirmwareParameters);
                 if (resolved.CanEncode)
                 {
                     state.Options = automaticOptions; state.PlanHash = resolved.SourcePlanHash; state.CompiledHash = resolved.CompiledMissionHash;
                     state.UploadVerified = false; state.Stage = "AwaitingGateway";
-                    state.Message = "Approved waypoint options resolved; FC operating-envelope verification is still required.";
+                    state.Message = "Approved waypoint route resolved; waiting for FC flight-limit verification.";
                     row.ConfirmedAt = null; row.ConfirmedPlanHash = null; row.ConnectionId = null;
                 }
             }
@@ -181,7 +182,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             new { key = "connection", label = "Bound drone connection", satisfied = ready.DroneConnected, detail = ready.DroneConnected ? "Fresh bound connection" : "Connect the assigned drone" },
             new { key = "operator", label = "Pilot online", satisfied = ready.OperatorOnline, detail = "Keep Live Monitoring visible and online" },
             new { key = "preflight", label = "Preflight validation", satisfied = ready.PreflightReady, detail = "Fresh passing validation for this exact plan" },
-            new { key = "fc-profile", label = "FC safety profile", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && EnvelopeVerified(state), detail = state.Evidence?.FcProfileError ?? "Gateway applies and reads back the supported FC profile before upload" },
+            new { key = "fc-profile", label = "FC flight limits", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && EnvelopeVerified(state), detail = state.Evidence?.FcProfileError ?? "Gateway applies and reads back the supported FC profile before upload" },
             new { key = "upload", label = "Mission read-back", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && state.UploadVerified, detail = "Uploaded items must match the compiled plan" }
         },
         enabled = Enabled, serverNow = now, scheduledAt = ready.ScheduledAt, endsAt = ready.EndsAt,
@@ -192,7 +193,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         homeAltitudeMslMeters = state.Fresh(now) ? state.Evidence?.HomeAltitudeMslMeters : null,
         onGround = state.OnGround(now), canArm = CanArm(state, ready, now),
         canDisarm = Enabled && state.OnGround(now) && state.Evidence?.Armed == true && state.Stage is not ("Starting" or "Running" or "Disarming"),
-        reason = Enabled ? null : "Aircraft commands are disabled until ArduPilot/PX4 SITL and the failsafe profile have been verified."
+        reason = Enabled ? null : "Aircraft commands are disabled. Enable FlightExecution:Enabled on the backend and --enable-flight-control on the gateway."
     };
 
     private async Task<object> Locked(Guid id, Guid actor, Func<Mission, MissionAutomationState, FlightControlState, Task<object>> action, CancellationToken ct)
