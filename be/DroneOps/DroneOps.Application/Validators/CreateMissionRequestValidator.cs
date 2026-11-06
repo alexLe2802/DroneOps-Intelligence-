@@ -18,6 +18,11 @@ public sealed class CreateMissionRequestValidator
     {
         RuleFor(x => x).Custom((x, context) => {
             foreach (var point in x.Waypoints ?? [])
+                if (point.Navigation?.MissionFences is { } fences && (point.SequenceOrder != 1 || fences.Count > 20
+                    || fences.Any(f => !DroneOps.Application.Services.Missions.MissionFenceGeometry.Valid(f))
+                    || fences.Select(f => f?.Id).Distinct().Count() != fences.Count))
+                    context.AddFailure("Waypoints.Navigation.MissionFences", "Mission fences belong to waypoint 1; use up to 20 valid, uniquely identified polygons or circles.");
+            foreach (var point in x.Waypoints ?? [])
                 if (point.Navigation?.PlannedHome is { } home && (point.SequenceOrder != 1
                     || home.Latitude is < -90 or > 90 || home.Longitude is < -180 or > 180
                     || home.AltitudeMslMeters is < -500 or > 10000))

@@ -6,6 +6,8 @@ using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Application.Interfaces.Incidents;
 using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Settings;
+using DroneOps.Application.Services.Missions;
+using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Constants;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
@@ -463,47 +465,78 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
         if (record.Latitude.HasValue && record.Longitude.HasValue)
         {
-            var geofences = await GetGeofenceSnapshotAsync(cancellationToken);
-
-            var validPolygons = new List<(string Name, List<GeofenceCoordinateResponse> Polygon)>();
-            foreach (var geofence in geofences)
+            var mission = await _context.Missions.AsNoTracking().Include(m => m.Waypoints)
+                .SingleAsync(m => m.Id == missionId, cancellationToken);
+            var missionFences = mission.Waypoints.OrderBy(w => w.SequenceOrder).FirstOrDefault()?.Navigation?.MissionFences;
+            if (missionFences is { Count: > 0 })
             {
-                var polygon = JsonSerializer.Deserialize<List<GeofenceCoordinateResponse>>(
-                    geofence.Coordinates,
-                    JsonOptions);
-
-                if (polygon == null || polygon.Count < 3)
+                var now = DateTimeOffset.UtcNow;
+                var eligible = ActiveMissionStatuses.Contains(mission.Status) && mission.StartTime <= now.UtcDateTime && mission.EndTime > now.UtcDateTime
+                    && record.Armed == true && previous != null && previous.Armed == true && previous.UAVId == record.UAVId && previous.SourceId == record.SourceId
+                    && previous.Latitude.HasValue && previous.Longitude.HasValue
+                    && record.SourceTimestamp <= now && record.SourceTimestamp >= now.AddSeconds(-15)
+                    && previous.SourceTimestamp >= record.SourceTimestamp.AddSeconds(-10)
+                    && missionFences.All(MissionFenceGeometry.Valid);
+                if (eligible)
                 {
-                    continue;
+                    var inside = MissionFenceGeometry.InsideAny(missionFences, record.Latitude.Value, record.Longitude.Value);
+                    var previousInside = MissionFenceGeometry.InsideAny(missionFences, previous!.Latitude!.Value, previous.Longitude!.Value);
+                    if (!inside && !previousInside)
+                    {
+                        raised = await RaiseIncidentAsync(record, "GeofenceBreach", "Mission geofence breached", "High",
+                            "UAV is outside all permitted areas of this mission.", "MissionGeofenceKeepIn", null, cancellationToken,
+                            new { missionFences, planHash = MissionValidationService.Hash(mission) });
+                        if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
+                    }
+                    else if (inside && previousInside)
+                        await _incidentLifecycle.ResolveOpenByRuleAsync(missionId, "GeofenceBreach",
+                            "UAV returned inside its mission fence for two consecutive samples.", cancellationToken);
                 }
-
-                validPolygons.Add((geofence.Name, polygon));
             }
-
-            // Geofence = vùng được phép bay: ra ngoài TẤT CẢ polygon thì mới coi là vi phạm.
-            if (validPolygons.Count > 0)
+            else
             {
-                var insideAny = validPolygons.Exists(g =>
-                    IsPointInPolygon(
-                        (double)record.Latitude.Value,
-                        (double)record.Longitude.Value,
-                        g.Polygon));
+                var geofences = await GetGeofenceSnapshotAsync(cancellationToken);
 
-                var previousInside = previous?.Latitude.HasValue == true && previous.Longitude.HasValue &&
-                    validPolygons.Exists(g => IsPointInPolygon(
-                        (double)previous.Latitude.Value, (double)previous.Longitude.Value, g.Polygon));
-
-                if (!insideAny && previous != null && !previousInside)
+                var validPolygons = new List<(string Name, List<GeofenceCoordinateResponse> Polygon)>();
+                foreach (var geofence in geofences.Where(g => g.RestrictionType == "OperationalBoundary"))
                 {
-                    raised = await RaiseIncidentAsync(
-                        record, "GeofenceBreach", "Geofence breach detected", "High",
-                        "UAV is outside every configured operating geofence.", "GeofenceKeepIn", null,
-                        cancellationToken);
-                    if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
+                    var polygon = JsonSerializer.Deserialize<List<GeofenceCoordinateResponse>>(
+                        geofence.Coordinates,
+                        JsonOptions);
+
+                    if (polygon == null || polygon.Count < 3)
+                    {
+                        continue;
+                    }
+
+                    validPolygons.Add((geofence.Name, polygon));
                 }
-                else if (insideAny && previousInside)
-                    await _incidentLifecycle.ResolveOpenByRuleAsync(
-                        missionId, "GeofenceBreach", "UAV returned inside an operating geofence for two consecutive samples.", cancellationToken);
+
+                // Geofence = vùng được phép bay: ra ngoài TẤT CẢ polygon thì mới coi là vi phạm.
+                if (validPolygons.Count > 0)
+                {
+                    var insideAny = validPolygons.Exists(g =>
+                        IsPointInPolygon(
+                            (double)record.Latitude.Value,
+                            (double)record.Longitude.Value,
+                            g.Polygon));
+
+                    var previousInside = previous?.Latitude.HasValue == true && previous.Longitude.HasValue &&
+                        validPolygons.Exists(g => IsPointInPolygon(
+                            (double)previous.Latitude.Value, (double)previous.Longitude.Value, g.Polygon));
+
+                    if (!insideAny && previous != null && !previousInside)
+                    {
+                        raised = await RaiseIncidentAsync(
+                            record, "GeofenceBreach", "Geofence breach detected", "High",
+                            "UAV is outside every configured operating geofence.", "GeofenceKeepIn", null,
+                            cancellationToken);
+                        if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
+                    }
+                    else if (insideAny && previousInside)
+                        await _incidentLifecycle.ResolveOpenByRuleAsync(
+                            missionId, "GeofenceBreach", "UAV returned inside an operating geofence for two consecutive samples.", cancellationToken);
+                }
             }
         }
 
@@ -619,7 +652,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
     private Task<Guid?> RaiseIncidentAsync(
         TelemetryRecord record, string type, string title, string severity, string description,
-        string appliedRule, double? threshold, CancellationToken cancellationToken)
+        string appliedRule, double? threshold, CancellationToken cancellationToken, object? ruleDetails = null)
     {
 
         var evidence = JsonSerializer.Serialize(new
@@ -637,7 +670,8 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             sourceTimestamp = record.SourceTimestamp,
             receivedAt = record.ReceivedAt,
             appliedRule,
-            threshold
+            threshold,
+            ruleDetails
         }, JsonOptions);
 
         return _incidentLifecycle.RaiseIfOpenMissingAsync(new Incident

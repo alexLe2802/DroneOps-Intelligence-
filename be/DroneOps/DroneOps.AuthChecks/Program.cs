@@ -10,6 +10,12 @@ using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
 using Microsoft.AspNetCore.Authorization;
 
+if (args.Length == 1 && args[0] == "--mission-fences")
+{
+    MissionFenceChecks.Run();
+    return;
+}
+
 if (args.Length == 1 && args[0] == "--mission-history")
 {
     await MissionHistoryChecks.RunAsync();
