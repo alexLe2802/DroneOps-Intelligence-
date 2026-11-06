@@ -9,11 +9,7 @@ import type { AssignedUav, CreateUavRequest } from "@/lib/portal/types";
 import { optionalNumber, uavSpecificationError } from "@/lib/uav-specification";
 import { uavImageFileError } from "@/lib/uav-image-file";
 
-type UavFormValue = Record<keyof CreateUavRequest, string>;
-
-function dateInputValue(value: string | null | undefined) {
-  return value ? value.slice(0, 10) : "";
-}
+type UavFormValue = Record<Exclude<keyof CreateUavRequest, "purchaseDate">, string>;
 
 function initialValue(aircraft?: AssignedUav): UavFormValue {
   const value = (item: string | number | null | undefined) => item == null ? "" : String(item);
@@ -36,7 +32,6 @@ function initialValue(aircraft?: AssignedUav): UavFormValue {
     maxSpeedKmh: value(aircraft?.maxSpeedKmh),
     maxWindSpeedMps: value(aircraft?.maxWindSpeedMps),
     maxOperatingAltitudeMeters: value(aircraft?.maxOperatingAltitudeMeters),
-    purchaseDate: dateInputValue(aircraft?.purchaseDate),
   };
 }
 
@@ -95,7 +90,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       maxSpeedKmh: optionalNumber(form.maxSpeedKmh),
       maxWindSpeedMps: optionalNumber(form.maxWindSpeedMps),
       maxOperatingAltitudeMeters: optionalNumber(form.maxOperatingAltitudeMeters),
-      purchaseDate: form.purchaseDate ? `${form.purchaseDate}T00:00:00.000Z` : null,
+      purchaseDate: aircraft?.purchaseDate ?? null,
     };
 
     if (!request.code || !request.name) {
@@ -199,14 +194,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
         </section>
 
         <section className="uav-form-section">
-          <header><span>05</span><div><h2>Acquisition</h2><p>Optional purchase information for the fleet record.</p></div></header>
-          <div className="uav-form-grid">
-            <label>PURCHASE DATE<input type="date" value={form.purchaseDate} onChange={event => set("purchaseDate", event.target.value)} max="9999-12-31" /></label>
-          </div>
-        </section>
-
-        <section className="uav-form-section">
-          <header><span>06</span><div><h2>Aircraft image</h2><p>Add a clear registry photo of the UAV.</p></div></header>
+          <header><span>05</span><div><h2>Aircraft image</h2><p>Add a clear registry photo of the UAV.</p></div></header>
           <div className="uav-image-editor">
             <div className="uav-image-preview">
               {imagePreview || aircraft?.imageUrl
