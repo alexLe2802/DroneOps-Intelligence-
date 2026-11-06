@@ -9,6 +9,16 @@ internal static class MissionCommandCompilerChecks
             AverageSpeedMetersPerSecond = 5, MaxSpeedMetersPerSecond = 8,
             Waypoints = [Point(1, "TakeOff"), Point(2, "FlyThrough"), Point(3, "Hover"), Point(4, "Land")] };
         var options = new MissionCompileOptions("ArduPilot", AcceptanceRadiusMeters: 2, YawPolicy: "Autopilot", HoverDurationSeconds: 5, LandingGroundAltitudeMeters: 0);
+        var withoutHome = MissionCommandCompiler.Compile(mission, options);
+        var home = new PlannedHome(10.8231m, 106.6297m, 12m);
+        mission.Waypoints.First().Navigation = new(PlannedHome: home);
+        var withHome = MissionCommandCompiler.Compile(mission, options);
+        Check(withHome.CanEncode && withHome.PlannedHome == home, "compiled FC payload contains the chosen Planned Home");
+        Check(withHome.SourcePlanHash != withoutHome.SourcePlanHash && withHome.CompiledMissionHash != withoutHome.CompiledMissionHash,
+            "changing Home invalidates plan approval and compiled mission evidence");
+        mission.Waypoints.First().Navigation = new(PlannedHome: home with { Latitude = 91 });
+        Check(!MissionCommandCompiler.Compile(mission, options).CanEncode, "invalid Planned Home cannot be compiled");
+        mission.Waypoints.First().Navigation = null;
         var result = MissionCommandCompiler.Compile(mission, options);
         Check(result.CanEncode && !result.CanUpload && !result.CanStart && result.State == "PreviewOnly", "valid compilation remains non-executable pending runtime and policy gates");
         Check(result.Items.Select(i => i.Command).SequenceEqual(new ushort[] { 22, 178, 16, 16, 21 }), "compiler maps takeoff, ground speed, navigation, hover and landing");

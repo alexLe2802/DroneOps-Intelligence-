@@ -42,6 +42,24 @@ chứng drone đã được cấu hình để thực thi an toàn.
 
 ## Các bước trên website
 
+**Planned Home:** tạo/sửa nhiệm vụ có nút Set Home on map, nhập latitude/longitude,
+dùng vị trí Takeoff hoặc xóa Home. Cao độ MSL là tùy chọn; không nhập thì dùng
+Home elevation thực của FC. Home được hiển thị bằng marker H và đưa vào màn
+so sánh manager, hash kế hoạch và payload compiler `plannedHome`.
+
+API tạo/sửa hiện có nhận thêm `waypoints[0].navigation.plannedHome` với
+`latitude`, `longitude`, `altitudeMslMeters` tùy chọn. Chỉ waypoint 1 được mang
+metadata này. Lưu trong cột JSON navigation hiện có, không migrate DB. Payload
+controlPoll/compiled mission có thêm `plannedHome` tương ứng.
+
+Gateway yêu cầu Home FC mới, lệch không quá 10 m theo phương ngang và 5 m MSL
+nếu đã khai cao độ. Không đạt thì chặn cấu hình/upload/ARM/Start. Payload vẫn
+chứa điểm dự kiến; mục home thứ 0 của ArduPilot dùng Home **thực** đã đối chiếu
+để không âm thầm di chuyển reference/RTL. Không gửi DO_SET_HOME từ điểm bản đồ.
+PX4 không chèn home thành waypoint mission; vẫn kiểm tra cùng điều kiện trên.
+Home chưa chọn là dữ liệu tùy chọn để tương thích nhiệm vụ cũ; Home thực FC vẫn
+là điều kiện cần trước thực thi tự động.
+
 1. Chọn rõ **Manual operation** hoặc **Automatic mission** ở đầu form. Form
    tạo mới không tự chọn chế độ. Manual dùng RC/GCS; website không tự khởi
    động chuyến bay trong chế độ này.

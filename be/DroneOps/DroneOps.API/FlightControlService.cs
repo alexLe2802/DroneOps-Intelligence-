@@ -154,6 +154,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             return new { enabled = Enabled, serverNow = now, leaseSeconds = leaseActive ? 3 : 0, stage = state.Stage, launchAt = state.LaunchAt,
                 compiledHash = state.CompiledHash, command = outgoing,
                 operatingEnvelope = compiled?.OperationalEnvelope,
+                plannedHome = compiled?.PlannedHome,
                 requiredEnvelopeHash = state.CompiledHash,
                 mission = outgoing?.Action == "Upload" ? compiled : null };
         }, ct);
