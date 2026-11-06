@@ -42,6 +42,25 @@ internal static class MissionCommandCompilerChecks
         var legacyPlan = MissionCommandCompiler.Compile(mission, options with { AcceptanceRadiusMeters = null }, legacy);
         Check(legacyPlan.CanEncode && legacyPlan.Items.Single(i => i.Command == 178).Param2 == 3
             && legacyPlan.Items.Where(i => i.Command == 16).All(i => i.Param2 == 2), "legacy centimetre speed and radius remain supported");
+        var automatic = new Mission { Id = Guid.NewGuid(), UAVId = Guid.NewGuid(), Name = "Waypoint route",
+            AutomaticFlightRequested = true, AutomaticFlightLimits = AutomaticFlightPolicy.DefaultLimits(),
+            AltitudeReference = "Relative", AverageSpeedMetersPerSecond = 3, MaxSpeedMetersPerSecond = 5,
+            Waypoints = [Point(1, "TakeOff"), Point(2, "FlyThrough"), Point(3, "Land")] };
+        automatic.Waypoints.Last().Latitude = 10.824m;
+        var route = MissionCommandCompiler.Compile(automatic, options with { LandingGroundAltitudeMeters = null });
+        Check(route.CanEncode && route.Items.Select(i => i.Command).SequenceEqual(new ushort[] { 22, 178, 16, 16, 21 }),
+            "automatic route visits every waypoint and reaches the endpoint before landing without invented ground elevation");
+        Check(route.Items[^2].Z == 30 && route.Items[^2].X == route.Items[^1].X && route.Items[^1].Z == 0,
+            "arrival at the final waypoint uses its approved flight altitude before Copter LAND");
+        Check(route.OperationalEnvelope is { ConfigureRecovery: false }, "basic waypoint execution does not require extended recovery");
+        var recovery = MissionCommandCompiler.Compile(automatic, options with { ConfigureRecovery = true });
+        Check(recovery.OperationalEnvelope is { ConfigureRecovery: true } && recovery.CompiledMissionHash != route.CompiledMissionHash,
+            "extended recovery remains available and changes the execution hash");
+        automatic.Waypoints = [Point(1, "TakeOff"), Point(2, "Land")];
+        Check(MissionCommandCompiler.Compile(automatic, options).Items.Select(i => i.Command).SequenceEqual(new ushort[] { 22, 178, 16, 21 }),
+            "a two-point route also contains an explicit arrival waypoint");
+        Check(!MissionCommandCompiler.Compile(automatic, options with { FirmwareTarget = "PX4", LandingGroundAltitudeMeters = null }).CanEncode,
+            "PX4 still requires its explicit landing elevation");
         mission.AltitudeReference = "MSL";
         Check(MissionCommandCompiler.Compile(mission, options).Items[0].Frame == 0, "MSL uses global frame with integer coordinate encoding");
         mission.AltitudeReference = "AGL";

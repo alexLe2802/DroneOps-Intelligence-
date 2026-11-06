@@ -296,7 +296,7 @@ class FlightControl:
         if (not self.grounded() or evidence['armed'] is not False or not evidence['navigationReady']
                 or evidence['firmware'] != 'ArduPilot' or not snapshot or snapshot['firmwareVersion'] != '4.7.1'):
             return
-        if snapshot['values'].get('ARMING_SKIPCHK') != 0 or snapshot['values'].get('FS_EKF_ACTION') != 1:
+        if snapshot['values'].get('ARMING_SKIPCHK') != 0 or (response['operatingEnvelope'].get('configureRecovery') is True and snapshot['values'].get('FS_EKF_ACTION') != 1):
             self.envelope.error = 'All FC arming checks and the reviewed EKF-loss LAND action are required.'
             return
         self.envelope.begin(wanted, response['operatingEnvelope'], snapshot['values'], link)
@@ -330,6 +330,15 @@ class FlightControl:
                 self.finish(False)
                 return
             self.planned_home = plan.get('plannedHome')
+            if plan.get('operationalEnvelope') and plan.get('items'):
+                origin = plan['items'][0]
+                takeoff = {'latitude': origin['x'] / 1e7, 'longitude': origin['y'] / 1e7}
+                if origin['command'] != 22 or not planned_home_matches(takeoff, actual_home):
+                    print('Takeoff waypoint must be within 10 m of FC Home. Upload blocked.', flush=True)
+                    self.finish(False)
+                    return
+                if self.planned_home is None:
+                    self.planned_home = takeoff
             self.items = [dict(item) for item in plan['items']]
             if not self.items or len(self.items) > 500:
                 self.finish(False)
