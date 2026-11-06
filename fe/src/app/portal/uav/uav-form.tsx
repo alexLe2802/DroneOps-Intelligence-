@@ -9,11 +9,7 @@ import type { AssignedUav, CreateUavRequest } from "@/lib/portal/types";
 import { optionalNumber, uavSpecificationError } from "@/lib/uav-specification";
 import { uavImageFileError } from "@/lib/uav-image-file";
 
-type UavFormValue = Record<keyof CreateUavRequest, string>;
-
-function dateInputValue(value: string | null | undefined) {
-  return value ? value.slice(0, 10) : "";
-}
+type UavFormValue = Record<Exclude<keyof CreateUavRequest, "purchaseDate">, string>;
 
 function initialValue(aircraft?: AssignedUav): UavFormValue {
   const value = (item: string | number | null | undefined) => item == null ? "" : String(item);
@@ -36,7 +32,6 @@ function initialValue(aircraft?: AssignedUav): UavFormValue {
     maxSpeedKmh: value(aircraft?.maxSpeedKmh),
     maxWindSpeedMps: value(aircraft?.maxWindSpeedMps),
     maxOperatingAltitudeMeters: value(aircraft?.maxOperatingAltitudeMeters),
-    purchaseDate: dateInputValue(aircraft?.purchaseDate),
   };
 }
 
@@ -95,7 +90,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       maxSpeedKmh: optionalNumber(form.maxSpeedKmh),
       maxWindSpeedMps: optionalNumber(form.maxWindSpeedMps),
       maxOperatingAltitudeMeters: optionalNumber(form.maxOperatingAltitudeMeters),
-      purchaseDate: form.purchaseDate ? `${form.purchaseDate}T00:00:00.000Z` : null,
+      purchaseDate: aircraft?.purchaseDate ?? null,
     };
 
     if (!request.code || !request.name) {
@@ -184,7 +179,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
           <header><span>03</span><div><h2>Battery system</h2><p>Electrical configuration and rated capacity.</p></div></header>
           <div className="uav-form-grid">
             <label>BATTERY TYPE<input value={form.batteryType} onChange={event => set("batteryType", event.target.value)} placeholder="LiPo 6S" maxLength={50} /></label>
-            <label>INSTALLED PACK CAPACITY (mAh)<input type="number" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="5880" min="1" step="1" /><small>Use the capacity of the installed battery. This configured value is separate from the consumed mAh reported by telemetry.</small></label>
+            <label>PACK CAPACITY (mAh) · OPTIONAL<input type="number" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="Read from FC when connected" min="1" step="1" /><small>Leave blank if unknown. FC capacity is preferred when available; enter a fallback only if you know the installed pack capacity.</small></label>
             <label>MAX PACK VOLTAGE (V)<input type="number" value={form.batteryMaxVoltage} onChange={event => set("batteryMaxVoltage", event.target.value)} placeholder="25.2 for standard 6S LiPo" min="0.01" step="0.01" /><small>Full-charge voltage for the whole installed pack. Use the battery label; this is different from nominal voltage and live telemetry.</small></label>
             <label>CELL COUNT<input type="number" value={form.batteryCellCount} onChange={event => set("batteryCellCount", event.target.value)} placeholder="6" min="1" max="100" step="1" /></label>
           </div>
@@ -199,14 +194,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
         </section>
 
         <section className="uav-form-section">
-          <header><span>05</span><div><h2>Acquisition</h2><p>Optional purchase information for the fleet record.</p></div></header>
-          <div className="uav-form-grid">
-            <label>PURCHASE DATE<input type="date" value={form.purchaseDate} onChange={event => set("purchaseDate", event.target.value)} max="9999-12-31" /></label>
-          </div>
-        </section>
-
-        <section className="uav-form-section">
-          <header><span>06</span><div><h2>Aircraft image</h2><p>Add a clear registry photo of the UAV.</p></div></header>
+          <header><span>05</span><div><h2>Aircraft image</h2><p>Add a clear registry photo of the UAV.</p></div></header>
           <div className="uav-image-editor">
             <div className="uav-image-preview">
               {imagePreview || aircraft?.imageUrl

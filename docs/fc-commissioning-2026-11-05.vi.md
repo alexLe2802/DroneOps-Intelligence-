@@ -19,6 +19,59 @@ Không đưa UID, token, mã pairing hoặc tọa độ chính xác vào tài li
   Không dùng SOC này để xác nhận đủ năng lượng bay. Cần kiểm tra nguồn pin,
   power module và hiệu chỉnh đo trước khi tính năng lượng.
 
+## Kiểm tra tiếp ngày 06/11/2026
+
+- Chủ thiết bị xác nhận nguồn bay là **LiPo 4S2P**; đã từng cung cấp con số
+  **10.000 mAh** nhưng nay cho biết nhãn pin không ghi dung lượng và chưa chắc
+  chắn về con số đó. Dung lượng thực **chưa xác minh**. FC và Jetson cùng được
+  cấp nguồn, toàn bộ cánh quạt đã tháo và drone cố định trên bàn.
+- Đọc trực tiếp cổng USB thứ hai của FC, chỉ nhận MAVLink: power module báo
+  khoảng **16,0 V**, **0,41 A**, SOC **98%**, consumed charge tăng theo thời gian.
+  Một cửa sổ khoảng 20 phút tăng từ 32 lên 171 mAh, phù hợp xấp xỉ với dòng
+  0,412 A khi đứng yên. Đây là kiểm tra phép đo **trên bàn**, chưa phải hiệu
+  chuẩn dung lượng hoặc mức tiêu thụ khi bay.
+- `BATT_CAPACITY` trong FC là **8.000 mAh**: đây là tham số cấu hình đã đọc từ
+  FC, không phải số đo và không chứng minh pin có dung lượng 8.000 mAh. Chưa có
+  nguồn xác thực dung lượng thực của pack. Không suy dung lượng thật từ SOC
+  hoặc số mAh đã tiêu thụ; chưa thay tham số dung lượng hay ngưỡng pin.
+- Chủ thiết bị đã đối chiếu trong **Mission Planner** và xác nhận FC hiển thị
+  **8.000 mAh**. Như vậy giá trị cấu hình/nguồn đọc đã được xác nhận bằng GCS
+  thứ hai; app ưu tiên tự lấy giá trị này, không yêu cầu nhập lại. Điều này
+  không phải phép đo dung lượng sử dụng thực của pack.
+- Audit xuất `batteryCapacityEvidence`: số cấu hình từ `BATT_CAPACITY`, dung
+  lượng đo thực để trống, `capacityVerified=false` và
+  `remainingCapacityVerified=false`. Dung lượng cấu hình dương không chứng minh
+  đủ năng lượng bay. Cần dữ liệu nhà sản xuất hoặc phép đo dung lượng sử dụng
+  được bằng thiết bị phù hợp cùng hiệu chuẩn power module; không xả cạn pin
+  bằng động cơ trên bàn để tìm dung lượng.
+- Adapter kiểm tra thứ tự low/critical, ngưỡng mAh không vượt số cấu hình và
+  đúng hành động low RTL/critical LAND. Các kiểm tra này chỉ kiểm tra tính nhất
+  quán, không chứng nhận ngưỡng phù hợp pin thực. 10 bài unit test adapter/audit
+  đạt; chạy lại adapter cập nhật trên SITL 4.7.1 đọc lại đủ 13 tham số thành công.
+- RadioMaster Pocket ELRS đã bind với receiver theo xác nhận của chủ thiết bị.
+  FC nhận `RC_CHANNELS` trên các kênh 1–8. Khi chủ thiết bị di chuyển cần phải,
+  kênh 1 và 2 thay đổi; kênh 3 cũng thay đổi và cuối phiên đọc ở khoảng 1386 µs.
+  Cần xác nhận lại ánh xạ/hiệu chuẩn và ga thấp trước mọi phép thử ARM. Kênh 7
+  đang giữ ở khoảng 1503 µs; công tắc ARM riêng chưa được cấu hình hay thử.
+- GPS vẫn ở trong nhà, fix type 1, chưa có Home. Chủ thiết bị sẽ kiểm tra lại
+  ngoài trời. Không thay bằng GPS/Home giả để mở khóa bay thật.
+- Chỉ thực hiện quan sát thụ động; không gửi ARM, DISARM, thay mode, PARAM_SET
+  hoặc upload mission vào FC thật.
+- Mã nguồn ArduCopter tag `Copter-4.7.1` đã biên dịch SITL thành công trên
+  Jetson. Harness riêng kết nối `127.0.0.1` tới simulator, nhận diện firmware
+  4.7.1, áp dụng và đọc lại độc lập 13 tham số envelope/failsafe. Kết quả
+  `parameterCount=13`, `independentReadback=true`. Đây mới là kiểm tra tham số
+  trên mô phỏng; chưa chứng minh hành vi bay hoặc các lỗi kết hợp và không tạo
+  quyền bay thật.
+- Bài autotest chính thức `test.Copter.BatteryFailsafe` của ArduPilot 4.7.1
+  đã **PASS** trên SITL. Nó thử nhiều nhánh pin thấp/nguy cấp và phản ứng RTL/
+  LAND của firmware mô phỏng. Bài này dùng cấu hình pin mô phỏng của ArduPilot,
+  không xác nhận ngưỡng điện áp hay dung lượng của pack 4S2P thực tế.
+- Các bài autotest chính thức `test.Copter.GCSFailsafe`,
+  `test.Copter.ThrottleFailsafe` (mất RC) và `test.Copter.MaxAltFence` đều
+  **PASS** trên SITL. Chưa có bài tích hợp xác nhận đồng thời lỗi pin + RC/GCS
+  + mất GPS/vi phạm giới hạn với đúng envelope đã duyệt của ứng dụng.
+
 ## Thông số FC hiện có, chưa thay đổi
 
 | Mục | Giá trị đọc từ FC | Ý nghĩa với luồng app |
@@ -45,6 +98,17 @@ Không đưa UID, token, mã pairing hoặc tọa độ chính xác vào tài li
 | `BATT_FS_LOW_ACT` / `BATT_FS_CRT_ACT` | 2 / 1 | Cấu hình low RTL, critical Land; phụ thuộc đo pin hoạt động đúng |
 
 ## Những phần phần mềm đã bổ sung từ kiểm tra này
+
+- Kiểm tra lại trên FC và mã nguồn tag 4.7.1 xác nhận `ARMING_SKIPCHK=0`
+  thay cho tham số legacy `ARMING_CHECK`: không có kiểm tra arming nào bị bỏ.
+  Audit/gateway đã sửa để không chặn sai vì thiếu tên cũ.
+- Sau reboot, simulator được dựng lại trong `/home/dronelab/droneops-sitl`.
+  Harness adapter mới đã PASS trên ArduCopter 4.7.1, đọc lại 13 tham số với
+  `nonblockingAdapter=true`. Không tính đây là kiểm thử toàn luồng bay/lỗi kết hợp.
+- Lần đọc FC mới nhất: disarmed/on-ground, pin khoảng 15,50 V/0,44 A; GPS dao
+  động từ 3D fix/4 vệ tinh tới không fix/0 vệ tinh, chưa có Home. Tín hiệu tại
+  vị trí đang bị che chưa đủ điều kiện bay tự động. Chủ thiết bị xác nhận cánh
+  đã tháo, nhưng không thể chuyển GPS ra vị trí thoáng hơn trong phiên này.
 
 - Gateway đọc đúng các tên mới của ArduCopter 4.7, gồm `WP_RADIUS_M`,
   `LAND_SPD_MS`, `LAND_SPD_HIGH_MS`, `RTL_ALT_M`, `RTL_SPEED_MS`.

@@ -366,6 +366,10 @@ public sealed class MissionValidationService(
 
         // Preserve existing manual-plan evidence; opt-in changes invalidate approval evidence.
         if (mission.AutomaticFlightRequested) json += "|automatic-flight-v1|envelope-v1|" + JsonSerializer.Serialize(mission.AutomaticFlightLimits, JsonOptions) + "|navigation-v1|" + JsonSerializer.Serialize(mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => w.Navigation), JsonOptions);
+        else if (mission.Waypoints.Any(w => w.Navigation?.PlannedHome != null))
+            json += "|planned-home-v1|" + JsonSerializer.Serialize(mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => w.Navigation?.PlannedHome), JsonOptions);
+        if (!mission.AutomaticFlightRequested && mission.Waypoints.Any(w => w.Navigation?.MissionFences?.Count > 0))
+            json += "|mission-fences-v1|" + JsonSerializer.Serialize(mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => w.Navigation?.MissionFences), JsonOptions);
 
         return Convert.ToHexString(
             SHA256.HashData(

@@ -153,3 +153,16 @@ tranh cổng 14551 với gateway đang chạy hoặc mở trực tiếp USB đan
 Công cụ chỉ yêu cầu đọc message/parameter, báo thiếu tham số theo firmware và
 không cấp quyền bay. Không phát heartbeat GCS, không ghi tham số hoặc lệnh bay.
 Xem [kết quả Pixhawk 6C / ArduCopter 4.7.1](../docs/fc-commissioning-2026-11-05.vi.md).
+
+## Mission waypoint cơ bản
+
+Luồng hiện tại bay theo toàn bộ waypoint của mission, không giới hạn hai điểm.
+Với ArduCopter 4.7.1, tùy chọn `configureRecovery=false` là mặc định: gateway chỉ
+áp dụng/đọc lại WP_SPD, WP_SPD_UP, WP_SPD_DN và LAND_SPD_MS, giữ nguyên cấu hình
+failsafe trên FC. Adapter recovery mở rộng vẫn có thể bật trong FC MISSION SETTINGS.
+Backend cần `FlightExecution__Enabled=true`, gateway cần `--enable-flight-control`.
+GPS/Home, pre-arm, phi công xác nhận và upload/read-back vẫn được kiểm tra trước ARM.
+Điểm TakeOff phải ở trong 10 m quanh FC Home; FC phải ở LOITER trước ARM. Sau ARM
+được xác nhận, hệ thống đếm 10 giây rồi gửi START một lần. Điểm cuối được tiếp cận
+ở độ cao đã đặt trước LAND; không cần nhập ground elevation cho ArduCopter.
+Xem tài liệu trong repository: `docs/waypoint-flight-execution.vi.md`.

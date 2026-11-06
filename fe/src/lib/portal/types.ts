@@ -45,7 +45,9 @@ export type PagedResponse<T> = {
 
 // CapturePhoto is retained only to read historical records; new camera actions are deferred.
 export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
-export type WaypointNavigation = { speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
+export type MissionFence = { id: string; shape: "Polygon" | "Circle"; vertices?: GeofenceCoordinate[] | null; center?: GeofenceCoordinate | null; radiusMeters?: number | null };
+export type PlannedHome = { latitude: number; longitude: number; altitudeMslMeters?: number | null };
+export type WaypointNavigation = { missionFences?: MissionFence[] | null; plannedHome?: PlannedHome | null; speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
 export type FirmwareParameterSnapshot = { firmwareVersion: string; values: Record<string, number>; observedAtUtc: string; hardwareIdentity?: string | null; source: string };
 export type MissionWaypoint = {
   navigation?: WaypointNavigation | null;
