@@ -15,3 +15,10 @@ CREATE TABLE IF NOT EXISTS public."Notification" (
 
 CREATE INDEX IF NOT EXISTS "IX_Notification_Recipient_Read_Created"
     ON public."Notification" ("RecipientUserId", "IsRead", "CreatedAt" DESC);
+
+-- At most one aggregate, active manual-review notification per manager.
+-- Closed queue notifications are retained as history and are outside this index.
+CREATE UNIQUE INDEX IF NOT EXISTS "UX_Notification_UavManualReview_Active"
+    ON public."Notification" ("RecipientUserId")
+    WHERE "Type" = 'UavManualReview'
+      AND "ReferenceType" = 'UAVManualReviewQueueActive';

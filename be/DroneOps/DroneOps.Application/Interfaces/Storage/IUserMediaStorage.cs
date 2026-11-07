@@ -31,6 +31,10 @@ public interface IUserMediaStorage
         string path,
         CancellationToken cancellationToken = default);
 
+    Task<byte[]> DownloadAsync(
+        string path,
+        CancellationToken cancellationToken = default);
+
     Task DeleteAsync(
         IEnumerable<string> paths,
         CancellationToken cancellationToken = default);

@@ -15,7 +15,8 @@ var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCas
     "--migrate-auth", "--bootstrap-manager", "--monitor-only",
     "--migrate-telemetry", "--check-telemetry-schema",
     "--migrate-postflight", "--check-postflight-schema",
-    "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows"
+    "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows",
+    "--migrate-uav-images"
 };
 var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
@@ -52,6 +53,14 @@ if(args.Contains("--migrate-account-workflows"))
     await using var source=PostgresDataSourceFactory.Create(connectionString);
     await AccountWorkflowSchema.ApplyAsync(source);
     Console.WriteLine("Account workflow schema verified.");return;
+}
+
+if (args.Contains("--migrate-uav-images"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await UavImageSchema.ApplyAsync(source);
+    Console.WriteLine("UAV image moderation schema verified.");
+    return;
 }
 
 if (args.Contains("--migrate-mission-workflow"))
@@ -133,6 +142,7 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
+builder.Services.AddHostedService<UavImageModerationMonitor>();
 if (monitoringEnabled)
 {
     builder.Services.AddHostedService<CommunicationLossMonitor>();
@@ -218,7 +228,7 @@ await FlightPreparationSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.
 await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 // Notification DDL is idempotent so existing deployments become ready without a separate flag.
 await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await UavImageSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await UavImageSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.
