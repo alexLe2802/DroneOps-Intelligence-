@@ -135,6 +135,9 @@ tmp/final-submission/
 outputs/final-submission/
 tmp/submission-review/
 
+# Local temporary workspace
+/tmp/
+
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/
 **/.codex/
