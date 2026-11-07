@@ -58,8 +58,8 @@ export async function getValidationMissionOptions(role: AccountRole): Promise<Va
 }
 
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
-  const result = await api<Omit<MissionDetail, "uavCode">>("/missions", { method: "POST", body: JSON.stringify(request) });
-  return { ...result, uavCode: null };
+  const result = await api<MissionApiRecord>("/missions", { method: "POST", body: JSON.stringify(request) });
+  return normalizeMission(result, result.uavCode ?? null);
 }
 
 export function confirmHighRiskMission(id: string): Promise<{ missionId: string; status: string; message: string }> {
@@ -71,11 +71,11 @@ export function cancelHighRiskMission(id: string): Promise<{ missionId: string; 
 }
 
 export async function updateMission(id: string, request: CreateMissionRequest): Promise<MissionDetail> {
-  const result = await api<Omit<MissionDetail, "uavCode">>(`/missions/${encodeURIComponent(id)}`, {
+  const result = await api<MissionApiRecord>(`/missions/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: JSON.stringify(request),
   });
-  return { ...result, uavCode: null, detailAvailable: true };
+  return normalizeMission(result, result.uavCode ?? null);
 }
 
 export function validateMission(mission: Pick<MissionDetail, "id">, updateRequestId?: string): Promise<MissionValidationResult> {
@@ -327,10 +327,11 @@ export async function deleteAssignedUav(id: string): Promise<void> {
   await api(`/uavs/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export async function getManagedUavs(filters: { pageNumber?: number; pageSize?: number; keyword?: string; status?: string } = {}): Promise<PagedResponse<AssignedUav>> {
+export async function getManagedUavs(filters: { pageNumber?: number; pageSize?: number; keyword?: string; status?: string; imageModerationStatus?: string } = {}): Promise<PagedResponse<AssignedUav>> {
   const params = new URLSearchParams({ PageNumber: String(filters.pageNumber ?? 1), PageSize: String(filters.pageSize ?? 20) });
   if (filters.keyword?.trim()) params.set("Keyword", filters.keyword.trim());
   if (filters.status) params.set("Status", filters.status);
+  if (filters.imageModerationStatus) params.set("imageModerationStatus", filters.imageModerationStatus);
   const result = await api<PagedResponse<UavApiRecord>>(`/admin/uavs?${params}`);
   return { ...result, items: result.items.map(normalizeUav) };
 }

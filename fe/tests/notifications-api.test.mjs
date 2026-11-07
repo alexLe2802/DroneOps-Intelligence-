@@ -34,12 +34,14 @@ test("notification read mutations use persistent read endpoints", async () => {
 });
 
 test("notification links open the exact mission workflow without trusting external URLs", () => {
+  assert.equal(routing.notificationDestination({ type: "UavManualReview", referenceId: null, actionUrl: "/uav-management?imageModerationStatus=ManualReview" }), "/portal/uav-management?imageModerationStatus=ManualReview");
   assert.equal(routing.notificationDestination({ type: "NewPendingMission", referenceId: id, actionUrl: null }), `/portal/mission-approvals?missionId=${id}`);
   assert.equal(routing.notificationDestination({ type: "MissionApproved", referenceId: id, actionUrl: null }), `/portal/missions/${id}`);
   for (const type of ["FlightConnectionRequired", "FlightConfirmationRequired"]) {
     assert.equal(routing.notificationDestination({ type, referenceId: id, actionUrl: null }), `/portal/live-monitoring?missionId=${id}`);
   }
   assert.equal(routing.notificationDestination({ type: "Legacy", referenceId: null, actionUrl: `/validation-approvals?missionId=${id}` }), `/portal/mission-approvals?missionId=${id}`);
+  assert.equal(routing.notificationDestination({ type: "Legacy", referenceId: null, actionUrl: "/uav-management?imageModerationStatus=ManualReview" }), "/portal/uav-management?imageModerationStatus=ManualReview");
   assert.equal(routing.notificationDestination({ type: "Unknown", referenceId: null, actionUrl: "https://example.com/phishing" }), "/portal");
 });
 
