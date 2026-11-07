@@ -50,7 +50,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         if (operationId == Guid.Empty) throw new InvalidOperationException("An operation ID is required.");
         if (state.Commands.Any(c => c.Id == operationId)) return View(mission, state, ready, now);
         state.Tick(now, Authorized(ready, now) && Enabled && EnvelopeVerified(state));
-        if (!Enabled) throw new InvalidOperationException("Aircraft commands are disabled pending firmware SITL and failsafe verification.");
+        if (!Enabled) throw new InvalidOperationException("Aircraft commands are disabled. Enable FlightExecution:Enabled on the backend and --enable-flight-control on the gateway.");
         if (hash != state.CompiledHash) throw new InvalidOperationException("The FC plan changed. Refresh and review again.");
         if (!state.OnGround(now)) throw new InvalidOperationException("Fresh FC ON_GROUND state is required. In-air disarm is blocked.");
         if (action == "Arm")
@@ -73,6 +73,22 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
     public async Task<object> PollAsync(Guid connectionId, FlightControllerEvidence evidence, FlightControlReport? report, CancellationToken ct)
     {
         var connection = await db.DroneConnections.AsNoTracking().SingleAsync(c => c.Id == connectionId, ct);
+        var observedNow = Now;
+        if (connection.RevokedAt != null || connection.ExpiresAt <= observedNow)
+            throw new InvalidOperationException("Connection is no longer eligible for telemetry.");
+        // Parameter discovery is useful for manual missions too. Keep it outside
+        // the automatic-execution lock, after gateway identity validation.
+        if (evidence.FirmwareParameters is { } candidate && (candidate.Values == null || candidate.Values.Count > 64
+            || string.IsNullOrWhiteSpace(candidate.FirmwareVersion) || candidate.FirmwareVersion.Length > 64
+            || candidate.ObservedAtUtc > observedNow.AddSeconds(2) || candidate.ObservedAtUtc < observedNow.AddMinutes(-1)))
+            evidence = evidence with { FirmwareParameters = null };
+        if (evidence.FirmwareParameters is { } snapshot && snapshot.ObservedAtUtc <= observedNow.AddSeconds(2)
+            && snapshot.ObservedAtUtc >= observedNow.AddMinutes(-1) && snapshot.Values.Count <= 64)
+        {
+            var trustedSnapshot = snapshot with { HardwareIdentity = connection.HardwareIdentity, Source = "FC MAVLink (planning cache; reverify before ARM)" };
+            var cachedJson = JsonSerializer.Serialize(trustedSnapshot, Json);
+            await db.UAVs.Where(u => u.Id == connection.UavId).ExecuteUpdateAsync(u => u.SetProperty(x => x.FirmwareNavigationDefaultsJson, cachedJson), ct);
+        }
         return await Locked(connection.MissionId, connection.OwnerId, async (mission, row, state) =>
         {
             var now = Now;
@@ -85,31 +101,21 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
                 state.UploadVerified = false; state.ConnectionId = connectionId; state.GatewayInstance = evidence.GatewayInstance;
                 row.ConfirmedAt = null; row.ConfirmedPlanHash = null; row.ConnectionId = null;
             }
-            if (evidence.FirmwareParameters is { } candidate && (candidate.Values == null || candidate.Values.Count > 32
-                || string.IsNullOrWhiteSpace(candidate.FirmwareVersion) || candidate.FirmwareVersion.Length > 64
-                || candidate.ObservedAtUtc > now.AddSeconds(2) || candidate.ObservedAtUtc < now.AddMinutes(-1)))
-                evidence = evidence with { FirmwareParameters = null };
             state.Evidence = evidence; state.EvidenceAt = now;
-            if (evidence.FirmwareParameters is { } snapshot && snapshot.ObservedAtUtc <= now.AddSeconds(2)
-                && snapshot.ObservedAtUtc >= now.AddMinutes(-1) && snapshot.Values.Count <= 32)
-            {
-                var trustedSnapshot = snapshot with { HardwareIdentity = connection.HardwareIdentity, Source = "FC MAVLink (planning cache; reverify before ARM)" };
-                var cachedJson = JsonSerializer.Serialize(trustedSnapshot, Json);
-                await db.UAVs.Where(u => u.Id == connection.UavId).ExecuteUpdateAsync(u => u.SetProperty(x => x.FirmwareNavigationDefaultsJson, cachedJson), ct);
-            }
             // Resolve optional authoring data after connection, not by asking the
             // pilot to invent autopilot parameters or a remote landing elevation.
             var landingGround = mission.Waypoints.OrderBy(w => w.SequenceOrder).LastOrDefault()?.Navigation?.LandingGroundAltitudeMeters;
             if (state.Options == null && evidence.Firmware is "ArduPilot" or "PX4" && evidence.Armed == false
-                && evidence.LandedState == 1 && landingGround != null)
+                && evidence.LandedState == 1 && (evidence.Firmware == "ArduPilot" || landingGround != null))
             {
-                var automaticOptions = new MissionCompileOptions(evidence.Firmware, YawPolicy: "Autopilot", LandingGroundAltitudeMeters: landingGround);
+                var automaticOptions = new MissionCompileOptions(evidence.Firmware, YawPolicy: "Autopilot", LandingGroundAltitudeMeters: landingGround,
+                    ConfigureRecovery: configuration.GetValue<bool>("FlightExecution:ConfigureRecovery"));
                 var resolved = MissionCommandCompiler.Compile(mission, automaticOptions, evidence.FirmwareParameters);
                 if (resolved.CanEncode)
                 {
                     state.Options = automaticOptions; state.PlanHash = resolved.SourcePlanHash; state.CompiledHash = resolved.CompiledMissionHash;
                     state.UploadVerified = false; state.Stage = "AwaitingGateway";
-                    state.Message = "Approved waypoint options resolved; FC operating-envelope verification is still required.";
+                    state.Message = "Approved waypoint route resolved; waiting for FC flight-limit verification.";
                     row.ConfirmedAt = null; row.ConfirmedPlanHash = null; row.ConnectionId = null;
                 }
             }
@@ -128,7 +134,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             if (Enabled && compatible && !EnvelopeVerified(state) && !state.UploadVerified && state.Pending == null)
             {
                 state.Stage = "AwaitingFcProfile";
-                state.Message = "Waiting for a versioned gateway adapter to apply/read back this exact FC operating envelope. No upload or ARM is authorized.";
+                state.Message = evidence.FcProfileError ?? "Waiting for the gateway to apply and read back this exact FC operating envelope.";
             }
             if (Enabled && now < ready.EndsAt && compatible && EnvelopeVerified(state) && !state.UploadVerified && state.Pending == null && state.OnGround(now)
                 && evidence.Armed == false && state.Stage is "AwaitingGateway" or "AwaitingFcProfile" or "NeedsPlan" or "Cancelled")
@@ -149,6 +155,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             return new { enabled = Enabled, serverNow = now, leaseSeconds = leaseActive ? 3 : 0, stage = state.Stage, launchAt = state.LaunchAt,
                 compiledHash = state.CompiledHash, command = outgoing,
                 operatingEnvelope = compiled?.OperationalEnvelope,
+                plannedHome = compiled?.PlannedHome,
                 requiredEnvelopeHash = state.CompiledHash,
                 mission = outgoing?.Action == "Upload" ? compiled : null };
         }, ct);
@@ -175,7 +182,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             new { key = "connection", label = "Bound drone connection", satisfied = ready.DroneConnected, detail = ready.DroneConnected ? "Fresh bound connection" : "Connect the assigned drone" },
             new { key = "operator", label = "Pilot online", satisfied = ready.OperatorOnline, detail = "Keep Live Monitoring visible and online" },
             new { key = "preflight", label = "Preflight validation", satisfied = ready.PreflightReady, detail = "Fresh passing validation for this exact plan" },
-            new { key = "fc-profile", label = "FC safety profile", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && EnvelopeVerified(state), detail = "FC parameter verification deferred; required before launch" },
+            new { key = "fc-profile", label = "FC flight limits", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && EnvelopeVerified(state), detail = state.Evidence?.FcProfileError ?? "Gateway applies and reads back the supported FC profile before upload" },
             new { key = "upload", label = "Mission read-back", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && state.UploadVerified, detail = "Uploaded items must match the compiled plan" }
         },
         enabled = Enabled, serverNow = now, scheduledAt = ready.ScheduledAt, endsAt = ready.EndsAt,
@@ -186,7 +193,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         homeAltitudeMslMeters = state.Fresh(now) ? state.Evidence?.HomeAltitudeMslMeters : null,
         onGround = state.OnGround(now), canArm = CanArm(state, ready, now),
         canDisarm = Enabled && state.OnGround(now) && state.Evidence?.Armed == true && state.Stage is not ("Starting" or "Running" or "Disarming"),
-        reason = Enabled ? null : "Aircraft commands are disabled until ArduPilot/PX4 SITL and the failsafe profile have been verified."
+        reason = Enabled ? null : "Aircraft commands are disabled. Enable FlightExecution:Enabled on the backend and --enable-flight-control on the gateway."
     };
 
     private async Task<object> Locked(Guid id, Guid actor, Func<Mission, MissionAutomationState, FlightControlState, Task<object>> action, CancellationToken ct)

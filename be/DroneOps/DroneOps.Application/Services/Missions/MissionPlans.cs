@@ -28,7 +28,7 @@ public static class MissionPlans
             UAVId = request.UavId,
 
             AutomaticFlightRequested = request.AutomaticFlightRequested,
-            AutomaticFlightLimits = request.AutomaticFlightRequested ? request.AutomaticFlightLimits ?? new AutomaticFlightLimits() : null,
+            AutomaticFlightLimits = request.AutomaticFlightRequested ? request.AutomaticFlightLimits ?? AutomaticFlightPolicy.DefaultLimits() : null,
 
             Name = request.Name.Trim(),
             Description = request.Description,

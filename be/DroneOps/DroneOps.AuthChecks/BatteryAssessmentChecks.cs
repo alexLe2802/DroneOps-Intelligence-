@@ -42,7 +42,26 @@ internal static class BatteryAssessmentChecks
         }
         uav.BatteryCapacityMah = null;
         result = BatteryAssessmentCalculator.Calculate(mission, uav, Sample(), null, now);
-        Check(result.Status == "MissingData" && result.EstimatedRequiredChargeMah == null, "unknown capacity prevents numeric requirement and remaining-mAh claims");
+        Check(result.Status == "EstimateOnly" && result.EstimatedRequiredChargeMah == null && result.EstimatedRemainingChargeMah == null
+            && result.RequiredBatteryPercent > 0, "unknown capacity keeps FC percentage assessment while omitting mAh estimates");
+        uav.FirmwareNavigationDefaultsJson = System.Text.Json.JsonSerializer.Serialize(new FirmwareParameterSnapshot("4.7.1",
+            new() { ["BATT_CAPACITY"] = 8000 }, now, "bound-fc"), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        result = BatteryAssessmentCalculator.Calculate(mission, uav, Sample(), null, now);
+        Check(result.ConfiguredCapacityMah == 8000 && result.CapacitySource.StartsWith("FC MAVLink"), "fresh FC capacity is preferred without requiring a pilot-entered capacity");
+        uav.BatteryCapacityMah = 5200;
+        Check(BatteryAssessmentCalculator.Calculate(mission, uav, Sample(), null, now).ConfiguredCapacityMah == 8000, "FC capacity overrides pilot capacity");
+        foreach (var snapshot in new[] {
+            new FirmwareParameterSnapshot("4.7.1", new() { ["BATT_CAPACITY"] = 8000 }, now.AddMinutes(-2), "bound-fc"),
+            new FirmwareParameterSnapshot("4.7.1", new() { ["BATT_CAPACITY"] = 8000 }, now.AddMinutes(1), "bound-fc"),
+            new FirmwareParameterSnapshot("4.7.1", new() { ["BATT_CAPACITY"] = 8000 }, now),
+            new FirmwareParameterSnapshot("4.7.1", new() { ["BATT_CAPACITY"] = -1 }, now, "bound-fc") })
+        {
+            uav.FirmwareNavigationDefaultsJson = System.Text.Json.JsonSerializer.Serialize(snapshot,
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            Check(BatteryAssessmentCalculator.Calculate(mission, uav, Sample(), null, now).ConfiguredCapacityMah == 5200,
+                "stale/future/unbound/invalid FC capacity cannot replace declared fallback");
+        }
+        uav.FirmwareNavigationDefaultsJson = null;
         uav.BatteryCapacityMah = 5200; uav.MaxFlightTimeMinutes = null;
         Check(BatteryAssessmentCalculator.Calculate(mission, uav, Sample(), null, now).RequiredBatteryPercent == null, "missing endurance prevents a mission consumption estimate");
         uav.MaxFlightTimeMinutes = 1;

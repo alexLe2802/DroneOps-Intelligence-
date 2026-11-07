@@ -21,6 +21,17 @@ const points = [
 ];
 const validate = (limits=defaultAutomaticLimits(), route=points, cruise=3, maximum=3,frame='Relative') => automaticFlightError(frame,cruise,maximum,limits,route);
 
+test('v2 higher defaults validate while v1 retains original speed caps',()=>{
+ const value=defaultAutomaticLimits();
+ assert.equal(value.policyVersion,'multicopter-envelope-v2');
+ assert.equal(value.takeoffSpeedMetersPerSecond,6.5);assert.equal(value.climbSpeedMetersPerSecond,6.5);
+ assert.equal(value.descentSpeedMetersPerSecond,5.8);assert.equal(value.landingSpeedMetersPerSecond,1);
+ assert.equal(validate(value,points,11.2,15),null);
+ assert.match(validate({...value,landingSpeedMetersPerSecond:1.6},points,11.2,15),/landing/i);
+ const legacy={...value,policyVersion:'multicopter-envelope-v1',takeoffSpeedMetersPerSecond:1,climbSpeedMetersPerSecond:1,descentSpeedMetersPerSecond:.7,landingSpeedMetersPerSecond:.7};
+ assert.equal(validate(legacy),null);assert.match(validate(legacy,points,11.2,15),/maximum 5/);
+});
+
 test('new mission requires a visible deliberate mode selection',()=>{
  const html=renderToStaticMarkup(React.createElement(Mode,{value:null,onChange:()=>{}}));
  assert.match(html,/Manual operation/); assert.match(html,/Automatic mission/);
@@ -43,11 +54,11 @@ test('switching a 50m manual route to automatic requires a deliberate height cor
  assert.equal(route[0].altitude,50);
 });
 test('cross-field rates and wind limits fail before submitting',()=>{
- assert.match(validate({...defaultAutomaticLimits(),takeoffSpeedMetersPerSecond:1.5}),/climb/);
+ assert.match(validate({...defaultAutomaticLimits(),takeoffSpeedMetersPerSecond:8}),/climb/);
  assert.match(validate({...defaultAutomaticLimits(),descentSpeedMetersPerSecond:0.6}),/landing/);
  assert.match(validate({...defaultAutomaticLimits(),maxGustMetersPerSecond:2}),/gust/);
  assert.match(validate({...defaultAutomaticLimits(),maxAltitudeMeters:NaN}),/restore/);
- assert.match(validate(defaultAutomaticLimits(),points,3,6),/maximum 5/);
+ assert.match(validate(defaultAutomaticLimits(),points,3,16),/maximum 15/);
  assert.match(validate(defaultAutomaticLimits(),points,3,3,'AGL'),/relative/);
 });
 test('Hover cannot be submitted with omitted or zero dwell',()=>{

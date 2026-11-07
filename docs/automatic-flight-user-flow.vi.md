@@ -1,18 +1,95 @@
 # Luồng nhiệm vụ bay tự động và dữ liệu cần có
 
-Áp dụng cho profile multicopter `multicopter-envelope-v1`, ArduPilot/PX4.
+Áp dụng cho profile multicopter `multicopter-envelope-v1` và
+`multicopter-envelope-v2`, ArduPilot/PX4. Nhiệm vụ mới dùng v2: cruise 11,2 m/s
+(trần 15), takeoff/climb 6,5 (trần 8), descent 5,8 (trần 6), landing cuối 1
+(trần 1,5). Nhiệm vụ v1 không tự đổi; xem bảng phiên bản trong Operating envelope.
 Đây là tài liệu đối chiếu với code, không phải chứng nhận an toàn bay.
 
 ## Trạng thái triển khai
 
 Đã có form tạo/sửa nhiệm vụ, xét duyệt, validate, dữ liệu AI, nhắc kết nối/xác
 nhận, Live Monitoring, compiler MAVLink và logic ARM/đếm ngược. Luồng gửi lệnh
-thực tế vẫn bị khóa: chưa có adapter áp dụng/đọc lại toàn bộ cấu hình FC và
-chưa kiểm chứng failsafe trên SITL của cả hai firmware hoặc drone thật.
+thực tế vẫn bị khóa. Adapter ArduCopter 4.7.1 đã được nối vào gateway để áp dụng/
+đọc lại tham số theo từng bước; phiên bản tích hợp này còn cần chạy SITL thực
+tế và kiểm thử lỗi kết hợp. PX4 chưa có adapter ghi/xác minh tương đương.
 Không được coi một nhiệm vụ đã duyệt, một giá trị cache hay unit test là bằng
 chứng drone đã được cấu hình để thực thi an toàn.
 
+### Tự nhận dữ liệu cho drone bất kỳ — cập nhật 06/11/2026
+
+- Khi kết nối, gateway tự đọc firmware và tham số hỗ trợ, gồm `BATT_CAPACITY`
+  cho ArduPilot hoặc `BAT1_CAPACITY` cho PX4. Dữ liệu đi qua payload gateway
+  và cache FC hiện có, không tạo API cấu hình pin mới.
+- AI ưu tiên dung lượng cấu hình FC còn mới; nếu không có thì dùng dung lượng
+  UAV người dùng tự khai làm fallback có ghi nguồn. Thiếu cả hai vẫn phân tích
+  theo % FC báo, chỉ bỏ kết quả mAh; không bắt buộc nhập dung lượng để nhận
+  telemetry. Khả năng đáp ứng nhiệm vụ vẫn là ước lượng theo endurance.
+- Live Monitoring dùng %/điện áp/dòng/mAh tiêu thụ từ FC. Đã bỏ phép tính mAh
+  còn lại lấy dung lượng pilot nhập trừ consumed. Dữ liệu không được báo thì
+  hiện unavailable; không tự tạo số đo. Giao diện hiện theo pin chính ID 0,
+  chưa tương đương QGroundControl về nhiều pack/thời gian còn lại/charge state.
+- Adapter runtime ArduCopter 4.7.1 chỉ được ghi khi backend và gateway cùng bật
+  thực thi, có lease, đúng hash nhiệm vụ, disarmed/on-ground, navigation hợp lệ,
+  all arming checks và EKF-loss LAND. Từng tham số phải có ACK và đọc lại.
+  Receipt hết hiệu lực khi cấu hình/firmware đổi, quá hạn hoặc kết nối lại.
+  Không chứng nhận pin đã hiệu chuẩn chỉ vì có tham số capacity.
+- Nếu không có mô hình năng lượng đo thực, adapter có thể dùng cao độ RTL đã
+  đọc từ FC nếu nằm trong trần nhiệm vụ. Không tạo mô hình hoặc tuyên bố tự chọn
+  điểm hạ cánh dự phòng theo năng lượng khi chưa triển khai/kiểm chứng cơ chế đó.
+- API thay đổi tương thích: payload evidence thêm `fcProfileError` tùy chọn;
+  snapshot tham số cho phép tối đa 64 thay vì 32 để chứa cả giới hạn và failsafe.
+  Dùng endpoint/các trường receipt sẵn có. Không đổi schema DB, không migrate.
+- Unit tests không thay thế SITL tích hợp. Jetson đang không kết nối mạng nên
+  chưa chạy lại harness mới trên simulator từ máy đó; cờ thực thi vẫn tắt.
+
 ## Các bước trên website
+
+**GeoFence của nhiệm vụ:** hỗ trợ các vùng keep-in Polygon và Circle ở cả form
+tạo/sửa, tối đa 20 vùng. Polygon chọn 3–100 đỉnh trên bản đồ rồi Finish; Circle
+chọn tâm và mép, sửa radius 1–100000 m. Có thể kéo đỉnh/tâm, xóa từng vùng.
+Nhiều vùng được hiểu là hợp các vùng: ở trong ít nhất một vùng là bên trong.
+Đường biên được tính là bên trong. Polygon tự cắt/thoái hóa bị backend từ chối.
+
+API tạo/sửa hiện có thêm trường tùy chọn
+`waypoints[0].navigation.missionFences`, chứa `{id, shape:"Polygon", vertices}`
+hoặc `{id, shape:"Circle", center, radiusMeters}`. Các tọa độ là
+`{latitude,longitude}`. JSON navigation hiện có lưu dữ liệu; không migration,
+không tạo API geofence trùng và không sửa các vùng cấm/giới hạn toàn hệ thống.
+Sửa vùng làm thay đổi plan hash, cần duyệt/xác nhận lại theo luồng hiện có.
+
+Detector backend dùng vùng của nhiệm vụ khi có. Trong lịch nhiệm vụ đang hoạt
+động, hai mẫu armed hợp lệ cùng UAV/source, cách nhau tối đa 10 giây và còn mới
+15 giây, ở ngoài mọi vùng sẽ gọi incident lifecycle sẵn có với type
+`GeofenceBreach`, rule `MissionGeofenceKeepIn`. Evidence đóng băng hình học và
+plan hash; luồng incident/notification/report hiện có xử lý. Không tạo trùng
+incident đang mở; hai mẫu bên trong đóng incident. Không tạo incident mới sau
+EndTime. Thiếu tọa độ hoặc dữ liệu cũ không chứng minh breach/recovery.
+
+Nếu nhiệm vụ chưa có vùng riêng, fallback detector chỉ coi các geofence toàn
+hệ thống có type `OperationalBoundary` là keep-in; không đảo nghĩa NoFly hay
+Restricted thành vùng cho phép bay. Tính năng này là theo dõi incident trên
+backend, chưa upload polygon/circle cho FC cưỡng chế khi mất kết nối. Không coi
+vùng hình học hoặc các waypoint nằm bên trong là bằng chứng đường bay đã sạch
+vật cản/địa hình/không phận trên toàn đoạn đường.
+
+**Planned Home:** tạo/sửa nhiệm vụ có nút Set Home on map, nhập latitude/longitude,
+dùng vị trí Takeoff hoặc xóa Home. Cao độ MSL là tùy chọn; không nhập thì dùng
+Home elevation thực của FC. Home được hiển thị bằng marker H và đưa vào màn
+so sánh manager, hash kế hoạch và payload compiler `plannedHome`.
+
+API tạo/sửa hiện có nhận thêm `waypoints[0].navigation.plannedHome` với
+`latitude`, `longitude`, `altitudeMslMeters` tùy chọn. Chỉ waypoint 1 được mang
+metadata này. Lưu trong cột JSON navigation hiện có, không migrate DB. Payload
+controlPoll/compiled mission có thêm `plannedHome` tương ứng.
+
+Gateway yêu cầu Home FC mới, lệch không quá 10 m theo phương ngang và 5 m MSL
+nếu đã khai cao độ. Không đạt thì chặn cấu hình/upload/ARM/Start. Payload vẫn
+chứa điểm dự kiến; mục home thứ 0 của ArduPilot dùng Home **thực** đã đối chiếu
+để không âm thầm di chuyển reference/RTL. Không gửi DO_SET_HOME từ điểm bản đồ.
+PX4 không chèn home thành waypoint mission; vẫn kiểm tra cùng điều kiện trên.
+Home chưa chọn là dữ liệu tùy chọn để tương thích nhiệm vụ cũ; Home thực FC vẫn
+là điều kiện cần trước thực thi tự động.
 
 1. Chọn rõ **Manual operation** hoặc **Automatic mission** ở đầu form. Form
    tạo mới không tự chọn chế độ. Manual dùng RC/GCS; website không tự khởi

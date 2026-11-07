@@ -20,6 +20,11 @@ class RecoveryPreflightTests(unittest.TestCase):
         self.assertTrue(result['parameterAuditPassed'])
         self.assertFalse(result['flightAuthorized'])
         self.assertTrue(result['remainingVerification'])
+        capacity = result['batteryCapacityEvidence']
+        self.assertEqual(capacity['configuredCapacityMah'], 8000)
+        self.assertIsNone(capacity['measuredCapacityMah'])
+        self.assertFalse(capacity['capacityVerified'])
+        self.assertFalse(capacity['remainingCapacityVerified'])
 
     def test_observed_usb_only_fc_reports_actual_blockers(self):
         self.parameters.update(WP_SPD=10, FENCE_ENABLE=0, FS_GCS_ENABLE=0,
@@ -29,6 +34,13 @@ class RecoveryPreflightTests(unittest.TestCase):
         blockers = ' '.join(assess(self.parameters, self.messages)['blockers'])
         for term in ('geofence', 'GCS-loss', 'voltage', 'GPS', 'Home'):
             self.assertIn(term, blockers)
+
+    def test_47_skip_check_replaces_legacy_check_without_disabling_checks(self):
+        self.parameters.pop('ARMING_CHECK')
+        self.parameters['ARMING_SKIPCHK'] = 0
+        self.assertTrue(assess(self.parameters, self.messages)['parameterAuditPassed'])
+        self.parameters['ARMING_SKIPCHK'] = 8
+        self.assertIn('checks are skipped', ' '.join(assess(self.parameters, self.messages)['blockers']))
 
     def test_missing_or_nonfinite_parameters_fail_closed(self):
         self.parameters.pop('FS_THR_ENABLE')
