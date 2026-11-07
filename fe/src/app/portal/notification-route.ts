@@ -5,6 +5,9 @@ export type NotificationRouteInput = {
 };
 
 export function notificationDestination(notification: NotificationRouteInput): string {
+  if (notification.type === "UavManualReview") {
+    return "/portal/uav-management?imageModerationStatus=ManualReview";
+  }
   if (notification.referenceId && ["FlightConnectionRequired", "FlightConfirmationRequired"].includes(notification.type)) {
     return `/portal/live-monitoring?missionId=${encodeURIComponent(notification.referenceId)}`;
   }
@@ -28,6 +31,9 @@ export function notificationDestination(notification: NotificationRouteInput): s
     }
     if (target.pathname === "/missions") {
       return `/portal/missions${target.search}`;
+    }
+    if (target.pathname === "/uav-management") {
+      return `/portal/uav-management${target.search}`;
     }
     if (target.pathname.startsWith("/portal/")) {
       return `${target.pathname}${target.search}`;
