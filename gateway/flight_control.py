@@ -9,6 +9,8 @@ import queue
 import threading
 import time
 import uuid
+from arducopter_recovery import REQUIRED as ARDUCOPTER_RECOVERY_PARAMETERS
+from envelope_verifier import EnvelopeVerifier
 
 
 class ControlBridge:
@@ -34,7 +36,7 @@ class ControlBridge:
             evidence = self.evidence
             if time.monotonic() - self.evidence_at >= 3:
                 evidence = dict(evidence, armed=None, landedState=None, navigationReady=False, preArmReady=False,
-                    homeLatitudeDegrees=None, homeLongitudeDegrees=None, homeAltitudeMslMeters=None)
+                    homeLatitudeDegrees=None, homeLongitudeDegrees=None, homeAltitudeMslMeters=None, verifiedEnvelopeHash=None)
             return {'evidence': dict(evidence, gatewayInstance=self.instance), 'report': self.report}
 
     def receive(self, response, payload):
@@ -63,6 +65,8 @@ class FlightControl:
         self.last_gcs_heartbeat = float('-inf')
         self.parameters = {}
         self.parameters_requested = float('-inf')
+        self.envelope = EnvelopeVerifier(system, component, clock)
+        self.planned_home = None
 
     def fresh(self, kind, seconds=3):
         item = self.seen.get(kind)
@@ -95,7 +99,8 @@ class FlightControl:
                 'homeLatitudeDegrees': home.latitude / 1e7 if valid_home else None,
                 'homeLongitudeDegrees': home.longitude / 1e7 if valid_home else None,
                 'homeAltitudeMslMeters': home.altitude / 1000 if valid_home else None,
-                'firmwareParameters': parameter_snapshot}
+                'firmwareParameters': parameter_snapshot, 'verifiedEnvelopeHash': self.envelope.verified_hash,
+                'fcProfileError': self.envelope.error}
 
     def request_parameters(self, link):
         if self.clock() - self.parameters_requested < 20:
@@ -104,9 +109,11 @@ class FlightControl:
         if not heartbeat:
             return
         names = ('WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED',
-                 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS') if heartbeat.autopilot == 3 else (
+                 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS', 'BATT_CAPACITY') if heartbeat.autopilot == 3 else (
                  'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN',
-                 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST') if heartbeat.autopilot == 12 else ()
+                 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST', 'BAT1_CAPACITY') if heartbeat.autopilot == 12 else ()
+        if heartbeat.autopilot == 3:
+            names = tuple(dict.fromkeys((*names, *ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK')))
         for name in names:
             link.mav.param_request_read_send(self.system, self.component, name.encode('ascii'), -1)
         self.parameters_requested = self.clock()
@@ -126,11 +133,16 @@ class FlightControl:
         if message.get_srcSystem() != self.system or message.get_srcComponent() != self.component:
             return
         kind = message.get_type()
+        if self.envelope.phase and (self.clock() >= self.lease or not self.grounded()
+                or self.evidence()['armed'] is not False or not self.evidence()['navigationReady']):
+            self.envelope.fail('Fresh ground/navigation evidence and an execution lease are required during FC configuration.')
+        self.envelope.accept(message, link)
         if kind == 'PARAM_VALUE':
             name = message.param_id.decode('ascii', errors='ignore') if isinstance(message.param_id, bytes) else message.param_id
             name = name.split('\0')[0]
             allowed = {'WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED', 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS',
-                'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN', 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST'}
+                'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN', 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST', 'BATT_CAPACITY', 'BAT1_CAPACITY'}
+            allowed.update((*ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK'))
             if name in allowed and math.isfinite(message.param_value):
                 self.parameters[name] = (message.param_value, self.clock(), dt.datetime.now(dt.timezone.utc).isoformat())
         if kind == 'HEARTBEAT' and (message.type == 6 or message.autopilot == 8):
@@ -217,6 +229,8 @@ class FlightControl:
             self.instance = instance
             self.finish(False)
             self.arm_at, self.uploaded_hash, self.lease = None, None, 0
+            self.envelope.reset()
+            self.planned_home = None
         while True:
             try:
                 source, received, response = self.bridge.responses.get_nowait()
@@ -227,6 +241,7 @@ class FlightControl:
             self.lease = received + min(3, max(0, response.get('leaseSeconds', 0))) if response.get('enabled') else 0
             if response.get('stage') not in ('Arming', 'Countdown', 'Starting'):
                 self.arm_at = None
+            self.prepare_envelope(link, response)
             command = response.get('command')
             if not command or command['id'] in self.handled:
                 continue
@@ -240,6 +255,15 @@ class FlightControl:
             self.deadline = now + (60 if command['action'] == 'Upload' else 8)
             self.ack = False
             self.begin(link, response)
+        self.envelope.tick()
+        if self.envelope.verified_hash:
+            version = self.fresh('AUTOPILOT_VERSION', 15)
+            if not version or version.flight_sw_version >> 8 != 0x040701:
+                self.envelope.fail('FC firmware evidence changed or expired.')
+        if now >= self.lease:
+            self.envelope.reset()
+        if self.envelope.phase and (not self.grounded() or self.evidence()['armed'] is not False):
+            self.envelope.fail('FC must stay disarmed and on ground during parameter application.')
         if now >= self.lease or not self.grounded() or not self.evidence()['navigationReady']:
             self.arm_at = None
             if self.active and self.active['action'] in ('Arm', 'Start'):
@@ -255,15 +279,43 @@ class FlightControl:
             self.bridge.evidence = self.evidence()
             self.bridge.evidence_at = time.monotonic()
 
+    def prepare_envelope(self, link, response):
+        wanted = response.get('requiredEnvelopeHash')
+        if wanted != self.envelope.plan_hash:
+            self.envelope.reset()
+        if not self.enabled or not response.get('enabled') or self.clock() >= self.lease:
+            self.envelope.reset()
+            return
+        if not wanted or not response.get('operatingEnvelope') or self.envelope.phase or self.envelope.verified_hash or self.envelope.failed_hash == wanted:
+            return
+        evidence = self.evidence()
+        snapshot = evidence['firmwareParameters']
+        if response.get('plannedHome') is not None and not planned_home_matches(response['plannedHome'], self.fresh('HOME_POSITION', 15)):
+            self.envelope.error = 'Planned Home must match fresh FC Home before configuration and upload.'
+            return
+        if (not self.grounded() or evidence['armed'] is not False or not evidence['navigationReady']
+                or evidence['firmware'] != 'ArduPilot' or not snapshot or snapshot['firmwareVersion'] != '4.7.1'):
+            return
+        if snapshot['values'].get('ARMING_SKIPCHK') != 0 or (response['operatingEnvelope'].get('configureRecovery') is True and snapshot['values'].get('FS_EKF_ACTION') != 1):
+            self.envelope.error = 'All FC arming checks and the reviewed EKF-loss LAND action are required.'
+            return
+        self.envelope.begin(wanted, response['operatingEnvelope'], snapshot['values'], link)
+
     def begin(self, link, response):
         evidence = self.evidence()
         action = self.active['action']
+        if action in ('Arm', 'Start') and self.planned_home is not None and not planned_home_matches(self.planned_home, self.fresh('HOME_POSITION', 15)):
+            self.finish(False)
+            return
+        if action in ('Arm', 'Start') and response.get('requiredEnvelopeHash') and self.envelope.verified_hash != response['requiredEnvelopeHash']:
+            self.finish(False)
+            return
         if not self.enabled or not response.get('enabled') or self.clock() >= self.lease or not self.grounded() or not timely_command(response, self.active):
             self.finish(False)
             return
         if action == 'Upload':
             plan = response.get('mission')
-            if plan and (plan.get('operationalEnvelope') or {}).get('fcParameterVerificationRequired'):
+            if plan and (plan.get('operationalEnvelope') or {}).get('fcParameterVerificationRequired') and self.envelope.verified_hash != self.active['compiledHash']:
                 # The new policy must not be mistaken for an onboard limit. Until
                 # a versioned parameter adapter has read-back proof, fail closed.
                 print('FC operating-envelope parameter verification is required. Upload/ARM blocked.', flush=True)
@@ -272,6 +324,21 @@ class FlightControl:
             if evidence['armed'] or not plan or plan.get('firmwareTarget') != evidence['firmware']:
                 self.finish(False)
                 return
+            actual_home = self.fresh('HOME_POSITION', 15)
+            if plan.get('plannedHome') is not None and not planned_home_matches(plan['plannedHome'], actual_home):
+                print('Planned Home does not match fresh FC Home (10 m horizontal / 5 m elevation). Upload blocked.', flush=True)
+                self.finish(False)
+                return
+            self.planned_home = plan.get('plannedHome')
+            if plan.get('operationalEnvelope') and plan.get('items'):
+                origin = plan['items'][0]
+                takeoff = {'latitude': origin['x'] / 1e7, 'longitude': origin['y'] / 1e7}
+                if origin['command'] != 22 or not planned_home_matches(takeoff, actual_home):
+                    print('Takeoff waypoint must be within 10 m of FC Home. Upload blocked.', flush=True)
+                    self.finish(False)
+                    return
+                if self.planned_home is None:
+                    self.planned_home = takeoff
             self.items = [dict(item) for item in plan['items']]
             if not self.items or len(self.items) > 500:
                 self.finish(False)
@@ -312,6 +379,27 @@ class FlightControl:
             link.mav.command_long_send(self.system, self.component, 300, 0, 0, 0, 0, 0, 0, 0, 0)
         else:
             self.finish(False)
+
+
+def planned_home_matches(planned, actual):
+    if actual is None or not isinstance(planned, dict):
+        return False
+    try:
+        lat, lon = planned['latitude'], planned['longitude']
+        altitude = planned.get('altitudeMslMeters')
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in (lat, lon)):
+            return False
+        if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+            return False
+        lat2, lon2 = actual.latitude / 1e7, actual.longitude / 1e7
+        if not -90 <= lat2 <= 90 or not -180 <= lon2 <= 180 or (lat2 == 0 and lon2 == 0):
+            return False
+        a = math.sin(math.radians(lat2 - lat) / 2) ** 2 + math.cos(math.radians(lat)) * math.cos(math.radians(lat2)) * math.sin(math.radians(lon2 - lon) / 2) ** 2
+        distance = 6371000 * 2 * math.asin(math.sqrt(min(1, max(0, a))))
+        return distance <= 10 and (altitude is None or not isinstance(altitude, bool) and isinstance(altitude, (int, float))
+            and math.isfinite(altitude) and abs(altitude - actual.altitude / 1000) <= 5)
+    except (KeyError, TypeError, AttributeError):
+        return False
 
 
 def mission_mode(heartbeat):

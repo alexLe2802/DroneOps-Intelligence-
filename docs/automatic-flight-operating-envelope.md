@@ -220,3 +220,23 @@ legacy unit conversion. This is read-only evidence and preview compilation,
 not native parameter enforcement. See the [actual commissioning report](fc-commissioning-2026-11-05.vi.md)
 for missing GPS/Home, inconsistent battery voltage and disabled GCS/fence
 configuration. Existing execution gates remain in place.
+# Profile tốc độ v2 — 06/11/2026
+
+Nhiệm vụ tự động mới dùng `multicopter-envelope-v2`. Đây là cấu hình yêu cầu,
+không phải chứng nhận an toàn cho mọi airframe. Nhiệm vụ v1 vẫn giữ giới hạn cũ;
+chọn **Use v2 default speeds**, lưu và duyệt lại để nâng profile.
+
+| Tham số | Mặc định v2 | Trần v2 |
+| --- | --- | --- |
+| Cruise | 11,2 m/s | 15 m/s |
+| Takeoff | 6,5 m/s | 8 m/s |
+| Climb | 6,5 m/s | 8 m/s |
+| Descent | 5,8 m/s | 6 m/s |
+| Final landing | 1 m/s | 1,5 m/s |
+
+Trên ArduCopter 4.7.1, takeoff và climb dùng chung `WP_SPD_UP`, adapter vẫn
+chặn hai giá trị khác nhau. `WP_SPD` là ceiling, mission item DO_CHANGE_SPEED
+dùng cruise/override đã duyệt, `WP_SPD_DN` là descent và `LAND_SPD_MS` là final
+landing. Cao độ/giới hạn gió giữ profile hiện có. Giá trị v2 mới đã được áp dụng
+và đọc lại trên SITL 4.7.1 (13 tham số); chưa chứng minh hành vi bay hay an toàn
+airframe thực. Không ghi FC thật hay mở khóa flight execution trong thay đổi này.
