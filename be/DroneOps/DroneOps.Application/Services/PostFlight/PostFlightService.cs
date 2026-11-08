@@ -425,6 +425,9 @@ public sealed class PostFlightService : IPostFlightService
                     CompletedFlights = group.Count(x => x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase)),
                     FailedOrAbortedFlights = group.Count(x => !x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
                 }).ToList(),
+            IncidentTypeBreakdown = distinctIncidents
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Type) ? "Unknown" : x.Type.Trim())
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
             IncidentSeverityBreakdown = distinctIncidents
                 .GroupBy(x => NormalizeSeverity(x.Severity))
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
