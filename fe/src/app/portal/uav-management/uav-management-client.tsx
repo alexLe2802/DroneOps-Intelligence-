@@ -9,7 +9,7 @@ import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleLoading } from "../module-state";
 import UavInformation from "../uav/uav-information";
 
-export default function UavManagementClient({ initialImageModerationStatus = "" }: { initialImageModerationStatus?: string }) {
+export default function UavManagementClient({ initialImageModerationStatus = "", initialStatus = "" }: { initialImageModerationStatus?: string; initialStatus?: string }) {
   const [aircraft, setAircraft] = useState<AssignedUav[] | null>(null);
   const [selected, setSelected] = useState<AssignedUav | null>(null);
   const requestId = useRef(0);
@@ -18,7 +18,7 @@ export default function UavManagementClient({ initialImageModerationStatus = "" 
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [manualReviewCount, setManualReviewCount] = useState(0);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(initialStatus);
   const [imageModerationStatus, setImageModerationStatus] = useState(initialImageModerationStatus);
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [keyword, setKeyword] = useState("");

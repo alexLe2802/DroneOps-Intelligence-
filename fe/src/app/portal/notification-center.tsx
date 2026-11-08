@@ -4,10 +4,10 @@ import { formatVietnamDate, formatVietnamDateTime } from "@/lib/portal/vietnam-t
 
 import { Bell, CheckCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getNotificationFeed, markAllNotificationsRead, markNotificationRead } from "@/lib/portal/client";
-import type { NotificationFeed, PortalNotification } from "@/lib/portal/types";
-import { notificationDestination } from "./notification-route";
+import type { NotificationFeed } from "@/lib/portal/types";
+import { groupManagerNotifications, type NotificationDisplayItem } from "./notification-groups";
 import "./notification-center.css";
 
 const emptyFeed: NotificationFeed = { unreadCount: 0, items: [] };
@@ -34,6 +34,7 @@ export default function NotificationCenter() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
+  const displayItems = useMemo(() => groupManagerNotifications(feed.items), [feed.items]);
 
   const load = useCallback(async () => {
     try {
@@ -82,27 +83,26 @@ export default function NotificationCenter() {
     };
   }, [open]);
 
-  function setRead(id: string) {
+  function setRead(ids: string[]) {
+    const selectedIds = new Set(ids);
     setFeed(current => ({
-      unreadCount: Math.max(0, current.unreadCount - (current.items.some(item => item.id === id && !item.isRead) ? 1 : 0)),
-      items: current.items.map(item => item.id === id ? { ...item, isRead: true, readAt: item.readAt ?? new Date().toISOString() } : item),
+      unreadCount: Math.max(0, current.unreadCount - current.items.filter(item => selectedIds.has(item.id) && !item.isRead).length),
+      items: current.items.map(item => selectedIds.has(item.id) ? { ...item, isRead: true, readAt: item.readAt ?? new Date().toISOString() } : item),
     }));
   }
 
-  async function inspect(notification: PortalNotification) {
+  async function inspect(displayItem: NotificationDisplayItem) {
     if (busyId) return;
-    setBusyId(notification.id);
-    if (!notification.isRead) {
-      try {
-        await markNotificationRead(notification.id);
-        setRead(notification.id);
-      } catch {
-        // Navigation remains available; unread state retries on the next refresh.
-      }
+    setBusyId(displayItem.key);
+    const unread = displayItem.notifications.filter(notification => !notification.isRead);
+    if (unread.length > 0) {
+      const results = await Promise.allSettled(unread.map(notification => markNotificationRead(notification.id)));
+      const readIds = results.flatMap((result, index) => result.status === "fulfilled" ? [unread[index].id] : []);
+      if (readIds.length > 0) setRead(readIds);
     }
     setBusyId("");
     setOpen(false);
-    router.push(notificationDestination(notification));
+    router.push(displayItem.destination);
   }
 
   async function markAllRead() {
@@ -131,12 +131,12 @@ export default function NotificationCenter() {
       <header><div><span>OPERATIONS FEED</span><h2>Notifications</h2></div><button type="button" disabled={busyId !== "" || feed.unreadCount === 0} onClick={() => void markAllRead()}><CheckCheck size={15} aria-hidden="true" /> MARK ALL READ</button></header>
       {error && <div className="notification-error" role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>RETRY</button></div>}
       <div className="notification-list">
-        {!loaded ? <p className="notification-empty">Loading notifications...</p> : feed.items.length === 0 ? <p className="notification-empty">No notifications yet.</p> : feed.items.map(notification => <button type="button" key={notification.id} className={`notification-item${notification.isRead ? " is-read" : " is-unread"}`} disabled={busyId !== ""} onClick={() => void inspect(notification)}>
+        {!loaded ? <p className="notification-empty">Loading notifications...</p> : displayItems.length === 0 ? <p className="notification-empty">No notifications yet.</p> : displayItems.map(notification => <button type="button" key={notification.key} className={`notification-item${notification.isRead ? " is-read" : " is-unread"}`} disabled={busyId !== ""} onClick={() => void inspect(notification)}>
           <i aria-hidden="true" />
           <span><strong>{notification.title}</strong><small>{notification.message}</small><time title={formatVietnamDateTime(notification.createdAt)}>{relativeTime(notification.createdAt)}{notification.isRead ? " / SEEN" : " / NEW"}</time></span>
         </button>)}
       </div>
-      <footer><span>{feed.items.length} RECENT</span><b>{feed.unreadCount} UNREAD</b></footer>
+      <footer><span>{displayItems.length} RECENT GROUPS</span><b>{feed.unreadCount} UNREAD</b></footer>
     </section>}
   </div>;
 }
