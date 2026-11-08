@@ -182,8 +182,9 @@ Check(analytics.ReportsAvailable == 4 && analytics.ReportsExcluded == 2 &&
       analytics.ReportCoveragePercentage == 66.7,
     "analytics discloses report coverage and exclusions");
 Check(analytics.TotalIncidentsRecorded == 2 && analytics.IncidentSeverityBreakdown["High"] == 1 &&
-      analytics.IncidentSeverityBreakdown["Low"] == 1 && analytics.CompletionTrend.Count == 1,
-    "analytics includes severity breakdown and daily trend");
+      analytics.IncidentSeverityBreakdown["Low"] == 1 && analytics.IncidentTypeBreakdown["LowBattery"] == 1 &&
+      analytics.IncidentTypeBreakdown["RouteDeviation"] == 1 && analytics.CompletionTrend.Count == 1,
+    "analytics includes distinct incident type/severity breakdowns and daily trend");
 Check((await db.Missions.FindAsync(overdueActiveMissionId))!.Status == "Completed" &&
       (await db.Missions.FindAsync(overdueApprovedMissionId))!.Status == "Completed",
     "scheduled lifecycle synchronizes overdue active and approved missions");
@@ -296,6 +297,13 @@ Check(assessment.Status == "Available" && assessment.Result != null &&
     "assessment persists reproducible Top-5 source and feature evidence");
 Check((await assessmentService.GetByMissionAsync(missionId.ToString(), pilotId, false, CancellationToken.None)).Count == 1,
     "authorized assessment history returns the stored immutable result");
+var changedMission = await db.Missions.FindAsync(missionId);
+changedMission!.Name = "Completed route updated";
+await db.SaveChangesAsync();
+var outdatedAssessment = (await assessmentService.GetByMissionAsync(
+    missionId.ToString(), pilotId, false, CancellationToken.None)).Single();
+Check(outdatedAssessment.IsOutdated && !string.IsNullOrWhiteSpace(outdatedAssessment.OutdatedReason),
+    "assessment history marks captured advice outdated after the mission plan changes");
 await ExpectThrowsAsync<KeyNotFoundException>(
     () => assessmentService.GetByMissionAsync(missionId.ToString(), Guid.NewGuid(), false, CancellationToken.None),
     "out-of-scope assessment history is not disclosed");
