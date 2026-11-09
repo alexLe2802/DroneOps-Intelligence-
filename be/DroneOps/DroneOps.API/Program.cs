@@ -142,9 +142,10 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
-builder.Services.AddHostedService<UavImageModerationMonitor>();
 if (monitoringEnabled)
 {
+    // The dedicated monitor owns background work; API replicas must not poll for it.
+    builder.Services.AddHostedService<UavImageModerationMonitor>();
     builder.Services.AddHostedService<CommunicationLossMonitor>();
     builder.Services.AddHostedService<PostFlightCompletionMonitor>();
 }
