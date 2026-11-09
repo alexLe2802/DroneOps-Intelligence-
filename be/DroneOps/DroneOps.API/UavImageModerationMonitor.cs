@@ -21,6 +21,12 @@ public sealed class UavImageModerationMonitor(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!configuration.GetValue("UavImageModeration:Enabled", false))
+        {
+            await ApproveOutstandingImagesAsync(stoppingToken);
+            return;
+        }
+
         var interval = TimeSpan.FromSeconds(Math.Clamp(
             configuration.GetValue("UavImageModeration:WorkerIntervalSeconds", 5), 2, 60));
 
@@ -37,6 +43,31 @@ public sealed class UavImageModerationMonitor(
 
             await Task.Delay(interval, stoppingToken);
         }
+    }
+
+    private async Task ApproveOutstandingImagesAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        await db.UAVs
+            .Where(x => x.ImageStoragePath != null &&
+                (x.ImageModerationStatus == "Pending" ||
+                 x.ImageModerationStatus == "RetryScheduled" ||
+                 x.ImageModerationStatus == "Processing" ||
+                 x.ImageModerationStatus == "ManualReview"))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.ImageModerationStatus, "Approved")
+                .SetProperty(x => x.ImageModerationAttempts, 0)
+                .SetProperty(x => x.ImageModerationNextAttemptAt, (DateTimeOffset?)null)
+                .SetProperty(x => x.ImageModeratedAt, now)
+                .SetProperty(x => x.ImageModerationReason,
+                    "Image accepted automatically; AI moderation is disabled."),
+                cancellationToken);
+
+        var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        await notifications.RefreshUavManualReviewAsync(cancellationToken);
+        logger.LogInformation("UAV image AI moderation is disabled; outstanding images were accepted by policy.");
     }
 
     private async Task ProcessDueImagesAsync(CancellationToken cancellationToken)

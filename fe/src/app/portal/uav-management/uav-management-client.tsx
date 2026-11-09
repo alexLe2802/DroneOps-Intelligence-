@@ -4,7 +4,7 @@ import { formatVietnamDate } from "@/lib/portal/vietnam-time";
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getManagedUav, getManagedUavs, setManagedUavStatus } from "@/lib/portal/client";
+import { getManagedUav, getManagedUavs, rejectManagedUavImage, setManagedUavStatus } from "@/lib/portal/client";
 import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleLoading } from "../module-state";
 import UavInformation from "../uav/uav-information";
@@ -75,6 +75,25 @@ export default function UavManagementClient() {
     finally { mutationPending.current = false; setBusy(false); }
   }
 
+  async function rejectImage() {
+    if (!selected || mutationPending.current || !selected.imageUrl) return;
+    const entered = window.prompt("Why is this UAV image being rejected?");
+    if (entered === null) return;
+    const reason = entered.trim();
+    if (!reason) { setError(new Error("A rejection reason is required.")); return; }
+    mutationPending.current = true;
+    setBusy(true);
+    setError(null);
+    setMessage("");
+    try {
+      const updated = await rejectManagedUavImage(selected.id, reason);
+      setSelected(updated);
+      setMessage("UAV image removed and the operator was notified.");
+      await load();
+    } catch (reasonValue) { setError(reasonValue); }
+    finally { mutationPending.current = false; setBusy(false); }
+  }
+
   if (!aircraft && !error) return <ModuleLoading label="Loading UAV fleet" />;
 
   return <>
@@ -101,6 +120,9 @@ export default function UavManagementClient() {
           <div className={`manager-uav-image${selected.imageUrl ? " has-image" : ""}`}>{selected.imageUrl ? <Image src={selected.imageUrl} alt={`${selected.name} UAV`} width={900} height={500} unoptimized /> : <><span>UAV</span><small>No aircraft image</small></>}</div>
           <header><div><p className="module-kicker">UAV RECORD</p><h2>{selected.code}</h2><p>{selected.name}</p></div><span className={`status status-${selected.status.toLowerCase()}`}>{selected.status}</span></header>
           <UavInformation aircraft={selected} />
+          {selected.imageUrl && <div className="uav-actions" aria-label="Image review actions">
+            <button className="module-danger" disabled={busy} onClick={() => void rejectImage()}>REJECT IMAGE</button>
+          </div>}
           <div className="uav-actions">{["pending", "inactive"].includes(selected.status.toLowerCase()) && <button className="module-primary" disabled={busy} onClick={() => void changeStatus(selected.status.toLowerCase() === "pending" ? "approve" : "activate")}>{selected.status.toLowerCase() === "inactive" ? "REACTIVATE" : "APPROVE & ACTIVATE"}</button>}<button className="module-danger" disabled={busy || selected.status.toLowerCase() !== "pending"} onClick={() => void changeStatus("reject")}>REJECT</button>{selected.status.toLowerCase() === "active" && <button className="module-danger" disabled={busy} onClick={() => void changeStatus("deactivate")}>DEACTIVATE</button>}</div>
         </>}
       </aside>
