@@ -1,5 +1,16 @@
 # Thực thi mission theo waypoint
 
+## Swimlane luồng bay tự động
+
+Sơ đồ tiếp nối mission Automatic đã được duyệt ở MF1, dùng cùng phong cách
+swimlane của MF1. Các lane thực thi gồm Pilot, Mission Management Service,
+Trusted Gateway và Flight Controller/UAV.
+
+[Mở sơ đồ draw.io để chỉnh sửa](diagrams/Swimlane%20Diagram/automatic-waypoint-flight.drawio)
+· [Xem bản SVG](diagrams/Swimlane%20Diagram/automatic-waypoint-flight.svg).
+
+![Swimlane thực thi bay tự động](diagrams/Swimlane%20Diagram/automatic-waypoint-flight.svg)
+
 Luồng giữ nguyên mission hiện tại: chọn Automatic, chọn các waypoint theo thứ tự,
 đặt độ cao/tốc độ và thời gian, gửi duyệt. Điểm đầu là TakeOff, điểm cuối là Land;
 các điểm giữa dùng FlyThrough hoặc Hover (cần thời gian dừng).
