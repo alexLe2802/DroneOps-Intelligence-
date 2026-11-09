@@ -132,11 +132,22 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
         submitted = "create";
       }
       let imageUploadFailed = false;
+      let imageUploadMessage = "";
       if (imageFile) {
         try { await uploadUavImage(id, imageFile); }
-        catch { imageUploadFailed = true; }
+        catch (reason) {
+          imageUploadFailed = true;
+          imageUploadMessage = reason instanceof Error ? reason.message : "The image upload failed before AI review started.";
+        }
       }
-      router.push(`/portal/uav/${id}?submitted=${submitted}${imageUploadFailed ? "&imageUpload=failed" : imageFile ? "&imageUpload=success" : ""}`);
+      const detailQuery = new URLSearchParams({ submitted });
+      if (imageUploadFailed) {
+        detailQuery.set("imageUpload", "failed");
+        detailQuery.set("imageUploadMessage", imageUploadMessage);
+      } else if (imageFile) {
+        detailQuery.set("imageUpload", "success");
+      }
+      router.push(`/portal/uav/${id}?${detailQuery}`);
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to submit the UAV request.");

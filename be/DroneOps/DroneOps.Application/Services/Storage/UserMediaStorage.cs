@@ -12,6 +12,7 @@ namespace DroneOps.Application.Services.Storage;
 public sealed class UserMediaStorage : IUserMediaStorage
 {
     private const string Bucket = "user-media";
+    public const string LocalMediaScheme = "local-media://";
 
     private readonly HttpClient _client;
     private readonly IConfiguration _configuration;
@@ -28,6 +29,57 @@ public sealed class UserMediaStorage : IUserMediaStorage
         (_configuration["SupabaseStorage:Url"]
             ?? "https://diaswbzjhvzwxcadlias.supabase.co")
         .TrimEnd('/') + "/storage/v1";
+
+    private bool UseLocalStorage
+    {
+        get
+        {
+            var provider = _configuration["UserMediaStorage:Provider"] ?? "Auto";
+            if (string.Equals(provider, "Local", StringComparison.OrdinalIgnoreCase)) return true;
+            if (!string.Equals(provider, "Auto", StringComparison.OrdinalIgnoreCase)) return false;
+
+            var key = _configuration["SupabaseStorage:ServiceKey"];
+            var authorizationToken = _configuration["SupabaseStorage:AuthorizationToken"];
+            return key?.StartsWith("sb_secret_", StringComparison.Ordinal) == true
+                && string.IsNullOrWhiteSpace(authorizationToken);
+        }
+    }
+
+    private string LocalRoot
+    {
+        get
+        {
+            var configuredRoot = _configuration["UserMediaStorage:LocalRoot"];
+            var root = string.IsNullOrWhiteSpace(configuredRoot)
+                ? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DroneOps",
+                    Bucket)
+                : configuredRoot;
+            return Path.GetFullPath(root);
+        }
+    }
+
+    private string ResolveLocalPath(string path)
+    {
+        var normalized = path.Replace('\\', '/').TrimStart('/');
+        if (!Regex.IsMatch(
+                normalized,
+                @"^(licenses|avatars|uavs)/[a-fA-F0-9-]+/[a-fA-F0-9]+(\.(pdf|doc|docx|png|webp|jpg))?$"))
+        {
+            throw new ArgumentException("Invalid stored media path.");
+        }
+
+        var root = LocalRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var resolved = Path.GetFullPath(
+            Path.Combine(root, normalized.Replace('/', Path.DirectorySeparatorChar)));
+        if (!resolved.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Invalid stored media path.");
+        }
+
+        return resolved;
+    }
 
     private HttpRequestMessage CreateRequest(
         HttpMethod method,
@@ -56,14 +108,23 @@ public sealed class UserMediaStorage : IUserMediaStorage
 
         request.Headers.Add("apikey", key);
 
-        // Legacy service_role keys are JWT values.
-        if (key.StartsWith("eyJ"))
+        // Supabase Storage currently requires a JWT in Authorization even when
+        // the API gateway is authenticated with a new sb_secret key.
+        var authorizationToken = key.StartsWith("eyJ", StringComparison.Ordinal)
+            ? key
+            : _configuration["SupabaseStorage:AuthorizationToken"];
+        if (string.IsNullOrWhiteSpace(authorizationToken) ||
+            !authorizationToken.StartsWith("eyJ", StringComparison.Ordinal))
         {
-            request.Headers.Authorization =
-                new AuthenticationHeaderValue(
-                    "Bearer",
-                    key);
+            request.Dispose();
+            throw new InvalidOperationException(
+                "Supabase Storage authorization is incomplete. Configure " +
+                "SupabaseStorage__AuthorizationToken with the legacy service_role JWT, " +
+                "or use that JWT as SupabaseStorage__ServiceKey.");
         }
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue("Bearer", authorizationToken);
 
         return request;
     }
@@ -112,6 +173,13 @@ public sealed class UserMediaStorage : IUserMediaStorage
         IFormFile file,
         CancellationToken cancellationToken = default)
     {
+        if (UseLocalStorage)
+        {
+            await using var localSource = file.OpenReadStream();
+            await UploadLocalAsync(path, localSource, cancellationToken);
+            return;
+        }
+
         using HttpRequestMessage request =
             CreateRequest(
                 HttpMethod.Post,
@@ -195,6 +263,12 @@ public sealed class UserMediaStorage : IUserMediaStorage
         string contentType,
         CancellationToken cancellationToken = default)
     {
+        if (UseLocalStorage)
+        {
+            await UploadLocalAsync(path, stream, cancellationToken);
+            return;
+        }
+
         using HttpRequestMessage request = CreateRequest(HttpMethod.Post, $"/object/{Bucket}/{path}");
         request.Content = new StreamContent(stream);
         request.Content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
@@ -220,6 +294,17 @@ public sealed class UserMediaStorage : IUserMediaStorage
         {
             throw new ArgumentException(
                 "Invalid stored media path.");
+        }
+
+        if (UseLocalStorage)
+        {
+            var localPath = ResolveLocalPath(path);
+            if (!File.Exists(localPath))
+            {
+                throw new FileNotFoundException("Stored media was not found.");
+            }
+
+            return LocalMediaScheme + path;
         }
 
         using HttpRequestMessage request =
@@ -271,6 +356,17 @@ public sealed class UserMediaStorage : IUserMediaStorage
             throw new ArgumentException("Invalid stored UAV image path.");
         }
 
+        if (UseLocalStorage)
+        {
+            var localBytes = await File.ReadAllBytesAsync(ResolveLocalPath(path), cancellationToken);
+            if (localBytes.Length is 0 or > 5 * 1024 * 1024)
+            {
+                throw new InvalidDataException("The stored UAV image size is invalid.");
+            }
+
+            return localBytes;
+        }
+
         using var request = CreateRequest(HttpMethod.Get, $"/object/{Bucket}/{path}");
         using var response = await _client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -299,6 +395,16 @@ public sealed class UserMediaStorage : IUserMediaStorage
             return;
         }
 
+        if (UseLocalStorage)
+        {
+            foreach (var path in pathList)
+            {
+                var localPath = ResolveLocalPath(path);
+                if (File.Exists(localPath)) File.Delete(localPath);
+            }
+            return;
+        }
+
         using HttpRequestMessage request =
             CreateRequest(
                 HttpMethod.Delete,
@@ -316,5 +422,34 @@ public sealed class UserMediaStorage : IUserMediaStorage
                 cancellationToken);
 
         response.EnsureSuccessStatusCode();
+    }
+
+    private async Task UploadLocalAsync(
+        string path,
+        Stream source,
+        CancellationToken cancellationToken)
+    {
+        var destination = ResolveLocalPath(path);
+        var directory = Path.GetDirectoryName(destination)
+            ?? throw new InvalidOperationException("Invalid local media directory.");
+        Directory.CreateDirectory(directory);
+
+        var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await using (var output = new FileStream(
+                temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                81920, FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await source.CopyToAsync(output, cancellationToken);
+                await output.FlushAsync(cancellationToken);
+            }
+
+            File.Move(temporary, destination, true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
     }
 }
