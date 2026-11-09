@@ -6,11 +6,44 @@ never invents battery thresholds or landing sites.
 It cannot produce a flight authorization/verifiedEnvelopeHash by itself.
 """
 import math
+import struct
 import time
 
 
 class ProfileError(ValueError):
     pass
+
+
+def canonical_mission_item(item, current):
+    """Copter 4.7.1 AP_Mission storage semantics, checked before upload.
+
+    Copter does not store NAV yaw or per-item acceptance radius. Reject yaw
+    overrides and require a requested radius to match the fresh FC radius.
+    """
+    result = dict(item)
+    command = item['command']
+    if command not in (16, 21, 22):
+        return result
+    if item['param4'] is not None:
+        raise ProfileError('ArduCopter NAV yaw overrides are unsupported; use Autopilot yaw.')
+    if item['param3'] != 0:
+        raise ProfileError('ArduCopter pass-radius overrides are unsupported.')
+    if command == 16:
+        if item['param1'] != int(item['param1']):
+            raise ProfileError('ArduCopter waypoint hold time must be whole seconds.')
+        if item['param2'] != 0:
+            radius = current.get('WP_RADIUS_M', current.get('WPNAV_RADIUS', 0) / 100)
+            if not math.isfinite(radius) or radius <= 0 or not math.isclose(item['param2'], radius, rel_tol=0, abs_tol=1e-5):
+                raise ProfileError('ArduCopter acceptance radius must match the fresh FC waypoint radius; per-item overrides are unsupported.')
+    elif item['param2'] != 0:
+        raise ProfileError('Takeoff/LAND acceptance-radius overrides are unsupported.')
+    result['param2'] = 0
+    # LAND returns a plane-only direction placeholder; this is not Copter yaw.
+    result['param4'] = 1 if command == 21 else 0
+    def f32(value):
+        return struct.unpack('<f', struct.pack('<f', value))[0]
+    result['z'] = f32(int(f32(f32(item['z']) * 100)) / 100)
+    return result
 
 
 def parameter_targets(envelope, current):
