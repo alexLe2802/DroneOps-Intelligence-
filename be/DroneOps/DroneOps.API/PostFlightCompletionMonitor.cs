@@ -1,3 +1,4 @@
+using DroneOps.API;
 using DroneOps.Application.Interfaces.PostFlight;
 using DroneOps.Application.Settings;
 using Microsoft.Extensions.Options;
@@ -24,11 +25,14 @@ public sealed class PostFlightCompletionMonitor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var interval = TimeSpan.FromSeconds(Math.Max(1, _options.CurrentValue.CompletionScanIntervalSeconds));
+        var idleDelay = new IdlePollDelay(interval, TimeSpan.FromSeconds(60));
         while (!stoppingToken.IsCancellationRequested)
         {
+            var hadWork = true;
             try
             {
-                await ProcessPostFlightReportsAsync(stoppingToken);
+                hadWork = await ProcessPostFlightReportsAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -41,11 +45,16 @@ public sealed class PostFlightCompletionMonitor : BackgroundService
             }
 
             var delaySeconds = Math.Max(1, _options.CurrentValue.CompletionScanIntervalSeconds);
-            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+            if (interval != TimeSpan.FromSeconds(delaySeconds))
+            {
+                interval = TimeSpan.FromSeconds(delaySeconds);
+                idleDelay = new IdlePollDelay(interval, TimeSpan.FromSeconds(60));
+            }
+            await Task.Delay(idleDelay.Next(hadWork), stoppingToken);
         }
     }
 
-    private async Task ProcessPostFlightReportsAsync(CancellationToken cancellationToken)
+    private async Task<bool> ProcessPostFlightReportsAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<IPostFlightService>();
@@ -55,5 +64,6 @@ public sealed class PostFlightCompletionMonitor : BackgroundService
             _logger.LogInformation("Synchronized {MissionCount} overdue mission(s).", synchronized);
         if (processed > 0)
             _logger.LogInformation("Processed {ReportCount} queued post-flight report(s).", processed);
+        return synchronized > 0 || processed > 0;
     }
 }

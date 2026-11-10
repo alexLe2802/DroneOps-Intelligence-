@@ -30,8 +30,12 @@ if (builder.Environment.IsDevelopment())
 }
 builder.Configuration.AddEnvironmentVariables();
 builder.Configuration.AddCommandLine(configurationArgs);
-var monitoringEnabled = args.Contains("--monitor-only") ||
-    builder.Configuration.GetValue("Monitoring:Enabled", true);
+var isMonitorProcess = args.Contains("--monitor-only");
+var dedicatedMonitorRequired = builder.Configuration.GetValue("Monitoring:DedicatedProcessRequired", false) ||
+    !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VERCEL"));
+// On Vercel, replicas never run workers, even if a dashboard override enables monitoring.
+var monitoringEnabled = isMonitorProcess ||
+    (!dedicatedMonitorRequired && builder.Configuration.GetValue("Monitoring:Enabled", true));
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -91,6 +95,7 @@ if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-s
 
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 //builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
+builder.Services.AddSingleton<MissionStreamSnapshots>();
 builder.Services.AddControllers(options => options.Filters.Add<MissionValidationExceptionFilter>());
 builder.Services.Configure<MissionWeatherOptions>(
     builder.Configuration.GetSection("MissionWeather"));
@@ -240,7 +245,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+var deploymentCommit = Environment.GetEnvironmentVariable("RENDER_GIT_COMMIT") ??
+    Environment.GetEnvironmentVariable("VERCEL_GIT_COMMIT_SHA");
+app.Logger.LogInformation("Runtime role {Role}; monitoring enabled: {MonitoringEnabled}; commit: {Commit}",
+    isMonitorProcess ? "monitor" : "api", monitoringEnabled,
+    deploymentCommit ?? "unknown");
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    role = isMonitorProcess ? "monitor" : "api",
+    monitoringEnabled,
+    commit = deploymentCommit
+}));
 app.UseWebSockets(new WebSocketOptions
 {
     KeepAliveInterval = TimeSpan.FromSeconds(20)

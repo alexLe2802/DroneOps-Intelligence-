@@ -62,6 +62,7 @@ builder.Services.AddScoped<IMissionValidationRepository, MissionValidationReposi
 builder.Services.AddScoped<IMissionApprovalRepository, MissionApprovalRepository>();
 builder.Services.AddScoped<IMissionWeatherQueryRepository, MissionWeatherQueryRepository>();
 builder.Services.AddScoped<IMissionPreflightRepository, MissionPreflightRepository>();
+builder.Services.AddSingleton<MissionStreamSnapshots>();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddSingleton<IDroneConnectionRepository,FixtureDroneConnectionRepository>();
 builder.Services.AddRateLimiter(o=>{o.AddFixedWindowLimiter("gateway-pairing",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-ingest",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-websocket",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});});
@@ -116,6 +117,30 @@ void Check(bool condition, string name)
     Console.WriteLine("PASS: " + name);
     passed++;
 }
+
+var idlePoll = new IdlePollDelay(TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(60));
+Check(idlePoll.Next(false) == TimeSpan.FromSeconds(10), "empty worker queue starts backing off");
+for (var cycle = 0; cycle < 12; cycle++) idlePoll.Next(false);
+Check(idlePoll.Next(false) == TimeSpan.FromSeconds(60), "idle worker delay caps at sixty seconds");
+Check(idlePoll.Next(true) == TimeSpan.FromSeconds(5), "productive worker immediately restores normal interval");
+var sharedSnapshots = app.Services.GetRequiredService<MissionStreamSnapshots>();
+MissionStreamSnapshots.Snapshot previousSnapshot;
+using (var first = sharedSnapshots.Subscribe(missionId))
+using (var second = sharedSnapshots.Subscribe(missionId))
+{
+    var results = await Task.WhenAll(first.ReadAsync(default), second.ReadAsync(default));
+    Check(ReferenceEquals(results[0], results[1]), "concurrent SSE subscribers share one mission refresh");
+    previousSnapshot = results[0];
+    using var differentMission = sharedSnapshots.Subscribe(Guid.NewGuid());
+    Check(!ReferenceEquals(previousSnapshot, await differentMission.ReadAsync(default)), "SSE snapshots are isolated by mission");
+    using var canceled = new CancellationTokenSource();
+    canceled.Cancel();
+    try { await second.ReadAsync(canceled.Token); Check(false, "canceled SSE read must stop"); }
+    catch (OperationCanceledException) { Check(true, "canceled subscriber does not cancel other subscriptions"); }
+    Check(ReferenceEquals(previousSnapshot, await first.ReadAsync(default)), "remaining SSE subscriber survives another reader cancellation");
+}
+using (var reconnected = sharedSnapshots.Subscribe(missionId))
+    Check(!ReferenceEquals(previousSnapshot, await reconnected.ReadAsync(default)), "last SSE disconnect releases cached mission state");
 
 var scheduled = DateTimeOffset.UtcNow.AddMinutes(10);
 Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5).AddTicks(-1), scheduled, scheduled.AddMinutes(30)), "automatic confirmation rejects times before T-5");
@@ -234,6 +259,13 @@ try
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(managerId, "operation_manager"));
     latest = await Json(await client.GetAsync($"/api/missions/{missionId}/telemetry/latest"));
     Check(latest.GetProperty("connectivityStatus").GetString() == "Online" && latest.GetProperty("batteryPercent").GetInt32() == 66, "reconnect restores a fresh snapshot");
+
+    using (var unauthorizedStream = new HttpRequestMessage(HttpMethod.Get, $"/api/live/stream?missionId={missionId}"))
+    {
+        unauthorizedStream.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(Guid.NewGuid(), "uav_operator"));
+        using var denied = await client.SendAsync(unauthorizedStream);
+        Check(denied.StatusCode == HttpStatusCode.Forbidden, "shared SSE snapshot remains forbidden to another pilot");
+    }
 
     using var sseCts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
     using var sse = await client.GetAsync($"/api/live/stream?missionId={missionId}", HttpCompletionOption.ResponseHeadersRead, sseCts.Token);
