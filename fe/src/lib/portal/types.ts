@@ -44,7 +44,7 @@ export type PagedResponse<T> = {
 };
 
 // CapturePhoto is retained only to read historical records; new camera actions are deferred.
-export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
+export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land" | "Return";
 export type MissionFence = { id: string; shape: "Polygon" | "Circle"; vertices?: GeofenceCoordinate[] | null; center?: GeofenceCoordinate | null; radiusMeters?: number | null };
 export type PlannedHome = { latitude: number; longitude: number; altitudeMslMeters?: number | null };
 export type WaypointNavigation = { missionFences?: MissionFence[] | null; plannedHome?: PlannedHome | null; speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
@@ -138,6 +138,9 @@ export type LiveMission = {
 };
 
 export type MissionTelemetry = {
+  staleAfterSeconds?: number;
+  offlineAfterSeconds?: number;
+  detectionDiagnostics?: string[];
   batteryVoltageVolts?: number | null;
   batteryCurrentAmps?: number | null;
   batteryTemperatureCelsius?: number | null;
@@ -169,6 +172,7 @@ export type MissionTelemetry = {
 };
 
 export type IncidentItem = {
+  revision: number;
   id: string;
   missionId: string;
   missionName: string;

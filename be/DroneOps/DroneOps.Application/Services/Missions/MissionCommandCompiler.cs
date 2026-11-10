@@ -20,14 +20,14 @@ public sealed record MissionCompilationPreview(string CompilerVersion, string Fi
     string SourcePlanHash, string? CompiledMissionHash, string State, bool CanEncode,
     bool CanUpload, bool CanStart, MissionCompileOptions Options,
     IReadOnlyList<MissionWireItem> Items, IReadOnlyList<string> Errors, IReadOnlyList<string> ExecutionBlocks,
-    AutomaticExecutionEnvelope? OperationalEnvelope = null, PlannedHome? PlannedHome = null);
+    AutomaticExecutionEnvelope? OperationalEnvelope = null, PlannedHome? PlannedHome = null, IReadOnlyList<int>? WaypointCommands = null);
 
 public sealed record AutomaticExecutionEnvelope(decimal CruiseSpeedMetersPerSecond, decimal MaxSpeedMetersPerSecond,
     AutomaticFlightLimits Limits, bool FcParameterVerificationRequired = true, bool ConfigureRecovery = false);
 
 public static class MissionCommandCompiler
 {
-    private const string Version = "multicopter-mission-int-v3";
+    private const string Version = "multicopter-mission-int-v4";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public static MissionCompilationPreview Compile(Mission mission, MissionCompileOptions options, FirmwareParameterSnapshot? firmwareDefaults = null)
@@ -76,14 +76,14 @@ public static class MissionCommandCompiler
         static string Action(Waypoint point) => (point.ActionType ?? "FlyThrough").Trim().ToLowerInvariant();
         if (options.FirmwareTarget != "ArduPilot" && points.Any(p => Action(p) == "land" && p.Navigation?.LandingGroundAltitudeMeters == null && options.LandingGroundAltitudeMeters == null))
             errors.Add("Supply landing ground altitude at the LAND node or in the explicit adapter settings; route altitude is not ground level.");
-        if (points.Count > 0 && (Action(points[0]) != "takeoff" || Action(points[^1]) != "land")) errors.Add("The first action must be TakeOff and the last action Land.");
+        if (points.Count > 0 && (Action(points[0]) != "takeoff" || Action(points[^1]) is not ("land" or "return"))) errors.Add("The first action must be TakeOff and the last action Land or Return/RTL.");
         for (var index = 0; index < points.Count; index++)
         {
             var point = points[index];
             var action = Action(point);
             if (point.Latitude is < -90 or > 90 || point.Longitude is < -180 or > 180) errors.Add($"Waypoint {point.SequenceOrder} has invalid WGS84 coordinates.");
-            if (action is not ("takeoff" or "flythrough" or "hover" or "land")) errors.Add($"Waypoint {point.SequenceOrder}: unsupported action; camera is deferred.");
-            if (index > 0 && action == "takeoff" || index < points.Count - 1 && action == "land") errors.Add("Intermediate takeoff/landing is outside this compiler profile.");
+            if (action is not ("takeoff" or "flythrough" or "hover" or "land" or "return")) errors.Add($"Waypoint {point.SequenceOrder}: unsupported action; camera is deferred.");
+            if (index > 0 && action == "takeoff" || index < points.Count - 1 && action is ("land" or "return")) errors.Add("Intermediate takeoff/landing is outside this compiler profile.");
             if (action != "land" && !point.Altitude.HasValue) errors.Add($"Waypoint {point.SequenceOrder} needs an explicit altitude.");
             if (frame == 3 && action != "land" && point.Altitude is <= 0) errors.Add($"Waypoint {point.SequenceOrder} relative altitude must be positive.");
             if (action == "hover" && (point.Navigation?.HoldTimeSeconds ?? options.HoverDurationSeconds) is null or <= 0) errors.Add("Hover requires an explicit positive duration in seconds.");
@@ -91,6 +91,7 @@ public static class MissionCommandCompiler
         if (errors.Count > 0) return new(Version, options.FirmwareTarget, sourceHash, null, "NeedsInput", false, false, false, options, [], errors.Distinct().ToArray(), executionBlocks);
 
         var items = new List<MissionWireItem>();
+        var waypointCommands = new List<int>();
         float? yaw = options.YawPolicy == "Fixed" ? (float)options.YawDegrees!.Value : null;
         var cruise = mission.AverageSpeedMetersPerSecond!.Value;
         var fcCruise = options.FirmwareTarget == "PX4" ? FcValue("MPC_XY_CRUISE") : FcValue("WP_SPD") ?? FcValue("WPNAV_SPEED", 0.01m);
@@ -103,7 +104,7 @@ public static class MissionCommandCompiler
         foreach (var point in points)
         {
             var action = Action(point);
-            var command = (ushort)(action == "takeoff" ? 22 : action == "land" ? 21 : 16);
+            var command = (ushort)(action == "takeoff" ? 22 : action == "land" ? 21 : action == "return" ? 20 : 16);
             var targetSpeed = point.Navigation?.SpeedMetersPerSecond ?? cruise;
             if (action != "takeoff" && targetSpeed != currentSpeed)
             {
@@ -115,16 +116,20 @@ public static class MissionCommandCompiler
             // Copter LAND ignores altitude and uses its onboard landing detector.
             // Keep PX4's explicit ground-altitude contract.
             var altitude = action == "land" ? (point.Navigation?.LandingGroundAltitudeMeters ?? options.LandingGroundAltitudeMeters ?? 0) : point.Altitude!.Value;
-            if (mission.AutomaticFlightRequested && action == "land")
+            if (action == "return" || mission.AutomaticFlightRequested && action == "land")
             {
                 // Reach the final waypoint at its approved altitude before descending.
                 items.Add(new((ushort)items.Count, 16, frame, 0, (float)radius!.Value, 0,
                     point.Navigation?.YawDegrees is { } arrivalYaw ? (float?)arrivalYaw : yaw,
                     E7(point.Latitude), E7(point.Longitude), (float)point.Altitude!.Value));
             }
+            waypointCommands.Add(items.Count + (options.FirmwareTarget == "ArduPilot" ? 1 : 0));
             var pointYaw = point.Navigation?.YawDegrees is { } angle ? (float?)angle : yaw;
-            items.Add(new((ushort)items.Count, command, frame, hold, acceptance, 0, pointYaw,
-                E7(point.Latitude), E7(point.Longitude), (float)altitude));
+            // Visit the final point before RTL. RTL itself has no coordinates.
+            items.Add(action == "return"
+                ? new((ushort)items.Count, 20, 2, 0, 0, 0, 0, 0, 0, 0)
+                : new((ushort)items.Count, command, frame, hold, acceptance, 0, pointYaw,
+                    E7(point.Latitude), E7(point.Longitude), (float)altitude));
             if (action == "takeoff")
                 items.Add(new((ushort)items.Count, 178, 2, 1, (float)cruise, -1, 0, 0, 0, 0));
         }
@@ -134,7 +139,7 @@ public static class MissionCommandCompiler
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
         return new(Version, options.FirmwareTarget, sourceHash, hash, "PreviewOnly", true, false, false, options, items, [], executionBlocks,
             mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } limits
-                ? new(mission.AverageSpeedMetersPerSecond!.Value, mission.MaxSpeedMetersPerSecond!.Value, limits, ConfigureRecovery: options.ConfigureRecovery) : null, plannedHome);
+                ? new(mission.AverageSpeedMetersPerSecond!.Value, mission.MaxSpeedMetersPerSecond!.Value, limits, ConfigureRecovery: options.ConfigureRecovery) : null, plannedHome, waypointCommands);
     }
 
     private static int E7(decimal degrees) => (int)decimal.Round(degrees * 10000000m, 0, MidpointRounding.AwayFromZero);

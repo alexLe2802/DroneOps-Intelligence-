@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.Incidents;
+using DroneOps.Application.DTOs.Request.Incidents;
 using DroneOps.Application.DTOs.Response.Incidents;
 
 namespace DroneOps.Application.Interfaces.Incidents;
@@ -29,11 +29,11 @@ public interface IIncidentService
 
     Task<IncidentDetailResponse> AcknowledgeAsync(
         Guid incidentId, Guid currentUserId, bool isManager, string? notes,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, string? expectedStatus = null, int? expectedRevision = null);
 
     Task<IncidentDetailResponse> ResolveAsync(
         Guid incidentId, Guid currentUserId, bool isManager, string resolutionNotes,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, string? expectedStatus = null, int? expectedRevision = null);
 
     Task<List<IncidentTransitionResponse>> GetHistoryAsync(
         Guid incidentId, Guid? currentUserId, bool isManager,

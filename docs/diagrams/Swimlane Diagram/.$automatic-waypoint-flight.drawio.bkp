@@ -1,0 +1,196 @@
+<mxfile host="Electron">
+  <diagram id="automatic-flight" name="Automatic Waypoint Flight">
+    <mxGraphModel dx="1307" dy="972" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1320" pageHeight="2500" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;whiteSpace=wrap;html=0;fontSize=18;fontStyle=1;align=left;" value="Automatic Waypoint Flight · Execution after MF1 Approval" vertex="1">
+          <mxGeometry height="60" width="1260" x="30" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lane0" parent="1" style="swimlane;html=0;startSize=60;horizontal=1;collapsible=0;whiteSpace=wrap;fontSize=16;fontStyle=1;fillColor=#E5EDF6;swimlaneFillColor=#F8FAFD;strokeColor=#B8C7D9;" value="UAV Operator / Pilot" vertex="1">
+          <mxGeometry height="2240" width="315" x="30" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="connect" parent="lane0" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Connect assigned UAV;&#xa;open Live Monitoring" vertex="1">
+          <mxGeometry height="70" width="265" x="25" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="blocked" parent="lane0" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#FCEAE7;strokeColor=#C77A71;strokeWidth=1.4;" value="Show blocking reason;&#xa;correct preparation and retry" vertex="1">
+          <mxGeometry height="70" width="265" x="25" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="confirm" parent="lane0" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Confirm current mission&#xa;in preparation window;&#xa;keep monitoring online" vertex="1">
+          <mxGeometry height="90" width="265" x="25" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="arm" parent="lane0" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="At StartTime: select LOITER&#xa;(ArduCopter) and press ARM" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="955" as="geometry" />
+        </mxCell>
+        <mxCell id="cancel" parent="lane0" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#FCEAE7;strokeColor=#C77A71;strokeWidth=1.4;" value="Cancel countdown /&#xa;gates become invalid" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="1100" as="geometry" />
+        </mxCell>
+        <mxCell id="abort" parent="lane0" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#FCEAE7;strokeColor=#C77A71;strokeWidth=1.4;" value="Cancel pending launch;&#xa;show current FC state" vertex="1">
+          <mxGeometry height="70" width="265" x="20" y="1330" as="geometry" />
+        </mxCell>
+        <mxCell id="monitor" parent="lane0" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Monitor progress / incidents&#xa;throughout flight" vertex="1">
+          <mxGeometry height="80" width="265" x="40" y="1850" as="geometry" />
+        </mxCell>
+        <mxCell id="lane1" parent="1" style="swimlane;html=0;startSize=60;horizontal=1;collapsible=0;whiteSpace=wrap;fontSize=16;fontStyle=1;fillColor=#E5EDF6;swimlaneFillColor=#F8FAFD;strokeColor=#B8C7D9;" value="Mission Management&#xa;Service" vertex="1">
+          <mxGeometry height="2240" width="315" x="345" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="approved" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#E5F3EB;strokeColor=#73A38A;strokeWidth=1.4;" value="Approved Automatic mission&#xa;UAV + schedule + plan hash" vertex="1">
+          <mxGeometry height="70" width="265" x="25" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="prepare" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Check approved plan;&#xa;compile ordered waypoints;&#xa;resolve FC settings" vertex="1">
+          <mxGeometry height="90" width="265" x="25" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="ready" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#FFF3CD;strokeColor=#C6A047;strokeWidth=1.4;rhombus;" value="Preflight and&#xa;read-back pass?" vertex="1">
+          <mxGeometry height="110" width="265" x="25" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="bind" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Bind confirmation to&#xa;plan hash + UAV + connection" vertex="1">
+          <mxGeometry height="90" width="265" x="25" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="gate" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Recheck schedule, presence,&#xa;preflight, confirmation and&#xa;execution switches" vertex="1">
+          <mxGeometry height="90" width="265" x="25" y="950" as="geometry" />
+        </mxCell>
+        <mxCell id="count" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Start 10-second countdown&#xa;after ARM confirmation" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="1090" as="geometry" />
+        </mxCell>
+        <mxCell id="valid" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#FFF3CD;strokeColor=#C6A047;strokeWidth=1.4;rhombus;" value="10 seconds elapsed;&#xa;all gates still valid?" vertex="1">
+          <mxGeometry height="110" width="265" x="25" y="1220" as="geometry" />
+        </mxCell>
+        <mxCell id="observe" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Observe telemetry;&#xa;update actual flight state" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="1670" as="geometry" />
+        </mxCell>
+        <mxCell id="complete" parent="lane1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#E5F3EB;strokeColor=#73A38A;strokeWidth=1.4;" value="Reconcile mission outcome;&#xa;save flight history" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="2090" as="geometry" />
+        </mxCell>
+        <mxCell id="lane2" parent="1" style="swimlane;html=0;startSize=60;horizontal=1;collapsible=0;whiteSpace=wrap;fontSize=16;fontStyle=1;fillColor=#E5EDF6;swimlaneFillColor=#F8FAFD;strokeColor=#B8C7D9;" value="Trusted Gateway" vertex="1">
+          <mxGeometry height="2240" width="315" x="660" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="read" parent="lane2" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Verify UAV identity / lease;&#xa;read fresh GPS, Home,&#xa;firmware and parameters" vertex="1">
+          <mxGeometry height="90" width="265" x="25" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="upload" parent="lane2" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Apply / read back speed limits;&#xa;upload mission and download&#xa;for item-by-item comparison" vertex="1">
+          <mxGeometry height="90" width="265" x="25" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="sendarm" parent="lane2" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Check local pre-arm gates;&#xa;send ARM once" vertex="1">
+          <mxGeometry height="90" width="265" x="25" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="start" parent="lane2" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Dispatch MISSION_START&#xa;exactly once" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="1390" as="geometry" />
+        </mxCell>
+        <mxCell id="ground" parent="lane2" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Confirm landed / disarmed&#xa;from FC telemetry" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="1960" as="geometry" />
+        </mxCell>
+        <mxCell id="lane3" parent="1" style="swimlane;html=0;startSize=60;horizontal=1;collapsible=0;whiteSpace=wrap;fontSize=16;fontStyle=1;fillColor=#E5EDF6;swimlaneFillColor=#F8FAFD;strokeColor=#B8C7D9;" value="Flight Controller / UAV" vertex="1">
+          <mxGeometry height="2240" width="315" x="975" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="armed" parent="lane3" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#E5F3EB;strokeColor=#73A38A;strokeWidth=1.4;" value="ARM ACK accepted +&#xa;heartbeat confirms ARMED" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="935" as="geometry" />
+        </mxCell>
+        <mxCell id="takeoff" parent="lane3" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Accept START; take off&#xa;to planned relative altitude" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="1530" as="geometry" />
+        </mxCell>
+        <mxCell id="waypoints" parent="lane3" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Visit waypoints in order;&#xa;FlyThrough / timed Hover" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="1670" as="geometry" />
+        </mxCell>
+        <mxCell id="land" parent="lane3" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Arial;fontSize=15;fontColor=#18334F;spacing=8;fillColor=#EAF1FA;strokeColor=#7899BD;strokeWidth=1.4;" value="Approach final waypoint;&#xa;execute LAND" vertex="1">
+          <mxGeometry height="80" width="265" x="25" y="1830" as="geometry" />
+        </mxCell>
+        <mxCell id="edge0" edge="1" parent="1" source="approved" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="connect" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge1" edge="1" parent="1" source="connect" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="read" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge2" edge="1" parent="1" source="read" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="prepare" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge3" edge="1" parent="1" source="prepare" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="upload" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge4" edge="1" parent="1" source="upload" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="ready" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge5" edge="1" parent="1" source="ready" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="blocked" value="No">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge6" edge="1" parent="1" source="ready" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="confirm" value="Yes">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="502.5" y="870" />
+              <mxPoint x="187.5" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge7" edge="1" parent="1" source="confirm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="bind" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge8" edge="1" parent="1" source="bind" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="arm" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="502.5" y="1050" />
+              <mxPoint x="187.5" y="1050" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge9" edge="1" parent="1" source="arm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="gate" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge10" edge="1" parent="1" source="gate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="sendarm" value="Pass">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge11" edge="1" parent="1" source="sendarm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="armed" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge12" edge="1" parent="1" source="armed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="count" value="">
+          <mxGeometry relative="1" x="-0.1954" as="geometry">
+            <Array as="points">
+              <mxPoint x="1132.5" y="1260" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge13" edge="1" parent="1" source="count" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="valid" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge14" edge="1" parent="1" source="cancel" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="abort" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="190" y="1380" />
+              <mxPoint x="190" y="1380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge15" edge="1" parent="1" source="valid" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="abort" value="No / cancelled">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge16" edge="1" parent="1" source="valid" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.984;exitY=0.505;exitDx=0;exitDy=0;exitPerimeter=0;" target="start" value="Yes">
+          <mxGeometry relative="1" x="0.0017" as="geometry" />
+        </mxCell>
+        <mxCell id="edge17" edge="1" parent="1" source="start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="takeoff" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge18" edge="1" parent="1" source="takeoff" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="waypoints" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge19" edge="1" parent="1" source="waypoints" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="observe" value="telemetry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge20" edge="1" parent="1" source="observe" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="monitor" value="live updates">
+          <mxGeometry relative="1" x="-0.0244" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge21" edge="1" parent="1" source="waypoints" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="land" value="Final waypoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge22" edge="1" parent="1" source="land" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="ground" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge23" edge="1" parent="1" source="ground" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;endArrow=open;strokeColor=#425A73;fontSize=13;labelBackgroundColor=#FFFFFF;" target="complete" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="notes" parent="1" style="text;whiteSpace=wrap;html=0;fontSize=14;fontColor=#425A73;" value="Approval / preparation consent do not start flight. Changed plan or connection requires preparation and confirmation again.&#xa;No automatic retry for an unknown command outcome. Cancel does not disarm; DISARM only when FC confirms on-ground.&#xa;Basic ArduCopter flow keeps existing onboard failsafe settings. PX4 execution requires a separate runtime adapter." vertex="1">
+          <mxGeometry height="90" width="1260" x="30" y="2390" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

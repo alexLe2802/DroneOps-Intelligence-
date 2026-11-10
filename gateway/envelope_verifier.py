@@ -34,7 +34,7 @@ class EnvelopeVerifier:
             return
         self.plan_hash, self.targets = plan_hash, targets
         self.guards = {name: value for name, value in current.items()
-                       if name.startswith('BATT_') or name in ('ARMING_CHECK', 'ARMING_SKIPCHK', 'FS_EKF_ACTION')}
+                       if name.startswith('BATT_') or name in ('ARMING_CHECK', 'ARMING_SKIPCHK', 'FS_EKF_ACTION', 'WP_RADIUS_M', 'WPNAV_RADIUS')}
         # Apply enable switches after thresholds and recovery actions.
         self.pending = sorted(targets, key=lambda key: key == 'FENCE_ENABLE')
         self.observed = {}
@@ -66,7 +66,7 @@ class EnvelopeVerifier:
         name = message.param_id.decode('ascii', 'ignore') if isinstance(message.param_id, bytes) else message.param_id
         name = name.split('\0')[0]
         if name in self.guards and (not math.isfinite(message.param_value) or not math.isclose(message.param_value, self.guards[name], abs_tol=1e-4, rel_tol=0)):
-            self.fail(f'FC battery/arming configuration changed: {name}')
+            self.fail(f'FC guarded configuration changed: {name}')
             return
         if name not in self.targets:
             return

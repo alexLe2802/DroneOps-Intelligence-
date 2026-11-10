@@ -1,0 +1,40 @@
+# Demo only: one free instance owns HTTP, WebSocket, SSE and all background monitors.
+# Free services sleep; monitoring is unavailable while the service is stopped.
+services:
+  - type: web
+    name: droneops-api-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ASPNETCORE_HTTP_PORTS
+        value: "8080"
+      - key: PORT
+        value: "8080"
+      - key: Monitoring__DedicatedProcessRequired
+        value: "false"
+      - key: Monitoring__Enabled
+        value: "true"
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Jwt__Key
+        sync: false
+      - key: Jwt__Issuer
+        sync: false
+      - key: Jwt__Audience
+        sync: false
+      - key: IntegrationSettings__ApiKey
+        sync: false
+      - key: SupabaseStorage__Url
+        sync: false
+      - key: SupabaseStorage__ServiceKey
+        sync: false
+      - key: Ai__ApiKey
+        sync: false
+      - key: UavImageModeration__ApiKey
+        sync: false
