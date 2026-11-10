@@ -52,6 +52,15 @@ public sealed class CommunicationLossMonitor : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await DroneOps.Persistence.RealtimeWrite.RunAsync(context, async () =>
+        {
+            await DetectLockedAsync(scope, context, cancellationToken);
+            return true;
+        }, cancellationToken);
+    }
+
+    private async Task DetectLockedAsync(IServiceScope scope, AppDbContext context, CancellationToken cancellationToken)
+    {
         var lifecycle = scope.ServiceProvider.GetRequiredService<IIncidentLifecycleService>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var options = _options.CurrentValue;
@@ -64,10 +73,10 @@ public sealed class CommunicationLossMonitor : BackgroundService
                 Mission = m,
                 Latest = context.TelemetryRecords
                     .Where(t => t.MissionId == m.Id && t.IsValid)
-                    .OrderByDescending(t => t.ReceivedAt)
+                    .OrderByDescending(t => t.SourceTimestamp).ThenByDescending(t => t.ReceivedAt)
                     .FirstOrDefault()
             })
-            .Where(x => x.Latest != null && x.Latest.ReceivedAt < cutoff)
+            .Where(x => x.Latest != null && (x.Latest.ReceivedAt < cutoff || x.Latest.SourceTimestamp < cutoff))
             .ToListAsync(cancellationToken);
 
         var raisedIncidents = new List<(Guid IncidentId, Guid PilotUserId)>();
@@ -76,7 +85,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
             var hasOpenIncident = await context.Incidents.AnyAsync(
                 i => i.MissionId == candidate.Mission.Id &&
                      i.Type == "CommunicationLoss" &&
-                     i.Status != "Resolved",
+                     i.RecoveredAt == null,
                 cancellationToken);
 
             if (hasOpenIncident)

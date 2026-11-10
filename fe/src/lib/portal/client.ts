@@ -142,21 +142,26 @@ export function getIncidents(filters: IncidentFilters = {}): Promise<PagedIncide
   return api<PagedIncidents>(`/incidents?${params}`);
 }
 
+export type IncidentTransition = { id: string; fromStatus: string; toStatus: string; eventType: string; notes: string | null; changedByName: string | null; createdAt: string };
+export function getIncidentHistory(id: string): Promise<IncidentTransition[]> {
+  return api<IncidentTransition[]>(`/incidents/${encodeURIComponent(id)}/history`);
+}
+
 export function getIncident(id: string): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
 }
 
-export function acknowledgeIncident(id: string, notes?: string | null): Promise<IncidentDetail> {
+export function acknowledgeIncident(id: string, expectedStatus: string, notes?: string | null): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}/acknowledge`, {
     method: "POST",
-    body: JSON.stringify({ notes: notes?.trim() || null }),
+    body: JSON.stringify({ notes: notes?.trim() || null, expectedStatus }),
   });
 }
 
-export function resolveIncident(id: string, resolutionNotes: string): Promise<IncidentDetail> {
+export function resolveIncident(id: string, resolutionNotes: string, expectedStatus: string): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}/resolve`, {
     method: "POST",
-    body: JSON.stringify({ resolutionNotes: resolutionNotes.trim() }),
+    body: JSON.stringify({ resolutionNotes: resolutionNotes.trim(), expectedStatus }),
   });
 }
 

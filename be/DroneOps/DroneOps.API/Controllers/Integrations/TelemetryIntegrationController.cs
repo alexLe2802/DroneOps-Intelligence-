@@ -1,4 +1,4 @@
-﻿using DroneOps.API.Filters;
+using DroneOps.API.Filters;
 using DroneOps.Application.DTOs.Request.Telemetry;
 using DroneOps.Application.Interfaces.Telemetry;
 using Microsoft.AspNetCore.Mvc;
@@ -39,6 +39,11 @@ public class TelemetryIntegrationController : ControllerBase
     {
         try
         {
+            var configuration = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+            var allowed = configuration.GetSection("IntegrationSettings:Sources").GetChildren().Any(source =>
+                string.Equals(source["SourceId"], request.SourceId, StringComparison.Ordinal)
+                && Guid.TryParse(source["UavId"], out var uavId) && uavId == request.UavId);
+            if (!allowed) return StatusCode(403, new { message = "Telemetry source is not configured for this UAV." });
             if (string.IsNullOrWhiteSpace(idempotencyKey))
             {
                 return BadRequest(new

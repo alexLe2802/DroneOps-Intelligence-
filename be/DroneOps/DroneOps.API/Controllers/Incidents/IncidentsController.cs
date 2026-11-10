@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using DroneOps.Application.DTOs.Request.Incidents;
 using DroneOps.Application.DTOs.Response.Incidents;
 using DroneOps.Application.Interfaces.Incidents;
@@ -82,17 +82,18 @@ public class IncidentsController : ControllerBase
         Guid id, [FromBody] AcknowledgeIncidentRequest request, CancellationToken cancellationToken)
     {
         return await ExecuteMutationAsync((userId, isManager) =>
-            _incidentService.AcknowledgeAsync(id, userId, isManager, request.Notes, cancellationToken));
+            _incidentService.AcknowledgeAsync(id, userId, isManager, request.Notes, cancellationToken, request.ExpectedStatus));
     }
 
     /// <summary>Người vận hành đóng sự cố và ghi lại kết quả xử lý.</summary>
     [HttpPost("{id:guid}/resolve")]
+    [Authorize(Roles = "operation_manager,operations_manager")]
     [ProducesResponseType(typeof(IncidentDetailResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> Resolve(
         Guid id, [FromBody] ResolveIncidentRequest request, CancellationToken cancellationToken)
     {
         return await ExecuteMutationAsync((userId, isManager) =>
-            _incidentService.ResolveAsync(id, userId, isManager, request.ResolutionNotes, cancellationToken));
+            _incidentService.ResolveAsync(id, userId, isManager, request.ResolutionNotes, cancellationToken, request.ExpectedStatus));
     }
 
     /// <summary>Lấy lịch sử chuyển trạng thái append-only của sự cố.</summary>

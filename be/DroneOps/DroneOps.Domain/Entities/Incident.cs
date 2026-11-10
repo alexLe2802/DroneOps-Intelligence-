@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DroneOps.Domain.Entities;
 
@@ -22,6 +22,9 @@ public class Incident
     public string? Evidence { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    // Measured rule recovery is independent of an operator closing the incident.
+    public DateTimeOffset? RecoveredAt { get; set; }
 
     // Audit logs xử lý sự cố
     public DateTimeOffset? AcknowledgedAt { get; set; }
