@@ -276,10 +276,12 @@ class FlightControlTests(unittest.TestCase):
         self.response('Start', stage='Starting')
         self.link.mav.command_long_send.assert_not_called()
 
-    def test_local_ten_second_delay_cannot_be_shortened_by_backend(self):
+    def test_expired_scheduled_start_is_rejected_locally(self):
         self.feed(armed=True)
-        self.control.arm_at = self.now - 9.9
-        self.response('Start', stage='Starting')
+        self.control.arm_at = self.now
+        utc = dt.datetime.now(dt.timezone.utc)
+        self.response('Start', stage='Starting', command=dict(id='expired', action='Start',
+            expiresAt=(utc - dt.timedelta(seconds=1)).isoformat()))
         self.link.mav.command_long_send.assert_not_called()
 
     def test_start_consumes_permission_and_is_sent_once(self):
@@ -300,12 +302,14 @@ class FlightControlTests(unittest.TestCase):
         self.response('Start', stage='Starting')
         self.link.mav.command_long_send.assert_not_called()
 
-    def test_new_socket_instance_invalidates_verified_upload(self):
+    def test_new_socket_drops_launch_permission_but_retains_same_fc_readback(self):
         self.control.arm_at = self.now
         self.bridge.reconnect()
         self.control.tick(self.link)
-        self.assertIsNone(self.control.uploaded_hash)
+        self.assertEqual(self.control.uploaded_hash, 'hash')
         self.assertIsNone(self.control.arm_at)
+        self.assertEqual(self.control.lease, 0)
+        self.assertIsNone(self.control.envelope.verified_hash)
 
     def test_stale_socket_response_cannot_arm(self):
         previous = self.bridge.instance

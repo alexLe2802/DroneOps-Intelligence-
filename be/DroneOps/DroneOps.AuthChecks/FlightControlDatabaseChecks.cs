@@ -19,7 +19,7 @@ internal static class FlightControlDatabaseChecks
             .SetProperty(m => m.EndTime, start.AddMinutes(10).UtcDateTime).SetProperty(m => m.Status, "Approved")
             .SetProperty(m => m.AverageSpeedMetersPerSecond, 3m).SetProperty(m => m.MaxSpeedMetersPerSecond, 5m)
             .SetProperty(m => m.AltitudeReference, "Relative").SetProperty(m => m.AutomaticFlightLimitsJson, limitsJson));
-        db.Waypoints.AddRange(new Waypoint { Id = Guid.NewGuid(), MissionId = id, SequenceOrder = 1, Latitude = 10.77m, Longitude = 106.69m, Altitude = 20, ActionType = "TakeOff" },
+        db.Waypoints.AddRange(new Waypoint { Id = Guid.NewGuid(), MissionId = id, SequenceOrder = 1, Latitude = 10.77m, Longitude = 106.69m, Altitude = 20, ActionType = "TakeOff", Navigation = new(PlannedHome: new PlannedHome(10.77m, 106.69m)) },
             new Waypoint { Id = Guid.NewGuid(), MissionId = id, SequenceOrder = 2, Latitude = 10.771m, Longitude = 106.691m, Altitude = 20, ActionType = "Land" });
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["FlightExecution:Enabled"] = "true" }).Build();
