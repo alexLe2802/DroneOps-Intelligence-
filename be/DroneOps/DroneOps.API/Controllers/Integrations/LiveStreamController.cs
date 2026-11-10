@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using System.Text.Json;
 using DroneOps.Application.Interfaces.Incidents;
 using DroneOps.Application.Interfaces.Telemetry;
@@ -21,17 +21,12 @@ public class LiveStreamController : ControllerBase
     };
 
     private readonly AppDbContext _context;
-    private readonly ITelemetryIngestionService _telemetryService;
-    private readonly IIncidentService _incidentService;
+    private readonly MissionStreamSnapshots _snapshots;
 
-    public LiveStreamController(
-        AppDbContext context,
-        ITelemetryIngestionService telemetryService,
-        IIncidentService incidentService)
+    public LiveStreamController(AppDbContext context, MissionStreamSnapshots snapshots)
     {
         _context = context;
-        _telemetryService = telemetryService;
-        _incidentService = incidentService;
+        _snapshots = snapshots;
     }
 
     /// <summary>
@@ -81,42 +76,33 @@ public class LiveStreamController : ControllerBase
         long eventSequence = 1;
         DateTimeOffset? lastSentTelemetryTime = null;
         string? lastSentSnapshotKind = null;
-        var knownIncidentStatus = new Dictionary<Guid, string>();
-        DateTimeOffset incidentWatermark = DateTimeOffset.UtcNow.AddHours(-24);
+        var knownIncidents = new Dictionary<Guid, string>();
+        using var subscription = _snapshots.Subscribe(missionId);
 
         LiveStreamDiagnostics.Opened();
         try
         {
-            var initialSnapshot = await _telemetryService.GetLatestMissionTelemetryAsync(
-                missionId, currentUserId, isManager, cancellationToken);
-
-            if (initialSnapshot != null)
+            var initial = await subscription.ReadAsync(cancellationToken);
+            if (initial.Telemetry is { } initialSnapshot)
             {
                 await WriteSseEventAsync("telemetryUpdated", eventSequence++, initialSnapshot, cancellationToken);
                 lastSentTelemetryTime = initialSnapshot.SourceTimestamp;
                 lastSentSnapshotKind = initialSnapshot.SnapshotKind;
             }
-
-            var openIncidents = await _incidentService.GetMissionIncidentFeedAsync(
-                missionId, currentUserId, isManager, changedAfter: null, cancellationToken);
-
-            foreach (var incident in openIncidents.Where(i => i.Status != "Resolved"))
+            foreach (var incident in initial.Incidents)
             {
-                var eventName = incident.Status == "Open" ? "incidentRaised" : "incidentUpdated";
-                await WriteSseEventAsync(eventName, eventSequence++, incident, cancellationToken);
-                knownIncidentStatus[incident.Id] = incident.Status;
-                if (incident.CreatedAt > incidentWatermark)
-                {
-                    incidentWatermark = incident.CreatedAt;
-                }
+                knownIncidents[incident.Id] = JsonSerializer.Serialize(incident, SseJson);
+                if (incident.Status == "Resolved") continue;
+                await WriteSseEventAsync(incident.Status == "Open" ? "incidentRaised" : "incidentUpdated",
+                    eventSequence++, incident, cancellationToken);
             }
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(1500, cancellationToken);
 
-                var currentTelemetry = await _telemetryService.GetLatestMissionTelemetryAsync(
-                    missionId, currentUserId, isManager, cancellationToken);
+                var snapshot = await subscription.ReadAsync(cancellationToken);
+                var currentTelemetry = snapshot.Telemetry;
 
                 // Freshness is time-dependent. Emit on both a new packet and an Online→Stale→Offline
                 // transition so an idle stream never leaves the browser showing cached data as fresh.
@@ -134,21 +120,14 @@ public class LiveStreamController : ControllerBase
                     await Response.Body.FlushAsync(cancellationToken);
                 }
 
-                var changedIncidents = await _incidentService.GetMissionIncidentFeedAsync(
-                    missionId, currentUserId, isManager, incidentWatermark, cancellationToken);
-
-                foreach (var incident in changedIncidents)
+                foreach (var incident in snapshot.Incidents)
                 {
-                    var isNew = !knownIncidentStatus.ContainsKey(incident.Id);
+                    var serialized = JsonSerializer.Serialize(incident, SseJson);
+                    var isNew = !knownIncidents.TryGetValue(incident.Id, out var previous);
+                    if (serialized == previous) continue;
                     var eventName = isNew && incident.Status == "Open" ? "incidentRaised" : "incidentUpdated";
                     await WriteSseEventAsync(eventName, eventSequence++, incident, cancellationToken);
-                    knownIncidentStatus[incident.Id] = incident.Status;
-
-                    var latestChange = MaxTime(incident.CreatedAt, incident.AcknowledgedAt, incident.ResolvedAt);
-                    if (latestChange > incidentWatermark)
-                    {
-                        incidentWatermark = latestChange;
-                    }
+                    knownIncidents[incident.Id] = serialized;
                 }
             }
         }
@@ -171,22 +150,6 @@ public class LiveStreamController : ControllerBase
         var sseMessage = $"id: {id}\nevent: {eventName}\ndata: {json}\n\n";
         await Response.WriteAsync(sseMessage, ct);
         await Response.Body.FlushAsync(ct);
-    }
-
-    private static DateTimeOffset MaxTime(DateTimeOffset created, DateTimeOffset? acknowledged, DateTimeOffset? resolved)
-    {
-        var max = created;
-        if (acknowledged.HasValue && acknowledged.Value > max)
-        {
-            max = acknowledged.Value;
-        }
-
-        if (resolved.HasValue && resolved.Value > max)
-        {
-            max = resolved.Value;
-        }
-
-        return max;
     }
 
     private bool IsOperationManager()

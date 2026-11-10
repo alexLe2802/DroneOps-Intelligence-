@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using DroneOps.Application.DTOs.Request.Incidents;
 using DroneOps.Application.DTOs.Response.Incidents;
 using DroneOps.Application.Interfaces.Incidents;
@@ -241,14 +241,19 @@ public class IncidentService : IIncidentService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IncidentDetailResponse> AcknowledgeAsync(
-        Guid incidentId,
-        Guid currentUserId,
-        bool isManager,
-        string? notes,
-        CancellationToken cancellationToken = default)
+    public Task<IncidentDetailResponse> AcknowledgeAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string? notes,
+        CancellationToken cancellationToken = default, string? expectedStatus = null) =>
+        DroneOps.Persistence.RealtimeWrite.RunAsync(_context,
+            () => AcknowledgeCoreAsync(incidentId, currentUserId, isManager, notes, cancellationToken, expectedStatus), cancellationToken);
+
+    private async Task<IncidentDetailResponse> AcknowledgeCoreAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string? notes,
+        CancellationToken cancellationToken, string? expectedStatus)
     {
         var incident = await GetForMutationAsync(incidentId, currentUserId, isManager, cancellationToken);
+        if (expectedStatus != null && !string.Equals(incident.Status, expectedStatus, StringComparison.Ordinal))
+            throw new InvalidOperationException("Incident changed. Reload its latest state before acting.");
         if (incident.Status == "Resolved")
         {
             throw new InvalidOperationException("A resolved incident cannot be acknowledged.");
@@ -269,19 +274,25 @@ public class IncidentService : IIncidentService
         return await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);
     }
 
-    public async Task<IncidentDetailResponse> ResolveAsync(
-        Guid incidentId,
-        Guid currentUserId,
-        bool isManager,
-        string resolutionNotes,
-        CancellationToken cancellationToken = default)
+    public Task<IncidentDetailResponse> ResolveAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string resolutionNotes,
+        CancellationToken cancellationToken = default, string? expectedStatus = null) =>
+        DroneOps.Persistence.RealtimeWrite.RunAsync(_context,
+            () => ResolveCoreAsync(incidentId, currentUserId, isManager, resolutionNotes, cancellationToken, expectedStatus), cancellationToken);
+
+    private async Task<IncidentDetailResponse> ResolveCoreAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string resolutionNotes,
+        CancellationToken cancellationToken, string? expectedStatus)
     {
+        if (!isManager) throw new UnauthorizedAccessException("Only an Operations Manager can resolve an incident.");
         if (string.IsNullOrWhiteSpace(resolutionNotes))
         {
             throw new ArgumentException("Resolution notes are required.");
         }
 
         var incident = await GetForMutationAsync(incidentId, currentUserId, isManager, cancellationToken);
+        if (expectedStatus != null && !string.Equals(incident.Status, expectedStatus, StringComparison.Ordinal))
+            throw new InvalidOperationException("Incident changed. Reload its latest state before acting.");
         if (incident.Status == "Resolved")
         {
             return await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);

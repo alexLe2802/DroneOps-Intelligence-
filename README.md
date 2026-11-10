@@ -255,7 +255,7 @@ Các bộ kiểm tra mặc định bao phủ auth contracts, telemetry/incident 
 ## Triển khai và bảo trì
 
 - [Dockerfile](Dockerfile) đóng gói backend .NET, lắng nghe port 8080; cấu hình production được cấp từ môi trường triển khai.
-- Docker image mặc định đặt `Monitoring__Enabled=false`. Tất cả hosted monitor, kể cả kiểm duyệt ảnh UAV, tuân theo cờ này. [vercel.json](vercel.json) có daemon dùng `--monitor-only` để chạy các worker; giữ monitoring tắt ở API replicas và chỉ bật ở tiến trình monitor. Nếu không có monitor riêng, phải bật `Monitoring__Enabled=true` ở tiến trình được chọn để các tác vụ nền tiếp tục được xử lý.
+- Docker image mặc định đặt `Monitoring__Enabled=false` và `Monitoring__DedicatedProcessRequired=true`; chỉ tiến trình có `--monitor-only` được bật workers. Tất cả hosted monitor, kể cả kiểm duyệt ảnh UAV, tuân theo cờ này. [vercel.json](vercel.json) có daemon dùng `--monitor-only` để chạy các worker; giữ monitoring tắt ở API replicas và chỉ bật ở tiến trình monitor. Nếu không có monitor riêng, phải bật `Monitoring__Enabled=true` ở tiến trình được chọn để các tác vụ nền tiếp tục được xử lý.
 - Connect Drone chỉ polling khi tab hiển thị và online: session mỗi 5 giây, hardware binding mỗi 30 giây và ngay khi quay lại tab/online; không chồng các lượt polling đang chờ mạng. Các thao tác connect/disconnect/forget vẫn cập nhật dữ liệu ngay sau khi thành công.
 - Polling thực thi bay mỗi giây còn giữ nguyên vì gia hạn pilot presence và phản ánh trạng thái ARM/countdown. Root layout vẫn render động để CSP nonce khớp từng request; không bỏ `headers()` riêng lẻ để tối ưu trang công khai. Để đánh giá CPU thực tế, đối chiếu Active CPU theo function/project trước và sau deploy ở cùng thời lượng/tải; số request giảm không tương đương cùng tỷ lệ CPU giảm.
 - Frontend cần cấu hình `API_BASE_URL` đúng origin backend. Reverse proxy phải hỗ trợ WebSocket gateway và giữ SSE streaming cho portal.
@@ -290,3 +290,7 @@ Các bộ kiểm tra mặc định bao phủ auth contracts, telemetry/incident 
 - [Báo cáo dự án](docs/reports/) và [slide](docs/slides/)
 
 Khi làm việc với agent, bắt đầu từ README này và chỉ đọc tài liệu liên quan đến nhiệm vụ. Báo cáo/slide là tài liệu tham khảo theo thời điểm; đối chiếu code cho hành vi hiện tại. Cập nhật hướng dẫn đang có khi chức năng thay đổi, tránh tạo thêm nhật ký hoàn thành hoặc bản tóm tắt trùng nội dung.
+
+Chi tiết chia sẻ snapshot SSE, backoff worker và xác minh production: [Giảm Fluid Active CPU](docs/fluid-cpu-remediation.vi.md).
+
+Deploy demo miễn phí thay Vercel: [Render Free](docs/render-free-demo.vi.md), cấu hình [render.yaml](render.yaml).

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,6 +21,8 @@ public class IngestTelemetrySampleRequest
     public decimal? Longitude { get; set; }
 
     public decimal? AltitudeMeters { get; set; }
+
+    public decimal? AltitudeMslMeters { get; set; }
 
     public string AltitudeReference { get; set; } = "Relative";
 

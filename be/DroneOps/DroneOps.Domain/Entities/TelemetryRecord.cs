@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DroneOps.Domain.Entities;
 
@@ -26,6 +26,8 @@ public class TelemetryRecord
     public decimal? Longitude { get; set; }
 
     public decimal? Altitude { get; set; }
+
+    public decimal? AltitudeMslMeters { get; set; }
 
     public string? AltitudeReference { get; set; } = "Relative";
 
