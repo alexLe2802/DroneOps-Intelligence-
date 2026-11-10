@@ -7,6 +7,7 @@ namespace DroneOps.Domain.Entities;
 public class Incident
 {
     public Guid Id { get; set; }
+    public int Revision { get; set; }
     public Guid MissionId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }

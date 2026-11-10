@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """DroneOps gateway. Telemetry by default; flight commands require explicit opt-in."""
+import hashlib
 import argparse
 import datetime as dt
 import getpass
@@ -165,12 +166,30 @@ class TelemetryState:
         self.heartbeat_at = None
         self.gps = None
         self.revision = 0
+        self.boot_id = str(uuid.uuid4())
+        self.boot_ms = None
+        self.source_event = None
+        self.observed_at = None
+        self.packet_seen = {}
+        self.observed_fields = {}
 
     def accept(self, message, mode):
         if message.get_srcSystem() != self.system_id or message.get_srcComponent() != self.component_id:
             return False
         kind = message.get_type()
         now = self.clock()
+        raw = message.get_msgbuf() if hasattr(message, 'get_msgbuf') else repr(message).encode()
+        fingerprint = hashlib.sha256(bytes(raw)).hexdigest()
+        if fingerprint in self.packet_seen and now - self.packet_seen[fingerprint] < 10:
+            return False
+        self.packet_seen = {key: seen for key, seen in self.packet_seen.items() if now - seen < 10}
+        self.packet_seen[fingerprint] = now
+        boot_ms = getattr(message, 'time_boot_ms', None)
+        if boot_ms is not None:
+            if self.boot_ms is not None and boot_ms + 1000 < self.boot_ms:
+                self.boot_id = str(uuid.uuid4())
+                self.values.clear()
+            self.boot_ms = max(boot_ms, self.boot_ms or 0) if self.boot_ms is None or boot_ms + 1000 >= self.boot_ms else boot_ms
         fields = {}
         if kind == 'HEARTBEAT':
             # GCS/invalid autopilot heartbeats are not evidence of a drone link.
@@ -225,7 +244,10 @@ class TelemetryState:
             fields = {'missionSequence': message.seq + 1 if message.seq < 65535 else None}
         else:
             return False
+        self.source_event = fingerprint
+        self.observed_at = dt.datetime.now(dt.timezone.utc).isoformat()
         for name, value in fields.items():
+            self.observed_fields[name] = self.observed_at
             self.values[name] = (value, now)
         self.revision += 1
         return True
@@ -241,8 +263,11 @@ class TelemetryState:
             lat, lon, fix, satellites, seen = self.gps
             if now - seen <= 5 and lat is not None and lon is not None:
                 value.update(latitude=lat, longitude=lon)
+        value.update(batteryObservedAt=self.observed_fields.get('batteryPercent'),
+                     altitudeObservedAt=self.observed_fields.get('altitudeMslMeters', self.observed_fields.get('altitudeMeters')),
+                     speedObservedAt=self.observed_fields.get('groundSpeedMetersPerSecond'))
         value.update(sourceId=session['sourceId'], uavId=session['uavId'], missionId=session['missionId'],
-                     sourceTimestamp=dt.datetime.now(dt.timezone.utc).isoformat(), altitudeReference='Relative')
+                     sourceTimestamp=self.observed_at, sourceBootId=self.boot_id, sourceEventId=self.source_event, altitudeReference='Relative')
         return value
 
 

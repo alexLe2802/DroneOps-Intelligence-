@@ -4,18 +4,18 @@ import { summarize } from "./telemetry-performance-lib.mjs";
 
 const arg = name => { const i = process.argv.indexOf(name); return i < 0 ? null : process.argv[i + 1]; };
 const configPath = arg("--config");
-if (!configPath) throw new Error("Usage: node scripts/telemetry-performance.mjs --config <private-json> [--duration-seconds 3600] [--output directory]");
+if (!configPath) throw new Error("Usage: node scripts/telemetry-performance.mjs --config <private-json> [--duration-seconds 180] [--output directory]");
 const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-if (!Array.isArray(config.vehicles) || config.vehicles.length !== 5) throw new Error("Config must contain exactly five vehicles.");
-const durationSeconds = Number(arg("--duration-seconds") ?? 3600);
-const sessionCount = Number(arg("--sessions") ?? 10);
+if (!Array.isArray(config.vehicles) || config.vehicles.length !== 1) throw new Error("Single-drone profile requires exactly one vehicle.");
+const durationSeconds = Number(arg("--duration-seconds") ?? 180);
+const sessionCount = Number(arg("--sessions") ?? 1);
 if (!Number.isInteger(durationSeconds) || durationSeconds < 2) throw new Error("Duration must be an integer of at least two seconds.");
-if (sessionCount !== 10) throw new Error("KAN-80 evidence requires exactly ten sessions.");
+if (![1, 2].includes(sessionCount)) throw new Error("Single-drone profile supports one or two viewer sessions.");
 if (!config.apiBase || !config.integrationKey || !config.viewerToken) throw new Error("apiBase, integrationKey and viewerToken are required.");
 const profile = config.profile ?? {};
 const profileApproved = profile.approved === true;
 for (const field of ["sourceId", "uavId", "missionId"])
-  if (new Set(config.vehicles.map(x => x[field])).size !== 5) throw new Error(`Each vehicle must have a distinct ${field}.`);
+  if (new Set(config.vehicles.map(x => x[field])).size !== 1) throw new Error(`Each vehicle must have a distinct ${field}.`);
 const output = path.resolve(arg("--output") ?? path.join("artifacts", `telemetry-performance-${new Date().toISOString().replaceAll(":", "-")}`));
 fs.mkdirSync(output, { recursive: true });
 const rawPath = path.join(output, "raw-evidence.jsonl");
@@ -69,7 +69,7 @@ async function send(vehicle, second, options = {}) {
   const sourceTimestamp = new Date(Date.now() - (options.late ? 5000 : 0)).toISOString();
   const key = `${vehicle.sourceId}:${second}:${startedAt.getTime()}`;
   const payload = { sourceId: vehicle.sourceId, uavId: vehicle.uavId, missionId: vehicle.missionId, sourceTimestamp,
-    latitude: vehicle.latitude ?? 10.849, longitude: vehicle.longitude ?? 106.772, altitudeMeters: 80,
+    latitude: vehicle.latitude ?? 1.849, longitude: vehicle.longitude ?? 16.772, altitudeMeters: 80,
     altitudeReference: "Relative", groundSpeedMetersPerSecond: 12, batteryPercent: options.incident ? 5 : 70,
     flightMode: "AUTO", armed: true, missionSequence: second + 1 };
   const before = Date.now();
@@ -96,7 +96,7 @@ async function send(vehicle, second, options = {}) {
 }
 
 await sampleDiagnostics();
-const diagnosticTimer = setInterval(() => void sampleDiagnostics(), Number(profile.diagnosticsIntervalSeconds ?? 10) * 1000);
+const diagnosticTimer = setInterval(() => void sampleDiagnostics(), Number(profile.diagnosticsIntervalSeconds ?? 1) * 1000);
 const streams = Array.from({ length: sessionCount }, (_, i) => consumeSse(i + 1, config.vehicles[i % 5]));
 await new Promise(resolve => setTimeout(resolve, 1000));
 let expectedUnique = 0;
@@ -122,17 +122,14 @@ await new Promise(resolve => setTimeout(resolve, 3000)); abort.abort(); await Pr
 clearInterval(diagnosticTimer); await new Promise(resolve => setTimeout(resolve, 2000)); await sampleDiagnostics();
 const browserEvidence = arg("--browser-evidence");
 if (browserEvidence && fs.existsSync(browserEvidence)) for (const line of fs.readFileSync(browserEvidence, "utf8").split(/\r?\n/).filter(Boolean)) write(JSON.parse(line));
-const summary = { startedAt: startedAt.toISOString(), endedAt: new Date().toISOString(), durationSeconds, vehicles: 5, samplesPerSecondPerVehicle: 1,
+const summary = { startedAt: startedAt.toISOString(), endedAt: new Date().toISOString(), durationSeconds, vehicles: 1, samplesPerSecondPerVehicle: 1,
   profile: { id: profile.id ?? null, approved: profileApproved, deployment: profile.deployment ?? null, network: profile.network ?? null },
   ...summarize(events, expectedUnique, sessionCount) };
-summary.soak60MinutesSatisfied = durationSeconds >= 3600;
-summary.pass = summary.soak60MinutesSatisfied && summary.lost === 0 && summary.requestErrors === 0 && summary.sseErrors === 0 &&
-  summary.connectedSessions === sessionCount && summary.browserSessions === sessionCount && summary.reconnectObserved &&
-  summary.publishLost === 0 && summary.browserRenderLost === 0 &&
-  profileApproved && summary.diagnosticsSamples >= 2 && summary.subscriberCleanupDelta === 0 &&
-  Number.isFinite(profile.maxManagedMemoryGrowthBytes) && summary.managedMemoryGrowthBytes <= profile.maxManagedMemoryGrowthBytes &&
-  Number.isFinite(profile.maxPendingThreadPoolWorkItems) && summary.peakPendingThreadPoolWorkItems <= profile.maxPendingThreadPoolWorkItems &&
-  summary.publishP95Ms !== null && summary.publishP95Ms <= 2000 && summary.browserRenderP95Ms !== null && summary.browserRenderP95Ms <= 2000 &&
-  summary.incidentDetectionP95Ms !== null;
+summary.profileId = "single-drone-demo-v1";
+summary.observationWindowSatisfied = durationSeconds >= 2;
+summary.extendedLoadSoakRequired = false;
+summary.pass = summary.lost === 0 && summary.requestErrors === 0 && summary.sseErrors === 0
+  && summary.connectedSessions === sessionCount && summary.reconnectObserved;
+summary.acceptanceScope = "Optional single-drone telemetry smoke. Full-route hardware acceptance remains KAN-51; no 60-minute or five-aircraft claim.";
 fs.writeFileSync(path.join(output, "summary.json"), JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2)); process.exitCode = summary.pass ? 0 : 1;

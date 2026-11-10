@@ -3,12 +3,16 @@
 Never retries ARM/DISARM/START. A new WebSocket instance invalidates upload and
 countdown evidence. RC/GCS arming does not grant permission to start a mission.
 """
+import json
+import os
+from pathlib import Path
 import math
 import datetime as dt
 import queue
 import threading
 import time
 import uuid
+from types import SimpleNamespace
 from arducopter_recovery import REQUIRED as ARDUCOPTER_RECOVERY_PARAMETERS
 from envelope_verifier import EnvelopeVerifier
 from arducopter47_adapter import ProfileError, canonical_mission_item
@@ -62,7 +66,16 @@ class FlightControl:
         self.download = {}
         self.ack = False
         self.requested = set()
-        self.handled = set()
+        self.journal_path = Path(os.environ.get('DRONEOPS_COMMAND_JOURNAL', str(Path.home() / '.droneops-command-journal.json')))
+        self.journal_valid = True
+        try:
+            self.handled = set(json.loads(self.journal_path.read_text())) if self.journal_path.exists() else set()
+        except (OSError, ValueError, TypeError):
+            self.handled = set()
+            self.journal_valid = False
+        self.reached = set()
+        self.observed_hash = None
+        self.landed_observed_at = None
         self.last_gcs_heartbeat = float('-inf')
         self.parameters = {}
         self.parameters_requested = float('-inf')
@@ -101,7 +114,10 @@ class FlightControl:
                 'homeLongitudeDegrees': home.longitude / 1e7 if valid_home else None,
                 'homeAltitudeMslMeters': home.altitude / 1000 if valid_home else None,
                 'firmwareParameters': parameter_snapshot, 'verifiedEnvelopeHash': self.envelope.verified_hash,
-                'fcProfileError': self.envelope.error}
+                'fcProfileError': self.envelope.error,
+                'missionCurrent': self.fresh('MISSION_CURRENT', 10).seq if self.fresh('MISSION_CURRENT', 10) else None,
+                'missionMode': bool(hb and mission_mode(hb)), 'reachedCommands': sorted(self.reached),
+                'landedObservedAtUtc': self.landed_observed_at}
 
     def request_parameters(self, link):
         if self.clock() - self.parameters_requested < 20:
@@ -138,6 +154,8 @@ class FlightControl:
                 or self.evidence()['armed'] is not False or not self.evidence()['navigationReady']):
             self.envelope.fail('Fresh ground/navigation evidence and an execution lease are required during FC configuration.')
         self.envelope.accept(message, link)
+        if kind == 'EXTENDED_SYS_STATE':
+            self.landed_observed_at = dt.datetime.now(dt.timezone.utc).isoformat()
         if kind == 'PARAM_VALUE':
             name = message.param_id.decode('ascii', errors='ignore') if isinstance(message.param_id, bytes) else message.param_id
             name = name.split('\0')[0]
@@ -148,8 +166,10 @@ class FlightControl:
                 self.parameters[name] = (message.param_value, self.clock(), dt.datetime.now(dt.timezone.utc).isoformat())
         if kind == 'HEARTBEAT' and (message.type == 6 or message.autopilot == 8):
             return
-        if kind in ('HEARTBEAT', 'EXTENDED_SYS_STATE', 'SYS_STATUS', 'GPS_RAW_INT', 'AUTOPILOT_VERSION', 'HOME_POSITION'):
+        if kind in ('HEARTBEAT', 'EXTENDED_SYS_STATE', 'SYS_STATUS', 'GPS_RAW_INT', 'AUTOPILOT_VERSION', 'HOME_POSITION', 'MISSION_CURRENT', 'GLOBAL_POSITION_INT'):
             self.seen[kind] = (message, self.clock())
+        if kind == 'MISSION_ITEM_REACHED' and self.uploaded_hash and 0 <= message.seq < len(self.items):
+            self.reached.add(message.seq)
         # Other GCS changes invalidate verification, even while this gateway is idle.
         if kind in ('MISSION_COUNT', 'MISSION_ACK') and self.active is None:
             self.uploaded_hash = None
@@ -229,7 +249,7 @@ class FlightControl:
         if self.instance != instance:
             self.instance = instance
             self.finish(False)
-            self.arm_at, self.uploaded_hash, self.lease = None, None, 0
+            self.arm_at, self.lease = None, 0
             self.envelope.reset()
             self.planned_home = None
         while True:
@@ -246,7 +266,20 @@ class FlightControl:
             command = response.get('command')
             if not command or command['id'] in self.handled:
                 continue
+            if not self.journal_valid:
+                continue
             self.handled.add(command['id'])
+            try:
+                self.journal_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = self.journal_path.with_suffix('.tmp')
+                with temporary.open('w') as stream:
+                    json.dump(sorted(self.handled), stream)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                temporary.replace(self.journal_path)
+            except OSError:
+                self.journal_valid = False
+                continue
             if len(self.handled) > 1024:
                 # A process restart is needed rather than forgetting command IDs.
                 self.enabled = False
@@ -280,6 +313,17 @@ class FlightControl:
             self.bridge.evidence = self.evidence()
             self.bridge.evidence_at = time.monotonic()
 
+    def launch_matches(self, planned):
+        # GLOBAL_POSITION_INT is the FC's estimated current position; Home alone
+        # can still refer to an earlier arming location.
+        position = self.fresh('GLOBAL_POSITION_INT')
+        if position is None:
+            return False
+        current = SimpleNamespace(latitude=position.lat, longitude=position.lon)
+        horizontal = {'latitude': planned.get('latitude'), 'longitude': planned.get('longitude')}
+        return (planned_home_matches(planned, self.fresh('HOME_POSITION', 15))
+                and planned_home_matches(horizontal, current))
+
     def prepare_envelope(self, link, response):
         wanted = response.get('requiredEnvelopeHash')
         if wanted != self.envelope.plan_hash:
@@ -291,7 +335,7 @@ class FlightControl:
             return
         evidence = self.evidence()
         snapshot = evidence['firmwareParameters']
-        if response.get('plannedHome') is not None and not planned_home_matches(response['plannedHome'], self.fresh('HOME_POSITION', 15)):
+        if response.get('plannedHome') is not None and not self.launch_matches(response['plannedHome']):
             self.envelope.error = 'Planned Home must match fresh FC Home before configuration and upload.'
             return
         if (not self.grounded() or evidence['armed'] is not False or not evidence['navigationReady']
@@ -305,7 +349,15 @@ class FlightControl:
     def begin(self, link, response):
         evidence = self.evidence()
         action = self.active['action']
-        if action in ('Arm', 'Start') and self.planned_home is not None and not planned_home_matches(self.planned_home, self.fresh('HOME_POSITION', 15)):
+        if action in ('Arm', 'Start'):
+            version = self.fresh('AUTOPILOT_VERSION', 15)
+            uid = int(getattr(version, 'uid', 0)) if version else 0
+            uid2 = bytes(getattr(version, 'uid2', [])) if version else b''
+            identity = ('UID64-%016X' % uid) if uid else ('UID2-' + uid2.hex().upper() if len(uid2) == 18 and any(uid2) else None)
+            if not response.get('missionId') or not response.get('connectionId') or not response.get('planHash') or identity != response.get('controllerUid'):
+                self.finish(False)
+                return
+        if action in ('Arm', 'Start') and self.planned_home is not None and not self.launch_matches(self.planned_home):
             self.finish(False)
             return
         if action in ('Arm', 'Start') and response.get('requiredEnvelopeHash') and self.envelope.verified_hash != response['requiredEnvelopeHash']:
@@ -326,8 +378,9 @@ class FlightControl:
                 self.finish(False)
                 return
             actual_home = self.fresh('HOME_POSITION', 15)
-            if plan.get('plannedHome') is not None and not planned_home_matches(plan['plannedHome'], actual_home):
-                print('Planned Home does not match fresh FC Home (10 m horizontal / 5 m elevation). Upload blocked.', flush=True)
+            if (plan.get('operationalEnvelope') and plan.get('plannedHome') is None
+                    or plan.get('plannedHome') is not None and not self.launch_matches(plan['plannedHome'])):
+                print('Planned Home required; current position and fresh FC Home must be within 10 m (5 m Home elevation if supplied). Upload blocked.', flush=True)
                 self.finish(False)
                 return
             self.planned_home = plan.get('plannedHome')
@@ -340,6 +393,7 @@ class FlightControl:
                     return
                 if self.planned_home is None:
                     self.planned_home = takeoff
+            self.reached.clear()
             self.items = [dict(item) for item in plan['items']]
             if not self.items or len(self.items) > 500:
                 self.finish(False)
@@ -380,7 +434,7 @@ class FlightControl:
                 return
             link.mav.command_long_send(self.system, self.component, 400, 0, 0, 0, 0, 0, 0, 0, 0)
         elif action == 'Start':
-            if not evidence['armed'] or not evidence['navigationReady'] or self.arm_at is None or self.clock() - self.arm_at < 10 or self.uploaded_hash != self.active['compiledHash']:
+            if not evidence['armed'] or not evidence['navigationReady'] or self.arm_at is None or self.uploaded_hash != self.active['compiledHash']:
                 self.finish(False)
                 return
             self.arm_at = None  # Consume permission before issuing START. Never repeat.

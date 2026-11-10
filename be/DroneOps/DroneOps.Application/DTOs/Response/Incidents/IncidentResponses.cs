@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,6 +9,7 @@ namespace DroneOps.Application.DTOs.Response.Incidents;
 public class IncidentItemResponse
 {
     public Guid Id { get; set; }
+    public int Revision { get; set; }
     public Guid MissionId { get; set; }
     public string MissionName { get; set; } = string.Empty;
     public Guid? UavId { get; set; }

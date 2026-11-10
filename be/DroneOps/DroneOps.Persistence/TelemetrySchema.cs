@@ -10,6 +10,7 @@ public static class TelemetrySchema
         await ApplyEmbeddedAsync(source, "DroneOps.Persistence.Migrations.008_realtime_incident_lifecycle.sql");
         await ApplyEmbeddedAsync(source, "DroneOps.Persistence.Migrations.010_battery_telemetry.sql");
         await ApplyEmbeddedAsync(source, "DroneOps.Persistence.Migrations.20261110000100_realtime_episodes.sql");
+        await ApplyEmbeddedAsync(source, "DroneOps.Persistence.Migrations.20261110000200_realtime_execution.sql");
         await CheckAsync(source);
     }
 
@@ -17,14 +18,16 @@ public static class TelemetrySchema
     {
         // LIMIT 0 checks the new telemetry columns without reading flight data.
         await using var command = source.CreateCommand("""
-            SELECT t."AltitudeMslMeters", t."HeadingDegrees", t."BatteryVoltageVolts", t."BoardTemperatureCelsius",
+            SELECT t."BatteryObservedAt", t."AltitudeObservedAt", t."SpeedObservedAt", t."SourceBootId", t."SourceEventId", t."AltitudeMslMeters", t."HeadingDegrees", t."BatteryVoltageVolts", t."BoardTemperatureCelsius",
                    t."BatteryCurrentAmps", t."BatteryTemperatureCelsius", t."BatteryConsumedMah", t."BatteryCellVoltagesVolts",
-                   transition."EventType", alert."ReadAt", incident."RecoveredAt"
+                   transition."EventType", alert."ReadAt", incident."RecoveredAt", incident."Revision"
             FROM "TelemetryRecord" t
             LEFT JOIN "Incident" incident ON FALSE
             LEFT JOIN "IncidentTransition" transition ON FALSE
             LEFT JOIN "IncidentAlertDelivery" alert ON FALSE
-            LIMIT 0
+            LIMIT 0;
+            SELECT "StartedAt" FROM "MissionFlightExecution" LIMIT 0;
+            SELECT "SettingsJson" FROM "MonitoringRuleRevision" LIMIT 0
             """);
         try
         {
@@ -37,7 +40,7 @@ public static class TelemetrySchema
                 "against this database before starting it, or apply " +
                 "database/migrations/005_nullable_live_telemetry.sql and " +
                 "database/migrations/008_realtime_incident_lifecycle.sql and " +
-                "database/migrations/010_battery_telemetry.sql and 20261110000100_realtime_episodes.sql. " +
+                "database/migrations/010_battery_telemetry.sql and 20261110000100_realtime_episodes.sql and 20261110000200_realtime_execution.sql. " +
                 "The base application schema must already exist.", ex);
         }
     }

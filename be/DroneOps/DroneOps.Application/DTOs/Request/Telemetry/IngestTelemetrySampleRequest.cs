@@ -9,6 +9,11 @@ namespace DroneOps.Application.DTOs.Request.Telemetry;
 public class IngestTelemetrySampleRequest
 {
     public string SourceId { get; set; } = string.Empty;
+    public string? SourceBootId { get; set; }
+    public string? SourceEventId { get; set; }
+    public DateTimeOffset? BatteryObservedAt { get; set; }
+    public DateTimeOffset? AltitudeObservedAt { get; set; }
+    public DateTimeOffset? SpeedObservedAt { get; set; }
 
     public Guid UavId { get; set; }
 
