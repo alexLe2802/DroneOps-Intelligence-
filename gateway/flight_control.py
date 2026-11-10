@@ -11,6 +11,7 @@ import time
 import uuid
 from arducopter_recovery import REQUIRED as ARDUCOPTER_RECOVERY_PARAMETERS
 from envelope_verifier import EnvelopeVerifier
+from arducopter47_adapter import ProfileError, canonical_mission_item
 
 
 class ControlBridge:
@@ -344,6 +345,13 @@ class FlightControl:
                 self.finish(False)
                 return
             if evidence['firmware'] == 'ArduPilot':
+                try:
+                    snapshot = evidence['firmwareParameters']
+                    self.items = [canonical_mission_item(item, snapshot['values'] if snapshot else {}) for item in self.items]
+                except ProfileError as error:
+                    self.envelope.error = str(error)
+                    self.finish(False)
+                    return
                 home = self.fresh('HOME_POSITION', 15)
                 if not home:
                     self.finish(False)
