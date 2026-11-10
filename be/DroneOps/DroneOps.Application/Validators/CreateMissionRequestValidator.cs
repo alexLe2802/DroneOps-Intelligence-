@@ -11,12 +11,16 @@ public sealed class CreateMissionRequestValidator
         "TakeOff",
         "FlyThrough",
         "Hover",
-        "Land"
+        "Land",
+        "Return"
     ];
 
     public CreateMissionRequestValidator()
     {
         RuleFor(x => x).Custom((x, context) => {
+            var ordered = (x.Waypoints ?? []).OrderBy(w => w.SequenceOrder).ToList();
+            if (ordered.Take(Math.Max(0, ordered.Count - 1)).Any(w => string.Equals(w.ActionType, "Return", StringComparison.OrdinalIgnoreCase)))
+                context.AddFailure("Waypoints.ActionType", "Return/RTL is allowed only at the final waypoint.");
             foreach (var point in x.Waypoints ?? [])
                 if (point.Navigation?.MissionFences is { } fences && (point.SequenceOrder != 1 || fences.Count > 20
                     || fences.Any(f => !DroneOps.Application.Services.Missions.MissionFenceGeometry.Valid(f))
@@ -164,7 +168,7 @@ public sealed class CreateMissionRequestValidator
                                     action,
                                     StringComparer.OrdinalIgnoreCase))
                 .WithMessage(
-                    "Action type must be TakeOff, FlyThrough, Hover or Land. Camera actions are deferred.");
+                    "Action type must be TakeOff, FlyThrough, Hover, Land or Return. Camera actions are deferred.");
         }
     }
 }

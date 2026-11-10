@@ -14,6 +14,8 @@ public class AppDbContext : DbContext
     public DbSet<DroneHardwareIdentity> DroneHardwareIdentities { get; set; }
     public DbSet<DroneConnection> DroneConnections { get; set; }
     public DbSet<MissionAutomationState> MissionAutomationStates { get; set; }
+    public DbSet<MissionFlightExecution> MissionFlightExecutions { get; set; }
+    public DbSet<MonitoringRuleRevision> MonitoringRuleRevisions { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Pilot> Pilots { get; set; }
     public DbSet<Role> Roles { get; set; }
@@ -46,6 +48,8 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<Incident>().Property(i => i.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<MissionFlightExecution>().HasIndex(e => e.UavId).IsUnique().HasFilter("\"CompletedAt\" IS NULL");
         modelBuilder.Entity<User>().Property(x=>x.ProfileVersion).IsConcurrencyToken();
         modelBuilder.Entity<AccountWorkflowAudit>().Property(x=>x.Id).ValueGeneratedOnAdd();
         modelBuilder.Entity<MissionWeatherCache>().HasKey(x => x.Key);
