@@ -20,7 +20,6 @@ public sealed class MissionStreamSnapshots(IServiceScopeFactory scopes)
         public readonly SemaphoreSlim Gate = new(1, 1);
         public Snapshot? Value;
         public long RefreshedAt;
-        public DateTimeOffset? Since;
         public readonly Dictionary<Guid, IncidentItemResponse> Incidents = new();
     }
 
@@ -55,12 +54,9 @@ public sealed class MissionStreamSnapshots(IServiceScopeFactory scopes)
                 // Authorization was performed for this subscriber before acquiring the subscription.
                 var telemetry = await scope.ServiceProvider.GetRequiredService<ITelemetryIngestionService>()
                     .GetLatestMissionTelemetryAsync(missionId, null, true, ct);
-                var refreshStarted = DateTimeOffset.UtcNow;
                 var changes = await scope.ServiceProvider.GetRequiredService<IIncidentService>()
-                    .GetMissionIncidentFeedAsync(missionId, null, true, entry.Since, ct);
+                    .GetMissionIncidentFeedAsync(missionId, null, true, null, ct);
                 foreach (var incident in changes) entry.Incidents[incident.Id] = incident;
-                // Overlap handles equal timestamps and transactions becoming visible between polls.
-                entry.Since = refreshStarted.AddSeconds(-2);
                 entry.Value = new(telemetry, entry.Incidents.Values.ToArray());
                 entry.RefreshedAt = Stopwatch.GetTimestamp();
                 return entry.Value;

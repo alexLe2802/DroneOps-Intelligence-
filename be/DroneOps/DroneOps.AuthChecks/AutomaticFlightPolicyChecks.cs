@@ -45,7 +45,8 @@ internal static class AutomaticFlightPolicyChecks
         Check(dto.AutomaticFlightLimits == mission.AutomaticFlightLimits, "edit/review DTO preserves vertical rates and policy");
         var proposed = MissionPlans.Propose(mission, dto);
         Check(proposed.AutomaticFlightLimits == dto.AutomaticFlightLimits, "proposed plan retains exact operating envelope");
-        var nav = new WaypointNavigation(SpeedMetersPerSecond: 1, HoldTimeSeconds: 5, AcceptanceRadiusMeters: 1.5m, YawDegrees: 90);
+        var home = new PlannedHome(10.7m, 106.7m);
+        var nav = new WaypointNavigation(PlannedHome: home, SpeedMetersPerSecond: 1, HoldTimeSeconds: 5, AcceptanceRadiusMeters: 1.5m, YawDegrees: 90);
         Check(AutomaticFlightPolicy.NavigationErrors([(nav, "Hover")], 3).Count == 0, "supported optional waypoint overrides pass");
         Check(AutomaticFlightPolicy.NavigationErrors([(nav with { SpeedMetersPerSecond = 4 }, "Hover")], 3).Count > 0, "waypoint override cannot exceed approved mission speed");
         Check(AutomaticFlightPolicy.NavigationErrors([(null, "Hover")], 3).Count > 0, "Hover requires its own hold duration");
@@ -53,8 +54,8 @@ internal static class AutomaticFlightPolicyChecks
         Check(AutomaticFlightPolicy.NavigationErrors([(nav with { EmergencyLandingCandidate = true }, "Hover")], 3).Count > 0, "normal waypoint is not silently promoted to a safe landing site");
         mission.UAVId = Guid.NewGuid(); mission.AltitudeReference = "Relative"; mission.AverageSpeedMetersPerSecond = 3; mission.MaxSpeedMetersPerSecond = 3;
         mission.Waypoints = new[] {
-            new Waypoint { SequenceOrder=1, Latitude=10.7m, Longitude=106.7m, Altitude=20, ActionType="TakeOff" },
-            new Waypoint { SequenceOrder=2, Latitude=10.701m, Longitude=106.701m, Altitude=20, ActionType="Hover", Navigation=nav },
+            new Waypoint { SequenceOrder=1, Latitude=10.7m, Longitude=106.7m, Altitude=20, ActionType="TakeOff", Navigation=new(PlannedHome:home) },
+            new Waypoint { SequenceOrder=2, Latitude=10.701m, Longitude=106.701m, Altitude=20, ActionType="Hover", Navigation=nav with { PlannedHome = null } },
             new Waypoint { SequenceOrder=3, Latitude=10.7m, Longitude=106.7m, Altitude=20, ActionType="Land", Navigation=new(LandingGroundAltitudeMeters:0) }
         };
         var parameters = new FirmwareParameterSnapshot("1.17.0", new() { ["MPC_XY_CRUISE"]=2, ["NAV_ACC_RAD"]=2 }, DateTimeOffset.UtcNow);

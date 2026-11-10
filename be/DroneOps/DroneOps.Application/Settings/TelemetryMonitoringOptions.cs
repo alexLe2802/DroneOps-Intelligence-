@@ -5,6 +5,7 @@ public sealed class TelemetryMonitoringOptions
     public const string SectionName = "TelemetryMonitoring";
 
     public int LowBatteryPercent { get; set; } = 20;
+    public int? LowBatteryCriticalPercent { get; set; }
 
     public decimal? MinimumAltitudeMslMeters { get; set; }
     public decimal? MaximumAltitudeMslMeters { get; set; }

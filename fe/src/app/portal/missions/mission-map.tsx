@@ -7,9 +7,10 @@ import type { Geofence, MissionWaypoint, MissionValidationResult, PlannedHome, M
 
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
-export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false, missionFences = waypoints[0]?.navigation?.missionFences ?? [], draftFence = [], drawingFence = null, onFenceUpdate }: {
+export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false, missionFences = waypoints[0]?.navigation?.missionFences ?? [], draftFence = [], drawingFence = null, onFenceUpdate, numberHome = false, onHomeUpdate }: {
   missionFences?: MissionFence[]; draftFence?: GeofenceCoordinate[]; drawingFence?: "Polygon" | "Circle" | null; onFenceUpdate?: (fence: MissionFence) => void;
   plannedHome?: PlannedHome | null; pickingHome?: boolean;
+  numberHome?: boolean; onHomeUpdate?: (home: PlannedHome) => void;
   waypoints: MissionWaypoint[]; geofences: Geofence[];
   onAdd?: (longitude: number, latitude: number) => void;
   onUpdate?: (index: number, patch: Partial<MissionWaypoint>) => void;
@@ -26,11 +27,13 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
   useEffect(() => { fenceUpdateRef.current = onFenceUpdate; }, [onFenceUpdate]);
   const onAddRef = useRef(onAdd);
   const onUpdateRef = useRef(onUpdate);
+  const onHomeUpdateRef = useRef(onHomeUpdate);
   const [error, setError] = useState("");
   const [mapReady, setMapReady] = useState<Leaflet.Map | null>(null);
   useEffect(() => { readOnlyRef.current = readOnly; }, [readOnly]);
   useEffect(() => { onAddRef.current = onAdd; }, [onAdd]);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+  useEffect(() => { onHomeUpdateRef.current = onHomeUpdate; }, [onHomeUpdate]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -94,15 +97,21 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
       markersRef.current = waypoints.map((point, index) => {
         const marker = L.marker([point.latitude, point.longitude], {
           draggable: !readOnly,
-          icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker" ${findings?.some(f => f.waypointSequence === point.sequenceOrder) ? 'style="background:#ef3340;border-color:#ef3340"' : ""}><b>${index + 1}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }),
+          icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker" ${findings?.some(f => f.waypointSequence === point.sequenceOrder) ? 'style="background:#ef3340;border-color:#ef3340"' : ""}><b>${index + (numberHome ? 2 : 1)}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }),
         }).addTo(map);
         if (!readOnly) marker.on("dragend", () => { if (readOnlyRef.current) return; const value = marker.getLatLng(); onUpdateRef.current?.(index, { latitude: Number(value.lat.toFixed(6)), longitude: Number(value.lng.toFixed(6)) }); });
         return marker;
       });
       if (plannedHome && Number.isFinite(plannedHome.latitude) && Number.isFinite(plannedHome.longitude)) {
         const homeMarker = L.marker([plannedHome.latitude, plannedHome.longitude], {
-          icon: L.divIcon({ className: "waypoint-marker-shell", html: '<span class="waypoint-marker" style="background:#ffc857;color:#101a27;border-color:#fff"><b>H</b></span>', iconSize: [30, 30], iconAnchor: [15, 30] }),
-        }).bindTooltip("Planned Home").addTo(map);
+          draggable: !readOnly && !!onHomeUpdateRef.current,
+          icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker" style="background:#ffc857;color:#101a27;border-color:#fff"><b>${numberHome ? "1" : "H"}</b></span>`, iconSize: [30, 30], iconAnchor: [15, 30] }),
+        }).bindTooltip(numberHome ? "1 · Home" : "Planned Home").addTo(map);
+        homeMarker.on("dragend", () => {
+          if (readOnlyRef.current) return;
+          const position = homeMarker.getLatLng();
+          onHomeUpdateRef.current?.({ ...plannedHome, latitude: Number(position.lat.toFixed(6)), longitude: Number(position.lng.toFixed(6)) });
+        });
         markersRef.current.push(homeMarker);
       }
       if (waypoints.length > 1) routeRef.current = L.polyline(waypoints.map(point => [point.latitude, point.longitude]), { color: "#25d6ff", weight: 4, opacity: .95 }).addTo(map);
@@ -111,13 +120,15 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
         const first = waypoints.find(point => point.sequenceOrder === finding.segmentFrom), last = waypoints.find(point => point.sequenceOrder === finding.segmentTo);
         if (first && last) { const note = document.createElement("span"); note.textContent = finding.reason; highlightRef.current.push(L.polyline([[first.latitude, first.longitude], [last.latitude, last.longitude]], { color: "#ef3340", weight: 6 }).bindTooltip(note).addTo(map)); }
       }
-      if (waypoints.length > 0) {
-        const bounds = L.latLngBounds(waypoints.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple));
+      const positions: Leaflet.LatLngTuple[] = waypoints.map(point => [point.latitude, point.longitude]);
+      if (plannedHome && Number.isFinite(plannedHome.latitude) && Number.isFinite(plannedHome.longitude)) positions.push([plannedHome.latitude, plannedHome.longitude]);
+      if (positions.length > 0) {
+        const bounds = L.latLngBounds(positions);
         map.fitBounds(bounds, { padding: [44, 44], maxZoom: 16, animate: false });
       }
     });
     return () => { cancelled = true; };
-  }, [waypoints, mapReady, readOnly, findings, plannedHome]);
+  }, [waypoints, mapReady, readOnly, findings, plannedHome, numberHome]);
 
   useEffect(() => {
     if (!mapReady) return;
@@ -156,7 +167,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
 
   return <div className="mission-map-wrap">
     <div ref={containerRef} className="mission-map" />
-    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : drawingFence ? `DRAW ${drawingFence.toUpperCase()} FENCE` : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS</div>
+    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : drawingFence ? `DRAW ${drawingFence.toUpperCase()} FENCE` : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length + (numberHome && plannedHome ? 1 : 0)} {numberHome ? "PLAN POINTS" : "WAYPOINTS"}</div>
     <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
     {error && <div className="mission-map-error" role="alert">{error}</div>}
   </div>;

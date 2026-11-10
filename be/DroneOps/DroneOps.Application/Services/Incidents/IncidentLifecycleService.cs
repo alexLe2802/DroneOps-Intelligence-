@@ -20,11 +20,20 @@ public sealed class IncidentLifecycleService : IIncidentLifecycleService
         Incident incident,
         CancellationToken cancellationToken = default)
     {
-        var exists = await _context.Incidents.AnyAsync(
+        var existing = await _context.Incidents.FirstOrDefaultAsync(
             x => x.MissionId == incident.MissionId && x.Type == incident.Type && x.RecoveredAt == null,
             cancellationToken);
-        if (exists)
+        if (existing != null)
         {
+            static int Rank(string? severity) => severity switch { "Critical" => 4, "High" => 3, "Warning" => 2, "Medium" => 2, "Low" => 1, _ => 0 };
+            if (Rank(incident.Severity) > Rank(existing.Severity))
+            {
+                var previous = existing.Severity;
+                existing.Severity = incident.Severity;
+                await AppendTransitionAndAlertsAsync(existing, existing.Status, existing.Status, "Escalated",
+                    System.Text.Json.JsonSerializer.Serialize(new { previous, severity = incident.Severity, evidence = incident.Evidence }),
+                    null, DateTimeOffset.UtcNow, cancellationToken);
+            }
             return null;
         }
 
@@ -60,15 +69,8 @@ public sealed class IncidentLifecycleService : IIncidentLifecycleService
             return true;
         }
 
-        var previous = incident.Status;
-        var now = DateTimeOffset.UtcNow;
-        incident.Status = "Resolved";
-        incident.ResolvedAt = now;
-        incident.ResolvedBy = null;
-        incident.ResolutionNotes = notes;
-        await AppendTransitionAndAlertsAsync(
-            incident, previous, "Resolved", "AutoResolved", notes,
-            changedBy: null, now, cancellationToken);
+        await AppendTransitionAndAlertsAsync(incident, incident.Status, incident.Status, "Recovered", notes,
+            null, incident.RecoveredAt.Value, cancellationToken);
         return true;
     }
 
@@ -82,6 +84,7 @@ public sealed class IncidentLifecycleService : IIncidentLifecycleService
         DateTimeOffset createdAt,
         CancellationToken cancellationToken)
     {
+        incident.Revision++;
         var transition = new IncidentTransition
         {
             Id = Guid.NewGuid(),

@@ -12,7 +12,7 @@ import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 import HighRiskConfirmation from "./high-risk-confirmation";
 
-import { appendLandingWaypoint, normalizeWaypointActions } from "@/lib/maps/mission-waypoints";
+import { appendMissionPoint, normalizeWaypointActions } from "@/lib/maps/mission-waypoints";
 import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 import { useUnsavedChanges } from "@/lib/maps/use-unsaved-changes";
 
@@ -93,17 +93,18 @@ export default function MissionForm() {
   function addWaypoint(longitude?: number, latitude?: number) {
     if (latitude != null && longitude != null && fenceDrawing.point(longitude, latitude)) return;
     if (pickingHome && latitude != null && longitude != null) { setPlannedHome({ latitude, longitude }); setPickingHome(false); return; }
-    setWaypoints(current => {
-      const last = current[current.length - 1];
-      const nextLatitude = latitude ?? (last && Number.isFinite(last.latitude) ? last.latitude : 10.8231);
-      const nextLongitude = longitude ?? (last && Number.isFinite(last.longitude) ? last.longitude : 106.6297);
-      return appendLandingWaypoint(current, {
-        latitude: Number(nextLatitude.toFixed(6)),
-        longitude: Number(nextLongitude.toFixed(6)),
-        altitude: automaticFlightRequested ? Math.min(20, automaticFlightLimits.maxAltitudeMeters) : 50,
-      });
-    });
+    const last = waypoints[waypoints.length - 1];
+    const nextLatitude = latitude ?? (last && Number.isFinite(last.latitude) ? last.latitude : plannedHome?.latitude ?? 10.8231);
+    const nextLongitude = longitude ?? (last && Number.isFinite(last.longitude) ? last.longitude : plannedHome?.longitude ?? 106.6297);
+    const next = appendMissionPoint(waypoints, plannedHome, {
+      latitude: Number(nextLatitude.toFixed(6)),
+      longitude: Number(nextLongitude.toFixed(6)),
+      altitude: automaticFlightRequested ? Math.min(20, automaticFlightLimits.maxAltitudeMeters) : 50,
+    }, automaticFlightRequested);
+    setPlannedHome(next.plannedHome);
+    setWaypoints(next.waypoints);
   }
+
   function updateWaypoint(index: number, patch: Partial<MissionWaypoint>) {
     setWaypoints(current => normalizeWaypointActions(current.map((point, currentIndex) => currentIndex === index ? { ...point, ...patch } : point)));
   }
@@ -125,7 +126,7 @@ export default function MissionForm() {
     if (!aircraft?.some(item => item.id === uavId && item.status.toLowerCase() === "active")) { setError("Select an active UAV assigned to you."); return; }
     const fenceError = missionFencesError(missionFences);
     if (fenceDrawing.drawing || fenceError) { setError(fenceError || "Finish or cancel fence drawing before saving."); return; }
-    const homeError = plannedHomeError(plannedHome);
+    const homeError = plannedHomeError(plannedHome, automaticFlightRequested);
     if (homeError) { setError(homeError); return; }
     const normalizedWaypoints = withPlannedHome(withMissionFences(normalizeWaypointActions(waypoints), missionFences), plannedHome);
     const invalidRoute = routeError(normalizedWaypoints);
@@ -203,7 +204,7 @@ export default function MissionForm() {
     }}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
       <MissionFenceFields fences={missionFences} onChange={setMissionFences} drawing={fenceDrawing.drawing} onDraw={shape => { setPickingHome(false); fenceDrawing.begin(shape); }} vertexCount={fenceDrawing.draft.length} onFinish={fenceDrawing.finish} disabled={saving} />
-      <PlannedHomeFields home={plannedHome} onChange={home => { setPlannedHome(home); setPickingHome(false); }} picking={pickingHome} onPick={() => { fenceDrawing.begin(null); setPickingHome(current => !current); }} first={waypoints[0]} disabled={saving} />
+      {!automaticFlightRequested && <PlannedHomeFields home={plannedHome} onChange={home => { setPlannedHome(home); setPickingHome(false); }} picking={pickingHome} onPick={() => { fenceDrawing.begin(null); setPickingHome(current => !current); }} first={waypoints[0]} disabled={saving} />}
       <FlightModeFields value={flightMode} onChange={mode => {
         setFlightMode(mode);
         if (mode === "automatic") { setAverageSpeed("11.2"); setMaxSpeed("15"); setAltitudeReference("Relative"); }
@@ -225,19 +226,20 @@ export default function MissionForm() {
       {automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === uavId)?.firmwareNavigationDefaults} />}
       {automaticFlightRequested && <AutomaticFlightFields value={automaticFlightLimits} onChange={setAutomaticFlightLimits} />}
       <section className="route-builder">
-        <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>Click the map in flight order, then configure altitude and action.</p></div><button type="button" className="text-action" disabled={!waypoints.length} onClick={() => { if (window.confirm("Clear all waypoints?")) setWaypoints([]); }}>CLEAR ROUTE</button></div>
+        <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>{automaticFlightRequested ? "Click in order: 1 Home → 2 TakeOff → flight points. The last flight point is always Land." : "Click the map in flight order, then configure altitude and action."}</p></div><button type="button" className="text-action" disabled={!waypoints.length && !(automaticFlightRequested && plannedHome)} onClick={() => { if (window.confirm("Clear the route and its points?")) { setWaypoints([]); if (automaticFlightRequested) setPlannedHome(null); } }}>CLEAR ROUTE</button></div>
         {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
-        <MissionMap missionFences={missionFences} draftFence={fenceDrawing.draft} drawingFence={fenceDrawing.drawing} onFenceUpdate={fence => setMissionFences(current => current.map(f => f.id === fence.id ? fence : f))} plannedHome={plannedHome} pickingHome={pickingHome} waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
-        <button type="button" className="module-secondary mission-add-waypoint" onClick={() => addWaypoint()}>ADD WAYPOINT MANUALLY</button>
-        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => {
+        <MissionMap numberHome={automaticFlightRequested} onHomeUpdate={setPlannedHome} missionFences={missionFences} draftFence={fenceDrawing.draft} drawingFence={fenceDrawing.drawing} onFenceUpdate={fence => setMissionFences(current => current.map(f => f.id === fence.id ? fence : f))} plannedHome={plannedHome} pickingHome={pickingHome || automaticFlightRequested && !plannedHome} waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
+        <button type="button" className="module-secondary mission-add-waypoint" onClick={() => addWaypoint()}>{automaticFlightRequested && !plannedHome ? "ADD HOME MANUALLY" : "ADD WAYPOINT MANUALLY"}</button>
+        {automaticFlightRequested && <PlannedHomeFields sequenceNumber={1} home={plannedHome} onChange={home => { setPlannedHome(home); setPickingHome(false); }} picking={pickingHome} onPick={() => { fenceDrawing.begin(null); setPickingHome(current => !current); }} first={waypoints[0]} disabled={saving} />}
+        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">{automaticFlightRequested ? (plannedHome ? "Home is set. Click the map to add point 2: TakeOff, then add the landing point." : "Click the map to set point 1: Home, then add TakeOff and Land.") : "Click the map to create a waypoint. You can then drag its marker or type exact coordinates below."}</div> : waypoints.map((point, index) => {
           const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : index === waypoints.length - 1 ? "Land" : null;
-          return <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE · required<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE · required<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M) · required<input type="number" min="10.1" max={automaticFlightRequested ? automaticFlightLimits.maxAltitudeMeters : undefined} step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION · required<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option>{endpointAction}</option> : intermediateActions.map(action => <option key={action}>{action}</option>)}</select></label><div className="waypoint-order-actions"><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div>{automaticFlightRequested && <WaypointNavigationFields point={point} maximumSpeed={Number(maxSpeed) || 3} onChange={navigation => updateWaypoint(index, { navigation })} />}</article>;
+          return <article key={index}><b>{String(index + (automaticFlightRequested ? 2 : 1)).padStart(2, "0")}</b><label>LATITUDE · required<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE · required<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M) · required<input type="number" min="10.1" max={automaticFlightRequested ? automaticFlightLimits.maxAltitudeMeters : undefined} step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION · required<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option>{endpointAction}</option> : intermediateActions.map(action => <option key={action}>{action}</option>)}</select></label><div className="waypoint-order-actions"><button type="button" className="text-action" aria-label={`Move waypoint ${index + (automaticFlightRequested ? 2 : 1)} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + (automaticFlightRequested ? 2 : 1)} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + (automaticFlightRequested ? 2 : 1)}`} onClick={() => removeWaypoint(index)}>×</button></div>{automaticFlightRequested && <WaypointNavigationFields point={point} maximumSpeed={Number(maxSpeed) || 3} onChange={navigation => updateWaypoint(index, { navigation })} />}</article>;
         })}</div>
       </section>
       </fieldset>
       <label className="mission-altitude-reference">Altitude reference<select value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option disabled={automaticFlightRequested} value="AGL">AGL — above ground</option><option disabled={automaticFlightRequested} value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select></label>
       {error && <p className="form-error" role="alert" aria-live="assertive">{error}</p>}
-      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mandatory checks must pass before the mission is sent for manager review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0 || flightMode === null}>{saving ? "VALIDATING…" : "CREATE & VALIDATE MISSION"}</button></div></footer>
+      <footer className="builder-footer"><p><b>{waypoints.length + (automaticFlightRequested && plannedHome ? 1 : 0)}</b> {automaticFlightRequested ? "PLAN POINTS" : "WAYPOINTS"} · Mandatory checks must pass before the mission is sent for manager review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0 || flightMode === null}>{saving ? "VALIDATING…" : "CREATE & VALIDATE MISSION"}</button></div></footer>
     </form>
     {highRiskMission && <HighRiskConfirmation mission={highRiskMission} busy={riskBusy} error={riskError} onConfirm={() => void confirmHighRisk()} onCancel={() => void cancelHighRisk()} />}
   </>;

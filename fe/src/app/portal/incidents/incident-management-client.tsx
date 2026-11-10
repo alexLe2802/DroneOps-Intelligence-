@@ -8,6 +8,7 @@ import type { Account } from "@/lib/auth/types";
 import { getIncident, getIncidents } from "@/lib/portal/client";
 import { incidentDescription } from "@/lib/portal/incident-display";
 import type { IncidentDetail, IncidentItem, PagedIncidents } from "@/lib/portal/types";
+import MonitoringSettings from "./monitoring-settings";
 import IncidentMap from "./incident-map";
 import styles from "./incident-management.module.css";
 
@@ -193,6 +194,7 @@ export default function IncidentManagementClient({ account }: { account: Account
   }
 
   return <div className={styles.registry}>
+    <MonitoringSettings manager={account.role === "operation_manager"} />
     <header className={styles.heading}>
       <div>
         <h1>Tactical Incidents &amp; Operational Anomaly Log</h1>

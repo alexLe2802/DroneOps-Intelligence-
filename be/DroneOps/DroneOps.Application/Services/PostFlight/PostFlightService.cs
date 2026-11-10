@@ -282,7 +282,7 @@ public sealed class PostFlightService : IPostFlightService
         try
         {
             var completion = await _repository.GetTrustedCompletionEventAsync(mission.Id, cancellationToken);
-            var scheduledCompletion = report.GenerationReason == "Scheduled mission end time elapsed";
+            var scheduledCompletion = false; // Legacy schedule-only reports are no longer accepted.
             if (completion == null && !scheduledCompletion)
                 throw new InvalidOperationException("Trusted completion evidence is missing.");
             var coveredThrough = completion?.CompletedAt ?? report.CoveredTelemetryThrough
@@ -574,8 +574,8 @@ public sealed class PostFlightService : IPostFlightService
         report.TotalTelemetryRecords = telemetry.Count;
         report.TotalIncidents = incidents.Count;
         report.SafetyEvaluation = BuildSafetyEvaluation(incidents);
-        report.Summary ??= $"Flight '{mission.Name}' completed with {telemetry.Count} valid telemetry records and {incidents.Count} incident(s).";
-        report.Status = "Completed";
+        report.Summary ??= $"Flight '{mission.Name}' ended ({mission.Status}) with {telemetry.Count} valid telemetry records and {incidents.Count} incident(s).";
+        report.Status = mission.Status == "Aborted" ? "Aborted" : "Completed";
     }
 
     private static void PopulateScheduledReport(
@@ -586,7 +586,7 @@ public sealed class PostFlightService : IPostFlightService
         report.TotalFlightDurationMinutes = CalculateScheduledDuration(mission);
         report.TotalTelemetryRecords = 0;
         report.TotalIncidents = incidents.Count;
-        report.Status = "Completed";
+        report.Status = mission.Status == "Aborted" ? "Aborted" : "Completed";
         report.SafetyEvaluation = BuildSafetyEvaluation(incidents);
         report.Summary ??= incidents.Count == 0
             ? $"Flight '{mission.Name}' completed safely at its scheduled end time; no incidents were recorded."

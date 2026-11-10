@@ -46,6 +46,7 @@ internal static class MissionCommandCompilerChecks
             AutomaticFlightRequested = true, AutomaticFlightLimits = AutomaticFlightPolicy.DefaultLimits(),
             AltitudeReference = "Relative", AverageSpeedMetersPerSecond = 3, MaxSpeedMetersPerSecond = 5,
             Waypoints = [Point(1, "TakeOff"), Point(2, "FlyThrough"), Point(3, "Land")] };
+        automatic.Waypoints.First().Navigation = new(PlannedHome: home);
         automatic.Waypoints.Last().Latitude = 10.824m;
         var route = MissionCommandCompiler.Compile(automatic, options with { LandingGroundAltitudeMeters = null });
         Check(route.CanEncode && route.Items.Select(i => i.Command).SequenceEqual(new ushort[] { 22, 178, 16, 16, 21 }),
@@ -57,6 +58,7 @@ internal static class MissionCommandCompilerChecks
         Check(recovery.OperationalEnvelope is { ConfigureRecovery: true } && recovery.CompiledMissionHash != route.CompiledMissionHash,
             "extended recovery remains available and changes the execution hash");
         automatic.Waypoints = [Point(1, "TakeOff"), Point(2, "Land")];
+        automatic.Waypoints.First().Navigation = new(PlannedHome: home);
         Check(MissionCommandCompiler.Compile(automatic, options).Items.Select(i => i.Command).SequenceEqual(new ushort[] { 22, 178, 16, 21 }),
             "a two-point route also contains an explicit arrival waypoint");
         Check(!MissionCommandCompiler.Compile(automatic, options with { FirmwareTarget = "PX4", LandingGroundAltitudeMeters = null }).CanEncode,

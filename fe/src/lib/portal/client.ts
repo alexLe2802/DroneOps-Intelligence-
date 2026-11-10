@@ -151,17 +151,17 @@ export function getIncident(id: string): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
 }
 
-export function acknowledgeIncident(id: string, expectedStatus: string, notes?: string | null): Promise<IncidentDetail> {
+export function acknowledgeIncident(id: string, expectedStatus: string, expectedRevision: number, notes?: string | null): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}/acknowledge`, {
     method: "POST",
-    body: JSON.stringify({ notes: notes?.trim() || null, expectedStatus }),
+    body: JSON.stringify({ notes: notes?.trim() || null, expectedStatus, expectedRevision }),
   });
 }
 
-export function resolveIncident(id: string, resolutionNotes: string, expectedStatus: string): Promise<IncidentDetail> {
+export function resolveIncident(id: string, resolutionNotes: string, expectedStatus: string, expectedRevision: number): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}/resolve`, {
     method: "POST",
-    body: JSON.stringify({ resolutionNotes: resolutionNotes.trim(), expectedStatus }),
+    body: JSON.stringify({ resolutionNotes: resolutionNotes.trim(), expectedStatus, expectedRevision }),
   });
 }
 

@@ -120,7 +120,7 @@ export default function FlightControls({ missionId, planHash, confirmed }: { mis
         <ul>{state.recoveryAssessment.missingData.map(reason => <li key={reason}>{reason}</li>)}</ul>
       </details>}
       {(confirmed || state.armed === true) && <div className={styles.actions}>
-        <button className="module-primary" disabled={busy || !confirmed || !fresh || ended || !state.canArm} onClick={() => void act("arm")}>ARM — TAKE OFF AFTER 10s</button>
+        <p>{confirmed ? "Pilot consent recorded. The scheduler will dispatch once at the scheduled start if all readiness gates pass." : "Confirm the verified mission before the scheduled start."}</p>
         <button className="module-secondary" disabled={busy || !fresh || !state.canDisarm} onClick={() => void act("disarm")}>DISARM ON GROUND</button>
         {["Arming", "Countdown"].includes(state.stage) && <button className="module-secondary" disabled={busy} onClick={() => void act("cancel")}>CANCEL TAKEOFF</button>}
       </div>}

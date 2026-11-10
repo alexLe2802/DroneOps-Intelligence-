@@ -162,7 +162,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
     setActionError("");
     setActionMessage("");
     try {
-      const updated = await acknowledgeIncident(id, incident!.status);
+      const updated = await acknowledgeIncident(id, incident!.status, incident!.revision);
       setIncident(updated);
       setHistory(await getIncidentHistory(id));
       setActionMessage("Incident acknowledged. The handling timeline has been updated.");
@@ -179,7 +179,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
     setActionError("");
     setActionMessage("");
     try {
-      const updated = await resolveIncident(id, trimmedDraft, incident!.status);
+      const updated = await resolveIncident(id, trimmedDraft, incident!.status, incident!.revision);
       setIncident(updated);
       setHistory(await getIncidentHistory(id));
       setResolutionDraft(updated.resolutionNotes ?? trimmedDraft);

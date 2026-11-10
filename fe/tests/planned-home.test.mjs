@@ -24,3 +24,8 @@ test('optional Home does not invent a location or ground altitude', () => {
   for (const value of [{ ...home, latitude: NaN }, { ...home, longitude: 181 }, { ...home, altitudeMslMeters: 10001 }])
     assert.ok(plannedHomeError(value));
 });
+
+ test('automatic missions require an explicitly selected Home', () => {
+  assert.ok(plannedHomeError(null, true));
+  assert.equal(plannedHomeError(home, true), null);
+});

@@ -29,11 +29,11 @@ public interface IIncidentService
 
     Task<IncidentDetailResponse> AcknowledgeAsync(
         Guid incidentId, Guid currentUserId, bool isManager, string? notes,
-        CancellationToken cancellationToken = default, string? expectedStatus = null);
+        CancellationToken cancellationToken = default, string? expectedStatus = null, int? expectedRevision = null);
 
     Task<IncidentDetailResponse> ResolveAsync(
         Guid incidentId, Guid currentUserId, bool isManager, string resolutionNotes,
-        CancellationToken cancellationToken = default, string? expectedStatus = null);
+        CancellationToken cancellationToken = default, string? expectedStatus = null, int? expectedRevision = null);
 
     Task<List<IncidentTransitionResponse>> GetHistoryAsync(
         Guid incidentId, Guid? currentUserId, bool isManager,
