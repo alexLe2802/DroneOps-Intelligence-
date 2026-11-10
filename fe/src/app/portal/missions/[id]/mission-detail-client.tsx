@@ -175,8 +175,6 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
   if (error) return <ModuleError error={error} retry={load} />;
   if (!mission) return <ModuleLoading label="Loading mission details" />;
   const isManager = role === "operation_manager";
-  const plannedHome = mission.waypoints.find(point => point.sequenceOrder === 1)?.navigation?.plannedHome;
-  const numberHome = mission.automaticFlightRequested === true;
   const currentStatus = statusKey(mission.status);
   const readinessValidation = [validation, mission.validation, mission.latestValidation, mission.preflightValidation]
     .filter(result => !result?.updateRequestId)
@@ -251,7 +249,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     <section className="mission-detail-layout">
       <div className="mission-route-panel">
         <header><div><p className="module-kicker">ROUTE PLAN</p><h2>Current Mission Flight Path</h2></div><span>{geofences.length} AIRSPACE ZONES</span></header>
-        {mission.waypoints.length > 0 ? <MissionMap numberHome={numberHome} waypoints={mission.waypoints} geofences={geofences} readOnly findings={readinessValidation?.findings} /> : <div className="mission-route-empty"><span>⌁</span><h3>Route data unavailable</h3><p>No waypoint data was returned for this mission.</p></div>}
+        {mission.waypoints.length > 0 ? <MissionMap waypoints={mission.waypoints} geofences={geofences} readOnly findings={readinessValidation?.findings} /> : <div className="mission-route-empty"><span>⌁</span><h3>Route data unavailable</h3><p>No waypoint data was returned for this mission.</p></div>}
       </div>
       <aside className="mission-overview-panel">
         <header><p className="module-kicker">MISSION RECORD</p><h2>Plan Overview</h2></header>
@@ -269,11 +267,11 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     </section>
 
     <section className="mission-waypoint-panel">
-      <header><div><p className="module-kicker">ROUTE MANIFEST</p><h2>Waypoint Sequence</h2></div><span>{mission.waypoints.length + (numberHome && plannedHome ? 1 : 0)} TOTAL</span></header>
+      <header><div><p className="module-kicker">ROUTE MANIFEST</p><h2>Waypoint Sequence</h2></div><span>{mission.waypoints.length} TOTAL</span></header>
       <div className="mission-waypoint-table-wrap">
         <table className="mission-waypoint-table">
           <thead><tr><th>SEQ</th><th>LATITUDE</th><th>LONGITUDE</th><th>ALTITUDE</th><th>ACTION</th></tr></thead>
-          <tbody>{numberHome && plannedHome && <tr><td><b>01</b></td><td>{plannedHome.latitude.toFixed(6)}</td><td>{plannedHome.longitude.toFixed(6)}</td><td>{plannedHome.altitudeMslMeters != null ? `${plannedHome.altitudeMslMeters} m MSL` : "FC Home elevation"}</td><td><span>Home</span></td></tr>}{mission.waypoints.length > 0 ? mission.waypoints.map((point, index) => <tr key={`${point.sequenceOrder}-${index}`}><td><b>{String(point.sequenceOrder + (numberHome ? 1 : 0)).padStart(2, "0")}</b></td><td>{point.latitude.toFixed(6)}</td><td>{point.longitude.toFixed(6)}</td><td>{point.altitude} m</td><td><span>{formatStatus(point.actionType)}</span></td></tr>) : <tr><td className="mission-waypoint-empty" colSpan={5}>Waypoint data is waiting for the mission detail API.</td></tr>}</tbody>
+          <tbody>{mission.waypoints.length > 0 ? mission.waypoints.map((point, index) => <tr key={`${point.sequenceOrder}-${index}`}><td><b>{String(point.sequenceOrder).padStart(2, "0")}</b></td><td>{point.latitude.toFixed(6)}</td><td>{point.longitude.toFixed(6)}</td><td>{point.altitude} m</td><td><span>{formatStatus(point.actionType)}</span></td></tr>) : <tr><td className="mission-waypoint-empty" colSpan={5}>Waypoint data is waiting for the mission detail API.</td></tr>}</tbody>
         </table>
       </div>
     </section>

@@ -12,7 +12,6 @@ import queue
 import threading
 import time
 import uuid
-from types import SimpleNamespace
 from arducopter_recovery import REQUIRED as ARDUCOPTER_RECOVERY_PARAMETERS
 from envelope_verifier import EnvelopeVerifier
 from arducopter47_adapter import ProfileError, canonical_mission_item
@@ -80,7 +79,6 @@ class FlightControl:
         self.parameters = {}
         self.parameters_requested = float('-inf')
         self.envelope = EnvelopeVerifier(system, component, clock)
-        self.planned_home = None
 
     def fresh(self, kind, seconds=3):
         item = self.seen.get(kind)
@@ -251,7 +249,6 @@ class FlightControl:
             self.finish(False)
             self.arm_at, self.lease = None, 0
             self.envelope.reset()
-            self.planned_home = None
         while True:
             try:
                 source, received, response = self.bridge.responses.get_nowait()
@@ -313,17 +310,6 @@ class FlightControl:
             self.bridge.evidence = self.evidence()
             self.bridge.evidence_at = time.monotonic()
 
-    def launch_matches(self, planned):
-        # GLOBAL_POSITION_INT is the FC's estimated current position; Home alone
-        # can still refer to an earlier arming location.
-        position = self.fresh('GLOBAL_POSITION_INT')
-        if position is None:
-            return False
-        current = SimpleNamespace(latitude=position.lat, longitude=position.lon)
-        horizontal = {'latitude': planned.get('latitude'), 'longitude': planned.get('longitude')}
-        return (planned_home_matches(planned, self.fresh('HOME_POSITION', 15))
-                and planned_home_matches(horizontal, current))
-
     def prepare_envelope(self, link, response):
         wanted = response.get('requiredEnvelopeHash')
         if wanted != self.envelope.plan_hash:
@@ -335,9 +321,6 @@ class FlightControl:
             return
         evidence = self.evidence()
         snapshot = evidence['firmwareParameters']
-        if response.get('plannedHome') is not None and not self.launch_matches(response['plannedHome']):
-            self.envelope.error = 'Planned Home must match fresh FC Home before configuration and upload.'
-            return
         if (not self.grounded() or evidence['armed'] is not False or not evidence['navigationReady']
                 or evidence['firmware'] != 'ArduPilot' or not snapshot or snapshot['firmwareVersion'] != '4.7.1'):
             return
@@ -357,9 +340,6 @@ class FlightControl:
             if not response.get('missionId') or not response.get('connectionId') or not response.get('planHash') or identity != response.get('controllerUid'):
                 self.finish(False)
                 return
-        if action in ('Arm', 'Start') and self.planned_home is not None and not self.launch_matches(self.planned_home):
-            self.finish(False)
-            return
         if action in ('Arm', 'Start') and response.get('requiredEnvelopeHash') and self.envelope.verified_hash != response['requiredEnvelopeHash']:
             self.finish(False)
             return
@@ -378,12 +358,7 @@ class FlightControl:
                 self.finish(False)
                 return
             actual_home = self.fresh('HOME_POSITION', 15)
-            if (plan.get('operationalEnvelope') and plan.get('plannedHome') is None
-                    or plan.get('plannedHome') is not None and not self.launch_matches(plan['plannedHome'])):
-                print('Planned Home required; current position and fresh FC Home must be within 10 m (5 m Home elevation if supplied). Upload blocked.', flush=True)
-                self.finish(False)
-                return
-            self.planned_home = plan.get('plannedHome')
+            # Planned Home is editor metadata, never an FC Home command or launch gate.
             if plan.get('operationalEnvelope') and plan.get('items'):
                 origin = plan['items'][0]
                 takeoff = {'latitude': origin['x'] / 1e7, 'longitude': origin['y'] / 1e7}
@@ -391,8 +366,6 @@ class FlightControl:
                     print('Takeoff waypoint must be within 10 m of FC Home. Upload blocked.', flush=True)
                     self.finish(False)
                     return
-                if self.planned_home is None:
-                    self.planned_home = takeoff
             self.reached.clear()
             self.items = [dict(item) for item in plan['items']]
             if not self.items or len(self.items) > 500:

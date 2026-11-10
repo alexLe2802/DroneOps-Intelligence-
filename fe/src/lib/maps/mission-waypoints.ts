@@ -1,12 +1,6 @@
-import type { MissionWaypoint, PlannedHome } from "@/lib/portal/types";
+import type { MissionWaypoint } from "@/lib/portal/types";
 
 type WaypointPosition = Omit<MissionWaypoint, "sequenceOrder" | "actionType">;
-
-export function appendMissionPoint(current: MissionWaypoint[], home: PlannedHome | null, position: WaypointPosition, automatic: boolean): { waypoints: MissionWaypoint[]; plannedHome: PlannedHome | null } {
-  if (automatic && home === null)
-    return { waypoints: current, plannedHome: { latitude: position.latitude, longitude: position.longitude } };
-  return { waypoints: appendLandingWaypoint(current, position), plannedHome: home };
-}
 
 export function normalizeWaypointActions(current: MissionWaypoint[]): MissionWaypoint[] {
   return current.map((point, index) => {
