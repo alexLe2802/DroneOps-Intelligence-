@@ -21,7 +21,7 @@ public sealed class IncidentLifecycleService : IIncidentLifecycleService
         CancellationToken cancellationToken = default)
     {
         var exists = await _context.Incidents.AnyAsync(
-            x => x.MissionId == incident.MissionId && x.Type == incident.Type && x.Status != "Resolved",
+            x => x.MissionId == incident.MissionId && x.Type == incident.Type && x.RecoveredAt == null,
             cancellationToken);
         if (exists)
         {
@@ -44,12 +44,20 @@ public sealed class IncidentLifecycleService : IIncidentLifecycleService
         CancellationToken cancellationToken = default)
     {
         var incident = await _context.Incidents
-            .Where(x => x.MissionId == missionId && x.Type == type && x.Status != "Resolved")
+            .Where(x => x.MissionId == missionId && x.Type == type && x.RecoveredAt == null)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
         if (incident == null)
         {
             return false;
+        }
+
+        incident.RecoveredAt = DateTimeOffset.UtcNow;
+        if (incident.Status == "Resolved")
+        {
+            await AppendTransitionAndAlertsAsync(incident, "Resolved", "Resolved", "Recovered", notes,
+                null, incident.RecoveredAt.Value, cancellationToken);
+            return true;
         }
 
         var previous = incident.Status;
