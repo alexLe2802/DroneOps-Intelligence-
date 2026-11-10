@@ -14,13 +14,21 @@ const client = await import(clientUrl);
 // Mock the HTTP boundary only: exercise actual API helper serialization and failures.
 test("mission creation preserves UTC schedule and ordered waypoints in a single POST", async () => {
   const input = { name: "Survey", uavId: "uav-id", description: null, averageSpeedMetersPerSecond: 10, maxSpeedMetersPerSecond: 15, startTime: "2026-10-17T01:00:00.000Z", endTime: "2026-10-17T02:00:00.000Z", waypoints: [1, 2].map(i => ({ sequenceOrder: i, latitude: 10 + i, longitude: 106, altitude: 50, actionType: "FlyThrough" })) };
+  const battery = { status: "Available", riskLevel: "Low", requiresConfirmation: false, routeDistanceMeters: 7200, estimatedFlightMinutes: 24.5, uavMaxFlightTimeMinutes: 35, batteryCapacityMah: 5000, batteryVoltage: 22.2, batteryEnergyWh: 111, baseBatteryPercent: 70, weatherMultiplier: 1.1, weatherAdjustmentPercent: 7, safetyReservePercent: 20, requiredBatteryPercent: 97, message: "Ensure the UAV has at least 97% battery before departure.", reasons: [], warnings: [] };
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, "/api/missions"); assert.equal(options.method, "POST");
     assert.deepEqual(JSON.parse(options.body), input);
     assert.equal(options.credentials, "same-origin");
-    return Response.json({ ...input, id: "mission-id", status: "Draft" });
+    return Response.json({ ...input, id: "mission-id", status: "Draft", validation: { isValid: true, message: "Mission parameters are valid.", battery } });
   });
-  try { const saved = await client.createMission(input); assert.equal(saved.status, "Draft"); assert.equal(mock.mock.calls.length, 1); }
+  try {
+    const saved = await client.createMission(input);
+    assert.equal(saved.status, "Draft");
+    assert.equal(saved.detailAvailable, true);
+    assert.equal(saved.validation.battery.requiredBatteryPercent, 97);
+    assert.match(saved.validation.battery.message, /at least 97% battery/);
+    assert.equal(mock.mock.calls.length, 1);
+  }
   finally { mock.mock.restore(); }
 });
 
