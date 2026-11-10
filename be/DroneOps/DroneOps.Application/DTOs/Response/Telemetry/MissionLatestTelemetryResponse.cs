@@ -9,6 +9,8 @@ namespace DroneOps.Application.DTOs.Response.Telemetry;
 public class MissionLatestTelemetryResponse
 {
     public Guid MissionId { get; set; }
+    public int StaleAfterSeconds { get; set; } = 10;
+    public int OfflineAfterSeconds { get; set; } = 30;
     public Guid? UavId { get; set; }
     public string? UavCode { get; set; }
     public string? UavName { get; set; }

@@ -20,7 +20,7 @@ public sealed record MissionCompilationPreview(string CompilerVersion, string Fi
     string SourcePlanHash, string? CompiledMissionHash, string State, bool CanEncode,
     bool CanUpload, bool CanStart, MissionCompileOptions Options,
     IReadOnlyList<MissionWireItem> Items, IReadOnlyList<string> Errors, IReadOnlyList<string> ExecutionBlocks,
-    AutomaticExecutionEnvelope? OperationalEnvelope = null, PlannedHome? PlannedHome = null);
+    AutomaticExecutionEnvelope? OperationalEnvelope = null, PlannedHome? PlannedHome = null, IReadOnlyList<int>? WaypointCommands = null);
 
 public sealed record AutomaticExecutionEnvelope(decimal CruiseSpeedMetersPerSecond, decimal MaxSpeedMetersPerSecond,
     AutomaticFlightLimits Limits, bool FcParameterVerificationRequired = true, bool ConfigureRecovery = false);
@@ -91,6 +91,7 @@ public static class MissionCommandCompiler
         if (errors.Count > 0) return new(Version, options.FirmwareTarget, sourceHash, null, "NeedsInput", false, false, false, options, [], errors.Distinct().ToArray(), executionBlocks);
 
         var items = new List<MissionWireItem>();
+        var waypointCommands = new List<int>();
         float? yaw = options.YawPolicy == "Fixed" ? (float)options.YawDegrees!.Value : null;
         var cruise = mission.AverageSpeedMetersPerSecond!.Value;
         var fcCruise = options.FirmwareTarget == "PX4" ? FcValue("MPC_XY_CRUISE") : FcValue("WP_SPD") ?? FcValue("WPNAV_SPEED", 0.01m);
@@ -122,6 +123,7 @@ public static class MissionCommandCompiler
                     point.Navigation?.YawDegrees is { } arrivalYaw ? (float?)arrivalYaw : yaw,
                     E7(point.Latitude), E7(point.Longitude), (float)point.Altitude!.Value));
             }
+            waypointCommands.Add(items.Count + (options.FirmwareTarget == "ArduPilot" ? 1 : 0));
             var pointYaw = point.Navigation?.YawDegrees is { } angle ? (float?)angle : yaw;
             items.Add(new((ushort)items.Count, command, frame, hold, acceptance, 0, pointYaw,
                 E7(point.Latitude), E7(point.Longitude), (float)altitude));
@@ -134,7 +136,7 @@ public static class MissionCommandCompiler
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
         return new(Version, options.FirmwareTarget, sourceHash, hash, "PreviewOnly", true, false, false, options, items, [], executionBlocks,
             mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } limits
-                ? new(mission.AverageSpeedMetersPerSecond!.Value, mission.MaxSpeedMetersPerSecond!.Value, limits, ConfigureRecovery: options.ConfigureRecovery) : null, plannedHome);
+                ? new(mission.AverageSpeedMetersPerSecond!.Value, mission.MaxSpeedMetersPerSecond!.Value, limits, ConfigureRecovery: options.ConfigureRecovery) : null, plannedHome, waypointCommands);
     }
 
     private static int E7(decimal degrees) => (int)decimal.Round(degrees * 10000000m, 0, MidpointRounding.AwayFromZero);

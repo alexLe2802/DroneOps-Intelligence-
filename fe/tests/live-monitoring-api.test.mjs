@@ -73,11 +73,11 @@ test("incident actions acknowledge and resolve through the exact backend contrac
     return Response.json({ id: "incident-id", status: url.endsWith("/resolve") ? "Resolved" : "Acknowledged" });
   });
   try {
-    assert.equal((await client.acknowledgeIncident("incident-id", "Open")).status, "Acknowledged");
-    assert.equal((await client.resolveIncident("incident-id", "  Link restored and verified.  ", "Acknowledged")).status, "Resolved");
+    assert.equal((await client.acknowledgeIncident("incident-id", "Open", 1)).status, "Acknowledged");
+    assert.equal((await client.resolveIncident("incident-id", "  Link restored and verified.  ", "Acknowledged", 2)).status, "Resolved");
     assert.deepEqual(calls, [
-      ["/api/incidents/incident-id/acknowledge", "POST", { notes: null, expectedStatus: "Open" }],
-      ["/api/incidents/incident-id/resolve", "POST", { resolutionNotes: "Link restored and verified.", expectedStatus: "Acknowledged" }],
+      ["/api/incidents/incident-id/acknowledge", "POST", { notes: null, expectedStatus: "Open", expectedRevision: 1 }],
+      ["/api/incidents/incident-id/resolve", "POST", { resolutionNotes: "Link restored and verified.", expectedStatus: "Acknowledged", expectedRevision: 2 }],
     ]);
   } finally {
     mock.mock.restore();

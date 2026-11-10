@@ -9,6 +9,11 @@ public class TelemetryRecord
     public Guid Id { get; set; }
 
     public string? SourceId { get; set; }
+    public string? SourceBootId { get; set; }
+    public string? SourceEventId { get; set; }
+    public DateTimeOffset? BatteryObservedAt { get; set; }
+    public DateTimeOffset? AltitudeObservedAt { get; set; }
+    public DateTimeOffset? SpeedObservedAt { get; set; }
 
     public Guid UAVId { get; set; }
 

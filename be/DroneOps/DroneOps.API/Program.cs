@@ -152,6 +152,7 @@ if (monitoringEnabled)
     // The dedicated monitor owns background work; API replicas must not poll for it.
     builder.Services.AddHostedService<UavImageModerationMonitor>();
     builder.Services.AddHostedService<CommunicationLossMonitor>();
+    builder.Services.AddHostedService<ScheduledFlightMonitor>();
     builder.Services.AddHostedService<PostFlightCompletionMonitor>();
 }
 
@@ -230,7 +231,7 @@ await AccountWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.Np
 await FlightPreparationSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 // Detect a missing deployment migration before background monitoring starts.
-//await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 // Notification DDL is idempotent so existing deployments become ready without a separate flag.
 await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
