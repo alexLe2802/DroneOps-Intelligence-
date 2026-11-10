@@ -138,6 +138,8 @@ export type LiveMission = {
 };
 
 export type MissionTelemetry = {
+  staleAfterSeconds?: number;
+  offlineAfterSeconds?: number;
   detectionDiagnostics?: string[];
   batteryVoltageVolts?: number | null;
   batteryCurrentAmps?: number | null;
@@ -170,6 +172,7 @@ export type MissionTelemetry = {
 };
 
 export type IncidentItem = {
+  revision: number;
   id: string;
   missionId: string;
   missionName: string;

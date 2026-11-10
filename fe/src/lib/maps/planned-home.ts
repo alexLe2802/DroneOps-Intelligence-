@@ -1,7 +1,7 @@
 import type { MissionWaypoint, PlannedHome } from "../portal/types";
 
-export function plannedHomeError(home: PlannedHome | null): string | null {
-  if (!home) return null;
+export function plannedHomeError(home: PlannedHome | null, required = false): string | null {
+  if (!home) return required ? "Select Planned Home before saving an automatic mission." : null;
   if (!Number.isFinite(home.latitude) || home.latitude < -90 || home.latitude > 90
     || !Number.isFinite(home.longitude) || home.longitude < -180 || home.longitude > 180)
     return "Enter valid Home latitude and longitude, or select Home on the map.";

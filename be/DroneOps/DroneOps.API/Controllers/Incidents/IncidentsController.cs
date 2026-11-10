@@ -82,7 +82,7 @@ public class IncidentsController : ControllerBase
         Guid id, [FromBody] AcknowledgeIncidentRequest request, CancellationToken cancellationToken)
     {
         return await ExecuteMutationAsync((userId, isManager) =>
-            _incidentService.AcknowledgeAsync(id, userId, isManager, request.Notes, cancellationToken, request.ExpectedStatus));
+            _incidentService.AcknowledgeAsync(id, userId, isManager, request.Notes, cancellationToken, request.ExpectedStatus, request.ExpectedRevision));
     }
 
     /// <summary>Người vận hành đóng sự cố và ghi lại kết quả xử lý.</summary>
@@ -93,7 +93,7 @@ public class IncidentsController : ControllerBase
         Guid id, [FromBody] ResolveIncidentRequest request, CancellationToken cancellationToken)
     {
         return await ExecuteMutationAsync((userId, isManager) =>
-            _incidentService.ResolveAsync(id, userId, isManager, request.ResolutionNotes, cancellationToken, request.ExpectedStatus));
+            _incidentService.ResolveAsync(id, userId, isManager, request.ResolutionNotes, cancellationToken, request.ExpectedStatus, request.ExpectedRevision));
     }
 
     /// <summary>Lấy lịch sử chuyển trạng thái append-only của sự cố.</summary>

@@ -145,7 +145,7 @@ using (var reconnected = sharedSnapshots.Subscribe(missionId))
 var scheduled = DateTimeOffset.UtcNow.AddMinutes(10);
 Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5).AddTicks(-1), scheduled, scheduled.AddMinutes(30)), "automatic confirmation rejects times before T-5");
 Check(MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5), scheduled, scheduled.AddMinutes(30)), "automatic confirmation opens exactly at T-5");
-Check(MissionAutomationService.InConfirmationWindow(scheduled, scheduled, scheduled.AddMinutes(30)), "late confirmation remains available before mission end");
+Check(!MissionAutomationService.InConfirmationWindow(scheduled, scheduled, scheduled.AddMinutes(30)), "confirmation closes at the scheduled start");
 Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(30), scheduled, scheduled.AddMinutes(30)), "confirmation closes exactly at mission end");
 var reviewedPlan = new Mission { Id = Guid.NewGuid(), CreatedBy = Guid.NewGuid(), Name = "Review fingerprint" };
 var manualHash = DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan);
@@ -314,14 +314,14 @@ try
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));
     var unread = await Json(await client.GetAsync("/api/incidents/alerts/unread"));
     Check(unread.GetArrayLength() >= 1, "raised incident creates a durable unread alert for the mission owner");
-    var acknowledge = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/acknowledge", new { notes = "Pilot is handling the event.", expectedStatus = "Open" });
+    var acknowledge = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/acknowledge", new { notes = "Pilot is handling the event.", expectedStatus = "Open", expectedRevision = 1 });
     Check(acknowledge.StatusCode == HttpStatusCode.OK && (await Json(acknowledge)).GetProperty("status").GetString() == "Acknowledged", "pilot acknowledges an incident through HTTP API");
-    var resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced.", expectedStatus = "Acknowledged" });
+    var resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced.", expectedStatus = "Acknowledged", expectedRevision = 2 });
     Check(resolve.StatusCode == HttpStatusCode.Forbidden, "pilot cannot resolve an incident");
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(managerId, "operation_manager"));
-    var staleResolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Reviewed.", expectedStatus = "Open" });
+    var staleResolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Reviewed.", expectedStatus = "Open", expectedRevision = 1 });
     Check(staleResolve.StatusCode == HttpStatusCode.Conflict, "stale incident form is rejected");
-    resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced.", expectedStatus = "Acknowledged" });
+    resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced.", expectedStatus = "Acknowledged", expectedRevision = 2 });
     Check(resolve.StatusCode == HttpStatusCode.OK, "manager resolves with current state and reason");
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));
     var history = await Json(await client.GetAsync($"/api/incidents/{lowBatteryIncidentId}/history"));
@@ -373,7 +373,7 @@ try
     await Task.Delay(TimeSpan.FromSeconds(1.05));
     await client.SendAsync(Ingest("speed-recovery-2", middle));
     await using (var scope = app.Services.CreateAsyncScope())
-        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.Status == "Resolved"), "two healthy samples automatically resolve the incident");
+        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.RecoveredAt != null), "two healthy samples record recovery without bypassing Manager resolution");
 
     // Mission-specific keep-in fences reuse the existing incident lifecycle.
     var fenceMissionId = Guid.NewGuid();
@@ -408,7 +408,7 @@ try
     await using(var scope=app.Services.CreateAsyncScope())
     {
         var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Check(await db.Incidents.AnyAsync(i=>i.MissionId==fenceMissionId && i.Status=="Resolved"),"two inside samples resolve the mission-fence incident");
+        Check(await db.Incidents.AnyAsync(i=>i.MissionId==fenceMissionId && i.RecoveredAt!=null),"two inside samples recover the mission-fence episode");
         var ended=await db.Missions.FindAsync(fenceMissionId);ended!.EndTime=DateTime.UtcNow.AddSeconds(-1);await db.SaveChangesAsync();
     }
     await FenceSample(10.85m,106.77m);await FenceSample(10.85m,106.77m);

@@ -1,5 +1,6 @@
 "use client";
 
+import { ApiError } from "@/lib/auth/client";
 import { formatVietnamDateTime, formatVietnamTime } from "@/lib/portal/vietnam-time";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -118,11 +119,22 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     let active = true;
     const source = new EventSource(liveMissionStreamUrl(selectedId));
     queueMicrotask(() => { if (active) setStreamState("connecting"); });
-    source.onopen = () => setStreamState("live");
-    source.onerror = () => setStreamState("reconnecting");
+    source.onopen = () => { if (active) setStreamState("live"); };
+    source.onerror = () => {
+      if (!active) return;
+      setStreamState("reconnecting");
+      void getLatestMissionTelemetry(selectedId).then(snapshot => { if (active) setTelemetry(snapshot); }).catch(reason => {
+        if (!active) return;
+        if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) {
+          source.close(); setStreamState("closed");
+          setError(reason.status === 401 ? "Session expired. Sign in again to resume monitoring." : "This mission is unavailable or access has changed.");
+        }
+      });
+    };
     const updateTelemetry = (event: MessageEvent<string>) => {
       try {
         const next = JSON.parse(event.data) as MissionTelemetry;
+        if (!active || next.missionId !== selectedId) return;
         if (next.sourceTimestamp) browserReceiptTimes.current.set(next.sourceTimestamp, new Date().toISOString());
         setTelemetry(next); setStreamState("live");
       }
@@ -131,6 +143,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     const updateIncident = (event: MessageEvent<string>) => {
       try {
         const item = JSON.parse(event.data) as IncidentItem;
+        if (!active || item.missionId !== selectedId) return;
         setIncidents(current => [item, ...current.filter(existing => existing.id !== item.id)].slice(0, 8));
       } catch { setError("An incident event could not be decoded."); }
     };
@@ -147,7 +160,9 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     if (sourceTime && Number.isFinite(sourceTime)) return Math.max(0, (clock - sourceTime) / 1000);
     return telemetry.dataAgeSeconds;
   }, [clock, telemetry]);
-  const connection = statusKey(telemetry?.connectivityStatus ?? selected?.connectivityStatus);
+  const staleAfter = telemetry?.staleAfterSeconds ?? 10;
+  const offlineAfter = telemetry?.offlineAfterSeconds ?? 30;
+  const connection = packetAge == null ? "offline" : packetAge > offlineAfter ? "offline" : packetAge > staleAfter ? "stale" : streamState === "live" ? "online" : "unknown";
   const batteryTelemetry = telemetry?.missionId === selectedId ? telemetry : null;
   const arming = armingDisplay(telemetry, selectedId, streamState === "live",
     telemetry?.sourceTimestamp || telemetry?.receivedAt ? packetAge : null);
@@ -205,14 +220,14 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
         <p>Hoàn tất kiểm tra trước bay và bảo đảm khu vực an toàn, sau đó ARM bằng bộ điều khiển hoặc GCS khi sẵn sàng bay. Lời nhắc sẽ tự tắt khi nhận telemetry xác nhận drone đã ARM.</p>
       </div>}
       <section className={styles.signalStrip}>
-        <div className={connection === "online" ? styles.good : connection === "stale" ? styles.warning : styles.danger}><b>TELEMETRY LINK</b><span>{(telemetry?.connectivityStatus ?? selected?.connectivityStatus ?? "Offline").toUpperCase()} / {telemetry?.snapshotKind?.toUpperCase() ?? "SNAPSHOT"}</span></div>
+        <div className={connection === "online" ? styles.good : connection === "stale" ? styles.warning : styles.danger}><b>TELEMETRY LINK</b><span>{connection.toUpperCase()} / {telemetry?.snapshotKind?.toUpperCase() ?? "SNAPSHOT"}</span></div>
         <div className={latestIncident ? styles.danger : styles.good}><b>{latestIncident ? `${latestIncident.severity} INCIDENT` : "INCIDENT CHANNEL"}</b><span>{latestIncident?.title ?? "No open incident received for this mission."}</span></div>
       </section>
 
       <div className={styles.operationsGrid} aria-busy={loadingMission}>
         <section className={styles.mapPanel}>
           <header><div><span>SPATIAL TELEMETRY</span><h2>{selected?.missionName}</h2></div><div><b>{telemetry?.flightMode ?? "MODE UNAVAILABLE"}</b><small className={styles[`arm${arming.state}`]}>{arming.label}</small></div></header>
-          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={progress == null ? 0 : sequence ?? 0} recenterToken={recenterToken} streamLive={streamState === "live"} />
+          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={0} recenterToken={recenterToken} streamLive={streamState === "live"} />
           <footer><span>LAST PACKET <b>{shortDate(telemetry?.sourceTimestamp ?? selected?.lastSeen)}</b></span><span>{connection === "online" && !telemetry?.isStale && streamState === "live" ? "POSITION" : "LAST KNOWN POSITION"} <b>{hasTelemetryPosition(telemetry) ? `${Number(telemetry.latitude).toFixed(5)}, ${Number(telemetry.longitude).toFixed(5)}` : "UNAVAILABLE"}</b></span></footer>
         </section>
 
@@ -256,7 +271,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
             `Consumed charge (FC): ${valueOr(batteryTelemetry?.batteryConsumedMah, " mAh", 0)}`,
             `State: ${arming.label}`,
           ]} />
-          <TelemetryCard index="05" label="LINK & TELEMETRY" value={(telemetry?.connectivityStatus ?? "Offline").toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />
+          <TelemetryCard index="05" label="LINK & TELEMETRY" value={connection.toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />
           <TelemetryCard index="06" label="FLIGHT NAVIGATION" value={sequence == null ? "Unavailable" : `Command ${sequence}`} lines={[`Mode: ${telemetry?.flightMode ?? "Unavailable"}`, `Progress: ${progressLabel}`]} />
         </div>
       </section>

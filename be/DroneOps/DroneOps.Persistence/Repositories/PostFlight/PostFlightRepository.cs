@@ -1,4 +1,4 @@
-﻿using DroneOps.Domain.Entities;
+using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -51,99 +51,18 @@ public class PostFlightRepository : IPostFlightRepository
         async Task<OverdueMissionSyncResult> SynchronizeCoreAsync()
         {
             var utcNow = now.UtcDateTime;
-            var flightStatuses = new[] { "active", "inprogress", "in progress", "approved" };
-            var unapprovedStatuses = new[] { "draft", "pending review" };
-
-            var overdueFlights = await _context.Missions
-                .Where(mission => mission.EndTime.HasValue && mission.EndTime <= utcNow &&
-                                  flightStatuses.Contains(mission.Status.Trim().ToLower()))
-                .ToListAsync(cancellationToken);
             var overdueUnapproved = await _context.Missions
-                .Where(mission => mission.EndTime.HasValue && mission.EndTime <= utcNow &&
-                                  unapprovedStatuses.Contains(mission.Status.Trim().ToLower()))
+                .Where(m => m.EndTime.HasValue && m.EndTime <= utcNow &&
+                    (m.Status == "Draft" || m.Status == "Pending Review"))
                 .ToListAsync(cancellationToken);
-
-            var completedMissionIds = overdueFlights.Select(mission => mission.Id).ToArray();
-            var existingReports = completedMissionIds.Length == 0
-                ? new Dictionary<Guid, PostFlightReport>()
-                : (await _context.PostFlightReports
-                    .Where(report => report.IsCurrent && completedMissionIds.Contains(report.MissionId))
-                    .ToListAsync(cancellationToken)).ToDictionary(report => report.MissionId);
-            var incidentCounts = completedMissionIds.Length == 0
-                ? new Dictionary<Guid, int>()
-                : await _context.Incidents
-                    .Where(incident => completedMissionIds.Contains(incident.MissionId))
-                    .GroupBy(incident => incident.MissionId)
-                    .Select(group => new { MissionId = group.Key, Count = group.Count() })
-                    .ToDictionaryAsync(item => item.MissionId, item => item.Count, cancellationToken);
-            var existingCompletionMissionIds = completedMissionIds.Length == 0
-                ? new HashSet<Guid>()
-                : (await _context.FlightCompletionEvents
-                    .Where(completion => completion.IsTrusted && completedMissionIds.Contains(completion.MissionId))
-                    .Select(completion => completion.MissionId)
-                    .ToListAsync(cancellationToken)).ToHashSet();
-
-            foreach (var mission in overdueFlights)
-            {
-                mission.Status = "Completed";
-                var completedAt = new DateTimeOffset(
-                    DateTime.SpecifyKind(mission.EndTime!.Value, DateTimeKind.Utc));
-
-                if (mission.UAVId.HasValue && !existingCompletionMissionIds.Contains(mission.Id))
-                {
-                    _context.FlightCompletionEvents.Add(new FlightCompletionEvent
-                    {
-                        Id = Guid.NewGuid(),
-                        MissionId = mission.Id,
-                        UAVId = mission.UAVId.Value,
-                        SourceId = "system:schedule-monitor",
-                        IdempotencyKey = $"schedule-expired:{mission.Id:N}",
-                        EventType = "MISSION_COMPLETED",
-                        CompletedAt = completedAt,
-                        ReceivedAt = now,
-                        IsTrusted = true,
-                        Evidence = "Mission end time elapsed; synchronized automatically by the post-flight monitor."
-                    });
-                }
-
-                var incidentCount = incidentCounts.GetValueOrDefault(mission.Id);
-                if (!existingReports.TryGetValue(mission.Id, out var existingReport))
-                {
-                    _context.PostFlightReports.Add(new PostFlightReport
-                    {
-                        Id = Guid.NewGuid(),
-                        MissionId = mission.Id,
-                        Revision = 1,
-                        IsCurrent = true,
-                        GenerationStatus = "Queued",
-                        Status = "Completed",
-                        CoveredTelemetryFrom = mission.StartTime.HasValue
-                            ? new DateTimeOffset(DateTime.SpecifyKind(mission.StartTime.Value, DateTimeKind.Utc)) : null,
-                        CoveredTelemetryThrough = completedAt,
-                        CreatedAt = now,
-                        GenerationReason = "Scheduled mission end time elapsed"
-                    });
-                }
-                else
-                {
-                    existingReport.Status = "Completed";
-                    existingReport.TotalIncidents = incidentCount;
-                    existingReport.SafetyEvaluation = incidentCount == 0
-                        ? "LOW RISK: No incidents were recorded during flight."
-                        : "COMPLETED WITH INCIDENTS: One or more incidents were recorded during flight.";
-                    existingReport.Summary ??= incidentCount == 0
-                        ? $"Flight '{mission.Name}' completed safely; no incidents were recorded."
-                        : $"Flight '{mission.Name}' completed with {incidentCount} recorded incident(s).";
-                }
-            }
-
+            // Approved/airborne flights remain unresolved until trusted FC terminal evidence.
             foreach (var mission in overdueUnapproved)
                 mission.Status = "Cancelled";
 
-            if (overdueFlights.Count > 0 || overdueUnapproved.Count > 0)
+            if (overdueUnapproved.Count > 0)
                 await _context.SaveChangesAsync(cancellationToken);
 
-            return new OverdueMissionSyncResult(overdueFlights.Count, overdueUnapproved.Count);
+            return new OverdueMissionSyncResult(0, overdueUnapproved.Count);
         }
 
         if (!_context.Database.IsRelational())

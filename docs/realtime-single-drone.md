@@ -10,8 +10,7 @@ the record the user reviewed; an outdated state returns HTTP 409.
 
 Apply `20261110000100_realtime_episodes.sql` after the existing telemetry migrations,
 or use the API's existing `--migrate-telemetry` command. This adds nullable fields
-without discarding evidence. The migration has not been applied to a deployed DB
-by this change.
+without discarding evidence. Apply 20261110000200_realtime_execution.sql next. Neither migration has been applied to a deployed DB by this change.
 
 The enrolled gateway remains the normal aircraft connection. Legacy HTTP ingestion
 requires an explicit source/UAV allowlist; an empty list rejects all legacy sources:
@@ -39,11 +38,12 @@ for two samples raises Warning; two samples at or above 25% recover. Altitude an
 speed violations are Critical and recover after two within-limit samples.
 
 MISSION_CURRENT identifies the current autopilot command. It is not a reached
-waypoint count and may include home/takeoff/landing commands. Progress stays null /
-Unavailable until a verified command-to-execution-waypoint mapping is available.
+waypoint count and may include home/takeoff/landing commands. Progress now uses confirmed reached commands mapped by the compiler to the immutable execution snapshot; before observed execution it stays null / Unavailable.
 The UI does not synthesize a percentage from the command index.
 
 The targeted checks use one primary UAV; a second dummy ID remains only to check
 rejection of an incorrect aircraft. Load, soak, browser acceptance and hardware
 acceptance tasks are outside this implementation pass; the release performance
 requirements have not been weakened.
+
+Latest implementation and the single pending acceptance case: [realtime-mainflow-completion.vi.md](realtime-mainflow-completion.vi.md). No tests executed in the completion pass.

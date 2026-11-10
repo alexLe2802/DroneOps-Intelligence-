@@ -42,7 +42,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
     private readonly AppDbContext _context;
     private readonly ILogger<TelemetryIngestionService> _logger;
-    private readonly TelemetryMonitoringOptions _monitoring;
+    private TelemetryMonitoringOptions _monitoring;
     private readonly IIncidentLifecycleService _incidentLifecycle;
     private readonly INotificationService? _notificationService;
     private readonly IMemoryCache? _cache;
@@ -57,7 +57,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
     {
         _context = context;
         _logger = logger;
-        _monitoring = monitoring.Value;
+        _monitoring = System.Text.Json.JsonSerializer.Deserialize<TelemetryMonitoringOptions>(System.Text.Json.JsonSerializer.Serialize(monitoring.Value))!;
         _incidentLifecycle = incidentLifecycle;
         _notificationService = notificationService;
         _cache = cache;
@@ -72,6 +72,16 @@ public class TelemetryIngestionService : ITelemetryIngestionService
     private async Task<TelemetryIngestResult> IngestCoreAsync(
         string idempotencyKey, IngestTelemetrySampleRequest request, CancellationToken cancellationToken)
     {
+        await LoadRuleSettingsAsync(cancellationToken);
+        if (request.SourceBootId is { Length: > 100 } || request.SourceEventId is { Length: > 128 })
+            throw new ArgumentException("Source identity is too long.");
+        if (!string.IsNullOrWhiteSpace(request.SourceBootId) && !string.IsNullOrWhiteSpace(request.SourceEventId))
+        {
+            var replay = await _context.TelemetryRecords.AsNoTracking().FirstOrDefaultAsync(t =>
+                t.SourceId == request.SourceId && t.SourceBootId == request.SourceBootId && t.SourceEventId == request.SourceEventId, cancellationToken);
+            if (replay != null) return new TelemetryIngestResult { Accepted = true, IsDuplicate = true,
+                RecordId = replay.Id, UsedForLatestProjection = false, Message = "Source event replay ignored." };
+        }
         // 1. Idempotency: gói trùng trả thành công mà không ghi thêm (retry an toàn).
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
         {
@@ -129,6 +139,9 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             }
         }
 
+        if (missionId.HasValue && await _context.MissionFlightExecutions.AnyAsync(e => e.UavId == request.UavId
+            && e.CompletedAt == null && e.MissionId != missionId, cancellationToken))
+            throw new ArgumentException("UAV already belongs to another active flight.");
         var now = DateTimeOffset.UtcNow;
 
         // Npgsql chỉ ghi timestamp with time zone bằng UTC. Gateway/Swagger có thể gửi
@@ -155,6 +168,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         {
             Id = Guid.NewGuid(),
             SourceId = request.SourceId,
+            SourceBootId = request.SourceBootId, SourceEventId = request.SourceEventId,
+            BatteryObservedAt = request.BatteryObservedAt?.ToUniversalTime() ?? sourceTimestampUtc,
+            AltitudeObservedAt = request.AltitudeObservedAt?.ToUniversalTime() ?? sourceTimestampUtc,
+            SpeedObservedAt = request.SpeedObservedAt?.ToUniversalTime() ?? sourceTimestampUtc,
             UAVId = request.UavId,
             MissionId = missionId,
             SourceTimestamp = sourceTimestampUtc,
@@ -271,9 +288,10 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             .ThenByDescending(t => t.ReceivedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
+        await LoadRuleSettingsAsync(cancellationToken);
         var response = new MissionLatestTelemetryResponse
         {
-            MissionId = mission.Id,
+            MissionId = mission.Id, StaleAfterSeconds = StaleAfterSeconds, OfflineAfterSeconds = OfflineAfterSeconds,
             UavId = mission.UAVId,
             UavCode = mission.UavCode,
             UavName = mission.UavName,
@@ -310,7 +328,9 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         response.SourceTimestamp = latestRecord.SourceTimestamp;
         response.ReceivedAt = latestRecord.ReceivedAt;
         response.IsValid = latestRecord.IsValid;
-        response.ProgressPercent = ComputeProgress(latestRecord.MissionSequence, mission.WaypointTotal);
+        var execution = await _context.MissionFlightExecutions.AsNoTracking().SingleOrDefaultAsync(e => e.MissionId == missionId, cancellationToken);
+        response.ProgressPercent = ExecutionProgress(execution);
+        if (execution != null) response.WaypointTotal = JsonSerializer.Deserialize<int[]>(execution.WaypointCommandsJson)!.Length;
         var aircraft = await _context.UAVs.AsNoTracking().SingleOrDefaultAsync(u => u.Id == latestRecord.UAVId, cancellationToken);
         if (!AltitudeRuleAvailable() || MslAltitude(latestRecord) == null)
             response.DetectionDiagnostics.Add("Altitude detection unavailable: requires MSL telemetry and configured minimum/maximum MSL limits.");
@@ -419,7 +439,9 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                 item.FlightMode = latest.FlightMode;
                 item.Armed = latest.Armed;
                 item.MissionSequence = latest.MissionSequence;
-                item.ProgressPercent = ComputeProgress(latest.MissionSequence, mission.WaypointTotal);
+                var execution = await _context.MissionFlightExecutions.AsNoTracking().SingleOrDefaultAsync(e => e.MissionId == mission.Id, cancellationToken);
+                item.ProgressPercent = ExecutionProgress(execution);
+                if (execution != null) item.WaypointTotal = JsonSerializer.Deserialize<int[]>(execution.WaypointCommandsJson)!.Length;
             }
 
             result.Add(item);
@@ -452,7 +474,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
         var raised = await EvaluateNumericRuleAsync(
             record, previous, "LowBattery", "Low battery detected",
-            "Warning",
+            _monitoring.LowBatteryCriticalPercent is { } critical && record.BatteryLevel <= critical && previous?.BatteryLevel <= critical ? "Critical" : "Warning",
             record.BatteryLevel, previous?.BatteryLevel,
             value => value < _monitoring.LowBatteryPercent,
             value => value >= _monitoring.LowBatteryPercent + _monitoring.LowBatteryRecoveryMarginPercent,
@@ -659,6 +681,15 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         double? threshold,
         CancellationToken cancellationToken)
     {
+        DateTimeOffset Observation(TelemetryRecord sample) => type switch
+        {
+            "LowBattery" => sample.BatteryObservedAt ?? sample.SourceTimestamp,
+            "AltitudeExceeded" => sample.AltitudeObservedAt ?? sample.SourceTimestamp,
+            "SpeedExceeded" => sample.SpeedObservedAt ?? sample.SourceTimestamp,
+            _ => sample.SourceTimestamp
+        };
+        if (previous == null || Observation(record) <= Observation(previous) || Observation(record) > DateTimeOffset.UtcNow
+            || DateTimeOffset.UtcNow - Observation(previous) > TimeSpan.FromSeconds(_monitoring.CommunicationLossSeconds)) return null;
         if (currentValue.HasValue && previousValue.HasValue &&
             isViolation(currentValue.Value) && isViolation(previousValue.Value))
             return await RaiseIncidentAsync(
@@ -744,20 +775,23 @@ public class TelemetryIngestionService : ITelemetryIngestionService
     private static decimal? MslAltitude(TelemetryRecord record) => record.AltitudeMslMeters
         ?? (string.Equals(record.AltitudeReference, "MSL", StringComparison.OrdinalIgnoreCase) ? record.Altitude : null);
 
+    private async Task LoadRuleSettingsAsync(CancellationToken ct)
+    {
+        var saved = await _context.MonitoringRuleRevisions.AsNoTracking().OrderByDescending(r => r.CreatedAt)
+            .Select(r => r.SettingsJson).FirstOrDefaultAsync(ct);
+        if (saved != null) _monitoring = JsonSerializer.Deserialize<TelemetryMonitoringOptions>(saved)!;
+    }
+
     private bool AltitudeRuleAvailable() =>
         _monitoring.MinimumAltitudeMslMeters.HasValue && _monitoring.MaximumAltitudeMslMeters.HasValue
         && _monitoring.MinimumAltitudeMslMeters <= _monitoring.MaximumAltitudeMslMeters;
 
-    private static double? ComputeProgress(int? missionSequence, int waypointTotal)
+    private static double? ExecutionProgress(MissionFlightExecution? execution)
     {
-        if (!missionSequence.HasValue || waypointTotal <= 0)
-        {
-            return null;
-        }
-
-        // MISSION_CURRENT is an active command index, not confirmed reached waypoints.
-        // Until an execution-snapshot mapping exists, progress must remain unavailable.
-        return null;
+        if (execution == null) return null;
+        var planned = JsonSerializer.Deserialize<int[]>(execution.WaypointCommandsJson) ?? [];
+        var reached = JsonSerializer.Deserialize<int[]>(execution.ReachedCommandsJson) ?? [];
+        return planned.Length == 0 ? null : Math.Round(100d * planned.Count(reached.Contains) / planned.Length, 1);
     }
 
     private static bool IsPointInPolygon(double lat, double lng, List<GeofenceCoordinateResponse> polygon)

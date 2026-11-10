@@ -2,6 +2,8 @@ import queue
 import time
 import datetime as dt
 import unittest
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -19,6 +21,11 @@ class FlightControlTests(unittest.TestCase):
         self.bridge = ControlBridge()
         self.link = SimpleNamespace(mav=Mock(), source_system=255, source_component=0)
         self.control = FlightControl(1, 1, self.bridge, True, lambda: self.now)
+        journal = tempfile.TemporaryDirectory()
+        self.addCleanup(journal.cleanup)
+        self.control.journal_path = Path(journal.name) / 'commands.json'
+        self.control.handled = set()
+        self.control.journal_valid = True
         self.control.tick(self.link)
         self.feed()
         self.control.uploaded_hash = 'hash'
@@ -29,14 +36,16 @@ class FlightControlTests(unittest.TestCase):
             ('SYS_STATUS', dict(onboard_control_sensors_enabled=1 << 28, onboard_control_sensors_health=1 << 28)),
             ('EXTENDED_SYS_STATE', dict(landed_state=landed)),
             ('GPS_RAW_INT', dict(fix_type=3)),
+            ('GLOBAL_POSITION_INT', dict(lat=106000000, lon=1070000000)),
             ('HOME_POSITION', dict(latitude=106000000, longitude=1070000000, altitude=12000)),
-            ('AUTOPILOT_VERSION', dict(capabilities=4)),
+            ('AUTOPILOT_VERSION', dict(capabilities=4, uid=123)),
         ):
             self.control.accept(message(kind, **fields), self.link)
 
     def response(self, action=None, identifier='id', **extra):
         utc = dt.datetime.now(dt.timezone.utc)
         value = dict(enabled=True, leaseSeconds=3, stage='Countdown', compiledHash='hash',
+                     missionId='mission', connectionId='connection', planHash='hash', controllerUid='UID64-000000000000007B',
                      serverNow=utc.isoformat(), command=dict(id=identifier, action=action,
                          expiresAt=(utc + dt.timedelta(seconds=60 if action == 'Upload' else 8)).isoformat()) if action else None)
         value.update(extra)
@@ -45,7 +54,7 @@ class FlightControlTests(unittest.TestCase):
 
     def test_basic_route_upload_readback_arm_and_start_without_recovery_setup(self):
         self.feed(autopilot=3, mode=5)
-        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100), self.link)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100, uid=123), self.link)
         self.control.accept(message('PARAM_VALUE', param_id='ARMING_SKIPCHK', param_value=0), self.link)
         fixture = adapter_fixtures.ParameterAdapterTests()
         fixture.setUp()
@@ -61,7 +70,7 @@ class FlightControlTests(unittest.TestCase):
         def item(seq, command, x, z):
             return dict(seq=seq, command=command, frame=3, param1=0, param2=0,
                         param3=0, param4=None, x=x, y=1070000000, z=z)
-        plan = dict(firmwareTarget='ArduPilot', operationalEnvelope=envelope,
+        plan = dict(firmwareTarget='ArduPilot', operationalEnvelope=envelope, plannedHome=dict(latitude=10.6, longitude=107.0),
                     items=[item(0, 22, 106000000, 20), item(1, 16, 106001000, 20), item(2, 21, 106001000, 0)])
         self.response('Upload', identifier='upload', mission=plan, stage='Uploading', requiredEnvelopeHash='hash')
         self.link.mav.mission_count_send.assert_called_once_with(1, 1, 4, 0)
@@ -82,7 +91,7 @@ class FlightControlTests(unittest.TestCase):
         self.assertTrue(self.bridge.report['succeeded'])
         self.now += 10
         self.feed(armed=True, autopilot=3, mode=5)
-        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100), self.link)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100, uid=123), self.link)
         self.response('Start', identifier='start', stage='Starting', requiredEnvelopeHash='hash')
         self.control.accept(message('COMMAND_ACK', command=300, result=0), self.link)
         self.feed(armed=True, autopilot=3, mode=3)
@@ -114,6 +123,15 @@ class FlightControlTests(unittest.TestCase):
             self.assertFalse(planned_home_matches(expected, actual))
         self.assertFalse(planned_home_matches({'latitude': 10.8231, 'longitude': 106.6297}, None))
 
+    def test_launch_accepts_few_meters_but_rejects_distant_or_stale_position(self):
+        home = dict(latitude=10.60003, longitude=107.0)
+        self.assertTrue(self.control.launch_matches(home))
+        self.control.accept(message('GLOBAL_POSITION_INT', lat=110000000, lon=1070000000), self.link)
+        self.assertFalse(self.control.launch_matches(home))
+        self.feed()
+        self.now += 4
+        self.assertFalse(self.control.launch_matches(home))
+
     def test_upload_checks_planned_home_but_keeps_actual_fc_home_header(self):
         self.feed(autopilot=3)
         item = dict(seq=0, command=22, frame=3, param1=0, param2=0, param3=0, param4=None, x=106000000, y=1070000000, z=20)
@@ -140,7 +158,7 @@ class FlightControlTests(unittest.TestCase):
         fixture = adapter_fixtures.ParameterAdapterTests()
         fixture.setUp()
         self.feed(autopilot=3)
-        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100), self.link)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100, uid=123), self.link)
         for name, value in dict(fixture.current, ARMING_SKIPCHK=0, FS_EKF_ACTION=1).items():
             self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
         self.response(requiredEnvelopeHash='hash', operatingEnvelope=fixture.envelope, stage='AwaitingFcProfile')
@@ -204,7 +222,7 @@ class FlightControlTests(unittest.TestCase):
             self.feed(autopilot=autopilot)
             self.control.tick(self.link)
             self.assertIn(parameter.encode(), [call.args[2] for call in self.link.mav.param_request_read_send.call_args_list])
-            self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100), self.link)
+            self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100, uid=123), self.link)
             self.control.accept(message('PARAM_VALUE', param_id=parameter, param_value=8000), self.link)
             self.assertEqual(self.control.evidence()['firmwareParameters']['values'][parameter], 8000)
         self.link.mav.param_set_send.assert_not_called()
@@ -258,10 +276,12 @@ class FlightControlTests(unittest.TestCase):
         self.response('Start', stage='Starting')
         self.link.mav.command_long_send.assert_not_called()
 
-    def test_local_ten_second_delay_cannot_be_shortened_by_backend(self):
+    def test_expired_scheduled_start_is_rejected_locally(self):
         self.feed(armed=True)
-        self.control.arm_at = self.now - 9.9
-        self.response('Start', stage='Starting')
+        self.control.arm_at = self.now
+        utc = dt.datetime.now(dt.timezone.utc)
+        self.response('Start', stage='Starting', command=dict(id='expired', action='Start',
+            expiresAt=(utc - dt.timedelta(seconds=1)).isoformat()))
         self.link.mav.command_long_send.assert_not_called()
 
     def test_start_consumes_permission_and_is_sent_once(self):
@@ -282,12 +302,14 @@ class FlightControlTests(unittest.TestCase):
         self.response('Start', stage='Starting')
         self.link.mav.command_long_send.assert_not_called()
 
-    def test_new_socket_instance_invalidates_verified_upload(self):
+    def test_new_socket_drops_launch_permission_but_retains_same_fc_readback(self):
         self.control.arm_at = self.now
         self.bridge.reconnect()
         self.control.tick(self.link)
-        self.assertIsNone(self.control.uploaded_hash)
+        self.assertEqual(self.control.uploaded_hash, 'hash')
         self.assertIsNone(self.control.arm_at)
+        self.assertEqual(self.control.lease, 0)
+        self.assertIsNone(self.control.envelope.verified_hash)
 
     def test_stale_socket_response_cannot_arm(self):
         previous = self.bridge.instance
