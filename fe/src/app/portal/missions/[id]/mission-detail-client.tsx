@@ -18,7 +18,7 @@ import MissionEvidencePanel from "../mission-evidence-panel";
 import MissionValidationEvidence from "../mission-validation-evidence";
 
 const formatDate = (value: string | null) => value ? formatVietnamDateTime(value) : "Not scheduled";
-const formatStatus = (value: string) => value.replace(/([A-Z])/g, " $1").trim();
+const formatStatus = (value: string) => value === "TakeOff" ? "Takeoff/Home" : value === "Return" ? "Return/RTL" : value.replace(/([A-Z])/g, " $1").trim();
 const statusKey = (value: string) => value.toLowerCase().replaceAll(" ", "");
 type MissionDialog = "cancel" | null;
 type BusyAction = "validate" | "start" | "cancel" | "submit" | null;

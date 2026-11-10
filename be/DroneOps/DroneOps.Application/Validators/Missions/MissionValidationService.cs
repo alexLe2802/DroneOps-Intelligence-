@@ -648,9 +648,7 @@ public sealed class MissionValidationService(
         // Route validation
         // -----------------------------------------------------
 
-        var orderedPoints = mission.Waypoints
-            .OrderBy(x => x.SequenceOrder)
-            .ToList();
+        var orderedPoints = MissionRouteGeometry.PlanningWaypoints(mission);
         // -----------------------------------------------------
         // Route duration / average speed validation
         // -----------------------------------------------------

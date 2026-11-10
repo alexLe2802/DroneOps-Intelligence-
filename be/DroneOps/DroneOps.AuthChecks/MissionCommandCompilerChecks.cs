@@ -63,6 +63,19 @@ internal static class MissionCommandCompilerChecks
             "a two-point route also contains an explicit arrival waypoint");
         Check(!MissionCommandCompiler.Compile(automatic, options with { FirmwareTarget = "PX4", LandingGroundAltitudeMeters = null }).CanEncode,
             "PX4 still requires its explicit landing elevation");
+        automatic.Waypoints.Last().ActionType = "Return";
+        var returnPlan = MissionCommandCompiler.Compile(automatic, options);
+        Check(returnPlan.CanEncode && returnPlan.Items.Select(i => i.Command).SequenceEqual(new ushort[] { 22, 178, 16, 20 }),
+            "Return visits the endpoint then issues native RTL without landing at that endpoint");
+        Check(returnPlan.Items[^1] is { Command: 20, X: 0, Y: 0, Z: 0, Param4: 0 }
+            && returnPlan.WaypointCommands!.Last() == returnPlan.Items.Count,
+            "RTL has no invented Home coordinates and terminal progress maps to RTL after the FC Home offset");
+        var projected = MissionRouteGeometry.PlanningWaypoints(automatic);
+        Check(projected.Count == 3 && projected[^1].Latitude == projected[0].Latitude
+            && projected[^1].Longitude == projected[0].Longitude && automatic.Waypoints.Count == 2,
+            "airspace and energy projection includes the return leg without mutating the approved route");
+        automatic.Waypoints = [Point(1, "TakeOff"), Point(2, "Return"), Point(3, "Land")];
+        Check(!MissionCommandCompiler.Compile(automatic, options).CanEncode, "an intermediate Return cannot silently terminate the mission early");
         mission.AltitudeReference = "MSL";
         Check(MissionCommandCompiler.Compile(mission, options).Items[0].Frame == 0, "MSL uses global frame with integer coordinate encoding");
         mission.AltitudeReference = "AGL";

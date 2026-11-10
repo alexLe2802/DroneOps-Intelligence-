@@ -78,3 +78,34 @@ Planned Home cũ làm điều kiện cấu hình, upload, ARM hoặc START.
 Home thực tế vẫn do flight controller quản lý, không bị đặt lại từ bản đồ.
 Profile ArduCopter hiện tại vẫn kiểm tra TakeOff gần Home thực tế, GPS/navigation,
 pre-arm, UID, hash/read-back, consent và thời hạn lệnh như trước.
+
+## Điểm kết thúc: Land hoặc Return/RTL
+
+Tên hiển thị `Takeoff/Home` vẫn lưu action `TakeOff`; không thêm lại bước chọn Planned Home.
+Điểm cuối cho chọn `Land` hoặc `Return/RTL` (action API `Return`).
+
+- A Takeoff/Home → B Land: đến B ở độ cao kế hoạch, sau đó LAND tại B.
+- A Takeoff/Home → B Return/RTL: đến B ở độ cao kế hoạch, sau đó NAV_RETURN_TO_LAUNCH (20)
+  quay về Home thực tế trên FC và hạ cánh. B không bị bỏ qua; RTL không chứa tọa độ Home do web tự đặt.
+- Bản đồ vẽ thêm chặng B → A khi Return được chọn. Validation vùng bay, thời gian và ước tính pin
+  bao gồm chặng về, dùng độ cao trần envelope để ước tính bảo thủ; Home FC thực tế phải qua kiểm tra TakeOff hiện có.
+- Gateway đọc lại cấu hình FC trước upload/ARM/START: RTL_ALT_FINAL_M=0 (hạ cánh),
+  RALLY_TOTAL=0, RTL_ALT_TYPE=0 (Home-relative), RTL_ALT_M trong trần đã duyệt.
+  Thiếu/cũ/không phù hợp sẽ chặn, không tự ghi đè tham số để ép bay.
+- Return chỉ Completed khi có bằng chứng đến B, thực thi terminal, hai quan sát landed/disarmed
+  và telemetry vị trí mới gần Home thực tế (10 m). Đến B hoặc ACK RTL không tự hoàn thành nhiệm vụ.
+
+Tham khảo: https://ardupilot.org/copter/docs/common-mavlink-mission-command-messages-mav_cmd.html
+Không chạy test local hoặc bay thật trong lượt triển khai; cập nhật fixture để CI/người vận hành kiểm tra sau.
+
+## Thời điểm gửi và thực thi nhiệm vụ
+
+Manager Approved không tự ARM drone. Sau approval, khi gateway đúng UID kết nối,
+FC disarmed/landed và profile tham số đã xác minh, backend tự queue Upload trước giờ bay.
+Gateway truyền mission rồi tải lại để so khớp compiled hash. ACK upload không tạo chuyến bay.
+Pilot xác nhận đúng kế hoạch/kết nối trong [T−5 phút,T), giữ portal visible/online.
+Tại T, scheduler kiểm tra lại approval, pending update, eligibility/schedule, preflight Pass
+trong 60 giây, telemetry/gateway/pilot presence, UID, mission hash/read-back, envelope và pre-arm.
+Đủ điều kiện mới ARM → START trong cửa sổ T đến T+5 giây. Không tự bay bù nếu bị chặn/hết hạn.
+FC thực hiện Takeoff/Home → các waypoint → Land hoặc Return/RTL; chỉ quan sát in-air
+mới tạo execution. DISARM không phải lệnh cất cánh. Kết thúc cần landed/disarmed evidence.

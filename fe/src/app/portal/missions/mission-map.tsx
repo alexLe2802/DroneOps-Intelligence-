@@ -95,7 +95,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
         const marker = L.marker([point.latitude, point.longitude], {
           draggable: !readOnly,
           icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker" ${findings?.some(f => f.waypointSequence === point.sequenceOrder) ? 'style="background:#ef3340;border-color:#ef3340"' : ""}><b>${index + 1}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }),
-        }).addTo(map);
+        }).bindTooltip(point.actionType === "TakeOff" ? "Takeoff/Home" : point.actionType === "Return" ? "Return/RTL · visit this point, then return to FC Home" : point.actionType).addTo(map);
         if (!readOnly) marker.on("dragend", () => { if (readOnlyRef.current) return; const value = marker.getLatLng(); onUpdateRef.current?.(index, { latitude: Number(value.lat.toFixed(6)), longitude: Number(value.lng.toFixed(6)) }); });
         return marker;
       });
@@ -105,7 +105,11 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
         }).bindTooltip("Planned Home").addTo(map);
         markersRef.current.push(homeMarker);
       }
-      if (waypoints.length > 1) routeRef.current = L.polyline(waypoints.map(point => [point.latitude, point.longitude]), { color: "#25d6ff", weight: 4, opacity: .95 }).addTo(map);
+      if (waypoints.length > 1) {
+        const positions: Leaflet.LatLngTuple[] = waypoints.map(point => [point.latitude, point.longitude]);
+        if (waypoints.at(-1)?.actionType === "Return") positions.push([waypoints[0].latitude, waypoints[0].longitude]);
+        routeRef.current = L.polyline(positions, { color: "#25d6ff", weight: 4, opacity: .95 }).addTo(map);
+      }
       for (const finding of findings ?? []) {
         if (finding.segmentFrom == null || finding.segmentTo == null) continue;
         const first = waypoints.find(point => point.sequenceOrder === finding.segmentFrom), last = waypoints.find(point => point.sequenceOrder === finding.segmentTo);

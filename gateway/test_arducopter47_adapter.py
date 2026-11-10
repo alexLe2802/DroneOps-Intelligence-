@@ -10,6 +10,12 @@ class MissionCanonicalizationTests(unittest.TestCase):
             param2=2 if command == 16 else 0, param3=0, param4=None,
             x=108231000, y=1066297000, z=20.15), **changes)
 
+    def test_rtl_has_no_stored_destination_or_parameters(self):
+        source = self.item(20, frame=2, x=0, y=0, z=0, param4=0)
+        result = canonical_mission_item(source, {})
+        self.assertEqual(result, source)
+        self.assertEqual(source['command'], 20)
+
     def test_native_nav_placeholders_and_centimeter_altitude(self):
         for command, yaw in ((16, 0), (22, 0), (21, 1)):
             source = self.item(command)
