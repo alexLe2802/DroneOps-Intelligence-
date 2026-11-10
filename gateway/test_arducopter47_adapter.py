@@ -1,7 +1,40 @@
 import unittest
 from types import SimpleNamespace
 
-from arducopter47_adapter import ProfileError, apply_to_sitl, parameter_targets
+from arducopter47_adapter import ProfileError, apply_to_sitl, parameter_targets, canonical_mission_item
+
+
+class MissionCanonicalizationTests(unittest.TestCase):
+    def item(self, command=16, **changes):
+        return dict(dict(seq=2, command=command, frame=3, param1=0,
+            param2=2 if command == 16 else 0, param3=0, param4=None,
+            x=108231000, y=1066297000, z=20.15), **changes)
+
+    def test_native_nav_placeholders_and_centimeter_altitude(self):
+        for command, yaw in ((16, 0), (22, 0), (21, 1)):
+            source = self.item(command)
+            result = canonical_mission_item(source, {'WP_RADIUS_M': 2})
+            self.assertEqual(result['param4'], yaw)
+            self.assertEqual(result['param2'], 0)
+            self.assertAlmostEqual(result['z'], 20.15, places=5)
+            for field in ('seq', 'command', 'frame', 'x', 'y'):
+                self.assertEqual(result[field], source[field])
+            self.assertIsNone(source['param4'])
+
+    def test_requested_yaw_radius_and_fractional_hold_are_not_silently_lost(self):
+        for override in ({'param4': 90}, {'param4': 0}, {'param2': 3}, {'param1': .5}, {'param3': 1}):
+            with self.assertRaises(ProfileError):
+                canonical_mission_item(self.item(**override), {'WP_RADIUS_M': 2})
+        with self.assertRaises(ProfileError):
+            canonical_mission_item(self.item(), {})
+        self.assertEqual(canonical_mission_item(self.item(param1=5), {'WP_RADIUS_M': 2})['param1'], 5)
+
+    def test_normalized_readback_still_rejects_coordinate_altitude_and_frame_corruption(self):
+        from flight_control import same_item
+        expected = canonical_mission_item(self.item(), {'WP_RADIUS_M': 2})
+        self.assertTrue(same_item(expected, SimpleNamespace(**expected)))
+        for override in ({'x': 1}, {'z': 1}, {'frame': 0}, {'param4': 90}, {'param2': 3}):
+            self.assertFalse(same_item(expected, SimpleNamespace(**dict(expected, **override))))
 
 
 class ParameterAdapterTests(unittest.TestCase):
