@@ -75,6 +75,14 @@ db.Incidents.AddRange(
         Id = Guid.NewGuid(), MissionId = overdueActiveMissionId, Title = "Route deviation",
         Type = "RouteDeviation", Severity = "Low", Status = "Resolved", CreatedAt = now.AddMinutes(-15)
     });
+db.FlightCompletionEvents.Add(new FlightCompletionEvent
+{
+    Id = Guid.NewGuid(), MissionId = overdueActiveMissionId, UAVId = uavId,
+    SourceId = "trusted-simulator", IdempotencyKey = "overdue-trusted-completion",
+    EventType = "MISSION_COMPLETED", CompletedAt = now.AddMinutes(-11),
+    ReceivedAt = now.AddMinutes(-10), IsTrusted = true,
+    Evidence = "Trusted landed evidence for lifecycle reconciliation."
+});
 await db.SaveChangesAsync();
 
 Check((await db.Missions.FindAsync(missionId))!.Status == "Approved",
@@ -175,33 +183,32 @@ Check(await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == noTelemetryMi
 Check(await service.SynchronizeOverdueMissionsAsync() == 4,
     "scheduled lifecycle synchronization runs explicitly before analytics");
 var analytics = await service.GetOperationalAnalyticsAsync(new GetOperationalAnalyticsRequest(), pilotId);
-Check(analytics.TotalFlights == 6 && analytics.CompletedFlights == 5 &&
-      analytics.SuccessRatePercentage == 83.3 && analytics.CompletionRateStatus == "Available",
+Check(analytics.TotalFlights == 4 && analytics.CompletedFlights == 3 &&
+      analytics.SuccessRatePercentage == 75 && analytics.CompletionRateStatus == "Available",
     "completion rate uses completed over all started flights instead of reports or unstarted cancellations");
-Check(analytics.ReportsAvailable == 4 && analytics.ReportsExcluded == 2 &&
-      analytics.ReportCoveragePercentage == 66.7,
+Check(analytics.ReportsAvailable == 2 && analytics.ReportsExcluded == 2 &&
+      analytics.ReportCoveragePercentage == 50,
     "analytics discloses report coverage and exclusions");
 Check(analytics.TotalIncidentsRecorded == 2 && analytics.IncidentSeverityBreakdown["High"] == 1 &&
       analytics.IncidentSeverityBreakdown["Low"] == 1 && analytics.IncidentTypeBreakdown["LowBattery"] == 1 &&
       analytics.IncidentTypeBreakdown["RouteDeviation"] == 1 && analytics.CompletionTrend.Count == 1,
     "analytics includes distinct incident type/severity breakdowns and daily trend");
-Check((await db.Missions.FindAsync(overdueActiveMissionId))!.Status == "Completed" &&
-      (await db.Missions.FindAsync(overdueApprovedMissionId))!.Status == "Completed",
-    "scheduled lifecycle synchronizes overdue active and approved missions");
-Check((await db.Missions.FindAsync(overdueDraftMissionId))!.Status == "Cancelled",
-    "scheduled lifecycle cancels overdue draft missions with a valid terminal status");
+Check((await db.Missions.FindAsync(overdueActiveMissionId))!.Status == "Completed",
+    "scheduled lifecycle reconciles an overdue active flight only from trusted completion evidence");
+Check((await db.Missions.FindAsync(overdueApprovedMissionId))!.Status == "Cancelled" &&
+      (await db.Missions.FindAsync(overdueNoTelemetryMissionId))!.Status == "Cancelled" &&
+      (await db.Missions.FindAsync(overdueDraftMissionId))!.Status == "Cancelled",
+    "scheduled lifecycle cancels overdue unstarted missions without fabricating flights");
 var incidentReport = await service.GetReportByMissionIdAsync(overdueActiveMissionId, pilotId, false);
-var safeReport = await service.GetReportByMissionIdAsync(overdueApprovedMissionId, pilotId, false);
-var scheduledReport = await service.GetReportByMissionIdAsync(overdueNoTelemetryMissionId, pilotId, false);
 Check(incidentReport.GenerationStatus == "Available" && incidentReport.TotalIncidents == 1 &&
       incidentReport.SafetyEvaluation!.Contains("RISK", StringComparison.OrdinalIgnoreCase),
-    "overdue completed flight report records incidents");
-Check(safeReport.GenerationStatus == "Available" && safeReport.TotalIncidents == 0 &&
-      safeReport.SafetyEvaluation!.Contains("No incidents", StringComparison.OrdinalIgnoreCase),
-    "overdue completed flight report records safe completion");
-Check(scheduledReport.GenerationStatus == "Available" && scheduledReport.TotalTelemetryRecords == 0 &&
-      scheduledReport.TotalFlightDurationMinutes == 10,
-    "overdue approved mission without telemetry receives a scheduled completion report");
+    "trusted overdue completion report records incidents");
+await ExpectThrowsAsync<KeyNotFoundException>(
+    () => service.GetReportByMissionIdAsync(overdueApprovedMissionId, pilotId, false),
+    "overdue approved mission creates no fabricated post-flight report");
+await ExpectThrowsAsync<KeyNotFoundException>(
+    () => service.GetReportByMissionIdAsync(overdueNoTelemetryMissionId, pilotId, false),
+    "overdue approved mission without telemetry creates no report");
 
 db.Missions.Add(OverdueMission(historySyncMissionId, "History synchronization", "Active"));
 db.TelemetryRecords.AddRange(
@@ -217,8 +224,8 @@ Check(history.Items.Single().Status == "Active" &&
     "flight history reads without running scheduled synchronization");
 await service.SynchronizeOverdueMissionsAsync();
 history = await service.GetFlightHistoryAsync(new GetFlightHistoryRequest { Search = "History synchronization" }, pilotId);
-Check(history.Items.Single().Status == "Completed" && history.Items.Single().ReportStatus == "Available",
-    "flight history reflects scheduled worker completion");
+Check(history.Items.Single().Status == "Active" && history.Items.Single().ReportStatus == "NotQueued",
+    "scheduled worker does not fabricate completion without trusted terminal evidence");
 
 db.Missions.Add(OverdueMission(
     legacyAvailableReportMissionId, "Legacy active mission with available report", " Active "));
@@ -246,14 +253,13 @@ var legacyHistory = await service.GetFlightHistoryAsync(new GetFlightHistoryRequ
 {
     Search = "Legacy active mission"
 }, pilotId);
-Check(legacyHistory.Items.Single().Status == "Completed" &&
+Check(legacyHistory.Items.Single().Status.Trim() == "Active" &&
       legacyHistory.Items.Single().ReportStatus == "Available" &&
       legacyHistory.Items.Single().TotalIncidents == 2,
-    "legacy overdue Active mission with an available report is synchronized to Completed");
+    "legacy report remains readable without fabricating a mission completion transition");
 var legacyReport = await service.GetReportByMissionIdAsync(legacyAvailableReportMissionId, pilotId, false);
-Check(legacyReport.TotalIncidents == 2 &&
-      legacyReport.SafetyEvaluation!.Contains("INCIDENTS", StringComparison.OrdinalIgnoreCase),
-    "existing available report is refreshed with overdue mission incident outcome");
+Check(legacyReport.TotalIncidents == 0 && legacyReport.SafetyEvaluation == null,
+    "legacy report evidence is not rewritten without trusted completion reconciliation");
 
 var emptyAnalytics = await service.GetOperationalAnalyticsAsync(new GetOperationalAnalyticsRequest
 {
