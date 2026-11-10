@@ -20,3 +20,10 @@
 - Backend deployment requires access to the existing Render service; the Render app is not connected in this session.
 - No aircraft commands or KAN-51 acceptance flight were performed.
 - Report5 remains unchanged. Application test execution is deferred under the owner's earlier instruction; release build/type validation and deployment/schema checks are separate.
+
+## Shared release tracking
+
+- Feature commit pushed to `Qthong`: `3cf91ef668b4138aa3d3e3ab26ac46f769c88f8d`.
+- Team notebook: https://supabase.com/dashboard/project/diaswbzjhvzwxcadlias/explorer/notebook/3b2b4612-54af-4cce-b29c-0a6fdc6ab955
+- GitHub CI ran automatically after push. Frontend checks and the ArduCopter SITL policy workflow passed; backend/gateway checks exposed obsolete expectations. Follow-up fixtures now require planned home, reject expired starts, retain same-process FC readback on reconnect, and require trusted completion evidence rather than schedule expiration.
+- Local application tests were not executed. No production frontend/backend rollout has occurred while Render access is pending.
