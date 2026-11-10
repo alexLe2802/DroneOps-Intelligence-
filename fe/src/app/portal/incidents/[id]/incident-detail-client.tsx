@@ -138,7 +138,8 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
   const sourceTimestamp = incident.sourceTimestamp ?? textOf(evidence, "sourceTimestamp");
   const receivedAt = incident.receivedAt ?? textOf(evidence, "receivedAt");
   const handlingState = status === "open" ? "Awaiting operator or manager acknowledgement" : status === "acknowledged" ? "Acknowledged and under operational review" : "Resolution recorded; incident history is read-only";
-  const canDraftResolution = status !== "resolved";
+  const isManager = account.role === "operation_manager";
+  const canDraftResolution = isManager && status !== "resolved";
   const trimmedDraft = resolutionDraft.trim();
 
   function applyNoteTemplate(template: string) {
@@ -271,9 +272,11 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
           {actionMessage && <p className={styles.actionSuccess} role="status">{actionMessage}</p>}
           <div>
             <button type="button" disabled={status !== "open" || action !== null} onClick={() => void acknowledge()}>{action === "acknowledge" ? "ACKNOWLEDGING..." : status === "acknowledged" ? "INCIDENT ACKNOWLEDGED" : "ACKNOWLEDGE INCIDENT"}</button>
-            <button type="button" className={styles.primaryAction} disabled={!trimmedDraft || action !== null} onClick={() => void resolve()}>{action === "resolve" ? "RESOLVING..." : "RESOLVE & CLOSE INCIDENT"}</button>
+            {isManager && <button type="button" className={styles.primaryAction} disabled={!trimmedDraft || action !== null} onClick={() => void resolve()}>{action === "resolve" ? "RESOLVING..." : "RESOLVE & CLOSE INCIDENT"}</button>}
           </div>
-          <p>{status === "open" ? "Acknowledge to record operational ownership, or add mandatory resolution notes and close the incident." : "Acknowledgement recorded. Add the mitigation result above to close this incident."}</p>
+          <p>{isManager
+            ? status === "open" ? "Acknowledge to record operational ownership, or add mandatory resolution notes and close the incident." : "Acknowledgement recorded. Add the mitigation result above to close this incident."
+            : status === "open" ? "Acknowledge to record operational ownership. Only an Operations Manager may close the incident." : "Acknowledgement recorded. An Operations Manager must record the final resolution."}</p>
         </div> : <div className={styles.readOnlyNotice}>{actionMessage || "INCIDENT CLOSED / HISTORY IS READ-ONLY"}</div>}
       </aside>
     </div>
