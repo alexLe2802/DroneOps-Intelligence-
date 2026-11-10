@@ -69,50 +69,12 @@ Xem [phạm vi một drone và bài nghiệm thu KAN-51](realtime-mainflow-compl
 Tham chiếu lệnh chính thức: https://ardupilot.org/copter/docs/common-mavlink-mission-command-messages-mav_cmd.html
 
 
-## Planned Home bắt buộc cho nhiệm vụ tự động
+## Không yêu cầu chọn Planned Home
 
-Planned Home là vị trí cất cánh dự kiến do người lập kế hoạch chọn, được lưu ở
-`Navigation.PlannedHome` của waypoint 1. Nhiệm vụ tự động phải có trường này khi
-lưu và khi kiểm tra/biên dịch; nhiệm vụ cũ thiếu Home phải bổ sung trước khi bay.
-Không tự suy ra Home từ TakeOff để bỏ qua yêu cầu chọn Home.
-
-Theo [QGroundControl Plan View](https://docs.qgroundcontrol.com/Stable_V5.1/en/qgc-user-guide/plan_view/plan_view.html),
-Planned Home phục vụ lập kế hoạch; Home thực tế do firmware xác lập khi arm.
-Với [ArduCopter RTL](https://ardupilot.org/copter/docs/rtl-mode.html), Home thường
-là vị trí drone khi arm với GPS hợp lệ. Điểm chọn trên bản đồ không phải lệnh bay
-đến Home và không được ghi đè Home thực tế của FC.
-
-Gateway kiểm tra trước upload, arm và start: Home FC mới trong 15 giây và vị trí
-ước lượng hiện tại `GLOBAL_POSITION_INT` mới trong 3 giây đều phải cách Planned
-Home không quá 10 m theo khoảng cách ngang địa lý. Nếu khai báo cao độ Home MSL,
-cao độ Home FC phải lệch không quá 5 m; bỏ trống cao độ thì dùng Home thực tế.
-Các điều kiện GPS/navigation, landed, pre-arm và kiểm tra TakeOff vẫn áp dụng.
-Ngưỡng 10 m là chính sách DroneOps hiện tại, không phải bảo đảm mặc định của QGC
-hay bán kính waypoint. Không tự nới ngưỡng khi GPS kém hoặc tự di chuyển drone.
-
-- Drone tại FPT TP.HCM, Planned Home tại Đồng Nai: chặn upload/arm/start qua
-  DroneOps. Người vận hành phải đưa drone đến khu vực cất cánh hoặc sửa kế hoạch
-  và xác nhận lại. Arm bằng RC/QGC bên ngoài không được DroneOps ngăn chặn; arm
-  thành công không đồng nghĩa nhiệm vụ đã đủ điều kiện bắt đầu.
-- Drone lệch Home trên map vài mét: cho phép nếu cả Home FC và vị trí hiện tại
-  nằm trong 10 m và các kiểm tra khác đạt. Không so sánh tọa độ bằng tuyệt đối.
-- Home FC đúng nhưng drone đã được mang sang nơi khác: vị trí hiện tại không
-  khớp nên chặn. Thiếu hoặc hết hạn dữ liệu vị trí cũng chặn.
-
-Cần SITL và kiểm tra thực địa trước khi dùng trên phần cứng; các kiểm thử logic
-không chứng minh được độ chính xác GPS hoặc vật cản tại nơi cất cánh.
-
-
-### Thứ tự điểm khi lập kế hoạch automatic
-
-Trên màn hình tạo/sửa và chi tiết nhiệm vụ, điểm 1 là Home, điểm 2 là TakeOff,
-điểm cuối là Land. Khi chưa chọn Home, click bản đồ đầu tiên đặt Home; click tiếp
-đặt TakeOff; click thứ ba đặt Land. Khi thêm điểm nữa, Land cũ chuyển thành
-FlyThrough và điểm mới trở thành Land, giữ cơ chế thêm waypoint hiện tại.
-Có thể đặt/sửa Home bằng ô tọa độ, nút chọn trên map hoặc kéo marker Home.
-Clear Route trong chế độ automatic xóa cả Home và các điểm bay để bắt đầu lại.
-
-Home là điểm lập kế hoạch, lưu trong `Navigation.PlannedHome`, không phải một
-lệnh waypoint gửi tới FC. Số thứ tự hiển thị của điểm bay được cộng 1 trong chế
-độ automatic; `SequenceOrder` trong API vẫn bắt đầu từ 1 cho TakeOff để giữ
-nguyên biên dịch, kiểm tra và thực thi nhiệm vụ. Manual giữ thứ tự hiện tại.
+Màn hình tạo/sửa nhiệm vụ không có bước chọn Home. Click đầu tiên tạo TakeOff,
+sau đó thêm các điểm bay và Land; số thứ tự waypoint bắt đầu từ 1.
+Backend không yêu cầu `Navigation.PlannedHome`; gateway không dùng metadata
+Planned Home cũ làm điều kiện cấu hình, upload, ARM hoặc START.
+Home thực tế vẫn do flight controller quản lý, không bị đặt lại từ bản đồ.
+Profile ArduCopter hiện tại vẫn kiểm tra TakeOff gần Home thực tế, GPS/navigation,
+pre-arm, UID, hash/read-back, consent và thời hạn lệnh như trước.

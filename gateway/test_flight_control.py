@@ -70,7 +70,7 @@ class FlightControlTests(unittest.TestCase):
         def item(seq, command, x, z):
             return dict(seq=seq, command=command, frame=3, param1=0, param2=0,
                         param3=0, param4=None, x=x, y=1070000000, z=z)
-        plan = dict(firmwareTarget='ArduPilot', operationalEnvelope=envelope, plannedHome=dict(latitude=10.6, longitude=107.0),
+        plan = dict(firmwareTarget='ArduPilot', operationalEnvelope=envelope,
                     items=[item(0, 22, 106000000, 20), item(1, 16, 106001000, 20), item(2, 21, 106001000, 0)])
         self.response('Upload', identifier='upload', mission=plan, stage='Uploading', requiredEnvelopeHash='hash')
         self.link.mav.mission_count_send.assert_called_once_with(1, 1, 4, 0)
@@ -123,29 +123,19 @@ class FlightControlTests(unittest.TestCase):
             self.assertFalse(planned_home_matches(expected, actual))
         self.assertFalse(planned_home_matches({'latitude': 10.8231, 'longitude': 106.6297}, None))
 
-    def test_launch_accepts_few_meters_but_rejects_distant_or_stale_position(self):
-        home = dict(latitude=10.60003, longitude=107.0)
-        self.assertTrue(self.control.launch_matches(home))
-        self.control.accept(message('GLOBAL_POSITION_INT', lat=110000000, lon=1070000000), self.link)
-        self.assertFalse(self.control.launch_matches(home))
-        self.feed()
-        self.now += 4
-        self.assertFalse(self.control.launch_matches(home))
-
-    def test_upload_checks_planned_home_but_keeps_actual_fc_home_header(self):
+    def test_upload_ignores_legacy_planned_home_and_keeps_actual_fc_home_header(self):
         self.feed(autopilot=3)
         item = dict(seq=0, command=22, frame=3, param1=0, param2=0, param3=0, param4=None, x=106000000, y=1070000000, z=20)
         self.response('Upload', mission=dict(firmwareTarget='ArduPilot', items=[item],
-            plannedHome=dict(latitude=10.600001, longitude=107.0)), stage='Uploading')
+            plannedHome=dict(latitude=11, longitude=108)), stage='Uploading')
         self.link.mav.mission_count_send.assert_called_once()
         self.assertEqual(self.control.items[0]['x'], 106000000)
         self.assertEqual(self.control.items[0]['z'], 12)
         self.link.mav.command_long_send.assert_not_called()
 
-    def test_upload_rejects_distant_planned_home_without_writing_mission(self):
+    def test_upload_without_planned_home_still_rejects_empty_mission(self):
         self.feed(autopilot=3)
-        self.response('Upload', mission=dict(firmwareTarget='ArduPilot', items=[],
-            plannedHome=dict(latitude=11, longitude=107)), stage='Uploading')
+        self.response('Upload', mission=dict(firmwareTarget='ArduPilot', items=[]), stage='Uploading')
         self.link.mav.mission_count_send.assert_not_called()
         self.assertFalse(self.bridge.report['succeeded'])
 

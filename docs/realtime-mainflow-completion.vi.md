@@ -55,3 +55,10 @@ UID, hash, replay và bằng chứng cất/hạ cánh để làm test “dễ đ
 
 Chi tiết nghiệm thu ở Jira KAN-51. Report5 đã nộp được giữ nguyên. Trạng thái Not run;
 không ghi Pass hay xác nhận bay thật khi chưa có biên bản/log của người vận hành.
+
+## Cập nhật luồng tạo nhiệm vụ — bỏ bước Home
+
+Theo yêu cầu mới, form tạo/sửa không cho chọn Planned Home và không yêu cầu trường này.
+TakeOff là waypoint đầu tiên, không bị cộng số thứ tự cho Home. Gateway bỏ đối chiếu
+Planned Home với vị trí drone/Home FC; Home thực tế và kiểm tra TakeOff của FC vẫn giữ nguyên.
+Không thay đổi Report5 hay dữ liệu Home thực tế trên drone.

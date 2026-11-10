@@ -7,10 +7,7 @@ public static class AutomaticFlightPolicy
     public static IReadOnlyList<string> NavigationErrors(IEnumerable<(WaypointNavigation? Navigation, string? Action)> points, decimal maximum)
     {
         var errors = new List<string>();
-        var route = points.ToList();
-        if (route.FirstOrDefault().Navigation?.PlannedHome == null)
-            errors.Add("Planned Home is required for automatic missions. Select the expected launch location.");
-        foreach (var (nav, action) in route)
+        foreach (var (nav, action) in points)
         {
             var waypointCommand = string.Equals(action, "FlyThrough", StringComparison.OrdinalIgnoreCase) || string.Equals(action, "Hover", StringComparison.OrdinalIgnoreCase);
             if (!waypointCommand && (nav?.HoldTimeSeconds > 0 || nav?.AcceptanceRadiusMeters != null)) errors.Add("Hold time and acceptance radius overrides apply only to FlyThrough/Hover commands.");
