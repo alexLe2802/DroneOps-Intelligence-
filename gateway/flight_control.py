@@ -78,6 +78,7 @@ class FlightControl:
         self.last_gcs_heartbeat = float('-inf')
         self.parameters = {}
         self.parameters_requested = float('-inf')
+        self.return_ceiling = None
         self.envelope = EnvelopeVerifier(system, component, clock)
 
     def fresh(self, kind, seconds=3):
@@ -128,7 +129,7 @@ class FlightControl:
                  'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN',
                  'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST', 'BAT1_CAPACITY') if heartbeat.autopilot == 12 else ()
         if heartbeat.autopilot == 3:
-            names = tuple(dict.fromkeys((*names, *ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK')))
+            names = tuple(dict.fromkeys((*names, *ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK', 'RALLY_TOTAL', 'RTL_ALT_TYPE')))
         for name in names:
             link.mav.param_request_read_send(self.system, self.component, name.encode('ascii'), -1)
         self.parameters_requested = self.clock()
@@ -159,7 +160,7 @@ class FlightControl:
             name = name.split('\0')[0]
             allowed = {'WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED', 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS',
                 'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN', 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST', 'BATT_CAPACITY', 'BAT1_CAPACITY'}
-            allowed.update((*ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK'))
+            allowed.update((*ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK', 'RALLY_TOTAL', 'RTL_ALT_TYPE'))
             if name in allowed and math.isfinite(message.param_value):
                 self.parameters[name] = (message.param_value, self.clock(), dt.datetime.now(dt.timezone.utc).isoformat())
         if kind == 'HEARTBEAT' and (message.type == 6 or message.autopilot == 8):
@@ -329,6 +330,18 @@ class FlightControl:
             return
         self.envelope.begin(wanted, response['operatingEnvelope'], snapshot['values'], link)
 
+    def return_landing_ready(self):
+        # Return/RTL in this product means land at FC Home, not hover or divert
+        # to a rally point. Read only; configuration is never silently changed.
+        values = {name: value for name, (value, seen, _) in self.parameters.items() if self.clock() - seen <= 60}
+        return (self.fresh('HOME_POSITION', 15) is not None
+                and values.get('RTL_ALT_FINAL_M') == 0
+                and values.get('RALLY_TOTAL') == 0
+                and values.get('RTL_ALT_TYPE') == 0
+                and isinstance(self.return_ceiling, (int, float))
+                and isinstance(values.get('RTL_ALT_M'), (int, float))
+                and 0 < values['RTL_ALT_M'] <= self.return_ceiling)
+
     def begin(self, link, response):
         evidence = self.evidence()
         action = self.active['action']
@@ -340,6 +353,10 @@ class FlightControl:
             if not response.get('missionId') or not response.get('connectionId') or not response.get('planHash') or identity != response.get('controllerUid'):
                 self.finish(False)
                 return
+        if action in ('Arm', 'Start') and any(item['command'] == 20 for item in self.items) and not self.return_landing_ready():
+            self.envelope.error = 'Return/RTL requires fresh Home, no rally points, Home-relative RTL altitude within limits and RTL final altitude 0 (land).'
+            self.finish(False)
+            return
         if action in ('Arm', 'Start') and response.get('requiredEnvelopeHash') and self.envelope.verified_hash != response['requiredEnvelopeHash']:
             self.finish(False)
             return
@@ -364,6 +381,12 @@ class FlightControl:
                 takeoff = {'latitude': origin['x'] / 1e7, 'longitude': origin['y'] / 1e7}
                 if origin['command'] != 22 or not planned_home_matches(takeoff, actual_home):
                     print('Takeoff waypoint must be within 10 m of FC Home. Upload blocked.', flush=True)
+                    self.finish(False)
+                    return
+            if any(item['command'] == 20 for item in plan.get('items', [])):
+                self.return_ceiling = ((plan.get('operationalEnvelope') or {}).get('limits') or {}).get('maxAltitudeMeters')
+                if not self.return_landing_ready():
+                    self.envelope.error = 'Return/RTL requires RTL_ALT_FINAL_M=0, RALLY_TOTAL=0, RTL_ALT_TYPE=0 and RTL altitude within the approved ceiling.'
                     self.finish(False)
                     return
             self.reached.clear()

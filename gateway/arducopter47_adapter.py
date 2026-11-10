@@ -22,6 +22,10 @@ def canonical_mission_item(item, current):
     """
     result = dict(item)
     command = item['command']
+    if command == 20:
+        # AP_Mission stores no parameters or location for NAV_RETURN_TO_LAUNCH.
+        result.update(param1=0, param2=0, param3=0, param4=0, x=0, y=0, z=0)
+        return result
     if command not in (16, 21, 22):
         return result
     if item['param4'] is not None:

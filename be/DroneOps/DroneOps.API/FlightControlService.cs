@@ -224,7 +224,11 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         if (evidence.Armed == true && evidence.LandedState == 2) state.Stage = "Running";
         var planned = JsonSerializer.Deserialize<int[]>(execution.WaypointCommandsJson)!;
         var reached = (JsonSerializer.Deserialize<int[]>(execution.ReachedCommandsJson) ?? []).ToHashSet();
-        foreach (var seq in evidence.ReachedCommands ?? []) if (planned.Contains(seq)) reached.Add(seq);
+        var approved = JsonSerializer.Deserialize<DroneOps.Application.DTOs.Request.Missions.CreateMissionRequest>(execution.ApprovedPlanJson, Json);
+        var returnsHome = string.Equals(approved?.Waypoints.OrderBy(w => w.SequenceOrder).LastOrDefault()?.ActionType, "Return", StringComparison.OrdinalIgnoreCase);
+        foreach (var seq in evidence.ReachedCommands ?? [])
+            if (planned.Contains(seq) && (!returnsHome || seq != planned[^1]) || returnsHome && seq == planned[^1] - 1)
+                reached.Add(seq);
         if (evidence.LandedObservedAtUtc is { } observed && observed <= now && now - observed <= TimeSpan.FromSeconds(3)
             && (state.LastTerminalObservationAt == null || observed > state.LastTerminalObservationAt))
         {
@@ -235,7 +239,19 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
         {
             var allBeforeLand = planned.SkipLast(1).All(reached.Contains);
             var atTerminal = evidence.MissionCurrent >= planned[^1];
-            var completed = allBeforeLand && (atTerminal || reached.Contains(planned[^1]));
+            var completed = allBeforeLand && (returnsHome
+                ? reached.Contains(planned[^1] - 1) && (atTerminal || (evidence.ReachedCommands ?? []).Contains(planned[^1]))
+                : atTerminal || reached.Contains(planned[^1]));
+            if (completed && returnsHome)
+            {
+                var position = await db.TelemetryRecords.AsNoTracking().Where(t => t.MissionId == mission.Id && t.IsValid
+                    && t.SourceTimestamp >= now.AddSeconds(-5) && t.SourceTimestamp <= now
+                    && t.ReceivedAt >= now.AddSeconds(-5) && t.ReceivedAt <= now)
+                    .OrderByDescending(t => t.SourceTimestamp).FirstOrDefaultAsync(ct);
+                completed = position?.Latitude is { } latitude && position.Longitude is { } longitude
+                    && evidence.HomeLatitudeDegrees is { } homeLat && evidence.HomeLongitudeDegrees is { } homeLon
+                    && MissionRouteGeometry.DistanceMeters(latitude, longitude, homeLat, homeLon) <= 10;
+            }
             if (completed) reached.Add(planned[^1]);
             execution.CompletedAt = now; execution.Outcome = completed ? "Completed" : "Aborted";
             mission.Status = execution.Outcome; state.Stage = execution.Outcome;

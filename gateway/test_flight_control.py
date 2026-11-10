@@ -139,6 +139,20 @@ class FlightControlTests(unittest.TestCase):
         self.link.mav.mission_count_send.assert_not_called()
         self.assertFalse(self.bridge.report['succeeded'])
 
+    def test_return_requires_landing_home_relative_altitude_and_no_rally_points(self):
+        self.control.return_ceiling = 30
+        baseline = dict(RTL_ALT_FINAL_M=0, RALLY_TOTAL=0, RTL_ALT_TYPE=0, RTL_ALT_M=20)
+        for name, value in baseline.items():
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+        self.assertTrue(self.control.return_landing_ready())
+        for name, value in dict(RTL_ALT_FINAL_M=5, RALLY_TOTAL=1, RTL_ALT_TYPE=1, RTL_ALT_M=40).items():
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+            self.assertFalse(self.control.return_landing_ready())
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=baseline[name]), self.link)
+        self.now += 61
+        self.feed()
+        self.assertFalse(self.control.return_landing_ready())
+
     def test_arm_requires_current_local_envelope_receipt_when_backend_requires_it(self):
         self.response('Arm', stage='Arming', requiredEnvelopeHash='hash')
         self.link.mav.command_long_send.assert_not_called()
