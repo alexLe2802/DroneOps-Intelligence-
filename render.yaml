@@ -6,10 +6,11 @@ services:
     runtime: docker
     plan: free
     region: singapore
+    branch: main
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
-    autoDeployTrigger: off
+    autoDeployTrigger: commit
     envVars:
       - key: ASPNETCORE_HTTP_PORTS
         value: "8080"

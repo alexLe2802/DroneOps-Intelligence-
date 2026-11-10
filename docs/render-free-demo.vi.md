@@ -74,3 +74,28 @@ không ngăn deploy thủ công, và chưa có hiệu lực remote khi thay đ�
 Sau khi Render hoạt động, cần dùng quyền quản trị Vercel để pause project/daemon và ngắt liên kết Git.
 Phiên CLI đã thử truy vấn Vercel trước đó trả 403 nên chưa thể thực hiện thao tác shutdown remote.
 Không xóa project hay domains trước khi kiểm tra Render và DNS; giữ frontend Cloudflare nguyên trạng.
+
+## Tự deploy khi merge vào main
+
+`render.yaml` đặt `branch: main` và `autoDeployTrigger: commit`: mỗi commit được push/merge
+vào `main` sẽ kích hoạt deploy backend. CI GitHub vẫn chạy riêng. Chế độ này không chờ
+check Vercel, hiện đang thất bại do tài khoản Vercel bị chặn.
+
+- Nếu service được quản lý bằng Blueprint: đồng bộ Blueprint với `render.yaml` mới.
+  Kiểm tra Blueprint có bật tự đồng bộ khi repo thay đổi.
+- Nếu service được tạo trực tiếp: Render Dashboard → `droneops-api-demo` → Settings →
+  Build & Deploy → Branch = `main`, Auto-Deploy = **On Commit**, rồi lưu.
+  Chỉ thay file YAML không cập nhật một service không được quản lý bằng Blueprint.
+- Để triển khai ngay bản đã merge trước khi bật tự deploy: **Manual Deploy → Deploy latest commit**.
+- Kiểm tra `/health` trả commit trùng `main`; merge thành công chưa chứng minh deploy đã xong.
+
+Để ngừng check **Vercel — Account is blocked**, vào từng Vercel project liên kết repo này →
+Settings → Git → **Disconnect**. `git.deploymentEnabled=false` đã có trong repo;
+nếu Vercel vẫn gửi status thì cần ngắt tích hợp ở dịch vụ, không sửa workflow CI.
+Nếu không truy cập được Vercel, GitHub → Settings tài khoản → Applications →
+Installed GitHub Apps → Vercel → Configure → bỏ quyền truy cập **chỉ repo này**
+(nếu đang chọn All repositories, đổi sang danh sách vẫn giữ các repo khác cần dùng).
+Check cũ có thể vẫn còn trong lịch sử commit. Nếu ruleset/branch protection yêu cầu check
+Vercel thì bỏ riêng yêu cầu đó; giữ các check CI của dự án.
+
+Tham khảo: https://render.com/docs/blueprint-spec và https://vercel.com/docs/git/vercel-for-github
