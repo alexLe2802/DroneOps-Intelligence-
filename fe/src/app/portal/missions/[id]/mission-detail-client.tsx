@@ -176,11 +176,12 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
   if (!mission) return <ModuleLoading label="Loading mission details" />;
   const isManager = role === "operation_manager";
   const currentStatus = statusKey(mission.status);
-  const readinessValidation = [validation, mission.preflightValidation]
+  const readinessValidation = [validation, mission.validation, mission.latestValidation, mission.preflightValidation]
     .filter(result => !result?.updateRequestId)
     .filter((result): result is MissionValidationResult => result != null)
     .sort((a, b) => new Date(b.checkedAt ?? 0).getTime() - new Date(a.checkedAt ?? 0).getTime())[0];
   const readinessStatus = readinessValidation ? validationState(readinessValidation) : "AwaitingPreflight";
+  const battery = readinessValidation?.battery ?? null;
   const readinessHref = readinessValidation?.id
     ? `/portal/validation-results?missionId=${encodeURIComponent(id)}&runId=${encodeURIComponent(readinessValidation.id)}`
     : `/portal/validation-results?missionId=${encodeURIComponent(id)}`;
@@ -207,6 +208,14 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       <b>Current mission flight readiness: {formatStatus(readinessStatus)}</b>
       <Link className="module-link" href={readinessHref}>View validation result</Link>
     </section>
+    {battery && <section className="mission-battery-requirement" role="status" aria-label="Required departure battery">
+      <div>
+        <span>REQUIRED DEPARTURE BATTERY</span>
+        <strong>{battery.status.toLowerCase() === "available" ? `${Math.ceil(battery.requiredBatteryPercent)}% minimum` : battery.status}</strong>
+      </div>
+      <p>{battery.message || "Battery requirement was calculated from this mission route."}</p>
+      {battery.status.toLowerCase() === "available" && <small>{battery.estimatedFlightMinutes.toFixed(1)} min estimated flight · {battery.safetyReservePercent}% safety reserve · +{battery.weatherAdjustmentPercent}% weather adjustment</small>}
+    </section>}
 
     {mission.pendingUpdate && <>
       <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
