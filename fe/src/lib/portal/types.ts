@@ -117,6 +117,7 @@ export type LiveMission = {
 };
 
 export type MissionTelemetry = {
+  detectionDiagnostics?: string[];
   batteryVoltageVolts?: number | null;
   batteryCurrentAmps?: number | null;
   batteryTemperatureCelsius?: number | null;

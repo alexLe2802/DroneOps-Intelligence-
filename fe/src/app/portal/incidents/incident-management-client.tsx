@@ -13,7 +13,7 @@ import styles from "./incident-management.module.css";
 
 const PAGE_SIZE = 6;
 const EMPTY_PAGE: PagedIncidents = { items: [], totalCount: 0, pageNumber: 1, pageSize: PAGE_SIZE, totalPages: 0 };
-const SEVERITIES = ["", "Critical", "High", "Medium", "Low"];
+const SEVERITIES = ["", "Critical", "High", "Warning", "Medium", "Low"];
 const STATUSES = ["", "Open", "Acknowledged", "Resolved"];
 const TYPES = ["", "LowBattery", "AltitudeExceeded", "SpeedExceeded", "GeofenceBreach", "CommunicationLoss"];
 

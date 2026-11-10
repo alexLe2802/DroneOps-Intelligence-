@@ -153,9 +153,10 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     telemetry?.sourceTimestamp || telemetry?.receivedAt ? packetAge : null);
   const missionEnded = mission?.id === selectedId && (Boolean(mission.endTime && new Date(mission.endTime).getTime() <= clock)
     || ["completed", "cancelled", "aborted", "failed"].includes(statusKey(mission.status)));
-  const sequence = Math.max(0, telemetry?.missionSequence ?? selected?.missionSequence ?? 0);
+  const sequence = telemetry?.missionSequence ?? selected?.missionSequence ?? null;
   const waypointTotal = Math.max(0, telemetry?.waypointTotal ?? selected?.waypointTotal ?? mission?.waypoints.length ?? 0);
-  const progress = Math.min(100, Math.max(0, telemetry?.progressPercent ?? selected?.progressPercent ?? (waypointTotal ? sequence / waypointTotal * 100 : 0)));
+  const progress = telemetry ? telemetry.progressPercent : selected?.progressPercent;
+  const progressLabel = progress == null ? "Unavailable" : `${Math.min(100, Math.max(0, progress)).toFixed(1)}%`;
   const activeIncidents = incidents.filter(item => statusKey(item.status) !== "resolved");
   const latestIncident = activeIncidents[0];
 
@@ -211,7 +212,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
       <div className={styles.operationsGrid} aria-busy={loadingMission}>
         <section className={styles.mapPanel}>
           <header><div><span>SPATIAL TELEMETRY</span><h2>{selected?.missionName}</h2></div><div><b>{telemetry?.flightMode ?? "MODE UNAVAILABLE"}</b><small className={styles[`arm${arming.state}`]}>{arming.label}</small></div></header>
-          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={sequence} recenterToken={recenterToken} streamLive={streamState === "live"} />
+          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={progress == null ? 0 : sequence ?? 0} recenterToken={recenterToken} streamLive={streamState === "live"} />
           <footer><span>LAST PACKET <b>{shortDate(telemetry?.sourceTimestamp ?? selected?.lastSeen)}</b></span><span>{connection === "online" && !telemetry?.isStale && streamState === "live" ? "POSITION" : "LAST KNOWN POSITION"} <b>{hasTelemetryPosition(telemetry) ? `${Number(telemetry.latitude).toFixed(5)}, ${Number(telemetry.longitude).toFixed(5)}` : "UNAVAILABLE"}</b></span></footer>
         </section>
 
@@ -223,10 +224,10 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
           </section>
 
           <section className={styles.progressPanel}>
-            <header><span>FLIGHT CORRIDOR PROGRESSION</span><b>WP {String(sequence).padStart(2, "0")} / {String(waypointTotal).padStart(2, "0")}</b></header>
-            <div className={styles.progressValue}><strong>{progress.toFixed(1)}%</strong><span>Overall completion</span></div>
-            <div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div>
-            <div className={styles.progressMeta}><span>NEXT WAYPOINT<b>{waypointTotal ? Math.min(sequence + 1, waypointTotal) : "--"}</b></span><span>MISSION STATUS<b>{selected?.missionStatus ?? "Unavailable"}</b></span></div>
+            <header><span>FLIGHT CORRIDOR PROGRESSION</span><b>COMMAND {sequence ?? "Unavailable"} / {waypointTotal} PLANNED WAYPOINTS</b></header>
+            <div className={styles.progressValue}><strong>{progressLabel}</strong><span>Overall completion</span></div>
+            <div className={styles.progressTrack}><i style={{ width: `${progress ?? 0}%` }} /></div>
+            <div className={styles.progressMeta}><span>NEXT WAYPOINT<b>{progress == null || sequence == null ? "Unavailable" : Math.min(sequence + 1, waypointTotal)}</b></span><span>MISSION STATUS<b>{selected?.missionStatus ?? "Unavailable"}</b></span></div>
           </section>
 
           <section className={styles.incidentPanel}>
@@ -256,11 +257,12 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
             `State: ${arming.label}`,
           ]} />
           <TelemetryCard index="05" label="LINK & TELEMETRY" value={(telemetry?.connectivityStatus ?? "Offline").toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />
-          <TelemetryCard index="06" label="FLIGHT NAVIGATION" value={waypointTotal ? `WP ${sequence}/${waypointTotal}` : "Unavailable"} lines={[`Mode: ${telemetry?.flightMode ?? "Unavailable"}`, `Progress: ${progress.toFixed(1)}%`]} />
+          <TelemetryCard index="06" label="FLIGHT NAVIGATION" value={sequence == null ? "Unavailable" : `Command ${sequence}`} lines={[`Mode: ${telemetry?.flightMode ?? "Unavailable"}`, `Progress: ${progressLabel}`]} />
         </div>
       </section>
 
       <section className={styles.rawPanel}>
+        {telemetry?.detectionDiagnostics?.map(message => <p key={message} role="status">{message}</p>)}
         <header><span>RAW TELEMETRY SNAPSHOT</span><b>{telemetry?.sourceTimestamp ? new Date(telemetry.sourceTimestamp).toISOString() : "NO SOURCE TIMESTAMP"}</b></header>
         <div><code>MISSION_ID: {selectedId}</code><code>UAV_ID: {telemetry?.uavId ?? "UNAVAILABLE"}</code><code>RECEIVED_AT: {telemetry?.receivedAt ?? "UNAVAILABLE"}</code><code>VALID: {String(telemetry?.isValid ?? false).toUpperCase()}</code></div>
       </section>

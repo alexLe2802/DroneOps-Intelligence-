@@ -180,7 +180,8 @@ class TelemetryState:
             fields = {'armed': bool(message.base_mode & 128), 'flightMode': mode(message)}
         elif kind == 'GLOBAL_POSITION_INT':
             lat, lon = message.lat / 1e7, message.lon / 1e7
-            fields = {'altitudeMeters': message.relative_alt / 1000, 'altitudeReference': 'Relative'}
+            fields = {'altitudeMeters': message.relative_alt / 1000, 'altitudeReference': 'Relative',
+                      'altitudeMslMeters': message.alt / 1000 if getattr(message, 'alt', None) is not None else None}
             # Treat the all-zero startup position as unavailable, not a live fix.
             if -90 <= lat <= 90 and -180 <= lon <= 180 and (lat != 0 or lon != 0):
                 fields.update(latitude=lat, longitude=lon)

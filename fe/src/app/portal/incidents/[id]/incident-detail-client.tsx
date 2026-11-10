@@ -6,7 +6,7 @@ import { incidentDescription } from "@/lib/portal/incident-display";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Account } from "@/lib/auth/types";
-import { acknowledgeIncident, getIncident, resolveIncident } from "@/lib/portal/client";
+import { acknowledgeIncident, getIncident, getIncidentHistory, resolveIncident, type IncidentTransition } from "@/lib/portal/client";
 import type { IncidentDetail } from "@/lib/portal/types";
 import IncidentMap from "../incident-map";
 import styles from "./incident-detail.module.css";
@@ -83,6 +83,8 @@ function evidenceEntries(evidence: EvidenceRecord) {
 export default function IncidentDetailClient({ id, account }: { id: string; account: Account }) {
   const [incident, setIncident] = useState<IncidentDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState<IncidentTransition[]>([]);
+  const isManager = account.role === "operation_manager";
   const [error, setError] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
@@ -103,9 +105,10 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
       setError("");
       setActionError("");
       setActionMessage("");
-      void getIncident(id).then(result => {
+      void Promise.all([getIncident(id), getIncidentHistory(id)]).then(([result, events]) => {
         if (active) {
           setIncident(result);
+          setHistory(events);
           setResolutionDraft(result.resolutionNotes ?? "");
         }
       }).catch(reason => {
@@ -138,7 +141,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
   const sourceTimestamp = incident.sourceTimestamp ?? textOf(evidence, "sourceTimestamp");
   const receivedAt = incident.receivedAt ?? textOf(evidence, "receivedAt");
   const handlingState = status === "open" ? "Awaiting operator or manager acknowledgement" : status === "acknowledged" ? "Acknowledged and under operational review" : "Resolution recorded; incident history is read-only";
-  const canDraftResolution = status !== "resolved";
+  const canDraftResolution = isManager && status !== "resolved";
   const trimmedDraft = resolutionDraft.trim();
 
   function applyNoteTemplate(template: string) {
@@ -159,8 +162,9 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
     setActionError("");
     setActionMessage("");
     try {
-      const updated = await acknowledgeIncident(id);
+      const updated = await acknowledgeIncident(id, incident!.status);
       setIncident(updated);
+      setHistory(await getIncidentHistory(id));
       setActionMessage("Incident acknowledged. The handling timeline has been updated.");
     } catch (reason) {
       setActionError(reason instanceof Error ? reason.message : "Unable to acknowledge this incident.");
@@ -170,13 +174,14 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
   }
 
   async function resolve() {
-    if (status === "resolved" || !trimmedDraft || action) return;
+    if (!isManager || status === "resolved" || !trimmedDraft || action) return;
     setAction("resolve");
     setActionError("");
     setActionMessage("");
     try {
-      const updated = await resolveIncident(id, trimmedDraft);
+      const updated = await resolveIncident(id, trimmedDraft, incident!.status);
       setIncident(updated);
+      setHistory(await getIncidentHistory(id));
       setResolutionDraft(updated.resolutionNotes ?? trimmedDraft);
       setActionMessage("Incident resolved and closed. The resolution record is now read-only.");
     } catch (reason) {
@@ -250,9 +255,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
         <PanelHeader label="RESOLUTION & ACTION LOG" value={status === "resolved" ? "CLOSED" : "ACTION REQUIRED"} />
         <div className={styles.timeline}>
           <h2>APPEND-ONLY INCIDENT TIMELINE</h2>
-          <TimelineItem time={incident.createdAt} label="SYSTEM" title="Incident generated" text={incidentDescription(incident.description) || `${labelOf(incident.type)} event detected.`} done />
-          <TimelineItem time={incident.acknowledgedAt} label="ACK" title={incident.acknowledgedAt ? `Acknowledged by ${incident.acknowledgedByName ?? "authorized operator"}` : "Awaiting acknowledgement"} text={incident.acknowledgedAt ? "The incident was accepted for operational handling." : "No acknowledgement has been recorded."} done={Boolean(incident.acknowledgedAt)} />
-          <TimelineItem time={incident.resolvedAt} label="RESOLUTION" title={incident.resolvedAt ? `Resolved by ${incident.resolvedByName ?? "authorized operator"}` : "Resolution pending"} text={incident.resolutionNotes ?? "No resolution notes have been recorded."} done={Boolean(incident.resolvedAt)} />
+          {history.length ? history.map(event => <TimelineItem key={event.id} time={event.createdAt} label={labelOf(event.eventType)} title={`${event.fromStatus || "Detected"} → ${event.toStatus} · ${event.changedByName ?? "System"}`} text={event.notes ?? "No notes recorded."} done />) : <p>No transition history is available.</p>}
         </div>
         <div className={styles.notesPanel}>
           <label htmlFor="incident-resolution-notes">OPERATIONAL NOTES / RESOLUTION REASON {canDraftResolution && <b>*</b>}</label>
@@ -271,7 +274,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
           {actionMessage && <p className={styles.actionSuccess} role="status">{actionMessage}</p>}
           <div>
             <button type="button" disabled={status !== "open" || action !== null} onClick={() => void acknowledge()}>{action === "acknowledge" ? "ACKNOWLEDGING..." : status === "acknowledged" ? "INCIDENT ACKNOWLEDGED" : "ACKNOWLEDGE INCIDENT"}</button>
-            <button type="button" className={styles.primaryAction} disabled={!trimmedDraft || action !== null} onClick={() => void resolve()}>{action === "resolve" ? "RESOLVING..." : "RESOLVE & CLOSE INCIDENT"}</button>
+            {isManager && <button type="button" className={styles.primaryAction} disabled={!trimmedDraft || action !== null} onClick={() => void resolve()}>{action === "resolve" ? "RESOLVING..." : "RESOLVE & CLOSE INCIDENT"}</button>}
           </div>
           <p>{status === "open" ? "Acknowledge to record operational ownership, or add mandatory resolution notes and close the incident." : "Acknowledgement recorded. Add the mitigation result above to close this incident."}</p>
         </div> : <div className={styles.readOnlyNotice}>{actionMessage || "INCIDENT CLOSED / HISTORY IS READ-ONLY"}</div>}

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using DroneOps.Application.DTOs.Request.Telemetry;
 using DroneOps.Application.DTOs.Response.Geofences;
 using DroneOps.Application.DTOs.Response.Telemetry;
@@ -20,7 +20,7 @@ namespace DroneOps.Application.Services.Telemetry;
 
 public class TelemetryIngestionService : ITelemetryIngestionService
 {
-    private const int ClockSkewGraceSeconds = 120;
+    private const int ClockSkewGraceSeconds = 2;
 
     private static readonly string[] ActiveMissionStatuses =
     {
@@ -63,10 +63,14 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         _cache = cache;
     }
 
-    public async Task<TelemetryIngestResult> IngestSampleAsync(
-        string idempotencyKey,
-        IngestTelemetrySampleRequest request,
-        CancellationToken cancellationToken = default)
+    public Task<TelemetryIngestResult> IngestSampleAsync(
+        string idempotencyKey, IngestTelemetrySampleRequest request,
+        CancellationToken cancellationToken = default) =>
+        DroneOps.Persistence.RealtimeWrite.RunAsync(_context,
+            () => IngestCoreAsync(idempotencyKey, request, cancellationToken), cancellationToken);
+
+    private async Task<TelemetryIngestResult> IngestCoreAsync(
+        string idempotencyKey, IngestTelemetrySampleRequest request, CancellationToken cancellationToken)
     {
         // 1. Idempotency: gói trùng trả thành công mà không ghi thêm (retry an toàn).
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
@@ -118,8 +122,8 @@ public class TelemetryIngestionService : ITelemetryIngestionService
                 throw new KeyNotFoundException($"Mission with ID {missionId.Value} not found.");
             }
 
-            // Chối gói khi UAV trên payload không khớp UAV được gán cho nhiệm vụ.
-            if (mission.UAVId.HasValue && mission.UAVId.Value != request.UavId)
+            // Reject unassigned as well as mismatched missions.
+            if (mission.UAVId != request.UavId)
             {
                 throw new ArgumentException("Telemetry source UAV does not match the assigned mission UAV.");
             }
@@ -145,6 +149,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         // Gói đến muộn vẫn lưu lịch sử, nhưng không được ghi đè projection "latest".
         var isLateArrival = currentLatestSource.HasValue && sourceTimestampUtc < currentLatestSource.Value;
         var usedForLatest = !isFutureSkew && !isLateArrival;
+        var freshForDetection = sourceTimestampUtc <= now && now - sourceTimestampUtc <= TimeSpan.FromSeconds(_monitoring.CommunicationLossSeconds);
 
         var record = new TelemetryRecord
         {
@@ -158,6 +163,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             Altitude = request.AltitudeMeters,
+            AltitudeMslMeters = request.AltitudeMslMeters,
             AltitudeReference = string.IsNullOrWhiteSpace(request.AltitudeReference)
                 ? "Relative"
                 : request.AltitudeReference,
@@ -180,7 +186,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         await _context.TelemetryRecords.AddAsync(record, cancellationToken);
 
         var raisedIncidentIds = new List<Guid>();
-        if (usedForLatest && record.IsValid && missionId.HasValue)
+        if (usedForLatest && freshForDetection && record.IsValid && missionId.HasValue)
         {
             raisedIncidentIds = await TryRaiseOperationalIncidentsAsync(record, cancellationToken);
         }
@@ -283,7 +289,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             return response;
         }
 
-        ApplyFreshness(response, latestRecord.ReceivedAt);
+        ApplyFreshness(response, latestRecord);
         response.SourceId = latestRecord.SourceId;
         response.Latitude = latestRecord.Latitude;
         response.Longitude = latestRecord.Longitude;
@@ -305,6 +311,13 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         response.ReceivedAt = latestRecord.ReceivedAt;
         response.IsValid = latestRecord.IsValid;
         response.ProgressPercent = ComputeProgress(latestRecord.MissionSequence, mission.WaypointTotal);
+        var aircraft = await _context.UAVs.AsNoTracking().SingleOrDefaultAsync(u => u.Id == latestRecord.UAVId, cancellationToken);
+        if (!AltitudeRuleAvailable() || MslAltitude(latestRecord) == null)
+            response.DetectionDiagnostics.Add("Altitude detection unavailable: requires MSL telemetry and configured minimum/maximum MSL limits.");
+        if (aircraft?.MaxSpeedKmh is not > 0 || latestRecord.Speed == null)
+            response.DetectionDiagnostics.Add("Speed detection unavailable: requires measured speed and the UAV maximum speed.");
+        if (latestRecord.BatteryLevel == null)
+            response.DetectionDiagnostics.Add("Battery detection unavailable: battery percentage is missing.");
         return response;
     }
 
@@ -391,7 +404,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
             if (latestByMission.TryGetValue(mission.Id, out var latest))
             {
-                var ageSeconds = (DateTimeOffset.UtcNow - latest.ReceivedAt).TotalSeconds;
+                var ageSeconds = Math.Max((DateTimeOffset.UtcNow - latest.ReceivedAt).TotalSeconds, (DateTimeOffset.UtcNow - latest.SourceTimestamp).TotalSeconds);
                 item.DataAgeSeconds = Math.Round(ageSeconds, 1);
                 item.LastSeen = latest.ReceivedAt;
                 item.ConnectivityStatus = ClassifyConnectivity(ageSeconds);
@@ -431,37 +444,47 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         // giúp loại nhiễu tức thời; ngưỡng recovery tách khỏi ngưỡng raise tạo hysteresis.
         var previous = await _context.TelemetryRecords
             .AsNoTracking()
-            .Where(x => x.MissionId == missionId && x.IsValid && x.SourceTimestamp < record.SourceTimestamp)
+            .Where(x => x.MissionId == missionId && x.UAVId == record.UAVId && x.SourceId == record.SourceId && x.IsValid && x.SourceTimestamp < record.SourceTimestamp)
             .OrderByDescending(x => x.SourceTimestamp)
             .FirstOrDefaultAsync(cancellationToken);
 
+        if (previous != null && record.SourceTimestamp - previous.SourceTimestamp > TimeSpan.FromSeconds(_monitoring.CommunicationLossSeconds)) previous = null;
+
         var raised = await EvaluateNumericRuleAsync(
             record, previous, "LowBattery", "Low battery detected",
-            record.BatteryLevel <= 10 ? "Critical" : "High",
+            "Warning",
             record.BatteryLevel, previous?.BatteryLevel,
-            value => value <= _monitoring.LowBatteryPercent,
+            value => value < _monitoring.LowBatteryPercent,
             value => value >= _monitoring.LowBatteryPercent + _monitoring.LowBatteryRecoveryMarginPercent,
             $"Battery dropped to {record.BatteryLevel}%.", "LowBattery", _monitoring.LowBatteryPercent,
             cancellationToken);
         if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
 
-        raised = await EvaluateNumericRuleAsync(
-            record, previous, "AltitudeExceeded", "Altitude limit exceeded", "High",
-            record.Altitude, previous?.Altitude,
-            value => value > _monitoring.MaximumAltitudeMeters,
-            value => value <= _monitoring.MaximumAltitudeMeters - _monitoring.AltitudeRecoveryMarginMeters,
-            $"Altitude reached {record.Altitude} m.", "MaximumAltitude", (double)_monitoring.MaximumAltitudeMeters,
-            cancellationToken);
-        if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
-
-        raised = await EvaluateNumericRuleAsync(
-            record, previous, "SpeedExceeded", "Ground speed limit exceeded", "High",
-            record.Speed, previous?.Speed,
-            value => value > _monitoring.MaximumGroundSpeedMetersPerSecond,
-            value => value <= _monitoring.MaximumGroundSpeedMetersPerSecond - _monitoring.GroundSpeedRecoveryMarginMetersPerSecond,
-            $"Ground speed reached {record.Speed} m/s.", "MaximumGroundSpeed",
-            (double)_monitoring.MaximumGroundSpeedMetersPerSecond, cancellationToken);
-        if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
+        var aircraft = await _context.UAVs.AsNoTracking().SingleAsync(u => u.Id == record.UAVId, cancellationToken);
+        if (AltitudeRuleAvailable())
+        {
+            var minimum = _monitoring.MinimumAltitudeMslMeters!.Value;
+            var maximum = _monitoring.MaximumAltitudeMslMeters!.Value;
+            raised = await EvaluateNumericRuleAsync(
+                record, previous, "AltitudeExceeded", "Altitude outside MSL limits", "Critical",
+                MslAltitude(record), previous == null ? null : MslAltitude(previous),
+                value => value < minimum || value > maximum,
+                value => value >= minimum && value <= maximum,
+                $"Altitude {MslAltitude(record)} m MSL is outside [{minimum}, {maximum}] m.",
+                "ConfiguredMslRange", (double)maximum, cancellationToken);
+            if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
+        }
+        if (aircraft.MaxSpeedKmh is > 0)
+        {
+            var maximumSpeed = aircraft.MaxSpeedKmh.Value / 3.6m;
+            raised = await EvaluateNumericRuleAsync(
+                record, previous, "SpeedExceeded", "UAV speed limit exceeded", "Critical",
+                record.Speed, previous?.Speed,
+                value => value > maximumSpeed, value => value <= maximumSpeed,
+                $"Ground speed reached {record.Speed} m/s.", "UavMaximumGroundSpeed",
+                (double)maximumSpeed, cancellationToken);
+            if (raised.HasValue) raisedIncidentIds.Add(raised.Value);
+        }
 
         if (record.Latitude.HasValue && record.Longitude.HasValue)
         {
@@ -543,7 +566,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         // Communication-loss chỉ tự phục hồi sau hai gói mới liên tiếp kể từ lúc incident mở.
         var communicationIncident = await _context.Incidents
             .AsNoTracking()
-            .Where(x => x.MissionId == missionId && x.Type == "CommunicationLoss" && x.Status != "Resolved")
+            .Where(x => x.MissionId == missionId && x.Type == "CommunicationLoss" && x.RecoveredAt == null)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
         if (communicationIncident != null && previous != null && previous.ReceivedAt >= communicationIncident.CreatedAt)
@@ -661,6 +684,8 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             latitude = record.Latitude,
             longitude = record.Longitude,
             altitude = record.Altitude,
+            altitudeReference = record.AltitudeReference,
+            altitudeMslMeters = MslAltitude(record),
             speed = record.Speed,
             headingDegrees = record.HeadingDegrees,
             batteryPercent = record.BatteryLevel,
@@ -690,9 +715,9 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         }, cancellationToken);
     }
 
-    private void ApplyFreshness(MissionLatestTelemetryResponse response, DateTimeOffset receivedAt)
+    private void ApplyFreshness(MissionLatestTelemetryResponse response, TelemetryRecord record)
     {
-        var ageSeconds = (DateTimeOffset.UtcNow - receivedAt).TotalSeconds;
+        var ageSeconds = Math.Max((DateTimeOffset.UtcNow - record.ReceivedAt).TotalSeconds, (DateTimeOffset.UtcNow - record.SourceTimestamp).TotalSeconds);
         response.DataAgeSeconds = Math.Round(ageSeconds, 1);
         response.ConnectivityStatus = ClassifyConnectivity(ageSeconds);
         response.IsStale = ageSeconds > StaleAfterSeconds;
@@ -716,6 +741,13 @@ public class TelemetryIngestionService : ITelemetryIngestionService
 
     private int OfflineAfterSeconds => Math.Max(StaleAfterSeconds + 1, _monitoring.OfflineAfterSeconds);
 
+    private static decimal? MslAltitude(TelemetryRecord record) => record.AltitudeMslMeters
+        ?? (string.Equals(record.AltitudeReference, "MSL", StringComparison.OrdinalIgnoreCase) ? record.Altitude : null);
+
+    private bool AltitudeRuleAvailable() =>
+        _monitoring.MinimumAltitudeMslMeters.HasValue && _monitoring.MaximumAltitudeMslMeters.HasValue
+        && _monitoring.MinimumAltitudeMslMeters <= _monitoring.MaximumAltitudeMslMeters;
+
     private static double? ComputeProgress(int? missionSequence, int waypointTotal)
     {
         if (!missionSequence.HasValue || waypointTotal <= 0)
@@ -723,8 +755,9 @@ public class TelemetryIngestionService : ITelemetryIngestionService
             return null;
         }
 
-        var percent = 100.0 * missionSequence.Value / waypointTotal;
-        return Math.Round(Math.Clamp(percent, 0, 100), 1);
+        // MISSION_CURRENT is an active command index, not confirmed reached waypoints.
+        // Until an execution-snapshot mapping exists, progress must remain unavailable.
+        return null;
     }
 
     private static bool IsPointInPolygon(double lat, double lng, List<GeofenceCoordinateResponse> polygon)
