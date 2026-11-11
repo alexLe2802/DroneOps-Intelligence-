@@ -214,6 +214,9 @@ public sealed class MissionService : IMissionService
 
         response.PendingUpdate = (await _validation.HistoryAsync(mission.Id, mission.CreatedBy, false, ct))
             .FirstOrDefault(x => x.Status == "Pending");
+        if (response.PendingUpdate?.Validation is { } pendingValidation)
+            response.PendingUpdate.Validation = await _validation.ReadRunAsync(
+                mission.Id, pendingValidation.Id, mission.CreatedBy, false, ct);
         response.Validation = await _validation.ReadAsync(
             mission.Id,
             mission.CreatedBy,

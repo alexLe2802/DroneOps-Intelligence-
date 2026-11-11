@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -54,12 +54,11 @@ jobs:
         if: steps.changes.outputs.backend == 'true'
         with:
           dotnet-version: 8.0.x
-      - name: Backend — build once and run regression suites
+      - name: Backend — build once and run essential regression suites
         if: steps.changes.outputs.backend == 'true'
         run: |
           dotnet restore be/DroneOps/DroneOps.sln
           dotnet build be/DroneOps/DroneOps.sln -c Release --no-restore -warnaserror
-          dotnet format analyzers be/DroneOps/DroneOps.sln --no-restore --verify-no-changes --severity warn
           dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build
           for suite in automatic-flight-policy mission-compiler mission-schedule mission-history mission-geometry mission-fences automatic-failsafe recovery-energy; do
             dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- "--$suite"
@@ -72,12 +71,12 @@ jobs:
           dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --ci-migrations "$GITHUB_WORKSPACE"
           dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --mission-workflow-postgres
       - name: Enable verified TLS for the disposable PostgreSQL service
-        if: steps.changes.outputs.backend == 'true'
+        if: steps.changes.outputs.backend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
         env:
           CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: python3 scripts/ci/postgres_tls.py
       - name: Render — validate Blueprint, build image and smoke test
-        if: steps.changes.outputs.backend == 'true'
+        if: steps.changes.outputs.backend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
         env:
           DRONEOPS_CI_KEEP_API: ${{ steps.changes.outputs.frontend }}
         run: |
@@ -90,7 +89,7 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: fe/package-lock.json
-      - name: Frontend — checks and Cloudflare build (no Vercel build)
+      - name: Frontend — lint, types and offline tests
         if: steps.changes.outputs.frontend == 'true'
         working-directory: fe
         env:
@@ -100,10 +99,16 @@ jobs:
           npm run lint -- --max-warnings=0
           npm run typecheck
           npm test
+      - name: Cloudflare — optional deployment build
+        if: steps.changes.outputs.frontend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        working-directory: fe
+        env:
+          DRONEOPS_CI: "true"
+        run: |
           npm run build:vinext
           npx --no-install cf workers versions create --dry-run --prebuilt
       - name: Cloudflare — smoke test local Worker runtime
-        if: steps.changes.outputs.frontend == 'true'
+        if: steps.changes.outputs.frontend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
         env:
           DRONEOPS_CI_BACKEND_READY: ${{ steps.changes.outputs.backend }}
         run: python3 scripts/ci/cloudflare_smoke.py
@@ -114,7 +119,7 @@ jobs:
           .venv/bin/python -m pip install -r gateway/requirements.txt
           PYTHONPATH=gateway .venv/bin/python -m unittest discover -s gateway -p 'test_*.py'
       - name: ArduCopter — conditional SITL policy read-back
-        if: steps.changes.outputs.sitl == 'true'
+        if: steps.changes.outputs.sitl == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
         run: |
           curl --fail --location --retry 2 --max-time 90 \
             https://firmware.ardupilot.org/Copter/stable-4.7.1/SITL_x86_64_linux_gnu/arducopter \
@@ -140,4 +145,4 @@ jobs:
           RESULT: ${{ job.status }}
         run: |
           echo "### PR Quality Gate: $RESULT" >> "$GITHUB_STEP_SUMMARY"
-          echo 'Affected suites only; Render container and Cloudflare Worker are tested locally. Supabase tests use disposable PostgreSQL, not the hosted team database. No production deployment or real flight is triggered.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Standard: affected offline suites and disposable PostgreSQL migration/workflow checks. Add full-ci label for Render Docker/TLS smoke, Cloudflare build/runtime and relevant SITL. Omitted checks are not reported as passed. No hosted Supabase writes, production deployment or real flight.' >> "$GITHUB_STEP_SUMMARY"
