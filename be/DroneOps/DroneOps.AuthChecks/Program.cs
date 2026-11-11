@@ -10,6 +10,12 @@ using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
 using Microsoft.AspNetCore.Authorization;
 
+if (args.Length == 2 && args[0] == "--ci-migrations")
+{
+    await CiDatabaseChecks.RunAsync(Path.GetFullPath(args[1]));
+    return;
+}
+
 if (args.Length == 1 && args[0] is "--mission-workflow-integrity" or "--mission-workflow-postgres")
 {
     await MissionWorkflowIntegrityChecks.RunAsync(args[0] == "--mission-workflow-postgres");
