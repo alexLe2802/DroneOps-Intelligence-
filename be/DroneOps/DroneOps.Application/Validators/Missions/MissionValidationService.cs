@@ -39,16 +39,21 @@ public sealed class MissionValidationService(
         if (!manager && mission.CreatedBy != actor)
             throw new UnauthorizedAccessException("Mission is outside your scope.");
         var history = await repository.GetReviewHistoryAsync(missionId, cancellationToken);
-        return history.Select(row => new MissionUpdateSummary {
+        var restrictionHash = await CurrentRestrictionHashAsync(cancellationToken);
+        return history.Select(row => {
+            var evidence = Decode(row.Validation);
+            if (evidence is not null && row.Validation is not null)
+                evidence.Stale = evidence.RestrictionRevision != restrictionHash;
+            return new MissionUpdateSummary {
             Id = row.Request.Id, Status = row.Request.Status, IsInitial = row.Request.IsInitial,
             CreatedAt = row.Request.CreatedAt, ActorId = row.Request.ActorId,
             ReviewedBy = row.Request.ReviewedBy, ReviewedAt = row.Request.ReviewedAt, Reason = row.Request.Reason,
-            RequiresPilotConfirmation = MissionReviewPolicy.NeedsConfirmation(row.Request, Decode(row.Validation)),
+            RequiresPilotConfirmation = row.Request.Status == "Pending" && MissionReviewPolicy.NeedsConfirmation(row.Request, evidence),
             PilotConfirmedBy = row.Request.PilotConfirmedBy, PilotConfirmedAt = row.Request.PilotConfirmedAt,
             BasePlan = row.Request.IsInitial ? null : JsonSerializer.Deserialize<CreateMissionRequest>(row.Request.BasePlanJson, JsonOptions),
             ProposedPlan = JsonSerializer.Deserialize<CreateMissionRequest>(row.Request.ProposedPlanJson, JsonOptions) ?? new(),
-            Validation = Decode(row.Validation)
-        }).ToList();
+            Validation = evidence
+        }; }).ToList();
     }
 
     public static readonly JsonSerializerOptions JsonOptions =
