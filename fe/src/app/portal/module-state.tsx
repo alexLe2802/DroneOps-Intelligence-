@@ -7,6 +7,7 @@ const statusCopy: Record<number, [string, string]> = {
   403: ["Access denied", "Your role does not have access to this workspace."],
   404: ["Not found", "The requested data is not available."],
   500: ["Service error", "The server could not complete this request."],
+  503: ["Data temporarily unavailable", "Operational data could not be loaded. Please wait a moment and try again."],
 };
 
 export function ModuleLoading({ label = "Loading workspace" }: { label?: string }) {
