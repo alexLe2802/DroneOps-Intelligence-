@@ -4,6 +4,7 @@ namespace DroneOps.Persistence.Interfaces;
 
 public interface IMissionWeatherQueryRepository
 {
+    Task<MissionUpdateRequest?> GetReviewRequestAsync(Guid id, Guid requestId, CancellationToken ct);
     Task<Mission?> GetMissionWithWaypointsAsync(
         Guid missionId,
         CancellationToken cancellationToken = default);

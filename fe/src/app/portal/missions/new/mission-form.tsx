@@ -6,11 +6,10 @@ import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { cancelHighRiskMission, confirmHighRiskMission, createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
-import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
+import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
+import type { AssignedUav, Geofence, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
-import HighRiskConfirmation from "./high-risk-confirmation";
 
 import { appendLandingWaypoint, normalizeWaypointActions, waypointActionLabel } from "@/lib/maps/mission-waypoints";
 import { withPlannedHome } from "@/lib/maps/planned-home";
@@ -63,9 +62,6 @@ export default function MissionForm() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [highRiskMission, setHighRiskMission] = useState<MissionDetail | null>(null);
-  const [riskBusy, setRiskBusy] = useState<"confirm" | "cancel" | null>(null);
-  const [riskError, setRiskError] = useState("");
   useUnsavedChanges(!saved && Boolean(missionFences.length || fenceDrawing.draft.length || flightMode || name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
   function load() {
     setAircraft(null); setLoadError(null);
@@ -141,39 +137,9 @@ export default function MissionForm() {
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
       const created = await createMission({ ...payload, operationId: operation.current.id });
       setSaved(true);
-      if (created.status.trim().toLowerCase() === "pending confirm") {
-        setHighRiskMission(created);
-        return;
-      }
       router.push(`/portal/missions/${created.id}`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to create the mission."); }
     finally { pending.current = false; setSaving(false); }
-  }
-  async function confirmHighRisk() {
-    if (!highRiskMission || riskBusy) return;
-    setRiskBusy("confirm"); setRiskError("");
-    try {
-      await confirmHighRiskMission(highRiskMission.id);
-      router.replace(`/portal/missions/${highRiskMission.id}`);
-      router.refresh();
-    } catch (reason) {
-      setRiskError(reason instanceof Error ? reason.message : "Unable to confirm the high-risk mission.");
-      setRiskBusy(null);
-    }
-  }
-  async function cancelHighRisk() {
-    if (!highRiskMission || riskBusy) return;
-    setRiskBusy("cancel"); setRiskError("");
-    try {
-      await cancelHighRiskMission(highRiskMission.id);
-      operation.current = null;
-      setHighRiskMission(null);
-      setSaved(false);
-      setRiskBusy(null);
-    } catch (reason) {
-      setRiskError(reason instanceof Error ? reason.message : "Unable to cancel the high-risk mission.");
-      setRiskBusy(null);
-    }
   }
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!aircraft) return <ModuleLoading label="Loading mission resources" />;
@@ -230,8 +196,7 @@ export default function MissionForm() {
       </fieldset>
       <label className="mission-altitude-reference">Altitude reference<select value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option disabled={automaticFlightRequested} value="AGL">AGL — above ground</option><option disabled={automaticFlightRequested} value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select></label>
       {error && <p className="form-error" role="alert" aria-live="assertive">{error}</p>}
-      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mandatory checks must pass before the mission is sent for manager review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0 || flightMode === null}>{saving ? "VALIDATING…" : "CREATE & VALIDATE MISSION"}</button></div></footer>
+      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Save a Draft, then submit it from Mission Details for validation and review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0 || flightMode === null}>{saving ? "SAVING…" : "SAVE DRAFT MISSION"}</button></div></footer>
     </form>
-    {highRiskMission && <HighRiskConfirmation mission={highRiskMission} busy={riskBusy} error={riskError} onConfirm={() => void confirmHighRisk()} onCancel={() => void cancelHighRisk()} />}
   </>;
 }

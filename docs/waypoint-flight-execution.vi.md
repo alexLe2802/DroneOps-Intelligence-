@@ -109,3 +109,12 @@ trong 60 giây, telemetry/gateway/pilot presence, UID, mission hash/read-back, e
 Đủ điều kiện mới ARM → START trong cửa sổ T đến T+5 giây. Không tự bay bù nếu bị chặn/hết hạn.
 FC thực hiện Takeoff/Home → các waypoint → Land hoặc Return/RTL; chỉ quan sát in-air
 mới tạo execution. DISARM không phải lệnh cất cánh. Kết thúc cần landed/disarmed evidence.
+
+## Kiểm tra vị trí ngay trước ARM và START
+
+Gateway đối chiếu lại ở cả hai lần phát lệnh với Takeoff/Home của mission đã read-back:
+`GLOBAL_POSITION_INT` mới không quá 3 giây, `HOME_POSITION` mới không quá 15 giây,
+và cả hai nằm trong 10 m của tọa độ Takeoff. Thiếu vị trí/Home, tọa độ không hợp lệ,
+mission chưa xác minh hoặc drone đã chuyển chỗ đều chặn lệnh và hiển thị lý do.
+Không dùng Planned Home do người dùng nhập và không đặt lại Home FC. Giữ nguyên UID,
+pre-arm, disarmed/landed trước ARM, armed trước START, lease và deadline hiện tại.

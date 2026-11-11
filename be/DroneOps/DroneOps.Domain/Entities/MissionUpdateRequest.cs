@@ -15,6 +15,9 @@ public sealed class MissionUpdateRequest
     [Column(TypeName = "jsonb")]
     public string ProposedPlanJson { get; set; } = "{}";
     public Guid? ValidationRunId { get; set; }
+    public Guid? PilotConfirmedBy { get; set; }
+    public DateTimeOffset? PilotConfirmedAt { get; set; }
+    public Guid? PilotConfirmedValidationRunId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public Guid? ReviewedBy { get; set; }
     public DateTimeOffset? ReviewedAt { get; set; }

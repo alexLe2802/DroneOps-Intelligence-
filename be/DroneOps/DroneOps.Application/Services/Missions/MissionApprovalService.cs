@@ -3,6 +3,7 @@ using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Interfaces.Validators;
+using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
 using DroneOps.Persistence.Data;
@@ -44,7 +45,8 @@ public sealed class MissionApprovalService(
             from request in db.MissionUpdateRequests.AsNoTracking()
             join mission in db.Missions.AsNoTracking() on request.MissionId equals mission.Id
             where request.Status == "Pending" &&
-                  (mission.Status == "Pending Review" || mission.Status == "Pending" ||
+                  (mission.Status == "Draft" || mission.Status == "Rejected" || mission.Status == "Approved" ||
+                   mission.Status == "Pending Confirm" || mission.Status == "Pending Review" || mission.Status == "Pending" ||
                    mission.Status == "PendingApproval" || mission.Status == "Submitted")
             select new { Request = request, Mission = mission };
 
@@ -99,6 +101,7 @@ public sealed class MissionApprovalService(
         var items =
             new List<PendingApprovalItemResponse>();
 
+        var currentRestrictionHash = MissionValidationService.RestrictionHash(await db.Geofences.AsNoTracking().ToListAsync(ct));
         foreach (var row in rows)
         {
             if (!missionsById.TryGetValue(row.Mission.Id, out var mission))
@@ -142,9 +145,17 @@ public sealed class MissionApprovalService(
             var evidence =
                 DroneOps.Application.Validators.Missions.MissionValidationService.Decode(validationRun);
 
+            if (evidence is not null && validationRun is not null)
+                evidence.Stale = validationRun.PlanHash != MissionValidationService.Hash(proposed) ||
+                    evidence.RestrictionRevision != currentRestrictionHash;
+            if (evidence is not null && MissionReviewPolicy.NeedsConfirmation(row.Request, evidence))
+                evidence.Warnings.Add("Pilot High Risk confirmation is required for this review request.");
+
             items.Add(
                 new PendingApprovalItemResponse
                 {
+                    RequiresPilotConfirmation = MissionReviewPolicy.NeedsConfirmation(row.Request, evidence),
+                    ProposalAuthorId = row.Request.ActorId,
                     IsInitial = row.Request.IsInitial,
                     UpdateRequestId = row.Request.Id,
                     CurrentPlan = MissionPlans.Dto(mission),
@@ -203,7 +214,7 @@ public sealed class MissionApprovalService(
             .Include(x => x.Waypoints)
             .Where(m => pendingStatuses.Contains(m.Status) &&
                         !db.MissionUpdateRequests.Any(r =>
-                            r.MissionId == m.Id && r.Status == "Pending"))
+                            r.MissionId == m.Id))
             .ToListAsync(ct);
 
         foreach (var mission in missions)
@@ -347,28 +358,6 @@ CancellationToken ct)
                             "Self-approval is forbidden.");
                     }
 
-                    // Idempotent replay.
-                    if (mission.Status == decision)
-                    {
-                        var previousDecision =
-                            await approvalRepository
-                                .GetLatestDecisionAsync(
-                                    missionId,
-                                    managerId,
-                                    decision,
-                                    transactionCt);
-
-                        if (previousDecision is not null)
-                        {
-                            return DecisionOutcome.Success(
-                                BuildResponse(
-                                    previousDecision,
-                                    mission.Status,
-                                    mission.Status,
-                                    true));
-                        }
-                    }
-
                     if (mission.Status is
                         "Cancelled" or
                         "Completed" or
@@ -379,14 +368,10 @@ CancellationToken ct)
                             "Mission is no longer eligible for review.");
                     }
 
-                    if (mission.Status != "Pending Review")
-                    {
-                        throw new InvalidOperationException(
-                            "Only missions pending review can be approved or rejected.");
-                    }
-
                     var previousStatus = mission.Status;
 
+                    if (!updateRequestId.HasValue)
+                        throw new ArgumentException("Review request identity is required.");
                     var updateRequest = updateRequestId.HasValue
                         ? await db.MissionUpdateRequests.SingleOrDefaultAsync(
                             x => x.Id == updateRequestId.Value && x.MissionId == missionId,
@@ -399,10 +384,18 @@ CancellationToken ct)
                     {
                         throw new KeyNotFoundException("Mission review request not found.");
                     }
-                    if (updateRequest.Status != "Pending")
+                    if (updateRequest.Status == decision)
                     {
-                        throw new InvalidOperationException("This mission review request has already been processed.");
+                        var prior = await db.MissionApprovals.AsNoTracking().SingleOrDefaultAsync(
+                            x => x.UpdateRequestId == updateRequest.Id && x.Status == decision && x.UserId == managerId, transactionCt);
+                        if (prior is not null) return DecisionOutcome.Success(BuildResponse(prior, mission.Status, mission.Status, true));
                     }
+                    if (updateRequest.Status != "Pending")
+                        throw new InvalidOperationException("This request is superseded or already decided.");
+                    if (decision == "Approved" && updateRequest.ActorId == managerId)
+                        throw new InvalidOperationException("The proposal author cannot approve their own update.");
+                    if (updateRequest.BasePlanHash != MissionValidationService.Hash(mission))
+                        throw new InvalidOperationException("Current plan changed. Save and validate a new proposal.");
 
                     var proposedDto = System.Text.Json.JsonSerializer.Deserialize<CreateMissionRequest>(
                         updateRequest.ProposedPlanJson,
@@ -418,6 +411,8 @@ CancellationToken ct)
 
                     if (decision == "Approved")
                     {
+                        if (!reviewedValidationRunId.HasValue || updateRequest.ValidationRunId != reviewedValidationRunId)
+                            throw new InvalidOperationException("Validation changed. Review the latest persisted run.");
                         if (reviewedValidationRunId.HasValue)
                         {
                             var reviewedRun = await db.MissionValidationRuns
@@ -430,6 +425,11 @@ CancellationToken ct)
                                 DroneOps.Application.Validators.Missions.MissionValidationService.Hash(
                                     proposedMission);
 
+                            var reviewedEvidence = MissionValidationService.Decode(reviewedRun);
+                            if (reviewedEvidence is null || !reviewedEvidence.IsValid || reviewedEvidence.Error)
+                                throw new InvalidOperationException("Reviewed validation must pass before approval.");
+                            if (MissionReviewPolicy.NeedsConfirmation(updateRequest, reviewedEvidence))
+                                throw new InvalidOperationException("The pilot must confirm High Risk for this request and validation run.");
                             if (reviewedRun is null ||
                                 reviewedRun.PlanHash != proposalHash ||
                                 (reviewedRun.UpdateRequestId.HasValue &&
@@ -462,8 +462,21 @@ CancellationToken ct)
                         actualValidationRunId =
                             freshValidation.Id;
 
+                        var priorRun = await db.MissionValidationRuns.AsNoTracking().SingleAsync(x => x.Id == reviewedValidationRunId!.Value, transactionCt);
+                        var priorEvidence = MissionValidationService.Decode(priorRun);
+                        if (MissionReviewPolicy.IsHighRisk(freshValidation) &&
+                            (!MissionReviewPolicy.IsHighRisk(priorEvidence) ||
+                             MissionReviewPolicy.SafetyFingerprint(freshValidation) != MissionReviewPolicy.SafetyFingerprint(priorEvidence!)))
+                        {
+                            updateRequest.ValidationRunId = freshValidation.Id;
+                            MissionReviewPolicy.ClearConfirmation(updateRequest);
+                            return new DecisionOutcome { ConflictReason = "Safety evidence changed. Pilot must review and confirm the new High Risk evidence." };
+                        }
+
                         if (!freshValidation.IsValid)
                         {
+                            updateRequest.ValidationRunId = freshValidation.Id;
+                            MissionReviewPolicy.ClearConfirmation(updateRequest);
                             return DecisionOutcome.ValidationFailed(
                                 freshValidation);
                         }
@@ -484,7 +497,7 @@ CancellationToken ct)
 
                         mission.Status = "Approved";
                     }
-                    else
+                    else if (updateRequest.IsInitial)
                     {
                         mission.Status = "Rejected";
                     }
@@ -534,6 +547,7 @@ CancellationToken ct)
                 },
                 ct);
 
+        if (outcome.ConflictReason is not null) throw new InvalidOperationException(outcome.ConflictReason);
         if (outcome.ValidationFailure is not null)
         {
             throw new MissionValidationException(
@@ -617,6 +631,7 @@ CancellationToken ct)
 
     private sealed class DecisionOutcome
     {
+        public string? ConflictReason { get; init; }
         public MissionDecisionResponse? Response { get; init; }
 
         public MissionValidationResult? ValidationFailure { get; init; }

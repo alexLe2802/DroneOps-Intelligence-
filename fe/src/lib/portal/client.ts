@@ -16,6 +16,7 @@ function normalizeMission(mission: MissionApiRecord, uavCode: string | null): Mi
       : Number(mission.maxSpeedMetersPerSecond),
     detailAvailable: true,
     waypoints: Array.isArray(mission.waypoints) ? mission.waypoints.map((point, index) => ({
+      ...point,
       sequenceOrder: point.sequenceOrder ?? index + 1,
       latitude: Number(point.latitude),
       longitude: Number(point.longitude),
@@ -32,11 +33,11 @@ export async function getPilotMissions(): Promise<MissionDetail[]> {
 
 export async function getManagerMissions(): Promise<ManagerMission[]> {
   const [missions, fleet] = await Promise.all([
-    api<Array<MissionApiRecord & { createdBy: string }>>("/missions"),
+    api<PagedResponse<MissionApiRecord & { createdBy: string }>>("/missions?pageSize=100"),
     getManagedUavs({ pageNumber: 1, pageSize: 100 }).catch(() => null),
   ]);
   const aircraft = new Map((fleet?.items ?? []).map(item => [item.id, item]));
-  return missions.map(record => {
+  return (Array.isArray(missions) ? missions as Array<MissionApiRecord & { createdBy: string }> : missions.items).map(record => {
     const assigned = record.uavId ? aircraft.get(record.uavId) : undefined;
     return {
       ...normalizeMission(record, assigned?.code ?? null),
@@ -62,12 +63,16 @@ export async function createMission(request: CreateMissionRequest): Promise<Miss
   return normalizeMission(result, result.uavCode ?? null);
 }
 
-export function confirmHighRiskMission(id: string): Promise<{ missionId: string; status: string; message: string }> {
-  return api<{ missionId: string; status: string; message: string }>(`/missions/${encodeURIComponent(id)}/confirm-high-risk`, { method: "POST" });
+export function submitMission(id: string, operationId: string): Promise<MissionDetail> {
+  return api<MissionDetail>(`/missions/${encodeURIComponent(id)}/submit`, { method: "PUT", body: JSON.stringify({ operationId }) });
 }
 
-export function cancelHighRiskMission(id: string): Promise<{ missionId: string; message: string }> {
-  return api<{ missionId: string; message: string }>(`/missions/${encodeURIComponent(id)}/cancel-high-risk`, { method: "DELETE" });
+export function confirmHighRiskMission(id: string, updateRequestId: string, validationRunId: string): Promise<{ missionId: string; status: string; message: string }> {
+  return api(`/missions/${encodeURIComponent(id)}/confirm-high-risk`, { method: "POST", body: JSON.stringify({ updateRequestId, validationRunId }) });
+}
+
+export function cancelHighRiskMission(id: string, updateRequestId: string): Promise<{ missionId: string; message: string }> {
+  return api(`/missions/${encodeURIComponent(id)}/cancel-high-risk?updateRequestId=${encodeURIComponent(updateRequestId)}`, { method: "DELETE" });
 }
 
 export async function updateMission(id: string, request: CreateMissionRequest): Promise<MissionDetail> {
@@ -241,6 +246,7 @@ export async function getMission(id: string): Promise<MissionDetail> {
     createdAt: result.createdAt ?? "",
     detailAvailable: true,
     waypoints: result.waypoints.map((point, index) => ({
+      ...point,
       sequenceOrder: point.sequenceOrder ?? index + 1,
       latitude: Number(point.latitude),
       longitude: Number(point.longitude),
@@ -452,3 +458,7 @@ export function getMissionValidation(id: string, updateRequestId?: string) { ret
 export function getMissionValidationRun(id: string, runId: string) { return api<MissionValidationResult>(`/missions/${encodeURIComponent(id)}/validation/runs/${encodeURIComponent(runId)}`); }
 export function getLatestMissionValidation(id: string) { return api<MissionValidationResult | null>(`/missions/${encodeURIComponent(id)}/validation?latest=true`); }
 export function getMissionWeather(id: string, updateRequestId?: string, refresh = false) { return api<import("./types").MissionWeather>(`/missions/${encodeURIComponent(id)}/weather${refresh ? "/refresh" : ""}${updateRequestId ? `?updateRequestId=${encodeURIComponent(updateRequestId)}` : ""}`, refresh ? { method: "POST" } : {}); }
+
+export function getGeofenceRevisions(id: string): Promise<Array<{ id: string; revision: number; action: string; recordedAt: string; snapshot: unknown }>> {
+  return api(`/geofences/${encodeURIComponent(id)}/revisions`);
+}

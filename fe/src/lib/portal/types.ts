@@ -61,6 +61,8 @@ export type CreateMissionRequest = {
   automaticFlightRequested?: boolean;
   automaticFlightLimits?: AutomaticFlightLimits | null;
   operationId?: string;
+  expectedPlanHash?: string;
+  expectedPendingRequestId?: string | null;
   altitudeReference?: "AGL" | "MSL" | "Relative" | null;
   uavId: string;
   name: string;
@@ -71,8 +73,8 @@ export type CreateMissionRequest = {
   endTime: string;
   waypoints: MissionWaypoint[];
 };
-export type MissionUpdateSummary = { id: string; status: string; isInitial: boolean; createdAt: string; actorId: string; reviewedBy?: string | null; reviewedAt?: string | null; reason?: string | null; basePlan?: CreateMissionRequest | null; proposedPlan: CreateMissionRequest; validation?: MissionValidationResult | null };
-export type MissionDetail = PilotMission & { altitudeReference?: string | null; pendingUpdate?: MissionUpdateSummary | null; waypoints: MissionWaypoint[]; detailAvailable?: boolean; validation?: MissionValidationResult | null; latestValidation?: MissionValidationResult | null; flightReadiness?: string; preflightValidation?: MissionValidationResult | null };
+export type MissionUpdateSummary = { requiresPilotConfirmation?: boolean; pilotConfirmedBy?: string | null; pilotConfirmedAt?: string | null; id: string; status: string; isInitial: boolean; createdAt: string; actorId: string; reviewedBy?: string | null; reviewedAt?: string | null; reason?: string | null; basePlan?: CreateMissionRequest | null; proposedPlan: CreateMissionRequest; validation?: MissionValidationResult | null };
+export type MissionDetail = PilotMission & { planHash?: string; altitudeReference?: string | null; pendingUpdate?: MissionUpdateSummary | null; waypoints: MissionWaypoint[]; detailAvailable?: boolean; validation?: MissionValidationResult | null; latestValidation?: MissionValidationResult | null; flightReadiness?: string; preflightValidation?: MissionValidationResult | null };
 export type ManagerMission = MissionDetail & {
   createdBy: string;
   uavName: string | null;
@@ -233,6 +235,8 @@ export type NotificationFeed = {
 };
 
 export type PendingMissionApproval = {
+  requiresPilotConfirmation?: boolean;
+  proposalAuthorId?: string;
   isInitial: boolean;
   updateRequestId: string;
   currentPlan: CreateMissionRequest;
