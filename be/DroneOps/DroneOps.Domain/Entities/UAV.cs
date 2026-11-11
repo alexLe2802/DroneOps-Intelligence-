@@ -50,6 +50,11 @@ public class UAV
     public string? ImageStoragePath { get; set; }
     public string? ImageContentType { get; set; }
     public DateTimeOffset? ImageUpdatedAt { get; set; }
+    public string? ImageModerationStatus { get; set; }
+    public int ImageModerationAttempts { get; set; }
+    public DateTimeOffset? ImageModerationNextAttemptAt { get; set; }
+    public DateTimeOffset? ImageModeratedAt { get; set; }
+    public string? ImageModerationReason { get; set; }
 
     // Audit
     public DateTimeOffset CreatedAt { get; set; }

@@ -84,6 +84,13 @@ test("incident actions acknowledge and resolve through the exact backend contrac
   }
 });
 
+test("incident detail exposes resolution controls only to an operations manager", async () => {
+  const source = await readFile(new URL("../src/app/portal/incidents/[id]/incident-detail-client.tsx", import.meta.url), "utf8");
+  assert.match(source, /const isManager = account\.role === "operation_manager"/);
+  assert.match(source, /\{isManager && <button[^>]+className=\{styles\.primaryAction\}/);
+  assert.match(source, /Only an Operations Manager may close the incident/);
+});
+
 test("proxy permits incident lifecycle actions and rejects invented actions", async () => {
   const source = await readFile(new URL("../src/app/api/[...path]/route.ts", import.meta.url), "utf8");
   const regex = source.match(/const allowed = (\/.*\/);/)[1];

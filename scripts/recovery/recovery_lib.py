@@ -167,8 +167,19 @@ def verify_manifest(backup: Path) -> dict:
     if not manifest_path.is_file():
         raise RuntimeError("Backup manifest.json is missing.")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("formatVersion") not in (None, 1):
+        raise RuntimeError("Unsupported backup manifest formatVersion.")
+    seen: set[str] = set()
     for item in manifest.get("files", []):
-        file_path = backup / item["path"]
-        if not file_path.is_file() or sha256(file_path) != item["sha256"]:
-            raise RuntimeError(f"Backup checksum failed for {item['path']}.")
+        relative = str(item.get("path", ""))
+        if not relative or relative in seen:
+            raise RuntimeError(f"Backup manifest contains a missing or duplicate path: {relative!r}.")
+        seen.add(relative)
+        file_path = safe_object_file(backup, relative)
+        if not file_path.is_file():
+            raise RuntimeError(f"Backup file is missing: {relative}.")
+        if "bytes" in item and file_path.stat().st_size != int(item["bytes"]):
+            raise RuntimeError(f"Backup size check failed for {relative}.")
+        if sha256(file_path) != item.get("sha256"):
+            raise RuntimeError(f"Backup checksum failed for {relative}.")
     return manifest

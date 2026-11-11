@@ -11,4 +11,6 @@ public interface INotificationRepository : IGenericRepository<Notification>
     Task<int> MarkAllAsReadAsync(Guid userId, DateTimeOffset readAt, CancellationToken cancellationToken = default);
     Task AddRangeAsync(IEnumerable<Notification> notifications, CancellationToken cancellationToken = default);
     Task<List<Guid>> GetActiveOperationManagerIdsAsync(CancellationToken cancellationToken = default);
+    Task<int> GetPendingUavManualReviewCountAsync(CancellationToken cancellationToken = default);
+    Task<Notification?> GetActiveUavManualReviewAsync(Guid recipientUserId, CancellationToken cancellationToken = default);
 }

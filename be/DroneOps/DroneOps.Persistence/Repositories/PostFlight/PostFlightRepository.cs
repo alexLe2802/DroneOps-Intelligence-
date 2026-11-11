@@ -51,19 +51,34 @@ public class PostFlightRepository : IPostFlightRepository
         async Task<OverdueMissionSyncResult> SynchronizeCoreAsync()
         {
             var utcNow = now.UtcDateTime;
-            var flightStatuses = new[] { "active", "inprogress", "in progress", "approved" };
-            var unapprovedStatuses = new[] { "draft", "pending review" };
+            var flightStatuses = new[] { "active", "inprogress", "in progress" };
+            var unstartedStatuses = new[]
+            {
+                "draft", "pending", "pending review", "pending confirm", "submitted", "rejected", "approved"
+            };
 
-            var overdueFlights = await _context.Missions
+            var overdueStartedFlights = await _context.Missions
                 .Where(mission => mission.EndTime.HasValue && mission.EndTime <= utcNow &&
                                   flightStatuses.Contains(mission.Status.Trim().ToLower()))
                 .ToListAsync(cancellationToken);
-            var overdueUnapproved = await _context.Missions
+            var overdueUnstartedMissions = await _context.Missions
                 .Where(mission => mission.EndTime.HasValue && mission.EndTime <= utcNow &&
-                                  unapprovedStatuses.Contains(mission.Status.Trim().ToLower()))
+                                  unstartedStatuses.Contains(mission.Status.Trim().ToLower()))
                 .ToListAsync(cancellationToken);
 
-            var completedMissionIds = overdueFlights.Select(mission => mission.Id).ToArray();
+            var overdueStartedIds = overdueStartedFlights.Select(mission => mission.Id).ToArray();
+            var trustedCompletions = overdueStartedIds.Length == 0
+                ? new Dictionary<Guid, FlightCompletionEvent>()
+                : (await _context.FlightCompletionEvents
+                    .Where(completion => completion.IsTrusted && overdueStartedIds.Contains(completion.MissionId))
+                    .OrderBy(completion => completion.CompletedAt)
+                    .ToListAsync(cancellationToken))
+                    .GroupBy(completion => completion.MissionId)
+                    .ToDictionary(group => group.Key, group => group.First());
+            var completableFlights = overdueStartedFlights
+                .Where(mission => trustedCompletions.ContainsKey(mission.Id))
+                .ToList();
+            var completedMissionIds = completableFlights.Select(mission => mission.Id).ToArray();
             var existingReports = completedMissionIds.Length == 0
                 ? new Dictionary<Guid, PostFlightReport>()
                 : (await _context.PostFlightReports
@@ -76,35 +91,11 @@ public class PostFlightRepository : IPostFlightRepository
                     .GroupBy(incident => incident.MissionId)
                     .Select(group => new { MissionId = group.Key, Count = group.Count() })
                     .ToDictionaryAsync(item => item.MissionId, item => item.Count, cancellationToken);
-            var existingCompletionMissionIds = completedMissionIds.Length == 0
-                ? new HashSet<Guid>()
-                : (await _context.FlightCompletionEvents
-                    .Where(completion => completion.IsTrusted && completedMissionIds.Contains(completion.MissionId))
-                    .Select(completion => completion.MissionId)
-                    .ToListAsync(cancellationToken)).ToHashSet();
-
-            foreach (var mission in overdueFlights)
+            foreach (var mission in completableFlights)
             {
                 mission.Status = "Completed";
-                var completedAt = new DateTimeOffset(
-                    DateTime.SpecifyKind(mission.EndTime!.Value, DateTimeKind.Utc));
-
-                if (mission.UAVId.HasValue && !existingCompletionMissionIds.Contains(mission.Id))
-                {
-                    _context.FlightCompletionEvents.Add(new FlightCompletionEvent
-                    {
-                        Id = Guid.NewGuid(),
-                        MissionId = mission.Id,
-                        UAVId = mission.UAVId.Value,
-                        SourceId = "system:schedule-monitor",
-                        IdempotencyKey = $"schedule-expired:{mission.Id:N}",
-                        EventType = "MISSION_COMPLETED",
-                        CompletedAt = completedAt,
-                        ReceivedAt = now,
-                        IsTrusted = true,
-                        Evidence = "Mission end time elapsed; synchronized automatically by the post-flight monitor."
-                    });
-                }
+                var completedAt = trustedCompletions[mission.Id].CompletedAt;
+                mission.EndTime = completedAt.UtcDateTime;
 
                 var incidentCount = incidentCounts.GetValueOrDefault(mission.Id);
                 if (!existingReports.TryGetValue(mission.Id, out var existingReport))
@@ -121,7 +112,7 @@ public class PostFlightRepository : IPostFlightRepository
                             ? new DateTimeOffset(DateTime.SpecifyKind(mission.StartTime.Value, DateTimeKind.Utc)) : null,
                         CoveredTelemetryThrough = completedAt,
                         CreatedAt = now,
-                        GenerationReason = "Scheduled mission end time elapsed"
+                        GenerationReason = "Trusted completion reconciliation"
                     });
                 }
                 else
@@ -137,13 +128,13 @@ public class PostFlightRepository : IPostFlightRepository
                 }
             }
 
-            foreach (var mission in overdueUnapproved)
+            foreach (var mission in overdueUnstartedMissions)
                 mission.Status = "Cancelled";
 
-            if (overdueFlights.Count > 0 || overdueUnapproved.Count > 0)
+            if (completableFlights.Count > 0 || overdueUnstartedMissions.Count > 0)
                 await _context.SaveChangesAsync(cancellationToken);
 
-            return new OverdueMissionSyncResult(overdueFlights.Count, overdueUnapproved.Count);
+            return new OverdueMissionSyncResult(completableFlights.Count, overdueUnstartedMissions.Count);
         }
 
         if (!_context.Database.IsRelational())

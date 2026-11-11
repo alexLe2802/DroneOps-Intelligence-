@@ -275,14 +275,18 @@ try
             "new incident creates one navigable Facebook-style notification for the pilot");
     }
 
-    // Pilot nhận alert bền vững, acknowledge/resolve và lịch sử append-only qua HTTP.
+    // Pilot nhận alert bền vững và acknowledge; chỉ Manager được resolve; lịch sử append-only qua HTTP.
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));
     var unread = await Json(await client.GetAsync("/api/incidents/alerts/unread"));
     Check(unread.GetArrayLength() >= 1, "raised incident creates a durable unread alert for the mission owner");
     var acknowledge = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/acknowledge", new { notes = "Pilot is handling the event." });
     Check(acknowledge.StatusCode == HttpStatusCode.OK && (await Json(acknowledge)).GetProperty("status").GetString() == "Acknowledged", "pilot acknowledges an incident through HTTP API");
+    var forbiddenResolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced." });
+    Check(forbiddenResolve.StatusCode == HttpStatusCode.Forbidden, "pilot cannot resolve an incident");
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(managerId, "operation_manager"));
     var resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced." });
-    Check(resolve.StatusCode == HttpStatusCode.OK && (await Json(resolve)).GetProperty("status").GetString() == "Resolved", "pilot resolves an incident with mandatory notes");
+    Check(resolve.StatusCode == HttpStatusCode.OK && (await Json(resolve)).GetProperty("status").GetString() == "Resolved", "manager resolves an incident with mandatory notes");
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));
     var history = await Json(await client.GetAsync($"/api/incidents/{lowBatteryIncidentId}/history"));
     Check(history.GetArrayLength() == 3 && history[0].GetProperty("eventType").GetString() == "Raised", "incident history preserves raised, acknowledged and resolved transitions");
     var alertId = unread[0].GetProperty("id").GetGuid();
