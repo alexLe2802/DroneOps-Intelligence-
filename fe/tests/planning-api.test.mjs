@@ -53,15 +53,15 @@ test("high-risk mission decision uses the exact confirm and cancellation contrac
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
     calls.push([url, options.method, options.body ?? null]);
     return Response.json(options.method === "DELETE"
-      ? { missionId: "mission-id", message: "The high-risk mission has been cancelled and deleted." }
-      : { missionId: "mission-id", status: "Pending Review", message: "High weather risk confirmed." });
+      ? { missionId: "mission-id", message: "The risk proposal was withdrawn; mission history retained." }
+      : { missionId: "mission-id", status: "Pending Review", message: "Pre-flight risk confirmed." });
   });
   try {
-    assert.equal((await client.confirmHighRiskMission("mission-id")).status, "Pending Review");
-    assert.match((await client.cancelHighRiskMission("mission-id")).message, /cancelled and deleted/i);
+    assert.equal((await client.confirmHighRiskMission("mission-id", "request-id", "run-id")).status, "Pending Review");
+    assert.match((await client.cancelHighRiskMission("mission-id", "request-id")).message, /history retained/i);
     assert.deepEqual(calls, [
-      ["/api/missions/mission-id/confirm-high-risk", "POST", null],
-      ["/api/missions/mission-id/cancel-high-risk", "DELETE", null],
+      ["/api/missions/mission-id/confirm-high-risk", "POST", JSON.stringify({ updateRequestId: "request-id", validationRunId: "run-id" })],
+      ["/api/missions/mission-id/cancel-high-risk?updateRequestId=request-id", "DELETE", null],
     ]);
   } finally { mock.mock.restore(); }
 });
@@ -158,7 +158,7 @@ test("manager mission registry reads mission plans and enriches assigned aircraf
   const calls = [];
   const mock = test.mock.method(globalThis, "fetch", async url => {
     calls.push(String(url));
-    if (String(url) === "/api/missions") return Response.json([mission]);
+    if (String(url) === "/api/missions?pageSize=100") return Response.json({ items: [mission] });
     if (String(url).startsWith("/api/admin/uavs?")) return Response.json({ items: [aircraft], pageNumber: 1, pageSize: 100, totalItems: 1, totalPages: 1 });
     throw new Error(`Unexpected request: ${url}`);
   });
@@ -180,7 +180,7 @@ test("validation mission selector uses role-scoped mission registries instead of
     calls.push(String(url));
     if (String(url) === "/api/missions/my") return Response.json([pilotMission]);
     if (String(url) === "/api/uavs/myUAV?PageNumber=1&PageSize=100") return Response.json({ items: [], pageNumber: 1, pageSize: 100, totalItems: 0, totalPages: 0 });
-    if (String(url) === "/api/missions") return Response.json([managerMission]);
+    if (String(url) === "/api/missions?pageSize=100") return Response.json({ items: [managerMission] });
     if (String(url).startsWith("/api/admin/uavs?")) return Response.json({ items: [], pageNumber: 1, pageSize: 100, totalItems: 0, totalPages: 0 });
     throw new Error(`Unexpected request: ${url}`);
   });
@@ -291,4 +291,18 @@ test("exact validation run evidence is reachable through the proxy and preserves
   });
   try { assert.equal((await client.getMissionValidationRun(id, id)).stale, true); }
   finally { mock.mock.restore(); }
+});
+
+
+test("Draft submission sends a stable operation identity without resaving the plan", async () => {
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push([url, options.method, JSON.parse(options.body)]);
+    return Response.json({ id: "mission", status: "Pending Review" });
+  });
+  try {
+    await client.submitMission("mission", "operation");
+    await client.submitMission("mission", "operation");
+    assert.deepEqual(calls, Array(2).fill(["/api/missions/mission/submit", "PUT", { operationId: "operation" }]));
+  } finally { mock.mock.restore(); }
 });

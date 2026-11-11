@@ -4,6 +4,7 @@ namespace DroneOps.Persistence.Interfaces;
 
 public interface IMissionValidationRepository
 {
+    Task<MissionUpdateRequest?> GetReviewRequestAsync(Guid missionId, Guid requestId, CancellationToken ct = default);
     Task<Mission?> GetMissionWithWaypointsAsync(
         Guid missionId,
         bool tracking = false,

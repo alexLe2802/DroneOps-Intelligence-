@@ -13,6 +13,8 @@ public sealed class MissionValidationRepository(
     IMemoryCache cache)
     : IMissionValidationRepository
 {
+    public Task<MissionUpdateRequest?> GetReviewRequestAsync(Guid missionId, Guid requestId, CancellationToken ct = default)
+        => db.MissionUpdateRequests.SingleOrDefaultAsync(x => x.MissionId == missionId && x.Id == requestId, ct);
     public async Task<Mission?> GetMissionWithWaypointsAsync(
         Guid missionId,
         bool tracking = false,
@@ -188,6 +190,7 @@ public sealed class MissionValidationRepository(
     {
         return await db.Pilots
             .AsNoTracking()
+            .Include(x => x.User)
             .FirstOrDefaultAsync(
                 x => x.UserId == userId,
                 cancellationToken);

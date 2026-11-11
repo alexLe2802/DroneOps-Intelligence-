@@ -10,6 +10,12 @@ using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
 using Microsoft.AspNetCore.Authorization;
 
+if (args.Length == 1 && args[0] is "--mission-workflow-integrity" or "--mission-workflow-postgres")
+{
+    await MissionWorkflowIntegrityChecks.RunAsync(args[0] == "--mission-workflow-postgres");
+    return;
+}
+
 if (args.Length == 1 && args[0] == "--mission-fences")
 {
     MissionFenceChecks.Run();

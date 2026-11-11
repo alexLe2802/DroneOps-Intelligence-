@@ -5,7 +5,7 @@ public static class MissionWorkflowSchema
 {
     public static async Task ApplyAsync(NpgsqlDataSource source)
     {
-        foreach (var resource in new[] {"DroneOps.Persistence.MissionWorkflow.sql","DroneOps.Persistence.MissionRequests.sql","DroneOps.Persistence.MissionRestrictions.sql"})
+        foreach (var resource in new[] {"DroneOps.Persistence.MissionWorkflow.sql","DroneOps.Persistence.MissionRequests.sql","DroneOps.Persistence.MissionRestrictions.sql","DroneOps.Persistence.MissionReviewIntegrity.sql"})
         {
             using var stream=typeof(MissionWorkflowSchema).Assembly.GetManifestResourceStream(resource)??throw new InvalidOperationException("Workflow migration resource missing.");
             using var reader=new StreamReader(stream);
@@ -24,6 +24,8 @@ public static class MissionWorkflowSchema
             await audit.ExecuteNonQueryAsync();
             await using var requestCheck=source.CreateCommand("SELECT \"Id\", \"ProposedPlanJson\" FROM public.\"MissionUpdateRequest\" LIMIT 0");
             await requestCheck.ExecuteNonQueryAsync();
+            await using var riskCheck = source.CreateCommand("SELECT \"PilotConfirmedBy\", \"PilotConfirmedAt\", \"PilotConfirmedValidationRunId\" FROM public.\"MissionUpdateRequest\" LIMIT 0");
+            await riskCheck.ExecuteNonQueryAsync();
             foreach (var sql in new[] {
                 "SELECT \"BasePlanJson\", \"ValidationRunId\" FROM public.\"MissionUpdateRequest\" LIMIT 0",
                 "SELECT \"UpdateRequestId\" FROM public.\"MissionValidationRun\" LIMIT 0",

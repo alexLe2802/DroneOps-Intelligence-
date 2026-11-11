@@ -4,8 +4,9 @@ import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietn
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
-import { getAssignedUavs, getGeofences, getMission, updateMission } from "@/lib/portal/client";
+import { getAssignedUavs, getManagedUavs, getGeofences, getMission, updateMission } from "@/lib/portal/client";
 import { missionActions } from "@/lib/portal/mission-review";
+import type { AccountRole } from "@/lib/auth/types";
 import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../../module-state";
 import MissionMap from "../../mission-map";
@@ -60,7 +61,7 @@ const editorValue = (saved: MissionDetail): EditorValue => { const mission = sav
   waypoints: normalizeWaypointActions(mission.waypoints.map(point => ({ ...point }))),
 }); };
 
-export default function MissionEditClient({ id, actorId }: { id: string; actorId: string }) {
+export default function MissionEditClient({ id, actorId, role }: { id: string; actorId: string; role: AccountRole }) {
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [aircraft, setAircraft] = useState<AssignedUav[]>([]);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
@@ -78,7 +79,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
     setMission(null);
     setValue(null);
     setLoadError(null);
-    void Promise.allSettled([getMission(id), getAssignedUavs(), getGeofences()]).then(([missionResult, uavResult, zoneResult]) => {
+    void Promise.allSettled([getMission(id), (role === "operation_manager" ? getManagedUavs({ pageSize: 100 }).then(result => result.items) : getAssignedUavs()), getGeofences()]).then(([missionResult, uavResult, zoneResult]) => {
       if (missionResult.status === "rejected") {
         setLoadError(missionResult.reason);
         return;
@@ -90,11 +91,11 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       setAircraft(uavResult.status === "fulfilled" ? uavResult.value : []);
       setGeofences(zoneResult.status === "fulfilled" ? zoneResult.value : []);
     });
-  }, [id]);
+  }, [id, role]);
 
   useEffect(() => {
     let active = true;
-    void Promise.allSettled([getMission(id), getAssignedUavs(), getGeofences()]).then(([missionResult, uavResult, zoneResult]) => {
+    void Promise.allSettled([getMission(id), (role === "operation_manager" ? getManagedUavs({ pageSize: 100 }).then(result => result.items) : getAssignedUavs()), getGeofences()]).then(([missionResult, uavResult, zoneResult]) => {
       if (!active) return;
       if (missionResult.status === "rejected") {
         setLoadError(missionResult.reason);
@@ -108,7 +109,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       setGeofences(zoneResult.status === "fulfilled" ? zoneResult.value : []);
     });
     return () => { active = false; };
-  }, [id]);
+  }, [id, role]);
 
   const dirty = useMemo(() => Boolean(value && initialValue && JSON.stringify(value) !== initialValue), [initialValue, value]);
 
@@ -163,7 +164,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!value || !mission || !missionActions(mission, "uav_operator", actorId).edit || savePending.current) return;
+    if (!value || !mission || !missionActions(mission, role, actorId).edit || savePending.current) return;
     setFormError("");
     setNotice("");
     const fenceError = missionFencesError(value.missionFences);
@@ -196,7 +197,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       };
       const signature = JSON.stringify(payload);
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
-      const saved = await updateMission(id, { ...payload, operationId: operation.current.id });
+      const saved = await updateMission(id, { ...payload, operationId: operation.current.id, expectedPlanHash: mission.planHash, expectedPendingRequestId: mission.pendingUpdate?.id ?? null });
       const next = editorValue(saved);
       setMission(saved);
       setValue(next);
@@ -213,7 +214,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!mission || !value) return <ModuleLoading label="Loading mission editor" />;
 
-  const canEdit = missionActions(mission, "uav_operator", actorId).edit;
+  const canEdit = missionActions(mission, role, actorId).edit;
   if (!canEdit) return <section className="module-state error"><span className="state-symbol">!</span><p className="module-kicker">MISSION LOCKED</p><h2>This plan cannot be edited</h2><p>Only pre-flight missions can be proposed for editing. The current mission status is {mission.status}.</p><Link className="module-primary module-link" href={`/portal/missions/${id}`}>BACK TO MISSION</Link></section>;
 
   const approvedAircraft = aircraft.filter(item => item.status.toLowerCase() === "active" || item.id === mission.uavId);

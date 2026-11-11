@@ -48,6 +48,8 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<MissionUpdateRequest>().HasIndex(x => x.MissionId).IsUnique()
+            .HasFilter("\"Status\" = 'Pending'").HasDatabaseName("UX_MissionUpdateRequest_Pending");
         modelBuilder.Entity<Incident>().Property(i => i.Revision).IsConcurrencyToken();
         modelBuilder.Entity<MissionFlightExecution>().HasIndex(e => e.UavId).IsUnique().HasFilter("\"CompletedAt\" IS NULL");
         modelBuilder.Entity<User>().Property(x=>x.ProfileVersion).IsConcurrencyToken();
