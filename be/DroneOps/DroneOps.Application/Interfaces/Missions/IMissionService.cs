@@ -24,6 +24,6 @@ public interface IMissionService
     Guid missionId,
     Guid userId,
     CreateMissionRequest request,
-    CancellationToken cancellationToken = default);
+    CancellationToken cancellationToken = default, bool manager = false);
 
 }

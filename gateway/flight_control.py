@@ -9,6 +9,7 @@ from pathlib import Path
 import math
 import datetime as dt
 import queue
+from types import SimpleNamespace
 import threading
 import time
 import uuid
@@ -342,6 +343,27 @@ class FlightControl:
                 and isinstance(values.get('RTL_ALT_M'), (int, float))
                 and 0 < values['RTL_ALT_M'] <= self.return_ceiling)
 
+    def takeoff_position_ready(self, compiled_hash):
+        # Bind the launch check to the locally read-back mission, never a new
+        # backend coordinate or user-selected Planned Home. Copter has a Home
+        # header at index zero; the first real navigation item must be TAKEOFF.
+        if not compiled_hash or self.uploaded_hash != compiled_hash:
+            return False
+        heartbeat = self.fresh('HEARTBEAT')
+        if heartbeat is None:
+            return False
+        offset = 1 if heartbeat.autopilot == 3 else 0
+        if len(self.items) <= offset or self.items[offset].get('command') != 22:
+            return False
+        position = self.fresh('GLOBAL_POSITION_INT', 3)
+        home = self.fresh('HOME_POSITION', 15)
+        if position is None or home is None:
+            return False
+        takeoff = self.items[offset]
+        expected = {'latitude': takeoff['x'] / 1e7, 'longitude': takeoff['y'] / 1e7}
+        current = SimpleNamespace(latitude=position.lat, longitude=position.lon)
+        return planned_home_matches(expected, current) and planned_home_matches(expected, home)
+
     def begin(self, link, response):
         evidence = self.evidence()
         action = self.active['action']
@@ -353,6 +375,10 @@ class FlightControl:
             if not response.get('missionId') or not response.get('connectionId') or not response.get('planHash') or identity != response.get('controllerUid'):
                 self.finish(False)
                 return
+        if action in ('Arm', 'Start') and not self.takeoff_position_ready(self.active['compiledHash']):
+            self.envelope.error = 'Launch blocked: fresh drone position (3 s) and FC Home (15 s) must both be within 10 m of the verified Takeoff/Home waypoint.'
+            self.finish(False)
+            return
         if action in ('Arm', 'Start') and any(item['command'] == 20 for item in self.items) and not self.return_landing_ready():
             self.envelope.error = 'Return/RTL requires fresh Home, no rally points, Home-relative RTL altitude within limits and RTL final altitude 0 (land).'
             self.finish(False)

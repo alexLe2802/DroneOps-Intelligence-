@@ -9,6 +9,8 @@ public sealed class MissionWeatherQueryRepository(
     AppDbContext db)
     : IMissionWeatherQueryRepository
 {
+    public Task<MissionUpdateRequest?> GetReviewRequestAsync(Guid id, Guid requestId, CancellationToken ct)
+        => db.MissionUpdateRequests.AsNoTracking().SingleOrDefaultAsync(x => x.MissionId == id && x.Id == requestId, ct);
     public async Task<Mission?> GetMissionWithWaypointsAsync(
         Guid missionId,
         CancellationToken cancellationToken = default)

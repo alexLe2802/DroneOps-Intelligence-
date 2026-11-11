@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Response.Missions;
+using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Validators.Missions;
 using DroneOps.Persistence.Interfaces;
@@ -21,7 +22,7 @@ public sealed class MissionWeatherQueryService(
         Guid actor,
         bool manager,
         bool refresh,
-        CancellationToken ct)
+        CancellationToken ct, Guid? updateRequestId = null)
     {
         // =========================
         // GET MISSION
@@ -45,6 +46,15 @@ public sealed class MissionWeatherQueryService(
                 "Mission is outside your scope.");
         }
 
+        if (updateRequestId.HasValue)
+        {
+            var review = await repository.GetReviewRequestAsync(id, updateRequestId.Value, ct)
+                ?? throw new KeyNotFoundException("Review request not found.");
+            var dto = JsonSerializer.Deserialize<CreateMissionRequest>(review.ProposedPlanJson, MissionValidationService.JsonOptions)
+                ?? throw new InvalidOperationException("Proposed plan is missing.");
+            mission = MissionPlans.Propose(mission, dto);
+        }
+
         // =========================
         // CACHE KEY
         // =========================
@@ -57,7 +67,7 @@ public sealed class MissionWeatherQueryService(
                 policy.Value);
 
         var keySource =
-            planHash + policyJson;
+            planHash + policyJson + updateRequestId?.ToString();
 
         var key =
             Convert.ToHexString(
@@ -122,6 +132,7 @@ public sealed class MissionWeatherQueryService(
         // =========================
 
         value.MissionId = id;
+        value.UpdateRequestId = updateRequestId;
         value.PlanHash = planHash;
         value.FlightStartTime =
             mission.StartTime;

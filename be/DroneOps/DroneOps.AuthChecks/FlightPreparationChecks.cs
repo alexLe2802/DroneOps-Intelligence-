@@ -218,7 +218,7 @@ internal static class FlightPreparationChecks
     private sealed class PreflightStub(AppDbContext db) : IMissionValidationService
     {
         public bool Fail { get; set; }
-        public async Task<MissionValidationResult> RevalidateAsync(Guid id, Guid actor, bool manager, string stage, CancellationToken ct = default)
+        public async Task<MissionValidationResult> RevalidateAsync(Guid id, Guid actor, bool manager, string stage, CancellationToken ct = default, Guid? updateRequestId = null)
         {
             var mission = await db.Missions.AsNoTracking().Include(m => m.Waypoints).SingleAsync(m => m.Id == id, ct);
             var result = new MissionValidationResult { MissionId = id, Stage = stage };

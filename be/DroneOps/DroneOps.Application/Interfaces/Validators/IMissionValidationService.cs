@@ -58,7 +58,7 @@ public interface IMissionValidationService
         Guid actor,
         bool manager,
         string stage,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, Guid? updateRequestId = null);
 
     Task SyncPreflightAlertAsync(
         Guid missionId,

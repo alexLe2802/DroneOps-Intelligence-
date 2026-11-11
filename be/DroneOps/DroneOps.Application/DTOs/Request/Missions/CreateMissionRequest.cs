@@ -2,6 +2,9 @@ namespace DroneOps.Application.DTOs.Request.Missions;
 
 public sealed class CreateMissionRequest
 {
+    public Guid? OperationId { get; set; }
+    public string? ExpectedPlanHash { get; set; }
+    public Guid? ExpectedPendingRequestId { get; set; }
     public string? AltitudeReference { get; set; }
     public bool AutomaticFlightRequested { get; set; }
     public DroneOps.Domain.Entities.AutomaticFlightLimits? AutomaticFlightLimits { get; set; }
