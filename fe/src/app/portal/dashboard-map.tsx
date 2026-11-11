@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import { describeGeofence } from "@/lib/maps/geofences";
-import type { Geofence } from "@/lib/portal/types";
+import type { Geofence, LiveMission } from "@/lib/portal/types";
 
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
 type CursorCoordinate = { latitude: number; longitude: number } | null;
 type UserPosition = { latitude: number; longitude: number; accuracy: number };
 
-export default function DashboardMap({ geofences, onCursorCoordinate }: { geofences: Geofence[]; onCursorCoordinate?: (coordinate: CursorCoordinate) => void }) {
+export default function DashboardMap({ geofences, liveMissions = [], onCursorCoordinate }: { geofences: Geofence[]; liveMissions?: LiveMission[]; onCursorCoordinate?: (coordinate: CursorCoordinate) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
   const leafletRef = useRef<typeof Leaflet | null>(null);
@@ -102,6 +102,27 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
         popup.append(title, category, limits);
         polygon.bindPopup(popup).addTo(map!);
       });
+      liveMissions.forEach(mission => {
+        if (mission.latitude == null || mission.longitude == null || !valid(mission.latitude, mission.longitude)) return;
+        const color = mission.connectivityStatus === "Online" ? "#58e6bd"
+          : mission.connectivityStatus === "Stale" ? "#f5c86b" : "#ff858c";
+        const marker = L.circleMarker([mission.latitude, mission.longitude], {
+          radius: 8, color: "#e8f7ff", weight: 2, fillColor: color, fillOpacity: 1,
+        });
+        const popup = document.createElement("div");
+        popup.className = "airspace-popup";
+        const title = document.createElement("strong");
+        title.textContent = mission.missionName;
+        const asset = document.createElement("span");
+        asset.textContent = `${mission.uavCode ?? "Unassigned UAV"} · ${mission.pilotName ?? "Unassigned pilot"}`;
+        const telemetry = document.createElement("span");
+        telemetry.textContent = `${mission.connectivityStatus} · ${mission.batteryPercent == null ? "Battery unavailable" : `${mission.batteryPercent.toFixed(0)}% battery`}`;
+        const link = document.createElement("a");
+        link.href = `/portal/live-monitoring?missionId=${encodeURIComponent(mission.missionId)}`;
+        link.textContent = "Open live monitoring →";
+        popup.append(title, asset, telemetry, link);
+        marker.bindPopup(popup).addTo(map!);
+      });
       if (positionRef.current) displayPosition(L, map, positionRef.current);
       else locateUser(false);
       resizeFrame = requestAnimationFrame(() => {
@@ -118,7 +139,7 @@ export default function DashboardMap({ geofences, onCursorCoordinate }: { geofen
       locationLayerRef.current = null;
       map = undefined;
     };
-  }, [geofences, onCursorCoordinate, displayPosition, locateUser]);
+  }, [geofences, liveMissions, onCursorCoordinate, displayPosition, locateUser]);
 
   return <div className="dashboard-map-shell">
     <div ref={containerRef} className="dashboard-live-map" />
