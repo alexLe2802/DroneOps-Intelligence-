@@ -9,6 +9,7 @@ using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
 using DroneOps.Application.Validators;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 
 namespace DroneOps.Application.Services.UAVs;
 
@@ -19,7 +20,7 @@ public sealed class UavService : IUavService
     private readonly INotificationService _notificationService;
     private readonly ILogger<UavService> _logger;
     private readonly IUserMediaStorage _storage;
-    private readonly IUavImageModerationService _imageModeration;
+    private readonly IConfiguration _configuration;
 
     public UavService(
         IUavRepository uavRepository,
@@ -27,14 +28,16 @@ public sealed class UavService : IUavService
         INotificationService notificationService,
         ILogger<UavService> logger,
         IUserMediaStorage storage,
-        IUavImageModerationService imageModeration)
+        IUavImageModerationService imageModeration,
+        IConfiguration configuration)
     {
         _uavRepository = uavRepository;
         _pilotRepository = pilotRepository;
         _notificationService = notificationService;
         _logger = logger;
         _storage = storage;
-        _imageModeration = imageModeration;
+        _configuration = configuration;
+        _ = imageModeration; // Resolved here for configuration validation; moderation runs in the durable API worker.
     }
 
     // 1. Tạo mới UAV: Trạng thái mặc định là "Pending" (chờ duyệt)
@@ -277,12 +280,38 @@ public sealed class UavService : IUavService
         if (request.BatteryMaxVoltage is <= 0 || request.BatteryMaxVoltage < request.BatteryVoltage)
             throw new ArgumentException("Battery maximum voltage must be positive and at least the nominal voltage when both are known.");
 
+        var normalizedName = request.Name.Trim();
+        var normalizedManufacturer = Normalize(request.Manufacturer);
+        var normalizedModel = Normalize(request.Model);
+        var normalizedSerialNumber = Normalize(request.SerialNumber);
+        var normalizedBatteryType = Normalize(request.BatteryType);
+        var requiresReapproval =
+            !string.Equals(uav.Code, newCode, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(uav.Name, normalizedName, StringComparison.Ordinal) ||
+            !string.Equals(uav.Manufacturer, normalizedManufacturer, StringComparison.Ordinal) ||
+            !string.Equals(uav.Model, normalizedModel, StringComparison.Ordinal) ||
+            !string.Equals(uav.SerialNumber, normalizedSerialNumber, StringComparison.Ordinal) ||
+            uav.EmptyWeightKg != request.EmptyWeightKg ||
+            uav.MaxTakeoffWeightKg != request.MaxTakeoffWeightKg ||
+            uav.MaxPayloadKg != request.MaxPayloadKg ||
+            !string.Equals(uav.BatteryType, normalizedBatteryType, StringComparison.Ordinal) ||
+            uav.BatteryCapacityMah != request.BatteryCapacityMah ||
+            uav.BatteryVoltage != request.BatteryVoltage ||
+            uav.BatteryMaxVoltage != request.BatteryMaxVoltage ||
+            uav.BatteryCellCount != request.BatteryCellCount ||
+            uav.MaxFlightTimeMinutes != request.MaxFlightTimeMinutes ||
+            uav.MaxRangeKm != request.MaxRangeKm ||
+            uav.MaxSpeedKmh != request.MaxSpeedKmh ||
+            uav.MaxWindSpeedMps != request.MaxWindSpeedMps ||
+            uav.MaxOperatingAltitudeMeters != request.MaxOperatingAltitudeMeters ||
+            uav.PurchaseDate != request.PurchaseDate;
+
         // Basic information
         uav.Code = newCode;
-        uav.Name = request.Name.Trim();
-        uav.Manufacturer = Normalize(request.Manufacturer);
-        uav.Model = Normalize(request.Model);
-        uav.SerialNumber = Normalize(request.SerialNumber);
+        uav.Name = normalizedName;
+        uav.Manufacturer = normalizedManufacturer;
+        uav.Model = normalizedModel;
+        uav.SerialNumber = normalizedSerialNumber;
 
         // Physical
         uav.EmptyWeightKg = request.EmptyWeightKg;
@@ -290,7 +319,7 @@ public sealed class UavService : IUavService
         uav.MaxPayloadKg = request.MaxPayloadKg;
 
         // Battery
-        uav.BatteryType = Normalize(request.BatteryType);
+        uav.BatteryType = normalizedBatteryType;
         uav.BatteryCapacityMah = request.BatteryCapacityMah;
         uav.BatteryVoltage = request.BatteryVoltage;
         uav.BatteryMaxVoltage = request.BatteryMaxVoltage;
@@ -306,19 +335,24 @@ public sealed class UavService : IUavService
 
         uav.PurchaseDate = request.PurchaseDate;
 
-        // Pilot thay đổi thông tin UAV => cần duyệt lại
-        uav.Status = "Pending";
+        // Reapproval is for material registry/specification changes only. The edit
+        // screen also sends this DTO before a separate optional image upload, so an
+        // unchanged DTO must not deactivate an operational aircraft.
+        if (requiresReapproval) uav.Status = "Pending";
 
         await _uavRepository.SaveChangesAsync(
             cancellationToken);
 
-        await TryPublishToManagersAsync(
-            "UavUpdatePending",
-            "UAV Update Pending Approval",
-            $"UAV '{uav.Code} - {uav.Name}' has been updated and requires approval.",
-            userId,
-            uav.Id,
-            cancellationToken);
+        if (requiresReapproval)
+        {
+            await TryPublishToManagersAsync(
+                "UavUpdatePending",
+                "UAV Update Pending Approval",
+                $"UAV '{uav.Code} - {uav.Name}' has been updated and requires approval.",
+                userId,
+                uav.Id,
+                cancellationToken);
+        }
 
         return true;
     }
@@ -410,17 +444,6 @@ public sealed class UavService : IUavService
             fileSize,
             cancellationToken);
 
-        var isAllowed = await _imageModeration.IsAllowedAsync(
-            imageBytes,
-            normalizedContentType,
-            cancellationToken);
-
-        if (!isAllowed)
-        {
-            throw new ArgumentException(
-                "Invalid image content: The uploaded photo must be a valid UAV/Drone image and must not contain inappropriate content.");
-        }
-
         var extension = normalizedContentType switch
         {
             "image/jpeg" => ".jpg",
@@ -450,9 +473,17 @@ public sealed class UavService : IUavService
         uav.ImageStoragePath = newPath;
         uav.ImageContentType = normalizedContentType;
         uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+        var moderationEnabled = _configuration.GetValue("UavImageModeration:Enabled", false);
+        uav.ImageModerationStatus = moderationEnabled ? "Pending" : "Approved";
+        uav.ImageModerationAttempts = 0;
+        uav.ImageModerationNextAttemptAt = moderationEnabled ? DateTimeOffset.UtcNow : null;
+        uav.ImageModeratedAt = moderationEnabled ? null : DateTimeOffset.UtcNow;
+        uav.ImageModerationReason = moderationEnabled
+            ? "Waiting for AI moderation."
+            : "Image accepted automatically; AI moderation is disabled.";
 
-        // Bất kỳ thay đổi nào của UAV cũng cần duyệt lại
-        uav.Status = "Pending";
+        // Image moderation is independent from operational approval. Replacing an
+        // optional image must not deactivate the UAV or disrupt assigned missions.
 
         try
         {
@@ -476,14 +507,9 @@ public sealed class UavService : IUavService
             await CleanupImageAsync(oldPath);
         }
 
-        // Thông báo cho manager/admin rằng UAV cần được duyệt lại
-        await TryPublishToManagersAsync(
-            "UavUpdatePending",
-            "UAV Update Pending Approval",
-            $"UAV '{uav.Code} - {uav.Name}' image has been updated and requires approval.",
-            actorUserId,
-            uav.Id,
-            cancellationToken);
+        // Image moderation runs silently. Managers are notified only if AI exhausts
+        // its retries and the aggregate manual-review queue becomes non-empty.
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(
             uav,
@@ -533,9 +559,13 @@ public sealed class UavService : IUavService
         uav.ImageStoragePath = null;
         uav.ImageContentType = null;
         uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+        uav.ImageModerationStatus = null;
+        uav.ImageModerationAttempts = 0;
+        uav.ImageModerationNextAttemptAt = null;
+        uav.ImageModeratedAt = null;
+        uav.ImageModerationReason = null;
 
-        // Có thay đổi thông tin UAV -> cần duyệt lại
-        uav.Status = "Pending";
+        // Removing an optional image does not change operational approval.
 
         // Save DB trước
         await _uavRepository.SaveChangesAsync(
@@ -544,16 +574,59 @@ public sealed class UavService : IUavService
         // DB thành công rồi mới xóa file trên storage
         await CleanupImageAsync(oldPath);
 
-        // Notify manager/admin để duyệt lại
-        await TryPublishToManagersAsync(
-            "UavUpdatePending",
-            "UAV Update Pending Approval",
-            $"UAV '{uav.Code} - {uav.Name}' image has been removed and requires approval.",
-            actorUserId,
-            uav.Id,
-            cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return true;
+    }
+
+    public async Task<UavResponse?> RejectUavImageAsync(
+        Guid uavId,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedReason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedReason))
+            throw new ArgumentException("A rejection reason is required.");
+        if (normalizedReason.Length > 500)
+            throw new ArgumentException("The rejection reason must be 500 characters or fewer.");
+
+        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
+        if (uav is null) return null;
+        if (string.IsNullOrWhiteSpace(uav.ImageStoragePath))
+            throw new InvalidOperationException("This UAV has no image to reject.");
+
+        var oldPath = uav.ImageStoragePath;
+        uav.ImageStoragePath = null;
+        uav.ImageContentType = null;
+        uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+        uav.ImageModerationStatus = "Rejected";
+        uav.ImageModerationAttempts = 0;
+        uav.ImageModerationNextAttemptAt = null;
+        uav.ImageModeratedAt = DateTimeOffset.UtcNow;
+        uav.ImageModerationReason = normalizedReason;
+        await _uavRepository.SaveChangesAsync(cancellationToken);
+        await CleanupImageAsync(oldPath);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
+
+        try
+        {
+            await _notificationService.PublishToUserAsync(
+                uav.Pilot.UserId,
+                "UavImageRejected",
+                "UAV Image Rejected",
+                $"The image for UAV '{uav.Code} - {uav.Name}' was removed. Reason: {normalizedReason}",
+                null,
+                uav.Id,
+                "UAV",
+                $"/portal/uav/{uav.Id}/edit",
+                cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Could not publish image rejection for UAV {UavId}.", uav.Id);
+        }
+
+        return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
 
     // 7. Từ chối duyệt UAV -> Chuyển trạng thái sang "Rejected"
@@ -575,6 +648,7 @@ public sealed class UavService : IUavService
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await TryPublishDecisionAsync(uav, false, cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -616,10 +690,12 @@ public sealed class UavService : IUavService
         }
 
         EnsureStatus(uav, "Pending", "approve");
+        EnsureImageModerationAllowsApproval(uav);
         uav.Status = "Active";
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await TryPublishDecisionAsync(uav, true, cancellationToken);
+        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -651,6 +727,8 @@ public sealed class UavService : IUavService
                 $"Cannot activate UAV with status '{uav.Status}'. Only Pending or Inactive UAVs can be activated.");
         }
 
+        EnsureImageModerationAllowsApproval(uav);
+
         if (!currentStatus.Equals("Active", StringComparison.OrdinalIgnoreCase))
         {
             uav.Status = "Active";
@@ -660,6 +738,7 @@ public sealed class UavService : IUavService
             {
                 await TryPublishDecisionAsync(uav, true, cancellationToken);
             }
+            await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
         }
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
@@ -691,6 +770,7 @@ public sealed class UavService : IUavService
             await _uavRepository.GetAllPagedAsync(
                 keyword,
                 status,
+                request.ImageModerationStatus,
                 pageNumber,
                 pageSize,
                 cancellationToken);
@@ -722,6 +802,27 @@ public sealed class UavService : IUavService
             throw new InvalidOperationException(
                 $"Cannot {action} UAV with status '{uav.Status}'. Only {expectedStatus} UAVs can be {action}d.");
         }
+    }
+
+    private static void EnsureImageModerationAllowsApproval(UAV uav)
+    {
+        if (string.IsNullOrWhiteSpace(uav.ImageStoragePath)) return;
+
+        var status = uav.ImageModerationStatus?.Trim();
+        if (string.Equals(status, "Approved", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, "ManualReview", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (string.Equals(status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "The UAV image was rejected by moderation. Replace it before approving the UAV.");
+        }
+
+        throw new InvalidOperationException(
+            "The UAV image is still waiting for AI moderation. Retry approval after the image check completes.");
     }
 
     private static void EnsureImagePermission(UAV uav, Guid actorUserId, string actorRole)
@@ -827,6 +928,9 @@ public sealed class UavService : IUavService
             ImageUrl = string.IsNullOrWhiteSpace(uav.ImageStoragePath)
                 ? null
                 : $"/api/uavs/{uav.Id}/image?v={Uri.EscapeDataString(uav.ImageStoragePath)}",
+            ImageModerationStatus = uav.ImageModerationStatus,
+            ImageModeratedAt = uav.ImageModeratedAt,
+            ImageModerationReason = uav.ImageModerationReason,
 
             CreatedAt = uav.CreatedAt
         };

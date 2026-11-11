@@ -281,23 +281,17 @@ public sealed class PostFlightService : IPostFlightService
 
         try
         {
-            var completion = await _repository.GetTrustedCompletionEventAsync(mission.Id, cancellationToken);
-            var scheduledCompletion = report.GenerationReason == "Scheduled mission end time elapsed";
-            if (completion == null && !scheduledCompletion)
-                throw new InvalidOperationException("Trusted completion evidence is missing.");
-            var coveredThrough = completion?.CompletedAt ?? report.CoveredTelemetryThrough
-                ?? throw new InvalidOperationException("The completed flight window is missing.");
+            var completion = await _repository.GetTrustedCompletionEventAsync(mission.Id, cancellationToken)
+                ?? throw new InvalidOperationException("Trusted completion evidence is missing.");
+            var coveredThrough = completion.CompletedAt;
             var telemetry = (await _repository.GetTelemetryByMissionIdAsync(mission.Id, cancellationToken))
                 .Where(x => (!report.CoveredTelemetryFrom.HasValue || x.SourceTimestamp >= report.CoveredTelemetryFrom) &&
                             x.SourceTimestamp <= coveredThrough)
                 .ToList();
             var incidents = await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken);
-            if (telemetry.Count == 0 && !scheduledCompletion)
-                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
             if (telemetry.Count == 0)
-                PopulateScheduledReport(report, mission, incidents);
-            else
-                PopulateReport(report, mission, telemetry, incidents);
+                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
+            PopulateReport(report, mission, telemetry, incidents);
             report.CoveredTelemetryThrough = coveredThrough;
             report.GenerationStatus = "Available";
             report.GeneratedAt = DateTimeOffset.UtcNow;
@@ -425,6 +419,9 @@ public sealed class PostFlightService : IPostFlightService
                     CompletedFlights = group.Count(x => x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase)),
                     FailedOrAbortedFlights = group.Count(x => !x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
                 }).ToList(),
+            IncidentTypeBreakdown = distinctIncidents
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Type) ? "Unknown" : x.Type.Trim())
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
             IncidentSeverityBreakdown = distinctIncidents
                 .GroupBy(x => NormalizeSeverity(x.Severity))
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
@@ -576,21 +573,6 @@ public sealed class PostFlightService : IPostFlightService
         report.SafetyEvaluation = BuildSafetyEvaluation(incidents);
         report.Summary ??= $"Flight '{mission.Name}' completed with {telemetry.Count} valid telemetry records and {incidents.Count} incident(s).";
         report.Status = "Completed";
-    }
-
-    private static void PopulateScheduledReport(
-        PostFlightReport report,
-        Mission mission,
-        IReadOnlyList<Incident> incidents)
-    {
-        report.TotalFlightDurationMinutes = CalculateScheduledDuration(mission);
-        report.TotalTelemetryRecords = 0;
-        report.TotalIncidents = incidents.Count;
-        report.Status = "Completed";
-        report.SafetyEvaluation = BuildSafetyEvaluation(incidents);
-        report.Summary ??= incidents.Count == 0
-            ? $"Flight '{mission.Name}' completed safely at its scheduled end time; no incidents were recorded."
-            : $"Flight '{mission.Name}' completed at its scheduled end time with {incidents.Count} recorded incident(s).";
     }
 
     private static string BuildSafetyEvaluation(IReadOnlyList<Incident> incidents)

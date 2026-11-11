@@ -276,6 +276,11 @@ public class IncidentService : IIncidentService
         string resolutionNotes,
         CancellationToken cancellationToken = default)
     {
+        if (!isManager)
+        {
+            throw new UnauthorizedAccessException("Only an Operations Manager may resolve an incident.");
+        }
+
         if (string.IsNullOrWhiteSpace(resolutionNotes))
         {
             throw new ArgumentException("Resolution notes are required.");

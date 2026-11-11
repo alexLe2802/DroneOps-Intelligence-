@@ -274,6 +274,9 @@ function normalizeUav(record: UavApiRecord): AssignedUav {
     totalFlightHours: Number(record.totalFlightHours ?? 0),
     totalFlights: Number(record.totalFlights ?? 0),
     imageUrl: record.imageUrl ?? null,
+    imageModerationStatus: record.imageModerationStatus ?? null,
+    imageModeratedAt: record.imageModeratedAt ?? null,
+    imageModerationReason: record.imageModerationReason ?? null,
     createdAt: record.createdAt ?? "",
   };
 }
@@ -344,6 +347,13 @@ export async function getManagedUav(id: string): Promise<AssignedUav> {
 
 export async function setManagedUavStatus(id: string, action: "approve" | "activate" | "reject" | "deactivate"): Promise<AssignedUav> {
   return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" }));
+}
+
+export async function rejectManagedUavImage(id: string, reason: string): Promise<AssignedUav> {
+  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/image/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  }));
 }
 
 export type FlightHistoryFilters = { pageNumber?: number; pageSize?: number; search?: string; status?: string; uavId?: string; fromDate?: string; toDate?: string };
