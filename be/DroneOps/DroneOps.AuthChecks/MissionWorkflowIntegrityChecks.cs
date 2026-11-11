@@ -27,7 +27,14 @@ internal static class MissionWorkflowIntegrityChecks
     {
         // Tests real services/repositories; InMemory does not prove PostgreSQL isolation or constraints.
         var options = new DbContextOptionsBuilder<AppDbContext>();
-        if (postgres) options.UseNpgsql($"Host=/tmp/droneops-mf1-pg;Port=55491;Database=mf1_{Guid.NewGuid():N};Username={Environment.UserName}", o => o.EnableRetryOnFailure());
+        if (postgres)
+        {
+            var connection = Environment.GetEnvironmentVariable("DRONEOPS_CI_POSTGRES") is not null
+                ? CiDatabaseChecks.LocalConnection()
+                : new Npgsql.NpgsqlConnectionStringBuilder($"Host=/tmp/droneops-mf1-pg;Port=55491;Username={Environment.UserName}");
+            connection.Database = $"droneops_ci_workflow_{Guid.NewGuid():N}";
+            options.UseNpgsql(connection.ConnectionString, o => o.EnableRetryOnFailure());
+        }
         else options.UseInMemoryDatabase(Guid.NewGuid().ToString()).ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning));
         await using var db = new AppDbContext(options.Options);
         if (postgres)
