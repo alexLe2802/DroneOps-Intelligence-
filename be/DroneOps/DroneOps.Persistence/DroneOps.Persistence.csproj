@@ -18,6 +18,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<EmbeddedResource Include="../../../database/migrations/20261111000100_mf1_review_integrity.sql" LogicalName="DroneOps.Persistence.MissionReviewIntegrity.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261110000200_realtime_execution.sql" LogicalName="DroneOps.Persistence.Migrations.20261110000200_realtime_execution.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261110000100_realtime_episodes.sql" LogicalName="DroneOps.Persistence.Migrations.20261110000100_realtime_episodes.sql" />
 		<EmbeddedResource Include="../../../database/migrations/010_battery_telemetry.sql" LogicalName="DroneOps.Persistence.Migrations.010_battery_telemetry.sql" />
