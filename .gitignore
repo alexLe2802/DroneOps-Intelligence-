@@ -138,6 +138,14 @@ tmp/submission-review/
 # Local temporary workspace
 /tmp/
 
+# Graphify machine-local state; share graph.json and graph.html only.
+graphify-out/.*
+graphify-out/cache/
+graphify-out/cost.json
+graphify-out/GRAPH_REPORT.md
+graphify-out/memory/
+graphify-out/reflections/
+
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/
 **/.codex/
