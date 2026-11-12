@@ -4,11 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/auth/client";
 import styles from "../flight-preparation.module.css";
 
-type Options = { firmwareTarget: string; vehicleClass: string; acceptanceRadiusMeters: number | null;
+type Options = { configureRecovery?: boolean; firmwareTarget: string; vehicleClass: string; acceptanceRadiusMeters: number | null;
   yawPolicy: string | null; yawDegrees: number | null; hoverDurationSeconds: number | null; landingGroundAltitudeMeters: number | null };
 type Execution = { enabled: boolean; serverNow: string; scheduledAt: string; endsAt: string; stage: string;
   message: string; options: Options | null; compiledHash: string | null; uploadVerified: boolean; launchAt: string | null;
   armed: boolean | null; onGround: boolean; canArm: boolean; canDisarm: boolean; reason: string | null;
+  readinessChecks?: {key: string; label: string; satisfied: boolean; detail: string}[];
+  recoveryAssessment?: {status: string; availableEnergyWh: number | null; reserveEnergyWh: number | null;
+    canAuthorizeRecovery: boolean; missingData: string[]; sites: {siteId: string; distanceMeters: number | null;
+      requiredEnergyWh: number | null; fitsDeclaredEnergyBudget: boolean | null; surveyDeclaredCurrent: boolean; missingData: string[]}[]};
   homeLatitudeDegrees?: number | null; homeLongitudeDegrees?: number | null; homeAltitudeMslMeters?: number | null };
 
 export default function FlightControls({ missionId, planHash, confirmed }: { missionId: string; planHash: string; confirmed: boolean }) {
@@ -81,6 +85,7 @@ export default function FlightControls({ missionId, planHash, confirmed }: { mis
         firmwareTarget: fields.get("firmware"), vehicleClass: "Multicopter", acceptanceRadiusMeters: number("radius"),
         yawPolicy: fields.get("yaw"), yawDegrees: fields.get("yaw") === "Fixed" ? number("angle") : null,
         hoverDurationSeconds: number("hover"), landingGroundAltitudeMeters: number("ground"),
+        configureRecovery: fields.get("recovery") === "on",
       } }) }));
       setEditing(false);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to save FC settings."); }
@@ -103,8 +108,19 @@ export default function FlightControls({ missionId, planHash, confirmed }: { mis
         ? `${state.homeLatitudeDegrees.toFixed(7)}, ${state.homeLongitudeDegrees.toFixed(7)} · ${state.homeAltitudeMslMeters ?? "unknown"} m MSL`
         : "Waiting for fresh Home from the bound flight controller"}. This is the FC reference, not a map-click estimate.</p>
       {state.reason && <p>{state.reason}</p>}
+      {state.readinessChecks && <details className={styles.readiness}>
+        <summary>Flight readiness <span>{state.readinessChecks.filter(check => check.satisfied && fresh).length}/{state.readinessChecks.length} conditions</span></summary>
+        <ul>{state.readinessChecks.map(check => <li key={check.key}><strong data-ready={check.satisfied && fresh}>{check.satisfied && fresh ? "Ready" : "Pending"}</strong><div><b>{check.label}</b><small>{!fresh ? "Waiting for a fresh server status" : check.detail}</small></div></li>)}</ul>
+      </details>}
+      {state.recoveryAssessment && <details className={styles.readiness}>
+        <summary>Recovery preparation <span>Planning only</span></summary>
+        <p>Declared energy budget: {fresh && state.recoveryAssessment.availableEnergyWh != null ? `${state.recoveryAssessment.availableEnergyWh.toFixed(2)} Wh · reserve ${state.recoveryAssessment.reserveEnergyWh?.toFixed(2)} Wh` : "Waiting for measured data and fresh telemetry"}.</p>
+        <p>Site inspections and energy measurements are declarations reviewed with the plan. They do not authorize a recovery maneuver.</p>
+        {state.recoveryAssessment.sites.length > 0 && <div className={styles.siteTable}><table><thead><tr><th>Site</th><th>Direct distance</th><th>Energy + reserve</th><th>Declared survey</th></tr></thead><tbody>{state.recoveryAssessment.sites.map(site => <tr key={site.siteId}><td>{site.siteId}</td><td>{fresh && site.distanceMeters != null ? `${site.distanceMeters.toFixed(0)} m` : "Unavailable"}</td><td>{fresh && site.requiredEnergyWh != null ? `${site.requiredEnergyWh.toFixed(2)} + ${state.recoveryAssessment?.reserveEnergyWh?.toFixed(2) ?? "?"} Wh · ${site.fitsDeclaredEnergyBudget ? "within declared budget" : "insufficient budget"}` : "Missing data"}</td><td>{fresh && site.surveyDeclaredCurrent ? "Current declaration" : "Required / refresh"}</td></tr>)}</tbody></table></div>}
+        <ul>{state.recoveryAssessment.missingData.map(reason => <li key={reason}>{reason}</li>)}</ul>
+      </details>}
       {(confirmed || state.armed === true) && <div className={styles.actions}>
-        <button className="module-primary" disabled={busy || !confirmed || !fresh || ended || !state.canArm} onClick={() => void act("arm")}>ARM — TAKE OFF AFTER 10s</button>
+        <p>{confirmed ? "Pilot consent recorded. The scheduler will dispatch once at the scheduled start if all readiness gates pass." : "Confirm the verified mission before the scheduled start."}</p>
         <button className="module-secondary" disabled={busy || !fresh || !state.canDisarm} onClick={() => void act("disarm")}>DISARM ON GROUND</button>
         {["Arming", "Countdown"].includes(state.stage) && <button className="module-secondary" disabled={busy} onClick={() => void act("cancel")}>CANCEL TAKEOFF</button>}
       </div>}
@@ -112,12 +128,14 @@ export default function FlightControls({ missionId, planHash, confirmed }: { mis
       <button className="module-secondary" disabled={busy || ended || state.armed === true || ["Arming", "Countdown", "Starting", "Running"].includes(state.stage)} aria-expanded={editing} onClick={() => setEditing(value => !value)}>FC MISSION SETTINGS</button>
       {editing && <form className={styles.settings} onSubmit={save}>
         <p>Saving settings withdraws the previous confirmation. When command execution is enabled, the connected, disarmed FC receives the mission automatically; upload never arms the aircraft.</p>
-        <label>Firmware<select name="firmware" defaultValue={state.options?.firmwareTarget ?? "PX4"}><option>PX4</option><option>ArduPilot</option></select></label>
+        <label>Firmware<select name="firmware" defaultValue={state.options?.firmwareTarget ?? "ArduPilot"}><option>ArduPilot</option><option>PX4</option></select></label>
         <label>Waypoint acceptance radius (m)<input name="radius" type="number" step="any" min="0.01" required defaultValue={state.options?.acceptanceRadiusMeters ?? ""} /></label>
         <label>Yaw policy<select name="yaw" defaultValue={state.options?.yawPolicy ?? "Autopilot"}><option>Autopilot</option><option>Fixed</option></select></label>
         <label>Fixed yaw angle (degrees, only for Fixed)<input name="angle" type="number" step="any" min="0" max="359.99" defaultValue={state.options?.yawDegrees ?? ""} /></label>
         <label>Hover duration (seconds, required for Hover nodes)<input name="hover" type="number" step="any" min="0.01" defaultValue={state.options?.hoverDurationSeconds ?? ""} /></label>
-        <label>Landing ground altitude (m, in the mission altitude frame)<input name="ground" type="number" step="any" required defaultValue={state.options?.landingGroundAltitudeMeters ?? ""} /></label>
+        <label>Landing ground altitude (m, in the mission altitude frame)<input name="ground" type="number" step="any" defaultValue={state.options?.landingGroundAltitudeMeters ?? ""} /></label>
+        <p>ArduCopter lands using its onboard landing detector; ground elevation is optional. PX4 requires explicit ground elevation.</p>
+        <label><input name="recovery" type="checkbox" defaultChecked={state.options?.configureRecovery ?? false} />Apply extended FC recovery profile (optional; requires calibrated battery settings)</label>
         <button className="module-primary" disabled={busy}>SAVE AND PREPARE FC MISSION</button>
       </form>}
     </>}

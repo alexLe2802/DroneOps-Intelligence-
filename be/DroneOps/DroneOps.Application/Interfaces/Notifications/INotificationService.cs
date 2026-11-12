@@ -13,4 +13,5 @@ public interface INotificationService
     Task PublishIncidentRaisedAsync(Guid incidentId, string incidentType, Guid pilotUserId, CancellationToken cancellationToken = default);
     Task PublishPendingMissionAsync(Guid missionId, Guid actorUserId, string missionName, CancellationToken cancellationToken = default);
     Task PublishMissionDecisionAsync(Guid missionId, Guid actorUserId, bool approved, string? rejectionReason = null, CancellationToken cancellationToken = default);
+    Task RefreshUavManualReviewAsync(CancellationToken cancellationToken = default);
 }

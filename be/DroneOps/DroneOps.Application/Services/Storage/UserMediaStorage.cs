@@ -262,6 +262,31 @@ public sealed class UserMediaStorage : IUserMediaStorage
         return BaseUrl + signedUrl;
     }
 
+    public async Task<byte[]> DownloadAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Regex.IsMatch(path, @"^uavs/[a-fA-F0-9-]+/[a-fA-F0-9]+\.(png|webp|jpg)$"))
+        {
+            throw new ArgumentException("Invalid stored UAV image path.");
+        }
+
+        using var request = CreateRequest(HttpMethod.Get, $"/object/{Bucket}/{path}");
+        using var response = await _client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException("Unable to download the stored UAV image.");
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (bytes.Length is 0 or > 5 * 1024 * 1024)
+        {
+            throw new InvalidDataException("The stored UAV image size is invalid.");
+        }
+
+        return bytes;
+    }
+
     public async Task DeleteAsync(
         IEnumerable<string> paths,
         CancellationToken cancellationToken = default)

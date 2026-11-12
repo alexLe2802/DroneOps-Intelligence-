@@ -5,7 +5,7 @@ set -euo pipefail
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 install_dir=/opt/droneops-gateway
 state_dir=/var/lib/droneops-gateway
-for file in gateway.py flight_control.py requirements.txt droneops-gateway.service.example droneops-router.service.example pair-jetson.sh; do
+for file in gateway.py flight_control.py arducopter_recovery.py arducopter47_adapter.py envelope_verifier.py fc_audit.py requirements.txt droneops-gateway.service.example droneops-router.service.example pair-jetson.sh; do
   [[ -f "$source_dir/$file" ]] || { echo "Missing $file"; exit 1; }
 done
 echo 'Pixhawk serial adapters:'
@@ -57,7 +57,7 @@ router_binary=$(command -v mavlink-routerd)
 id droneops >/dev/null 2>&1 || useradd --system --home "$state_dir" --create-home --shell /usr/sbin/nologin droneops
 usermod -aG dialout droneops
 install -d -o droneops -g droneops "$install_dir" "$state_dir"
-install -m 0644 "$source_dir/gateway.py" "$source_dir/flight_control.py" "$source_dir/requirements.txt" "$install_dir/"
+install -m 0644 "$source_dir/gateway.py" "$source_dir/flight_control.py" "$source_dir/arducopter_recovery.py" "$source_dir/arducopter47_adapter.py" "$source_dir/envelope_verifier.py" "$source_dir/fc_audit.py" "$source_dir/requirements.txt" "$install_dir/"
 install -m 0755 "$source_dir/pair-jetson.sh" "$install_dir/"
 [[ -x "$install_dir/.venv/bin/python" ]] || python3 -m venv "$install_dir/.venv"
 "$install_dir/.venv/bin/pip" install -r "$install_dir/requirements.txt"

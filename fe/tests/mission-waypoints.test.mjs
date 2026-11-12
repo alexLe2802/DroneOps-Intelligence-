@@ -50,3 +50,15 @@ test("route normalization hard-locks endpoint actions after reorder or removal",
   const afterRemoval = normalizeWaypointActions(route.slice(1));
   assert.deepEqual(afterRemoval.map(point => point.actionType), ["TakeOff", "Land"]);
 });
+
+
+test("Return/RTL is a terminal choice that survives edits and transfers when extending the route", () => {
+  const route = normalizeWaypointActions([
+    { ...position(10, 106), sequenceOrder: 1, actionType: "TakeOff" },
+    { ...position(11, 107), sequenceOrder: 2, actionType: "Return" },
+  ]);
+  assert.equal(route[1].actionType, "Return");
+  const next = appendLandingWaypoint(route, position(12, 108));
+  assert.deepEqual(next.map(point => point.actionType), ["TakeOff", "FlyThrough", "Return"]);
+  assert.deepEqual(normalizeWaypointActions([next[0], next[2], next[1]]).map(point => point.actionType), ["TakeOff", "FlyThrough", "Land"]);
+});

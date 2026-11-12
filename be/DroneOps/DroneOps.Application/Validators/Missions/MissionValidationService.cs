@@ -17,6 +17,45 @@ public sealed class MissionValidationService(
     IMissionWeatherService weather)
     : IMissionValidationService
 {
+    public static string DescribeScheduleConflict(MissionScheduleConflict conflict)
+    {
+        var resource = conflict.UavConflict && conflict.OperatorConflict ? "The selected UAV and your operator schedule"
+            : conflict.UavConflict ? "The selected UAV" : "Your operator schedule";
+        // Database schedules are UTC; always show Vietnam time, independently of server locale.
+        static string Local(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc))
+            .ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        var guidance = conflict.OperatorConflict
+            ? "Choose a non-overlapping time; changing UAV alone does not resolve the operator conflict."
+            : "Choose another UAV or a non-overlapping time.";
+        return $"{resource}: overlap with mission \"{conflict.MissionName}\" ({conflict.Status}), "
+            + $"{Local(conflict.StartTime)} – {Local(conflict.EndTime)} (GMT+7). {guidance}";
+    }
+
+    public async Task<List<MissionUpdateSummary>> HistoryAsync(Guid missionId, Guid actor, bool manager,
+        CancellationToken cancellationToken = default)
+    {
+        var mission = await repository.GetMissionAsync(missionId, false, cancellationToken)
+            ?? throw new KeyNotFoundException("Mission not found.");
+        if (!manager && mission.CreatedBy != actor)
+            throw new UnauthorizedAccessException("Mission is outside your scope.");
+        var history = await repository.GetReviewHistoryAsync(missionId, cancellationToken);
+        var restrictionHash = await CurrentRestrictionHashAsync(cancellationToken);
+        return history.Select(row => {
+            var evidence = Decode(row.Validation);
+            if (evidence is not null && row.Validation is not null)
+                evidence.Stale = evidence.RestrictionRevision != restrictionHash;
+            return new MissionUpdateSummary {
+            Id = row.Request.Id, Status = row.Request.Status, IsInitial = row.Request.IsInitial,
+            CreatedAt = row.Request.CreatedAt, ActorId = row.Request.ActorId,
+            ReviewedBy = row.Request.ReviewedBy, ReviewedAt = row.Request.ReviewedAt, Reason = row.Request.Reason,
+            RequiresPilotConfirmation = row.Request.Status == "Pending" && MissionReviewPolicy.NeedsConfirmation(row.Request, evidence),
+            PilotConfirmedBy = row.Request.PilotConfirmedBy, PilotConfirmedAt = row.Request.PilotConfirmedAt,
+            BasePlan = row.Request.IsInitial ? null : JsonSerializer.Deserialize<CreateMissionRequest>(row.Request.BasePlanJson, JsonOptions),
+            ProposedPlan = JsonSerializer.Deserialize<CreateMissionRequest>(row.Request.ProposedPlanJson, JsonOptions) ?? new(),
+            Validation = evidence
+        }; }).ToList();
+    }
+
     public static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web)
         {
@@ -266,7 +305,17 @@ public sealed class MissionValidationService(
             ?? throw new KeyNotFoundException(
                 "Validation result not found.");
 
-        return Decode(run);
+        var result = Decode(run);
+        if (result is not null)
+        {
+            result.Stale = result.RestrictionRevision != await CurrentRestrictionHashAsync(cancellationToken);
+            if (run.UpdateRequestId is { } requestId)
+            {
+                var request = await repository.GetReviewRequestAsync(missionId, requestId, cancellationToken);
+                result.Stale |= request is null || request.Status != "Pending" || request.ValidationRunId != run.Id;
+            }
+        }
+        return result;
     }
 
     // =========================================================
@@ -334,6 +383,10 @@ public sealed class MissionValidationService(
 
         // Preserve existing manual-plan evidence; opt-in changes invalidate approval evidence.
         if (mission.AutomaticFlightRequested) json += "|automatic-flight-v1|envelope-v1|" + JsonSerializer.Serialize(mission.AutomaticFlightLimits, JsonOptions) + "|navigation-v1|" + JsonSerializer.Serialize(mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => w.Navigation), JsonOptions);
+        else if (mission.Waypoints.Any(w => w.Navigation?.PlannedHome != null))
+            json += "|planned-home-v1|" + JsonSerializer.Serialize(mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => w.Navigation?.PlannedHome), JsonOptions);
+        if (!mission.AutomaticFlightRequested && mission.Waypoints.Any(w => w.Navigation?.MissionFences?.Count > 0))
+            json += "|mission-fences-v1|" + JsonSerializer.Serialize(mission.Waypoints.OrderBy(w => w.SequenceOrder).Select(w => w.Navigation?.MissionFences), JsonOptions);
 
         return Convert.ToHexString(
             SHA256.HashData(
@@ -510,6 +563,8 @@ public sealed class MissionValidationService(
         }
         else
         {
+            if (pilot.User is null || !pilot.User.IsActive)
+                result.Issues.Add("The mission operator must have an active account.");
             var currentDate =
                 DateOnly.FromDateTime(
                     DateTime.UtcNow);
@@ -593,8 +648,8 @@ public sealed class MissionValidationService(
         // Mission schedule conflict
         // -----------------------------------------------------
 
-        var hasConflict =
-            await repository.HasScheduleConflictAsync(
+        var conflicts =
+            await repository.GetScheduleConflictsAsync(
                 mission.Id,
                 mission.UAVId,
                 mission.CreatedBy,
@@ -602,11 +657,8 @@ public sealed class MissionValidationService(
                 mission.EndTime,
                 cancellationToken);
 
-        if (hasConflict)
-        {
-            result.Issues.Add(
-                "The UAV or operator has an overlapping approved/active mission.");
-        }
+        foreach (var conflict in conflicts)
+            result.Issues.Add(DescribeScheduleConflict(conflict));
         if (result.Issues.Count > 0)
         {
             return result;
@@ -615,9 +667,7 @@ public sealed class MissionValidationService(
         // Route validation
         // -----------------------------------------------------
 
-        var orderedPoints = mission.Waypoints
-            .OrderBy(x => x.SequenceOrder)
-            .ToList();
+        var orderedPoints = MissionRouteGeometry.PlanningWaypoints(mission);
         // -----------------------------------------------------
         // Route duration / average speed validation
         // -----------------------------------------------------
@@ -908,7 +958,7 @@ public sealed class MissionValidationService(
         Guid actor,
         bool manager,
         string stage,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, Guid? updateRequestId = null)
     {
         return await repository.ExecuteSerializableAsync(
             async ct =>
@@ -976,14 +1026,38 @@ public sealed class MissionValidationService(
                 // Run validation
                 // ---------------------------------------------
 
+                MissionUpdateRequest? review = null;
+                var target = mission;
+                if (updateRequestId.HasValue)
+                {
+                    if (stage == "Preflight" || !MissionReviewPolicy.CanEdit(mission.Status))
+                        throw new InvalidOperationException("Proposal validation requires a pre-flight mission.");
+                    review = await repository.GetReviewRequestAsync(missionId, updateRequestId.Value, ct)
+                        ?? throw new KeyNotFoundException("Review request not found.");
+                    if (review.Status != "Pending" || review.BasePlanHash != Hash(mission))
+                        throw new InvalidOperationException("The request is superseded, decided or based on a stale plan.");
+                    var dto = JsonSerializer.Deserialize<CreateMissionRequest>(review.ProposedPlanJson, JsonOptions)
+                        ?? throw new InvalidOperationException("Proposed plan is missing.");
+                    target = MissionPlans.Propose(mission, dto);
+                }
+                else if (stage != "Preflight" && !MissionReviewPolicy.CanEdit(mission.Status))
+                    throw new InvalidOperationException("Only pre-flight missions can be revalidated.");
+
                 var result =
                     await EvaluateAsync(
-                        mission,
+                        target,
                         stage,
                         ct);
 
+                result.UpdateRequestId = review?.Id;
+                if (review is not null)
+                {
+                    review.ValidationRunId = result.Id;
+                    MissionReviewPolicy.ClearConfirmation(review);
+                }
+
                 await StoreAsync(
-                    mission,
+                    target,
                     actor,
                     result,
                     true,

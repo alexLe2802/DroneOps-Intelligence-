@@ -169,6 +169,7 @@ public sealed class MissionService : IMissionService
         return new MissionResponse
         {
             Id = mission.Id,
+            PlanHash = MissionValidationService.Hash(mission),
             AutomaticFlightRequested = mission.AutomaticFlightRequested,
             AutomaticFlightLimits = mission.AutomaticFlightLimits,
             CreatedBy = mission.CreatedBy,
@@ -211,6 +212,11 @@ public sealed class MissionService : IMissionService
     {
         var response = MapToResponse(mission);
 
+        response.PendingUpdate = (await _validation.HistoryAsync(mission.Id, mission.CreatedBy, false, ct))
+            .FirstOrDefault(x => x.Status == "Pending");
+        if (response.PendingUpdate?.Validation is { } pendingValidation)
+            response.PendingUpdate.Validation = await _validation.ReadRunAsync(
+                mission.Id, pendingValidation.Id, mission.CreatedBy, false, ct);
         response.Validation = await _validation.ReadAsync(
             mission.Id,
             mission.CreatedBy,
@@ -232,13 +238,10 @@ public sealed class MissionService : IMissionService
 
         return response;
     }
-    public async Task<MissionResponse?> UpdateAsync(Guid id, Guid userId, CreateMissionRequest request, CancellationToken cancellationToken = default)
+    public async Task<MissionResponse?> UpdateAsync(Guid id, Guid userId, CreateMissionRequest request, CancellationToken cancellationToken = default, bool manager = false)
     {
-        var mission = await _workflow.SavePlanAsync(userId, request, id, cancellationToken);
-        if (mission.Status == "Pending Review")
-        {
-            await TryPublishPendingNotificationAsync(mission, userId, cancellationToken);
-        }
+        var mission = await _workflow.SavePlanAsync(userId, request, id, cancellationToken, manager);
+        await TryPublishPendingNotificationAsync(mission, userId, cancellationToken);
         return await MapWithValidationAsync(mission, cancellationToken);
     }
 

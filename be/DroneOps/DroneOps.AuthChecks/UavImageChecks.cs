@@ -47,47 +47,52 @@ internal static class UavImageChecks
             new HttpClient(new GeminiHandler(HttpStatusCode.OK, "")) { BaseAddress = new Uri("https://fixture.invalid/") },
             new ConfigurationBuilder().AddInMemoryCollection().Build(),
             NullLogger<UavImageModerationService>.Instance);
-        Check(!await missingGemini.IsAllowedAsync(png, "image/png"),
-            "missing Gemini configuration rejects the UAV image instead of bypassing moderation");
+        Check((await missingGemini.ModerateAsync(png, "image/png")).Decision == UavImageModerationDecision.Unavailable,
+            "missing Gemini configuration defers moderation instead of falsely rejecting the UAV image");
 
         var geminiConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["UavImageModeration:ApiKey"] = "fixture-key",
-            ["UavImageModeration:Model"] = "gemini-3.8-flash"
+            ["UavImageModeration:Model"] = "gemini-3.5-flash-lite"
         }).Build();
         var allowedGemini = new UavImageModerationService(
             new HttpClient(new GeminiHandler(HttpStatusCode.OK, "{\"isDrone\":true,\"containsInappropriateContent\":false}")) { BaseAddress = new Uri("https://fixture.invalid/") },
             geminiConfiguration,
             NullLogger<UavImageModerationService>.Instance);
-        Check(await allowedGemini.IsAllowedAsync(png, "image/png"),
+        Check((await allowedGemini.ModerateAsync(png, "image/png")).Decision == UavImageModerationDecision.Approved,
             "Gemini accepts a genuine safe UAV image");
 
         var unsafeGemini = new UavImageModerationService(
             new HttpClient(new GeminiHandler(HttpStatusCode.OK, "{\"isDrone\":false,\"containsInappropriateContent\":true}")) { BaseAddress = new Uri("https://fixture.invalid/") },
             geminiConfiguration,
             NullLogger<UavImageModerationService>.Instance);
-        Check(!await unsafeGemini.IsAllowedAsync(png, "image/png"),
+        Check((await unsafeGemini.ModerateAsync(png, "image/png")).Decision == UavImageModerationDecision.Rejected,
             "Gemini rejects non-UAV or inappropriate content");
 
         var unavailableGemini = new UavImageModerationService(
             new HttpClient(new GeminiHandler(HttpStatusCode.TooManyRequests, "")) { BaseAddress = new Uri("https://fixture.invalid/") },
             geminiConfiguration,
             NullLogger<UavImageModerationService>.Instance);
-        Check(!await unavailableGemini.IsAllowedAsync(png, "image/png"),
-            "Gemini service failure rejects the upload instead of failing open");
+        Check((await unavailableGemini.ModerateAsync(png, "image/png")).Decision == UavImageModerationDecision.Unavailable,
+            "Gemini service failure is distinguished from an unsafe image decision");
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase("uav-image-check-" + Guid.NewGuid()).Options;
         await using var db = new AppDbContext(options);
         var roleId = Guid.NewGuid();
+        var managerRoleId = Guid.NewGuid();
+        var managerId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
         var otherId = Guid.NewGuid();
         var pilotId = Guid.NewGuid();
         var uavId = Guid.NewGuid();
-        db.Roles.Add(new Role { Id = roleId, Name = "uav_operator" });
+        db.Roles.AddRange(
+            new Role { Id = roleId, Name = "uav_operator" },
+            new Role { Id = managerRoleId, Name = "operation_manager" });
         db.Users.AddRange(
             new User { Id = ownerId, RoleId = roleId, FullName = "Owner", Email = "owner@fixture.test" },
-            new User { Id = otherId, RoleId = roleId, FullName = "Other", Email = "other@fixture.test" });
+            new User { Id = otherId, RoleId = roleId, FullName = "Other", Email = "other@fixture.test" },
+            new User { Id = managerId, RoleId = managerRoleId, FullName = "Manager", Email = "manager@fixture.test" });
         db.Pilots.Add(new Pilot { Id = pilotId, UserId = ownerId, PilotLicenseNo = "FIXTURE" });
         db.UAVs.Add(new UAV { Id = uavId, PilotId = pilotId, Code = "IMG-1", Name = "Image fixture", Status = "Active" });
         await db.SaveChangesAsync();
@@ -104,6 +109,8 @@ internal static class UavImageChecks
                 uavId, ownerId, "uav_operator", first, "first.png", "image/png", png.Length);
         var firstPath = (await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageStoragePath;
         Check(firstPath is not null && storage.Paths.SetEquals([firstPath]), "first UAV image is stored and referenced");
+        Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageModerationStatus == "Pending",
+            "UAV image upload is queued for durable asynchronous moderation");
 
         await using (var second = new MemoryStream(png))
             await service.UploadOrReplaceUavImageAsync(
@@ -121,29 +128,65 @@ internal static class UavImageChecks
         }
         catch (UnauthorizedAccessException) { Check(true, "another pilot cannot replace an owned UAV image"); }
 
-        var rejectingService = new UavService(
+        var unavailableService = new UavService(
             new UavRepository(db), new PilotRepository(db), notifications,
-            NullLogger<UavService>.Instance, storage, new RejectModeration());
-        try
+            NullLogger<UavService>.Instance, storage, new UnavailableModeration());
+        await using (var deferred = new MemoryStream(png))
+            await unavailableService.UploadOrReplaceUavImageAsync(
+                uavId, ownerId, "uav_operator", deferred, "deferred.png", "image/png", png.Length);
+        Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageModerationStatus == "Pending",
+            "provider outage never falsely rejects a valid upload");
+
+        var firstManual = await db.UAVs.SingleAsync(x => x.Id == uavId);
+        firstManual.Status = "Pending";
+        firstManual.ImageModerationStatus = "ManualReview";
+        await db.SaveChangesAsync();
+        await notifications.RefreshUavManualReviewAsync();
+        await notifications.RefreshUavManualReviewAsync();
+        Check(await db.Notifications.CountAsync(x => x.Type == "UavManualReview" &&
+                x.ReferenceType == "UAVManualReviewQueueActive") == 1,
+            "manual-review queue creates one aggregate manager notification without duplicates");
+
+        var secondUavId = Guid.NewGuid();
+        db.UAVs.Add(new UAV
         {
-            await using var rejected = new MemoryStream(png);
-            await rejectingService.UploadOrReplaceUavImageAsync(
-                uavId, ownerId, "uav_operator", rejected, "unsafe.png", "image/png", png.Length);
-            throw new Exception("AI-rejected image was stored.");
-        }
-        catch (ArgumentException) { Check(true, "AI moderation rejection blocks storage and database replacement"); }
+            Id = secondUavId, PilotId = pilotId, Code = "IMG-2", Name = "Second manual fixture",
+            Status = "Pending", ImageStoragePath = "uavs/fixture/second.png",
+            ImageModerationStatus = "ManualReview"
+        });
+        await db.SaveChangesAsync();
+        await notifications.RefreshUavManualReviewAsync();
+        var aggregate = await db.Notifications.SingleAsync(x => x.Type == "UavManualReview" &&
+            x.ReferenceType == "UAVManualReviewQueueActive");
+        Check(aggregate.Title.StartsWith("2 UAVs", StringComparison.Ordinal) &&
+                aggregate.ActionUrl == "/uav-management?imageModerationStatus=ManualReview",
+            "manual-review aggregate updates its count and links to the filtered queue");
+        var manualQueue = await new UavRepository(db).GetAllPagedAsync(
+            null, null, "ManualReview", 1, 10);
+        Check(manualQueue.TotalCount == 2 && manualQueue.Items.All(x => x.ImageModerationStatus == "ManualReview"),
+            "manager UAV API can filter the manual-review queue server-side");
+
+        firstManual.Status = "Active";
+        (await db.UAVs.SingleAsync(x => x.Id == secondUavId)).Status = "Rejected";
+        await db.SaveChangesAsync();
+        await notifications.RefreshUavManualReviewAsync();
+        aggregate = await db.Notifications.SingleAsync(x => x.Type == "UavManualReview");
+        Check(aggregate.IsRead && aggregate.ReferenceType == "UAVManualReviewQueueClosed",
+            "manual-review aggregate closes automatically after all items are resolved");
 
         return passed;
     }
 
     private sealed class AllowModeration : IUavImageModerationService
     {
-        public Task<bool> IsAllowedAsync(byte[] imageBytes, string contentType, CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<UavImageModerationResult> ModerateAsync(byte[] imageBytes, string contentType, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new UavImageModerationResult(UavImageModerationDecision.Approved, "fixture"));
     }
 
-    private sealed class RejectModeration : IUavImageModerationService
+    private sealed class UnavailableModeration : IUavImageModerationService
     {
-        public Task<bool> IsAllowedAsync(byte[] imageBytes, string contentType, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<UavImageModerationResult> ModerateAsync(byte[] imageBytes, string contentType, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new UavImageModerationResult(UavImageModerationDecision.Unavailable, "fixture outage"));
     }
 
     private sealed class TrackingStorage : IUserMediaStorage
@@ -164,6 +207,8 @@ internal static class UavImageChecks
             return Task.CompletedTask;
         }
         public Task<string> SignAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult("https://fixture.invalid/" + path);
+        public Task<byte[]> DownloadAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(pngFixture);
+        private static readonly byte[] pngFixture = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
         public Task DeleteAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
         {
             foreach (var path in paths) { Paths.Remove(path); Deleted.Add(path); }

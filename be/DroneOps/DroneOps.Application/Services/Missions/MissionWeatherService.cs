@@ -83,9 +83,7 @@ public sealed class MissionWeatherService(
             TimeSpan.FromSeconds(
                 Math.Max(5, policy.RequestBudgetSeconds)));
 
-        var orderedWaypoints = mission.Waypoints
-            .OrderBy(x => x.SequenceOrder)
-            .ToList();
+        var orderedWaypoints = MissionRouteGeometry.PlanningWaypoints(mission);
 
         var routePoints =
             BuildRoutePoints(

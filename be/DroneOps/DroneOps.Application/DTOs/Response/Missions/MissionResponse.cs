@@ -2,6 +2,7 @@ namespace DroneOps.Application.DTOs.Response.Missions;
 
 public sealed class MissionResponse
 {
+    public string PlanHash { get; set; } = "";
     public MissionUpdateSummary? PendingUpdate { get; set; }
     public string? AltitudeReference { get; set; }
     public bool AutomaticFlightRequested { get; set; }
@@ -38,6 +39,9 @@ public sealed class MissionResponse
 }
 public sealed class MissionUpdateSummary
 {
+    public bool RequiresPilotConfirmation { get; set; }
+    public Guid? PilotConfirmedBy { get; set; }
+    public DateTimeOffset? PilotConfirmedAt { get; set; }
     public Guid Id { get; set; }
     public string Status { get; set; } = "Pending";
     public bool IsInitial { get; set; }

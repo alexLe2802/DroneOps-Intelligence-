@@ -11,20 +11,44 @@ public sealed class CreateMissionRequestValidator
         "TakeOff",
         "FlyThrough",
         "Hover",
-        "Land"
+        "Land",
+        "Return"
     ];
 
     public CreateMissionRequestValidator()
     {
         RuleFor(x => x).Custom((x, context) => {
+            var ordered = (x.Waypoints ?? []).OrderBy(w => w.SequenceOrder).ToList();
+            if (ordered.Take(Math.Max(0, ordered.Count - 1)).Any(w => string.Equals(w.ActionType, "Return", StringComparison.OrdinalIgnoreCase)))
+                context.AddFailure("Waypoints.ActionType", "Return/RTL is allowed only at the final waypoint.");
+            foreach (var point in x.Waypoints ?? [])
+                if (point.Navigation?.MissionFences is { } fences && (point.SequenceOrder != 1 || fences.Count > 20
+                    || fences.Any(f => !DroneOps.Application.Services.Missions.MissionFenceGeometry.Valid(f))
+                    || fences.Select(f => f?.Id).Distinct().Count() != fences.Count))
+                    context.AddFailure("Waypoints.Navigation.MissionFences", "Mission fences belong to waypoint 1; use up to 20 valid, uniquely identified polygons or circles.");
+            foreach (var point in x.Waypoints ?? [])
+                if (point.Navigation?.PlannedHome is { } home && (point.SequenceOrder != 1
+                    || home.Latitude is < -90 or > 90 || home.Longitude is < -180 or > 180
+                    || home.AltitudeMslMeters is < -500 or > 10000))
+                    context.AddFailure("Waypoints.Navigation.PlannedHome", "Planned Home must be on waypoint 1 with valid WGS84 coordinates and optional MSL elevation (-500 to 10000 m).");
             foreach (var error in DroneOps.Application.Services.Missions.AutomaticFlightPolicy.Errors(
                 x.AutomaticFlightRequested, x.AltitudeReference, x.AverageSpeedMetersPerSecond, x.MaxSpeedMetersPerSecond,
-                x.AutomaticFlightLimits ?? new DroneOps.Domain.Entities.AutomaticFlightLimits(), (x.Waypoints ?? []).Select(w => (w.Altitude, w.ActionType))))
+                x.AutomaticFlightLimits ?? DroneOps.Application.Services.Missions.AutomaticFlightPolicy.DefaultLimits(), (x.Waypoints ?? []).Select(w => (w.Altitude, w.ActionType))))
                 context.AddFailure("AutomaticFlightLimits", error);
             if (x.AutomaticFlightRequested)
+            {
                 foreach (var error in DroneOps.Application.Services.Missions.AutomaticFlightPolicy.NavigationErrors(
                     (x.Waypoints ?? []).Select(w => (w.Navigation, w.ActionType)), x.MaxSpeedMetersPerSecond))
                     context.AddFailure("Waypoints.Navigation", error);
+                if (x.AutomaticFlightLimits is { } limits)
+                    foreach (var error in DroneOps.Application.Services.Missions.RecoveryEnergyCalculator.ProfileErrors(
+                        limits.RecoveryEnergyProfile, limits, DateTimeOffset.UtcNow,
+                        new DateTimeOffset(DateTime.SpecifyKind(x.EndTime, DateTimeKind.Utc)), x.UavId))
+                        context.AddFailure("AutomaticFlightLimits.RecoveryEnergyProfile", error);
+                if ((x.Waypoints ?? []).Any(w => w.Navigation?.LandingSiteSurvey is { } survey
+                    && survey.ValidUntilUtc.UtcDateTime < x.EndTime))
+                    context.AddFailure("Waypoints.Navigation.LandingSiteSurvey", "Landing-site inspections must remain valid through the mission end.");
+            }
         });
         RuleFor(x=>x.AltitudeReference).Must(x=>x is null or "AGL" or "MSL" or "Relative").WithMessage("Altitude reference must be AGL, MSL or Relative.");
         RuleFor(x => x.UavId)
@@ -144,7 +168,7 @@ public sealed class CreateMissionRequestValidator
                                     action,
                                     StringComparer.OrdinalIgnoreCase))
                 .WithMessage(
-                    "Action type must be TakeOff, FlyThrough, Hover or Land. Camera actions are deferred.");
+                    "Action type must be TakeOff, FlyThrough, Hover, Land or Return. Camera actions are deferred.");
         }
     }
 }

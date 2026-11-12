@@ -1,5 +1,4 @@
 # Local OS / Office temporary files
-tmp/
 .DS_Store
 ~$*
 *.tmp
@@ -135,4 +134,6 @@ tmp/final-submission/
 *.xlsx.inspect.ndjson
 outputs/final-submission/
 tmp/submission-review/
-tmp
+
+# Local temporary workspace
+/tmp/

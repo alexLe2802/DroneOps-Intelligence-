@@ -13,7 +13,7 @@ public sealed record FlightPreparation(Guid MissionId, string PlanHash, DateTime
     bool ReadinessConfirmed, bool DispatchEnabled, string[] BlockingReasons,
     DateTimeOffset EndsAt, bool GatewayConnected, bool PreflightReady, bool ConfirmationRecorded);
 
-public sealed class MissionAutomationService(AppDbContext db, IMissionValidationService validation)
+public sealed class MissionAutomationService(AppDbContext db, IMissionValidationService validation, IConfiguration? configuration = null)
 {
     public async Task<object> DueAsync(Guid actor, CancellationToken ct)
     {
@@ -50,14 +50,14 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
     }
 
     public static bool InConfirmationWindow(DateTimeOffset now, DateTimeOffset start, DateTimeOffset end) =>
-        end > start && now >= start.AddMinutes(-5) && now < end;
+        end > start && now >= start.AddMinutes(-5) && now < start;
 
     private async Task<Mission> OwnedMission(Guid id, Guid actor, CancellationToken ct, bool requireApproved = true)
     {
         var mission = await db.Missions.AsNoTracking().Include(m => m.Waypoints)
             .SingleOrDefaultAsync(m => m.Id == id && m.CreatedBy == actor, ct)
             ?? throw new KeyNotFoundException("Mission not found.");
-        if (requireApproved && (!mission.AutomaticFlightRequested || mission.Status != "Approved" || mission.StartTime is null))
+        if (requireApproved && (!mission.AutomaticFlightRequested || mission.Status is not ("Approved" or "InProgress" or "Completed" or "Aborted") || mission.StartTime is null))
             throw new InvalidOperationException("Automatic preparation requires an approved, opted-in mission with a schedule.");
         return mission;
     }
@@ -86,20 +86,22 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
         var freshPreflight = preflight is { IsValid: true, ResultStatus: "Pass" } && preflight.PlanHash == hash
             && preflight.CheckedAt >= now.AddMinutes(-1) && preflight.CheckedAt <= now;
         var online = state?.LastPresenceAt >= now.AddSeconds(-30);
-        var recorded = windowOpen && online && state?.ConfirmedPlanHash == hash && state.ConfirmedAt >= start.AddMinutes(-5)
-            && state.ConfirmedAt < end && connection != null && state.ConnectionId == connection.Id;
-        var confirmed = recorded && freshPreflight;
+        var recorded = now < end && online && state?.ConfirmedPlanHash == hash && state.ConfirmedAt >= start.AddMinutes(-5)
+            && state.ConfirmedAt < start && connection != null && state.ConnectionId == connection.Id;
+        var pendingProposal = await db.MissionUpdateRequests.AsNoTracking().AnyAsync(r => r.MissionId == id && r.Status == "Pending", ct);
+        var confirmed = recorded && freshPreflight && !pendingProposal;
         var reasons = new List<string>();
-        if (!windowOpen) reasons.Add(now >= end ? "The mission has ended. Confirmation is closed." : "Confirmation opens five minutes before the scheduled start.");
+        if (pendingProposal) reasons.Add("A pending mission change must be reviewed before dispatch.");
+        if (!windowOpen && !recorded) reasons.Add(now >= start ? "The confirmation window has closed." : "Confirmation opens five minutes before the scheduled start.");
         if (connection == null) reasons.Add("Fresh telemetry from this mission's bound flight controller is required.");
         if (!online) reasons.Add("Keep an authenticated, visible browser tab online.");
         if (!freshPreflight) reasons.Add("A fresh, passing preflight check for this exact plan is required.");
         if (!recorded) reasons.Add("The pilot has not confirmed this exact plan and drone connection.");
         // This endpoint reports preparation consent; execution is a separate,
         // explicitly gated action in the same automation API.
-        reasons.Add("Preparation confirmation does not arm or launch the drone. Use the pilot controls in Live Monitoring.");
+        if (!confirmed) reasons.Add("Confirm before the scheduled start; the scheduler dispatches only while all gates remain satisfied.");
         return new(id, hash, now, start, windowOpen, connection != null,
-            online, confirmed, false, reasons.ToArray(), end, gatewayConnected, freshPreflight, recorded);
+            online, confirmed, configuration?.GetValue<bool>("FlightExecution:Enabled") == true && confirmed && now < start.AddSeconds(5), reasons.ToArray(), end, gatewayConnected, freshPreflight, recorded);
     }
 
     public async Task<FlightPreparation> PresenceAsync(Guid id, Guid actor, CancellationToken ct)
@@ -127,7 +129,7 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
     {
         var before = await ReadAsync(id, actor, ct);
         if (expectedHash != before.PlanHash || !before.ConfirmationOpen || !before.OperatorOnline || !before.DroneConnected)
-            throw new InvalidOperationException("Refresh the plan. Confirmation requires T-5 through mission end, an online operator and fresh telemetry.");
+            throw new InvalidOperationException("Refresh the plan. Confirmation requires T-5 through scheduled start, an online operator and fresh telemetry.");
         var result = await validation.RevalidateAsync(id, actor, false, "Preflight", ct);
         if (!result.IsValid || result.Error || result.Stale || result.Incomplete)
             throw new InvalidOperationException("Preflight did not pass: " + result.Message);
@@ -178,7 +180,7 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
                 sequenceOrder = w.SequenceOrder, latitudeDegrees = w.Latitude, longitudeDegrees = w.Longitude,
                 latitudeE7 = (int)decimal.Round(w.Latitude * 10000000m, 0, MidpointRounding.AwayFromZero),
                 longitudeE7 = (int)decimal.Round(w.Longitude * 10000000m, 0, MidpointRounding.AwayFromZero),
-                altitudeMeters = w.Altitude, action = w.ActionType
+                altitudeMeters = w.Altitude, action = w.ActionType, navigation = w.Navigation
             }),
             requiredBeforeDispatch = new[] { "Detected firmware/version/vehicle type and capabilities", "Explicit altitude frame and home/terrain data",
                 "Per-action yaw/hold parameters", "Failsafe/RTL configuration", "Upload ACK and read-back plan hash", "Fresh pre-arm checks and command acknowledgements" }

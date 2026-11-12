@@ -2,16 +2,13 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main, be-develop, Qthong]
-  merge_group:
-  workflow_dispatch:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: pr-ci-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
@@ -21,70 +18,131 @@ env:
   NEXT_TELEMETRY_DISABLED: 1
 
 jobs:
-  backend:
-    name: Backend checks
+  quality-gate:
+    name: PR Quality Gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      # Disposable runner service only. Never inject team Supabase credentials here.
+      DRONEOPS_CI_ISOLATED: "true"
+      DRONEOPS_CI_POSTGRES: Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=ci-local-only
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+      - name: Select affected suites
+        id: changes
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/ci/test_changes.py
+          python3 scripts/ci/changes.py
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        if: steps.changes.outputs.backend == 'true'
         with:
           dotnet-version: 8.0.x
-      - name: Restore .NET dependencies
-        run: dotnet restore be/DroneOps/DroneOps.sln
-      - name: Build Release (warnings are errors)
-        run: dotnet build be/DroneOps/DroneOps.sln --configuration Release --no-restore -warnaserror
-      - name: Check .NET analyzer diagnostics
-        run: dotnet format analyzers be/DroneOps/DroneOps.sln --no-restore --verify-no-changes --severity warn
-      - name: Run offline authorization and validation checks
-        run: dotnet run --project be/DroneOps/DroneOps.AuthChecks --configuration Release
-      - name: Run realtime telemetry and incident regression checks
-        run: dotnet run --project be/DroneOps/DroneOps.TelemetryChecks --configuration Release --no-build
-      - name: Run post-flight regression checks
-        run: dotnet run --project be/DroneOps/DroneOps.PostFlightChecks --configuration Release --no-build
-
-  frontend:
-    name: Frontend checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: fe
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
+      - name: Backend — build once and run essential regression suites
+        if: steps.changes.outputs.backend == 'true'
+        run: |
+          dotnet restore be/DroneOps/DroneOps.sln
+          dotnet build be/DroneOps/DroneOps.sln -c Release --no-restore -warnaserror
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build
+          for suite in automatic-flight-policy mission-compiler mission-schedule mission-history mission-geometry mission-fences automatic-failsafe recovery-energy; do
+            dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- "--$suite"
+          done
+          dotnet run --project be/DroneOps/DroneOps.TelemetryChecks -c Release --no-build
+          dotnet run --project be/DroneOps/DroneOps.PostFlightChecks -c Release --no-build
+      - name: Supabase — PostgreSQL migration compatibility and concurrent workflow
+        if: steps.changes.outputs.backend == 'true'
+        run: |
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --ci-migrations "$GITHUB_WORKSPACE"
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --mission-workflow-postgres
+      - name: Enable verified TLS for the disposable PostgreSQL service
+        if: steps.changes.outputs.backend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        env:
+          CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: python3 scripts/ci/postgres_tls.py
+      - name: Render — validate Blueprint, build image and smoke test
+        if: steps.changes.outputs.backend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        env:
+          DRONEOPS_CI_KEEP_API: ${{ steps.changes.outputs.frontend }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ci-tools"
+          "$RUNNER_TEMP/ci-tools/bin/python" -m pip install --disable-pip-version-check PyYAML==6.0.3 jsonschema==4.25.1
+          "$RUNNER_TEMP/ci-tools/bin/python" scripts/ci/render_smoke.py
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.changes.outputs.frontend == 'true'
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: fe/package-lock.json
-      - name: Install exact lockfile dependencies
-        run: npm ci
-      - name: Lint (warnings are errors)
-        run: npm run lint -- --max-warnings=0
-      - name: Check TypeScript and Next.js route types
-        run: npm run typecheck
-      - name: Run frontend tests
-        run: npm test
-      - name: Build Next.js production application
-        run: npm run build
-
-  quality-gate:
-    name: PR Quality Gate
-    if: ${{ always() }}
-    needs: [backend, frontend]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-      - name: Require both jobs to pass
+      - name: Frontend — lint, types and offline tests
+        if: steps.changes.outputs.frontend == 'true'
+        working-directory: fe
         env:
-          BACKEND_RESULT: ${{ needs.backend.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          DRONEOPS_CI: "true"
         run: |
-          echo "Backend: $BACKEND_RESULT"
-          echo "Frontend: $FRONTEND_RESULT"
-          test "$BACKEND_RESULT" = success
-          test "$FRONTEND_RESULT" = success
+          npm ci
+          npm run lint -- --max-warnings=0
+          npm run typecheck
+          npm test
+      - name: Cloudflare — optional deployment build
+        if: steps.changes.outputs.frontend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        working-directory: fe
+        env:
+          DRONEOPS_CI: "true"
+        run: |
+          npm run build:vinext
+          npx --no-install cf workers versions create --dry-run --prebuilt
+      - name: Cloudflare — smoke test local Worker runtime
+        if: steps.changes.outputs.frontend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        env:
+          DRONEOPS_CI_BACKEND_READY: ${{ steps.changes.outputs.backend }}
+        run: python3 scripts/ci/cloudflare_smoke.py
+      - name: Gateway — offline checks, without flight controller
+        if: steps.changes.outputs.gateway == 'true'
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r gateway/requirements.txt
+          PYTHONPATH=gateway .venv/bin/python -m unittest discover -s gateway -p 'test_*.py'
+      - name: ArduCopter — conditional SITL policy read-back
+        if: steps.changes.outputs.sitl == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        run: |
+          curl --fail --location --retry 2 --max-time 90 \
+            https://firmware.ardupilot.org/Copter/stable-4.7.1/SITL_x86_64_linux_gnu/arducopter \
+            --output "$RUNNER_TEMP/arducopter-4.7.1"
+          chmod 700 "$RUNNER_TEMP/arducopter-4.7.1"
+          PYTHONPATH=gateway .venv/bin/python gateway/sitl_arducopter47.py --binary "$RUNNER_TEMP/arducopter-4.7.1"
+          PYTHONPATH=gateway .venv/bin/python gateway/sitl_arducopter47.py --binary "$RUNNER_TEMP/arducopter-4.7.1" --policy-version multicopter-envelope-v2
+      - name: Clean up isolated API container
+        if: always() && steps.changes.outputs.backend == 'true'
+        run: docker rm --force droneops-ci-api >/dev/null 2>&1 || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: pr-ci-runtime-logs
+          retention-days: 3
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/droneops-render-ci.log
+            ${{ runner.temp }}/droneops-cloudflare-ci.log
+      - name: Result summary
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          echo "### PR Quality Gate: $RESULT" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Standard: affected offline suites and disposable PostgreSQL migration/workflow checks. Add full-ci label for Render Docker/TLS smoke, Cloudflare build/runtime and relevant SITL. Omitted checks are not reported as passed. No hosted Supabase writes, production deployment or real flight.' >> "$GITHUB_STEP_SUMMARY"

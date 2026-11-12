@@ -3,6 +3,16 @@
 Status: implementation on Qthong; physical execution remains disabled. This is
 not a claim of Mission Planner/QGroundControl feature parity or successful SITL.
 
+Vietnamese field requirements, operator workflow and failsafe review matrix:
+[Automatic-flight user flow](automatic-flight-user-flow.vi.md).
+
+FC hardware verification is deferred at the user's request. Offline preparation
+now includes pilot-declared measured energy profiles, dated landing-site surveys,
+per-site conservative planning costs and a Live Monitoring readiness checklist.
+These declarations are bound to the reviewed plan; recovery assessments always
+return `canAuthorizeRecovery=false`. They do not constitute independently
+verified calibration, obstacle clearance or onboard parameter enforcement.
+
 ## Authoring modes and required data
 
 The existing `automaticFlightRequested` flag selects the mode; no duplicate
@@ -150,8 +160,9 @@ Not implemented/verified: versioned FC parameter application/read-back for the
 operational envelope; onboard configuration of the recovery contract; native
 rally/fence upload and exact recovery-route execution; calibrated emergency
 energy model; physical landing/obstacle/terrain verification; ArduPilot/PX4 SITL
-and hardware flight tests. Local environment currently has no Docker/CMake/Ninja
-SITL toolchain. This is not complete GCS feature parity.
+and hardware flight tests. Jetson SSH/toolchain inspection succeeded; Docker is
+available there through sudo, but no SITL result has been established. This is
+not complete GCS feature parity.
 
 The compiled envelope declares `fcParameterVerificationRequired=true`. Gateway
 explicitly refuses to upload/start an envelope without its versioned parameter
@@ -189,3 +200,43 @@ and private Storage before application; do not enable aircraft execution.
 - [ArduPilot battery failsafe](https://ardupilot.org/copter/docs/failsafe-battery.html)
 - [ArduPilot rally points](https://ardupilot.org/copter/docs/common-rally-points.html)
 - [PX4 failsafe configuration](https://docs.px4.io/main/en/config/safety)
+
+## Observed ArduCopter 4.7.1 parameter mapping (2026-11-05)
+
+The Pixhawk 6C audit confirmed a new parameter family. The ArduPilot column
+above describes older names where present; do not apply those names/scales
+unconditionally to 4.7.1.
+
+| Quantity | ArduCopter 4.7.1 | Earlier name / units |
+|---|---|---|
+| Cruise | `WP_SPD`, m/s | `WPNAV_SPEED`, cm/s |
+| Climb / descent | `WP_SPD_UP` / `WP_SPD_DN`, m/s | `WPNAV_SPEED_UP` / `WPNAV_SPEED_DN`, cm/s |
+| Acceptance radius | `WP_RADIUS_M`, m | `WPNAV_RADIUS`, cm |
+| Final / initial landing speed | `LAND_SPD_MS` / `LAND_SPD_HIGH_MS`, m/s | `LAND_SPEED` / `LAND_SPEED_HIGH`, cm/s |
+| RTL height / speed | `RTL_ALT_M`, m / `RTL_SPEED_MS`, m/s | `RTL_ALT`, cm / `RTL_SPEED`, cm/s |
+
+Compiler and gateway now resolve the observed radius/cruise values, including
+legacy unit conversion. This is read-only evidence and preview compilation,
+not native parameter enforcement. See the [actual commissioning report](fc-commissioning-2026-11-05.vi.md)
+for missing GPS/Home, inconsistent battery voltage and disabled GCS/fence
+configuration. Existing execution gates remain in place.
+# Profile tốc độ v2 — 06/11/2026
+
+Nhiệm vụ tự động mới dùng `multicopter-envelope-v2`. Đây là cấu hình yêu cầu,
+không phải chứng nhận an toàn cho mọi airframe. Nhiệm vụ v1 vẫn giữ giới hạn cũ;
+chọn **Use v2 default speeds**, lưu và duyệt lại để nâng profile.
+
+| Tham số | Mặc định v2 | Trần v2 |
+| --- | --- | --- |
+| Cruise | 11,2 m/s | 15 m/s |
+| Takeoff | 6,5 m/s | 8 m/s |
+| Climb | 6,5 m/s | 8 m/s |
+| Descent | 5,8 m/s | 6 m/s |
+| Final landing | 1 m/s | 1,5 m/s |
+
+Trên ArduCopter 4.7.1, takeoff và climb dùng chung `WP_SPD_UP`, adapter vẫn
+chặn hai giá trị khác nhau. `WP_SPD` là ceiling, mission item DO_CHANGE_SPEED
+dùng cruise/override đã duyệt, `WP_SPD_DN` là descent và `LAND_SPD_MS` là final
+landing. Cao độ/giới hạn gió giữ profile hiện có. Giá trị v2 mới đã được áp dụng
+và đọc lại trên SITL 4.7.1 (13 tham số); chưa chứng minh hành vi bay hay an toàn
+airframe thực. Không ghi FC thật hay mở khóa flight execution trong thay đổi này.

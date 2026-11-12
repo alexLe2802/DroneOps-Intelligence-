@@ -63,6 +63,9 @@ public sealed class UavResponse
 
     // Media
     public string? ImageUrl { get; set; }
+    public string? ImageModerationStatus { get; set; }
+    public DateTimeOffset? ImageModeratedAt { get; set; }
+    public string? ImageModerationReason { get; set; }
 
     // Audit
     public DateTimeOffset CreatedAt { get; set; }
