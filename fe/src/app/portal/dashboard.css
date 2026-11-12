@@ -88,7 +88,7 @@
 .operator-view-tabs{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid #242f3d;background:#10161f;border-radius:5px;width:max-content;max-width:100%}
 .operator-view-tabs button{min-width:170px;height:38px;padding:0 16px;border:0;border-radius:3px;background:transparent;color:#96a5b7;font:700 10px Consolas,monospace;letter-spacing:.7px;text-transform:uppercase}
 .operator-view-tabs button.active{background:#1caeea;color:#07131c}
-.registration-requests{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(340px,.85fr);gap:14px;align-items:start}
+.registration-requests{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(340px,.85fr);gap:14px;align-items:start;scroll-margin-top:82px}
 .request-list-panel,.request-detail-panel{min-width:0;background:#171d27;border:1px solid #242c38;border-radius:7px}
 .request-list-panel{padding:14px}.request-panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:4px 4px 16px}
 .request-panel-heading h2,.request-detail-panel h2{margin:7px 0 4px;font-size:21px}.request-panel-heading p,.request-detail-panel header p{margin:0;color:#9facbc;line-height:1.45}
