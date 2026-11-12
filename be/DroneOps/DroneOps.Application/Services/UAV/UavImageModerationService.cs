@@ -11,7 +11,7 @@ public sealed class UavImageModerationService(
     IConfiguration configuration,
     ILogger<UavImageModerationService> logger) : IUavImageModerationService
 {
-    public async Task<bool> IsAllowedAsync(
+    public async Task<UavImageModerationResult> ModerateAsync(
         byte[] imageBytes,
         string contentType,
         CancellationToken cancellationToken = default)
@@ -20,14 +20,14 @@ public sealed class UavImageModerationService(
         var model = configuration["UavImageModeration:Model"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            logger.LogError("The UAV image moderation Gemini API key is not configured; upload was rejected.");
-            return false;
+            logger.LogError("The UAV image moderation Gemini API key is not configured; moderation was deferred.");
+            return new(UavImageModerationDecision.Unavailable, "Gemini is not configured.");
         }
 
         if (string.IsNullOrWhiteSpace(model))
         {
-            logger.LogError("The UAV image moderation Gemini model is not configured; upload was rejected.");
-            return false;
+            logger.LogError("The UAV image moderation Gemini model is not configured; moderation was deferred.");
+            return new(UavImageModerationDecision.Unavailable, "Gemini model is not configured.");
         }
 
         try
@@ -68,8 +68,8 @@ public sealed class UavImageModerationService(
             using var response = await httpClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogWarning("Gemini UAV image moderation returned status {StatusCode}; upload was rejected.", (int)response.StatusCode);
-                return false;
+                logger.LogWarning("Gemini UAV image moderation returned status {StatusCode}; moderation was deferred.", (int)response.StatusCode);
+                return new(UavImageModerationDecision.Unavailable, $"Gemini returned HTTP {(int)response.StatusCode}.");
             }
 
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
@@ -81,8 +81,8 @@ public sealed class UavImageModerationService(
                 .GetString();
             if (string.IsNullOrWhiteSpace(content))
             {
-                logger.LogWarning("Gemini UAV image moderation returned empty content; upload was rejected.");
-                return false;
+                logger.LogWarning("Gemini UAV image moderation returned empty content; moderation was deferred.");
+                return new(UavImageModerationDecision.Unavailable, "Gemini returned an empty response.");
             }
 
             using var result = JsonDocument.Parse(content);
@@ -92,16 +92,18 @@ public sealed class UavImageModerationService(
                 isDrone.ValueKind is not (JsonValueKind.True or JsonValueKind.False) ||
                 inappropriate.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             {
-                logger.LogWarning("Gemini UAV image moderation returned an invalid result; upload was rejected.");
-                return false;
+                logger.LogWarning("Gemini UAV image moderation returned an invalid result; moderation was deferred.");
+                return new(UavImageModerationDecision.Unavailable, "Gemini returned an invalid response.");
             }
 
-            return isDrone.GetBoolean() && !inappropriate.GetBoolean();
+            return isDrone.GetBoolean() && !inappropriate.GetBoolean()
+                ? new(UavImageModerationDecision.Approved, "Gemini confirmed a safe UAV image.")
+                : new(UavImageModerationDecision.Rejected, "The image is not a safe UAV image.");
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(exception, "Gemini UAV image moderation failed; upload was rejected.");
-            return false;
+            logger.LogWarning(exception, "Gemini UAV image moderation failed; moderation was deferred.");
+            return new(UavImageModerationDecision.Unavailable, "Gemini request failed temporarily.");
         }
     }
 }

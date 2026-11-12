@@ -3,6 +3,27 @@ namespace DroneOps.Application.Services.Missions;
 // The airspace registry and FE classify these polygons as prohibited/restricted airspace.
 public static class MissionRouteGeometry
 {
+    // Planning projection only: RTL visits the endpoint, then returns to the
+    // takeoff area. FC Home is verified independently at upload/launch.
+    public static List<DroneOps.Domain.Entities.Waypoint> PlanningWaypoints(DroneOps.Domain.Entities.Mission mission)
+    {
+        var points = mission.Waypoints.OrderBy(w => w.SequenceOrder).ToList();
+        if (points.Count < 2 || !string.Equals(points[^1].ActionType, "Return", StringComparison.OrdinalIgnoreCase)) return points;
+        var first = points[0];
+        var height = Math.Max(points.Max(w => w.Altitude ?? 0), mission.AutomaticFlightLimits?.MaxAltitudeMeters ?? points[^1].Altitude ?? 0);
+        points.Add(new() { SequenceOrder = points.Count + 1, Latitude = first.Latitude,
+            Longitude = first.Longitude, Altitude = height, ActionType = "Land" });
+        return points;
+    }
+
+    public static double DistanceMeters(decimal latA, decimal lonA, decimal latB, decimal lonB)
+    {
+        static double R(decimal v) => (double)v * Math.PI / 180;
+        var a = Math.Pow(Math.Sin(R(latB - latA) / 2), 2)
+            + Math.Cos(R(latA)) * Math.Cos(R(latB)) * Math.Pow(Math.Sin(R(lonB - lonA) / 2), 2);
+        return 6371000 * 2 * Math.Asin(Math.Sqrt(Math.Clamp(a, 0, 1)));
+    }
+
     public record Point(double Latitude, double Longitude);
     private static double Cross(Point a, Point b, Point c) => (b.Longitude - a.Longitude) * (c.Latitude - a.Latitude) - (b.Latitude - a.Latitude) * (c.Longitude - a.Longitude);
     private static bool On(Point p, Point a, Point b) => Math.Abs(Cross(a, b, p)) < 1e-10 && p.Latitude >= Math.Min(a.Latitude, b.Latitude) - 1e-10 && p.Latitude <= Math.Max(a.Latitude, b.Latitude) + 1e-10 && p.Longitude >= Math.Min(a.Longitude, b.Longitude) - 1e-10 && p.Longitude <= Math.Max(a.Longitude, b.Longitude) + 1e-10;

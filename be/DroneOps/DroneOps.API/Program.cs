@@ -15,7 +15,8 @@ var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCas
     "--migrate-auth", "--bootstrap-manager", "--monitor-only",
     "--migrate-telemetry", "--check-telemetry-schema",
     "--migrate-postflight", "--check-postflight-schema",
-    "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows"
+    "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows",
+    "--migrate-uav-images"
 };
 var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
@@ -29,8 +30,12 @@ if (builder.Environment.IsDevelopment())
 }
 builder.Configuration.AddEnvironmentVariables();
 builder.Configuration.AddCommandLine(configurationArgs);
-var monitoringEnabled = args.Contains("--monitor-only") ||
-    builder.Configuration.GetValue("Monitoring:Enabled", true);
+var isMonitorProcess = args.Contains("--monitor-only");
+var dedicatedMonitorRequired = builder.Configuration.GetValue("Monitoring:DedicatedProcessRequired", false) ||
+    !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VERCEL"));
+// On Vercel, replicas never run workers, even if a dashboard override enables monitoring.
+var monitoringEnabled = isMonitorProcess ||
+    (!dedicatedMonitorRequired && builder.Configuration.GetValue("Monitoring:Enabled", true));
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -52,6 +57,14 @@ if(args.Contains("--migrate-account-workflows"))
     await using var source=PostgresDataSourceFactory.Create(connectionString);
     await AccountWorkflowSchema.ApplyAsync(source);
     Console.WriteLine("Account workflow schema verified.");return;
+}
+
+if (args.Contains("--migrate-uav-images"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await UavImageSchema.ApplyAsync(source);
+    Console.WriteLine("UAV image moderation schema verified.");
+    return;
 }
 
 if (args.Contains("--migrate-mission-workflow"))
@@ -82,6 +95,7 @@ if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-s
 
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 //builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
+builder.Services.AddSingleton<MissionStreamSnapshots>();
 builder.Services.AddControllers(options => options.Filters.Add<MissionValidationExceptionFilter>());
 builder.Services.Configure<MissionWeatherOptions>(
     builder.Configuration.GetSection("MissionWeather"));
@@ -135,7 +149,10 @@ builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddPersistenceServices(builder.Configuration);
 if (monitoringEnabled)
 {
+    // The dedicated monitor owns background work; API replicas must not poll for it.
+    builder.Services.AddHostedService<UavImageModerationMonitor>();
     builder.Services.AddHostedService<CommunicationLossMonitor>();
+    builder.Services.AddHostedService<ScheduledFlightMonitor>();
     builder.Services.AddHostedService<PostFlightCompletionMonitor>();
 }
 
@@ -218,7 +235,7 @@ await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDa
 await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 // Notification DDL is idempotent so existing deployments become ready without a separate flag.
 await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await UavImageSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await UavImageSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.
@@ -229,7 +246,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+var deploymentCommit = Environment.GetEnvironmentVariable("RENDER_GIT_COMMIT") ??
+    Environment.GetEnvironmentVariable("VERCEL_GIT_COMMIT_SHA");
+app.Logger.LogInformation("Runtime role {Role}; monitoring enabled: {MonitoringEnabled}; commit: {Commit}",
+    isMonitorProcess ? "monitor" : "api", monitoringEnabled,
+    deploymentCommit ?? "unknown");
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    role = isMonitorProcess ? "monitor" : "api",
+    monitoringEnabled,
+    commit = deploymentCommit
+}));
 app.UseWebSockets(new WebSocketOptions
 {
     KeepAliveInterval = TimeSpan.FromSeconds(20)

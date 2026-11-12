@@ -1,13 +1,17 @@
-﻿using DroneOps.Domain.Entities;
+using DroneOps.Domain.Entities;
 
 namespace DroneOps.Persistence.Interfaces;
 
 public interface IMissionValidationRepository
 {
+    Task<MissionUpdateRequest?> GetReviewRequestAsync(Guid missionId, Guid requestId, CancellationToken ct = default);
     Task<Mission?> GetMissionWithWaypointsAsync(
         Guid missionId,
         bool tracking = false,
         CancellationToken cancellationToken = default);
+
+    Task<List<MissionReviewHistoryRecord>> GetReviewHistoryAsync(
+        Guid missionId, CancellationToken cancellationToken = default);
 
     Task<Mission?> GetMissionAsync(
         Guid missionId,
@@ -51,7 +55,7 @@ public interface IMissionValidationRepository
         Guid uavId,
         CancellationToken cancellationToken = default);
 
-    Task<bool> HasScheduleConflictAsync(
+    Task<List<MissionScheduleConflict>> GetScheduleConflictsAsync(
         Guid missionId,
         Guid? uavId,
         Guid createdBy,
@@ -78,3 +82,8 @@ public interface IMissionValidationRepository
         Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken = default);
 }
+
+public sealed record MissionScheduleConflict(Guid MissionId, string MissionName, string Status,
+    DateTime StartTime, DateTime EndTime, bool UavConflict, bool OperatorConflict);
+
+public sealed record MissionReviewHistoryRecord(MissionUpdateRequest Request, MissionValidationRun? Validation);

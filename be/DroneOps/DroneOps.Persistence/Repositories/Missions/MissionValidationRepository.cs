@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using DroneOps.Domain.Constants;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
@@ -13,6 +13,8 @@ public sealed class MissionValidationRepository(
     IMemoryCache cache)
     : IMissionValidationRepository
 {
+    public Task<MissionUpdateRequest?> GetReviewRequestAsync(Guid missionId, Guid requestId, CancellationToken ct = default)
+        => db.MissionUpdateRequests.SingleOrDefaultAsync(x => x.MissionId == missionId && x.Id == requestId, ct);
     public async Task<Mission?> GetMissionWithWaypointsAsync(
         Guid missionId,
         bool tracking = false,
@@ -29,6 +31,18 @@ public sealed class MissionValidationRepository(
         return await query.SingleOrDefaultAsync(
             x => x.Id == missionId,
             cancellationToken);
+    }
+
+    public async Task<List<MissionReviewHistoryRecord>> GetReviewHistoryAsync(
+        Guid missionId, CancellationToken cancellationToken = default)
+    {
+        return await (from request in db.MissionUpdateRequests.AsNoTracking()
+            join run in db.MissionValidationRuns.AsNoTracking().Where(r => r.MissionId == missionId)
+                on request.ValidationRunId equals (Guid?)run.Id into runs
+            from run in runs.DefaultIfEmpty()
+            where request.MissionId == missionId
+            orderby request.CreatedAt descending, request.Id descending
+            select new MissionReviewHistoryRecord(request, run)).ToListAsync(cancellationToken);
     }
 
     public async Task<Mission?> GetMissionAsync(
@@ -176,6 +190,7 @@ public sealed class MissionValidationRepository(
     {
         return await db.Pilots
             .AsNoTracking()
+            .Include(x => x.User)
             .FirstOrDefaultAsync(
                 x => x.UserId == userId,
                 cancellationToken);
@@ -192,7 +207,7 @@ public sealed class MissionValidationRepository(
                 cancellationToken);
     }
 
-    public async Task<bool> HasScheduleConflictAsync(
+    public async Task<List<MissionScheduleConflict>> GetScheduleConflictsAsync(
         Guid missionId,
         Guid? uavId,
         Guid createdBy,
@@ -201,25 +216,18 @@ public sealed class MissionValidationRepository(
         CancellationToken cancellationToken = default)
     {
         if (startTime is null || endTime is null)
-        {
-            return false;
-        }
+            return [];
 
-        return await db.Missions
-            .AsNoTracking()
-            .AnyAsync(
-                x =>
-                    x.Id != missionId &&
-                    (x.UAVId == uavId ||
-                     x.CreatedBy == createdBy) &&
-                    (
-                        x.Status == "Approved" ||
-                        x.Status == "InProgress" ||
-                        x.Status == "In Progress"
-                    ) &&
-                    x.StartTime < endTime &&
-                    x.EndTime > startTime,
-                cancellationToken);
+        return await db.Missions.AsNoTracking()
+            .Where(x => x.Id != missionId
+                && ((uavId.HasValue && x.UAVId == uavId) || x.CreatedBy == createdBy)
+                && (x.Status == "Approved" || x.Status == "InProgress" || x.Status == "In Progress")
+                && x.StartTime < endTime && x.EndTime > startTime)
+            .OrderBy(x => x.StartTime).ThenBy(x => x.Id)
+            .Select(x => new MissionScheduleConflict(x.Id, x.Name ?? "Unnamed mission", x.Status,
+                x.StartTime!.Value, x.EndTime!.Value,
+                uavId.HasValue && x.UAVId == uavId, x.CreatedBy == createdBy))
+            .Take(5).ToListAsync(cancellationToken);
     }
 
     public async Task<Incident?> GetOpenPreflightIncidentAsync(

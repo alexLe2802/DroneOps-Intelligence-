@@ -51,3 +51,11 @@ test("mission speed validation matches the backend contract", () => {
   assert.match(missionSpeedError(16, 15), /cannot exceed/);
   assert.ok(missionSpeedError(NaN, 15));
 });
+
+
+test("Return/RTL is accepted only as the route endpoint", () => {
+  const a = { latitude: 10, longitude: 106, altitude: 20, actionType: "TakeOff" };
+  const b = { latitude: 11, longitude: 107, altitude: 20, actionType: "Return" };
+  assert.equal(routeError([a, b]), null);
+  assert.match(routeError([a, b, { ...b, actionType: "Land" }]), /endpoints/);
+});

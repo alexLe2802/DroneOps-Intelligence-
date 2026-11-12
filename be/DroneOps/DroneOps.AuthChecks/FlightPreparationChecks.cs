@@ -218,7 +218,7 @@ internal static class FlightPreparationChecks
     private sealed class PreflightStub(AppDbContext db) : IMissionValidationService
     {
         public bool Fail { get; set; }
-        public async Task<MissionValidationResult> RevalidateAsync(Guid id, Guid actor, bool manager, string stage, CancellationToken ct = default)
+        public async Task<MissionValidationResult> RevalidateAsync(Guid id, Guid actor, bool manager, string stage, CancellationToken ct = default, Guid? updateRequestId = null)
         {
             var mission = await db.Missions.AsNoTracking().Include(m => m.Waypoints).SingleAsync(m => m.Id == id, ct);
             var result = new MissionValidationResult { MissionId = id, Stage = stage };
@@ -228,6 +228,7 @@ internal static class FlightPreparationChecks
             await db.SaveChangesAsync(ct);
             return result;
         }
+        public Task<List<MissionUpdateSummary>> HistoryAsync(Guid id, Guid actor, bool manager, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<MissionValidationResult?> LatestAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<MissionValidationResult?> LatestPreflightAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<MissionValidationResult?> ReadAsync(Guid id, Guid actor, bool manager, CancellationToken ct = default) => throw new NotSupportedException();

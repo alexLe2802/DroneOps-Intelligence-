@@ -7,7 +7,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 const require = createRequire(import.meta.url);
-const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText.replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href))).toString('base64');
+const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source.replace('import styles from "./mission-authoring.module.css";', 'const styles = new Proxy({}, {get: (_, key) => key});').replace('from "lucide-react"', `from ${JSON.stringify(pathToFileURL(require.resolve('lucide-react')).href)}`), {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText.replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href))).toString('base64');
 const time = compile(await readFile(new URL('../src/lib/portal/vietnam-time.ts',import.meta.url),'utf8'));
 const source = (await readFile(new URL('../src/app/portal/missions/waypoint-navigation-fields.tsx',import.meta.url),'utf8')).replace('from "@/lib/portal/vietnam-time"', `from ${JSON.stringify(time)}`);
 const {default:Fields,FirmwareDefaultsNotice:Notice} = await import(compile(source));
@@ -16,12 +16,12 @@ const render = value => renderToStaticMarkup(React.createElement(Fields,{point:v
 test('optional waypoint values are not fabricated before FC connection',()=>{
  const html=render(point);
  assert.match(html,/Speed override .*optional/); assert.match(html,/Read from FC/);
- assert.match(html,/Pass radius .*unavailable/); assert.match(html,/disabled=""/);
+ assert.doesNotMatch(html,/Pass radius|Leave unset|CLEAR OPTIONAL/);
  assert.doesNotMatch(html,/required=""/);
 });
 test('Hover duration is conditionally required and visible',()=>{
  const html=render({...point,actionType:'Hover'});
- assert.match(html,/required for Hover/); assert.match(html,/required=""/); assert.match(html,/<details open=""/);
+ assert.match(html,/required for Hover/); assert.match(html,/required=""/); assert.match(html,/<details[^>]* open=""/);
 });
 test('candidate landing site needs ground and clearance notes rather than a normal coordinate alone',()=>{
  const html=render({...point,navigation:{emergencyLandingCandidate:true}});

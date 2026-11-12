@@ -1,10 +1,11 @@
 "use client";
 
+import { ApiError } from "@/lib/auth/client";
 import { formatVietnamDateTime, formatVietnamTime } from "@/lib/portal/vietnam-time";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getAssignedUav, getManagedUav, getLatestMissionTelemetry, getLiveMissions, getMission, getMissionIncidents, liveMissionStreamUrl } from "@/lib/portal/client";
-import type { AssignedUav, IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
+import { getLatestMissionTelemetry, getLiveMissions, getMission, getMissionIncidents, liveMissionStreamUrl } from "@/lib/portal/client";
+import type { IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
 import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
 import { armingDisplay } from "@/lib/portal/arming-state";
 import LiveMap from "./live-map";
@@ -33,7 +34,6 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   const [missions, setMissions] = useState<LiveMission[] | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [mission, setMission] = useState<MissionDetail | null>(null);
-  const [aircraft, setAircraft] = useState<AssignedUav | null>(null);
   const [telemetry, setTelemetry] = useState<MissionTelemetry | null>(null);
   const browserReceiptTimes = useRef(new Map<string, string>());
   const [incidents, setIncidents] = useState<IncidentItem[]>([]);
@@ -74,13 +74,6 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   }, []);
 
   const selected = useMemo(() => missions?.find(item => item.missionId === selectedId) ?? null, [missions, selectedId]);
-  useEffect(() => {
-    if (!selected?.uavId) return;
-    let active = true;
-    const request = canPrepare ? getAssignedUav(selected.uavId) : getManagedUav(selected.uavId);
-    void request.then(value => { if (active) setAircraft(value); }).catch(() => { if (active) setAircraft(null); });
-    return () => { active = false; };
-  }, [selected?.uavId, canPrepare]);
 
   const loadSelected = useCallback(async () => {
     if (!selectedId || !selected) return;
@@ -126,11 +119,22 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     let active = true;
     const source = new EventSource(liveMissionStreamUrl(selectedId));
     queueMicrotask(() => { if (active) setStreamState("connecting"); });
-    source.onopen = () => setStreamState("live");
-    source.onerror = () => setStreamState("reconnecting");
+    source.onopen = () => { if (active) setStreamState("live"); };
+    source.onerror = () => {
+      if (!active) return;
+      setStreamState("reconnecting");
+      void getLatestMissionTelemetry(selectedId).then(snapshot => { if (active) setTelemetry(snapshot); }).catch(reason => {
+        if (!active) return;
+        if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) {
+          source.close(); setStreamState("closed");
+          setError(reason.status === 401 ? "Session expired. Sign in again to resume monitoring." : "This mission is unavailable or access has changed.");
+        }
+      });
+    };
     const updateTelemetry = (event: MessageEvent<string>) => {
       try {
         const next = JSON.parse(event.data) as MissionTelemetry;
+        if (!active || next.missionId !== selectedId) return;
         if (next.sourceTimestamp) browserReceiptTimes.current.set(next.sourceTimestamp, new Date().toISOString());
         setTelemetry(next); setStreamState("live");
       }
@@ -139,6 +143,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     const updateIncident = (event: MessageEvent<string>) => {
       try {
         const item = JSON.parse(event.data) as IncidentItem;
+        if (!active || item.missionId !== selectedId) return;
         setIncidents(current => [item, ...current.filter(existing => existing.id !== item.id)].slice(0, 8));
       } catch { setError("An incident event could not be decoded."); }
     };
@@ -155,15 +160,18 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
     if (sourceTime && Number.isFinite(sourceTime)) return Math.max(0, (clock - sourceTime) / 1000);
     return telemetry.dataAgeSeconds;
   }, [clock, telemetry]);
-  const connection = statusKey(telemetry?.connectivityStatus ?? selected?.connectivityStatus);
+  const staleAfter = telemetry?.staleAfterSeconds ?? 10;
+  const offlineAfter = telemetry?.offlineAfterSeconds ?? 30;
+  const connection = packetAge == null ? "offline" : packetAge > offlineAfter ? "offline" : packetAge > staleAfter ? "stale" : streamState === "live" ? "online" : "unknown";
   const batteryTelemetry = telemetry?.missionId === selectedId ? telemetry : null;
   const arming = armingDisplay(telemetry, selectedId, streamState === "live",
     telemetry?.sourceTimestamp || telemetry?.receivedAt ? packetAge : null);
   const missionEnded = mission?.id === selectedId && (Boolean(mission.endTime && new Date(mission.endTime).getTime() <= clock)
     || ["completed", "cancelled", "aborted", "failed"].includes(statusKey(mission.status)));
-  const sequence = Math.max(0, telemetry?.missionSequence ?? selected?.missionSequence ?? 0);
+  const sequence = telemetry?.missionSequence ?? selected?.missionSequence ?? null;
   const waypointTotal = Math.max(0, telemetry?.waypointTotal ?? selected?.waypointTotal ?? mission?.waypoints.length ?? 0);
-  const progress = Math.min(100, Math.max(0, telemetry?.progressPercent ?? selected?.progressPercent ?? (waypointTotal ? sequence / waypointTotal * 100 : 0)));
+  const progress = telemetry ? telemetry.progressPercent : selected?.progressPercent;
+  const progressLabel = progress == null ? "Unavailable" : `${Math.min(100, Math.max(0, progress)).toFixed(1)}%`;
   const activeIncidents = incidents.filter(item => statusKey(item.status) !== "resolved");
   const latestIncident = activeIncidents[0];
 
@@ -212,14 +220,14 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
         <p>Hoàn tất kiểm tra trước bay và bảo đảm khu vực an toàn, sau đó ARM bằng bộ điều khiển hoặc GCS khi sẵn sàng bay. Lời nhắc sẽ tự tắt khi nhận telemetry xác nhận drone đã ARM.</p>
       </div>}
       <section className={styles.signalStrip}>
-        <div className={connection === "online" ? styles.good : connection === "stale" ? styles.warning : styles.danger}><b>TELEMETRY LINK</b><span>{(telemetry?.connectivityStatus ?? selected?.connectivityStatus ?? "Offline").toUpperCase()} / {telemetry?.snapshotKind?.toUpperCase() ?? "SNAPSHOT"}</span></div>
+        <div className={connection === "online" ? styles.good : connection === "stale" ? styles.warning : styles.danger}><b>TELEMETRY LINK</b><span>{connection.toUpperCase()} / {telemetry?.snapshotKind?.toUpperCase() ?? "SNAPSHOT"}</span></div>
         <div className={latestIncident ? styles.danger : styles.good}><b>{latestIncident ? `${latestIncident.severity} INCIDENT` : "INCIDENT CHANNEL"}</b><span>{latestIncident?.title ?? "No open incident received for this mission."}</span></div>
       </section>
 
       <div className={styles.operationsGrid} aria-busy={loadingMission}>
         <section className={styles.mapPanel}>
           <header><div><span>SPATIAL TELEMETRY</span><h2>{selected?.missionName}</h2></div><div><b>{telemetry?.flightMode ?? "MODE UNAVAILABLE"}</b><small className={styles[`arm${arming.state}`]}>{arming.label}</small></div></header>
-          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={sequence} recenterToken={recenterToken} streamLive={streamState === "live"} />
+          <LiveMap key={selectedId} missionId={selectedId} telemetry={telemetry?.missionId === selectedId ? telemetry : null} waypoints={mission?.id === selectedId ? mission.waypoints : []} sequence={0} recenterToken={recenterToken} streamLive={streamState === "live"} />
           <footer><span>LAST PACKET <b>{shortDate(telemetry?.sourceTimestamp ?? selected?.lastSeen)}</b></span><span>{connection === "online" && !telemetry?.isStale && streamState === "live" ? "POSITION" : "LAST KNOWN POSITION"} <b>{hasTelemetryPosition(telemetry) ? `${Number(telemetry.latitude).toFixed(5)}, ${Number(telemetry.longitude).toFixed(5)}` : "UNAVAILABLE"}</b></span></footer>
         </section>
 
@@ -231,10 +239,10 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
           </section>
 
           <section className={styles.progressPanel}>
-            <header><span>FLIGHT CORRIDOR PROGRESSION</span><b>WP {String(sequence).padStart(2, "0")} / {String(waypointTotal).padStart(2, "0")}</b></header>
-            <div className={styles.progressValue}><strong>{progress.toFixed(1)}%</strong><span>Overall completion</span></div>
-            <div className={styles.progressTrack}><i style={{ width: `${progress}%` }} /></div>
-            <div className={styles.progressMeta}><span>NEXT WAYPOINT<b>{waypointTotal ? Math.min(sequence + 1, waypointTotal) : "--"}</b></span><span>MISSION STATUS<b>{selected?.missionStatus ?? "Unavailable"}</b></span></div>
+            <header><span>FLIGHT CORRIDOR PROGRESSION</span><b>COMMAND {sequence ?? "Unavailable"} / {waypointTotal} PLANNED WAYPOINTS</b></header>
+            <div className={styles.progressValue}><strong>{progressLabel}</strong><span>Overall completion</span></div>
+            <div className={styles.progressTrack}><i style={{ width: `${progress ?? 0}%` }} /></div>
+            <div className={styles.progressMeta}><span>NEXT WAYPOINT<b>{progress == null || sequence == null ? "Unavailable" : Math.min(sequence + 1, waypointTotal)}</b></span><span>MISSION STATUS<b>{selected?.missionStatus ?? "Unavailable"}</b></span></div>
           </section>
 
           <section className={styles.incidentPanel}>
@@ -261,17 +269,15 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
             `Pack voltage: ${valueOr(batteryTelemetry?.batteryVoltageVolts, " V", 2)}`,
             `Current: ${valueOr(batteryTelemetry?.batteryCurrentAmps, " A", 2)}`,
             `Consumed charge (FC): ${valueOr(batteryTelemetry?.batteryConsumedMah, " mAh", 0)}`,
-            `Pack capacity (UAV configuration): ${valueOr(aircraft?.id === selected?.uavId ? aircraft?.batteryCapacityMah : null, " mAh", 0)}`,
-            "Configured capacity is not a live FC measurement",
-            `Battery readings: ${streamState === "live" && connection === "online" && packetAge !== null && packetAge <= 15 && !batteryTelemetry?.isStale ? "Live telemetry" : "Last known / unavailable"}`,
             `State: ${arming.label}`,
           ]} />
-          <TelemetryCard index="05" label="LINK & TELEMETRY" value={(telemetry?.connectivityStatus ?? "Offline").toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />
-          <TelemetryCard index="06" label="FLIGHT NAVIGATION" value={waypointTotal ? `WP ${sequence}/${waypointTotal}` : "Unavailable"} lines={[`Mode: ${telemetry?.flightMode ?? "Unavailable"}`, `Progress: ${progress.toFixed(1)}%`]} />
+          <TelemetryCard index="05" label="LINK & TELEMETRY" value={connection.toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />
+          <TelemetryCard index="06" label="FLIGHT NAVIGATION" value={sequence == null ? "Unavailable" : `Command ${sequence}`} lines={[`Mode: ${telemetry?.flightMode ?? "Unavailable"}`, `Progress: ${progressLabel}`]} />
         </div>
       </section>
 
       <section className={styles.rawPanel}>
+        {telemetry?.detectionDiagnostics?.map(message => <p key={message} role="status">{message}</p>)}
         <header><span>RAW TELEMETRY SNAPSHOT</span><b>{telemetry?.sourceTimestamp ? new Date(telemetry.sourceTimestamp).toISOString() : "NO SOURCE TIMESTAMP"}</b></header>
         <div><code>MISSION_ID: {selectedId}</code><code>UAV_ID: {telemetry?.uavId ?? "UNAVAILABLE"}</code><code>RECEIVED_AT: {telemetry?.receivedAt ?? "UNAVAILABLE"}</code><code>VALID: {String(telemetry?.isValid ?? false).toUpperCase()}</code></div>
       </section>

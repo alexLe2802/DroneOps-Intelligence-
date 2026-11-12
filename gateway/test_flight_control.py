@@ -2,10 +2,13 @@ import queue
 import time
 import datetime as dt
 import unittest
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from flight_control import ControlBridge, FlightControl, same_item
+from flight_control import ControlBridge, FlightControl, same_item, planned_home_matches
+import test_arducopter47_adapter as adapter_fixtures
 
 
 def message(kind, **values):
@@ -18,9 +21,15 @@ class FlightControlTests(unittest.TestCase):
         self.bridge = ControlBridge()
         self.link = SimpleNamespace(mav=Mock(), source_system=255, source_component=0)
         self.control = FlightControl(1, 1, self.bridge, True, lambda: self.now)
+        journal = tempfile.TemporaryDirectory()
+        self.addCleanup(journal.cleanup)
+        self.control.journal_path = Path(journal.name) / 'commands.json'
+        self.control.handled = set()
+        self.control.journal_valid = True
         self.control.tick(self.link)
         self.feed()
         self.control.uploaded_hash = 'hash'
+        self.control.items = [dict(command=22, x=106000000, y=1070000000)]
 
     def feed(self, armed=False, landed=1, autopilot=12, mode=3 << 16):
         for kind, fields in (
@@ -28,25 +37,187 @@ class FlightControlTests(unittest.TestCase):
             ('SYS_STATUS', dict(onboard_control_sensors_enabled=1 << 28, onboard_control_sensors_health=1 << 28)),
             ('EXTENDED_SYS_STATE', dict(landed_state=landed)),
             ('GPS_RAW_INT', dict(fix_type=3)),
+            ('GLOBAL_POSITION_INT', dict(lat=106000000, lon=1070000000)),
             ('HOME_POSITION', dict(latitude=106000000, longitude=1070000000, altitude=12000)),
-            ('AUTOPILOT_VERSION', dict(capabilities=4)),
+            ('AUTOPILOT_VERSION', dict(capabilities=4, uid=123)),
         ):
             self.control.accept(message(kind, **fields), self.link)
 
     def response(self, action=None, identifier='id', **extra):
         utc = dt.datetime.now(dt.timezone.utc)
         value = dict(enabled=True, leaseSeconds=3, stage='Countdown', compiledHash='hash',
+                     missionId='mission', connectionId='connection', planHash='hash', controllerUid='UID64-000000000000007B',
                      serverNow=utc.isoformat(), command=dict(id=identifier, action=action,
                          expiresAt=(utc + dt.timedelta(seconds=60 if action == 'Upload' else 8)).isoformat()) if action else None)
         value.update(extra)
         self.bridge.responses.put((self.bridge.instance, self.now, value))
         self.control.tick(self.link)
 
+    def test_basic_route_upload_readback_arm_and_start_without_recovery_setup(self):
+        self.feed(autopilot=3, mode=5)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100, uid=123), self.link)
+        self.control.accept(message('PARAM_VALUE', param_id='ARMING_SKIPCHK', param_value=0), self.link)
+        fixture = adapter_fixtures.ParameterAdapterTests()
+        fixture.setUp()
+        envelope = dict(fixture.envelope, configureRecovery=False)
+        self.response(requiredEnvelopeHash='hash', operatingEnvelope=envelope, stage='AwaitingFcProfile')
+        while self.control.envelope.pending:
+            name = self.control.envelope.pending[0]
+            for _ in range(2):
+                self.control.accept(message('PARAM_VALUE', param_id=name,
+                    param_value=self.control.envelope.targets[name]), self.link)
+        self.assertEqual(self.control.envelope.verified_hash, 'hash')
+        self.assertEqual(set(self.control.envelope.targets), {'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'LAND_SPD_MS'})
+        def item(seq, command, x, z):
+            return dict(seq=seq, command=command, frame=3, param1=0, param2=0,
+                        param3=0, param4=None, x=x, y=1070000000, z=z)
+        plan = dict(firmwareTarget='ArduPilot', operationalEnvelope=envelope,
+                    items=[item(0, 22, 106000000, 20), item(1, 16, 106001000, 20), item(2, 21, 106001000, 0)])
+        self.response('Upload', identifier='upload', mission=plan, stage='Uploading', requiredEnvelopeHash='hash')
+        self.link.mav.mission_count_send.assert_called_once_with(1, 1, 4, 0)
+        for seq in range(4):
+            self.control.accept(message('MISSION_REQUEST_INT', seq=seq), self.link)
+        self.control.accept(message('MISSION_ACK', type=0), self.link)
+        self.control.accept(message('MISSION_COUNT', count=4), self.link)
+        for entry in self.control.items:
+            values = dict(entry)
+            if values['param4'] is None:
+                values['param4'] = float('nan')
+            self.control.accept(message('MISSION_ITEM_INT', **values), self.link)
+        self.assertTrue(self.bridge.report['succeeded'])
+        self.assertEqual(self.control.uploaded_hash, 'hash')
+        self.response('Arm', identifier='arm', stage='Arming', requiredEnvelopeHash='hash')
+        self.control.accept(message('COMMAND_ACK', command=400, result=0), self.link)
+        self.feed(armed=True, autopilot=3, mode=5)
+        self.assertTrue(self.bridge.report['succeeded'])
+        self.now += 10
+        self.feed(armed=True, autopilot=3, mode=5)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100, uid=123), self.link)
+        self.response('Start', identifier='start', stage='Starting', requiredEnvelopeHash='hash')
+        self.control.accept(message('COMMAND_ACK', command=300, result=0), self.link)
+        self.feed(armed=True, autopilot=3, mode=3)
+        self.assertTrue(self.bridge.report['succeeded'])
+        self.assertEqual(self.link.mav.command_long_send.call_count, 2)
+
+    def test_map_takeoff_must_match_actual_home_even_without_explicit_home(self):
+        self.feed(autopilot=3)
+        item = dict(seq=0, command=22, frame=3, param1=0, param2=0, param3=0,
+                    param4=None, x=110000000, y=1070000000, z=20)
+        self.response('Upload', mission=dict(firmwareTarget='ArduPilot',
+            operationalEnvelope={'configureRecovery': False}, items=[item]), stage='Uploading')
+        self.link.mav.mission_count_send.assert_not_called()
+        self.assertFalse(self.bridge.report['succeeded'])
+
     def test_default_is_telemetry_only(self):
         self.control.enabled = False
         self.response('Arm')
         self.link.mav.command_long_send.assert_not_called()
         self.assertFalse(self.bridge.report['succeeded'])
+
+    def test_planned_home_requires_fresh_matching_fc_coordinates(self):
+        actual = SimpleNamespace(latitude=108231000, longitude=1066297000, altitude=12000)
+        self.assertTrue(planned_home_matches({'latitude': 10.8231, 'longitude': 106.6297}, actual))
+        self.assertTrue(planned_home_matches({'latitude': 10.8231, 'longitude': 106.6297, 'altitudeMslMeters': 12}, actual))
+        for expected in ({'latitude': 11, 'longitude': 106.6297},
+                         {'latitude': 10.8231, 'longitude': 106.6297, 'altitudeMslMeters': 30},
+                         {'latitude': float('nan'), 'longitude': 106.6297}):
+            self.assertFalse(planned_home_matches(expected, actual))
+        self.assertFalse(planned_home_matches({'latitude': 10.8231, 'longitude': 106.6297}, None))
+
+    def test_upload_ignores_legacy_planned_home_and_keeps_actual_fc_home_header(self):
+        self.feed(autopilot=3)
+        item = dict(seq=0, command=22, frame=3, param1=0, param2=0, param3=0, param4=None, x=106000000, y=1070000000, z=20)
+        self.response('Upload', mission=dict(firmwareTarget='ArduPilot', items=[item],
+            plannedHome=dict(latitude=11, longitude=108)), stage='Uploading')
+        self.link.mav.mission_count_send.assert_called_once()
+        self.assertEqual(self.control.items[0]['x'], 106000000)
+        self.assertEqual(self.control.items[0]['z'], 12)
+        self.link.mav.command_long_send.assert_not_called()
+
+    def test_upload_without_planned_home_still_rejects_empty_mission(self):
+        self.feed(autopilot=3)
+        self.response('Upload', mission=dict(firmwareTarget='ArduPilot', items=[]), stage='Uploading')
+        self.link.mav.mission_count_send.assert_not_called()
+        self.assertFalse(self.bridge.report['succeeded'])
+
+    def test_takeoff_position_requires_verified_route_fresh_position_and_home(self):
+        takeoff = dict(command=22, x=106000000, y=1070000000)
+        self.control.items = [takeoff]
+        self.assertTrue(self.control.takeoff_position_ready('hash'))
+        self.assertFalse(self.control.takeoff_position_ready('different-hash'))
+        for kind, fields in (
+            ('GLOBAL_POSITION_INT', dict(lat=107000000, lon=1070000000)),
+            ('HOME_POSITION', dict(latitude=107000000, longitude=1070000000, altitude=12000)),
+            ('GLOBAL_POSITION_INT', dict(lat=0, lon=0)),
+        ):
+            self.feed()
+            self.control.accept(message(kind, **fields), self.link)
+            self.assertFalse(self.control.takeoff_position_ready('hash'))
+        self.feed()
+        self.now += 4
+        self.assertFalse(self.control.takeoff_position_ready('hash'))
+        self.feed(autopilot=3, mode=5)
+        self.control.items = [dict(command=16, x=0, y=0), takeoff]
+        self.assertTrue(self.control.takeoff_position_ready('hash'))
+        self.control.seen.pop('HOME_POSITION')
+        self.assertFalse(self.control.takeoff_position_ready('hash'))
+        self.feed(autopilot=3, mode=5)
+        self.now += 16
+        self.control.accept(message('HEARTBEAT', type=2, autopilot=3, base_mode=0, custom_mode=5), self.link)
+        self.control.accept(message('GLOBAL_POSITION_INT', lat=106000000, lon=1070000000), self.link)
+        self.assertFalse(self.control.takeoff_position_ready('hash'))
+        self.feed(autopilot=3, mode=5)
+        self.control.items = [dict(command=16), dict(command=16, x=106000000, y=1070000000)]
+        self.assertFalse(self.control.takeoff_position_ready('hash'))
+
+    def test_arm_and_start_recheck_location_before_sending_mavlink(self):
+        self.control.items = [dict(command=22, x=106000000, y=1070000000)]
+        for action in ('Arm', 'Start'):
+            self.feed(armed=action == 'Start')
+            self.control.arm_at = self.now
+            self.control.accept(message('GLOBAL_POSITION_INT', lat=107000000, lon=1070000000), self.link)
+            self.response(action, identifier='distant-' + action)
+            self.assertFalse(self.bridge.report['succeeded'])
+            self.link.mav.command_long_send.assert_not_called()
+            self.assertIn('Launch blocked', self.control.envelope.error)
+
+    def test_return_requires_landing_home_relative_altitude_and_no_rally_points(self):
+        self.control.return_ceiling = 30
+        baseline = dict(RTL_ALT_FINAL_M=0, RALLY_TOTAL=0, RTL_ALT_TYPE=0, RTL_ALT_M=20)
+        for name, value in baseline.items():
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+        self.assertTrue(self.control.return_landing_ready())
+        for name, value in dict(RTL_ALT_FINAL_M=5, RALLY_TOTAL=1, RTL_ALT_TYPE=1, RTL_ALT_M=40).items():
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+            self.assertFalse(self.control.return_landing_ready())
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=baseline[name]), self.link)
+        self.now += 61
+        self.feed()
+        self.assertFalse(self.control.return_landing_ready())
+
+    def test_arm_requires_current_local_envelope_receipt_when_backend_requires_it(self):
+        self.response('Arm', stage='Arming', requiredEnvelopeHash='hash')
+        self.link.mav.command_long_send.assert_not_called()
+        self.assertFalse(self.bridge.report['succeeded'])
+
+    def test_approved_envelope_is_applied_nonblocking_and_receipt_bound_to_hash(self):
+        fixture = adapter_fixtures.ParameterAdapterTests()
+        fixture.setUp()
+        self.feed(autopilot=3)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100, uid=123), self.link)
+        for name, value in dict(fixture.current, ARMING_SKIPCHK=0, FS_EKF_ACTION=1).items():
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+        self.response(requiredEnvelopeHash='hash', operatingEnvelope=fixture.envelope, stage='AwaitingFcProfile')
+        while self.control.envelope.pending:
+            name = self.control.envelope.pending[0]
+            value = self.control.envelope.targets[name]
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+            self.assertIsNone(self.control.evidence()['verifiedEnvelopeHash'])
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+        self.assertEqual(self.control.evidence()['verifiedEnvelopeHash'], 'hash')
+        self.bridge.reconnect()
+        self.control.tick(self.link)
+        self.assertIsNone(self.control.evidence()['verifiedEnvelopeHash'])
 
     def test_backend_disable_does_not_emit_gcs_heartbeat_or_commands(self):
         self.response('Arm', enabled=False)
@@ -74,6 +245,33 @@ class FlightControlTests(unittest.TestCase):
         wrong.get_srcSystem = lambda: 42
         self.control.accept(wrong, self.link)
         self.assertNotIn('NAV_ACC_RAD', self.control.evidence()['firmwareParameters']['values'])
+
+    def test_arducopter_47_native_units_are_preserved(self):
+        self.feed(autopilot=3)
+        self.control.tick(self.link)
+        names = [call.args[2] for call in self.link.mav.param_request_read_send.call_args_list]
+        self.assertIn(b'WP_RADIUS_M', names)
+        self.assertIn(b'LAND_SPD_MS', names)
+        self.assertIn(b'BATT_CAPACITY', names)
+        self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=(4 << 24) | (7 << 16) | (1 << 8)), self.link)
+        for name, value in [('WP_RADIUS_M', 2), ('WP_SPD', 10), ('LAND_SPD_MS', .5)]:
+            self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
+        snapshot = self.control.evidence()['firmwareParameters']
+        self.assertEqual(snapshot['firmwareVersion'], '4.7.1')
+        self.assertEqual(snapshot['values']['WP_RADIUS_M'], 2)
+        self.assertEqual(snapshot['values']['LAND_SPD_MS'], .5)
+        self.link.mav.param_set_send.assert_not_called()
+
+    def test_battery_capacity_is_automatically_read_for_both_firmwares(self):
+        for autopilot, parameter in ((3, 'BATT_CAPACITY'), (12, 'BAT1_CAPACITY')):
+            self.control.parameters_requested = float('-inf')
+            self.feed(autopilot=autopilot)
+            self.control.tick(self.link)
+            self.assertIn(parameter.encode(), [call.args[2] for call in self.link.mav.param_request_read_send.call_args_list])
+            self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=0x04070100, uid=123), self.link)
+            self.control.accept(message('PARAM_VALUE', param_id=parameter, param_value=8000), self.link)
+            self.assertEqual(self.control.evidence()['firmwareParameters']['values'][parameter], 8000)
+        self.link.mav.param_set_send.assert_not_called()
 
     def test_nonfinite_or_stale_fc_parameters_are_not_defaults(self):
         self.control.accept(message('PARAM_VALUE', param_id='NAV_ACC_RAD', param_value=float('nan')), self.link)
@@ -124,10 +322,12 @@ class FlightControlTests(unittest.TestCase):
         self.response('Start', stage='Starting')
         self.link.mav.command_long_send.assert_not_called()
 
-    def test_local_ten_second_delay_cannot_be_shortened_by_backend(self):
+    def test_expired_scheduled_start_is_rejected_locally(self):
         self.feed(armed=True)
-        self.control.arm_at = self.now - 9.9
-        self.response('Start', stage='Starting')
+        self.control.arm_at = self.now
+        utc = dt.datetime.now(dt.timezone.utc)
+        self.response('Start', stage='Starting', command=dict(id='expired', action='Start',
+            expiresAt=(utc - dt.timedelta(seconds=1)).isoformat()))
         self.link.mav.command_long_send.assert_not_called()
 
     def test_start_consumes_permission_and_is_sent_once(self):
@@ -148,12 +348,14 @@ class FlightControlTests(unittest.TestCase):
         self.response('Start', stage='Starting')
         self.link.mav.command_long_send.assert_not_called()
 
-    def test_new_socket_instance_invalidates_verified_upload(self):
+    def test_new_socket_drops_launch_permission_but_retains_same_fc_readback(self):
         self.control.arm_at = self.now
         self.bridge.reconnect()
         self.control.tick(self.link)
-        self.assertIsNone(self.control.uploaded_hash)
+        self.assertEqual(self.control.uploaded_hash, 'hash')
         self.assertIsNone(self.control.arm_at)
+        self.assertEqual(self.control.lease, 0)
+        self.assertIsNone(self.control.envelope.verified_hash)
 
     def test_stale_socket_response_cannot_arm(self):
         previous = self.bridge.instance

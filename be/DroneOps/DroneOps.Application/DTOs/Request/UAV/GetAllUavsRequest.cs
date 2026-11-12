@@ -9,4 +9,6 @@ public sealed class GetAllUavsRequest
     public string? Keyword { get; set; }
 
     public string? Status { get; set; }
+
+    public string? ImageModerationStatus { get; set; }
 }
