@@ -1,4 +1,5 @@
 # Local OS / Office temporary files
+tmp/
 .DS_Store
 ~$*
 *.tmp
@@ -134,6 +135,7 @@ tmp/final-submission/
 *.xlsx.inspect.ndjson
 outputs/final-submission/
 tmp/submission-review/
+tmp
 
 # Machine-local tooling, generated output and dependencies (not project source)
 **/.agents/
