@@ -30,18 +30,20 @@ public sealed class UavImageModerationMonitor(
         var interval = TimeSpan.FromSeconds(Math.Clamp(
             configuration.GetValue("UavImageModeration:WorkerIntervalSeconds", 5), 2, 60));
 
+        var idleDelay = new IdlePollDelay(interval, TimeSpan.FromSeconds(60));
         while (!stoppingToken.IsCancellationRequested)
         {
+            var hadWork = true;
             try
             {
-                await ProcessDueImagesAsync(stoppingToken);
+                hadWork = await ProcessDueImagesAsync(stoppingToken);
             }
             catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
             {
                 logger.LogError(exception, "UAV image moderation worker iteration failed.");
             }
 
-            await Task.Delay(interval, stoppingToken);
+            await Task.Delay(idleDelay.Next(hadWork), stoppingToken);
         }
     }
 
@@ -90,6 +92,7 @@ public sealed class UavImageModerationMonitor(
         {
             await ProcessOneAsync(id, cancellationToken);
         }
+        return dueIds.Count > 0;
     }
 
     private async Task ProcessOneAsync(Guid id, CancellationToken cancellationToken)

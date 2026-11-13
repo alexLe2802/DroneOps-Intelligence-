@@ -88,7 +88,10 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   }, new Map<string, string[]>()));
   const missingReview = !selected?.updateRequestId;
   const missingPlans = !Array.isArray(selected?.proposedPlan?.waypoints) || (!selected?.isInitial && !Array.isArray(selected?.currentPlan?.waypoints));
-  const validationBlock = selected ? approvalBlockReason(selected.validation, selected.missionId, selected.updateRequestId) : "Select a mission.";
+  const validationBlock = !selected ? "Select a mission."
+    : selected.proposalAuthorId === account.id ? "Another Manager must approve your proposed update."
+    : selected.requiresPilotConfirmation ? "The pilot must confirm the High Risk evidence for this proposal."
+    : approvalBlockReason(selected.validation, selected.missionId, selected.updateRequestId);
   const validationPassed = !validationBlock;
   const decisionHint = busy ? "Saving your decision…"
     : refreshing ? "Refreshing review details…"

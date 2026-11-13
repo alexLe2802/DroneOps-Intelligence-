@@ -39,8 +39,8 @@ export function routeError(waypoints: MissionWaypoint[]): string | null {
   if (waypoints.some(point => !validCoordinate(point))) return "Waypoint coordinates are outside the valid latitude or longitude range.";
   if (waypoints.some(point => point.altitude == null || !Number.isFinite(point.altitude) || point.altitude <= 10)) return "Every waypoint altitude must be greater than 10 m.";
   if (waypoints[0].actionType !== "TakeOff") return "The first waypoint action must be TakeOff.";
-  if (waypoints[waypoints.length - 1].actionType !== "Land") return "The final waypoint action must be Land.";
-  if (waypoints.slice(1, -1).some(point => point.actionType === "TakeOff" || point.actionType === "Land")) return "TakeOff and Land actions are reserved for the route endpoints.";
+  if (!["Land", "Return"].includes(waypoints[waypoints.length - 1].actionType)) return "The final waypoint action must be Land or Return/RTL.";
+  if (waypoints.slice(1, -1).some(point => ["TakeOff", "Land", "Return"].includes(point.actionType))) return "Takeoff/Home, Land and Return/RTL actions are reserved for the route endpoints.";
   return null;
 }
 

@@ -9,8 +9,8 @@ export function normalizeWaypointActions(current: MissionWaypoint[]): MissionWay
     const actionType = isFirst
       ? "TakeOff"
       : isLast
-        ? "Land"
-        : point.actionType === "TakeOff" || point.actionType === "Land"
+        ? point.actionType === "Return" ? "Return" : "Land"
+        : point.actionType === "TakeOff" || point.actionType === "Land" || point.actionType === "Return"
           ? "FlyThrough"
           : point.actionType;
     return { ...point, sequenceOrder: index + 1, actionType };
@@ -25,6 +25,8 @@ export function appendLandingWaypoint(current: MissionWaypoint[], position: Wayp
   return normalizeWaypointActions([...previous, {
     ...position,
     sequenceOrder: current.length + 1,
-    actionType: "FlyThrough",
+    actionType: current.at(-1)?.actionType === "Return" ? "Return" : "Land",
   }]);
 }
+
+export const waypointActionLabel = (action: string) => action === "TakeOff" ? "Takeoff/Home" : action === "Return" ? "Return/RTL" : action;

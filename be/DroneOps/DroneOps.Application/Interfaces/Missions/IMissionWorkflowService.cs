@@ -10,16 +10,18 @@ public interface IMissionWorkflowService
         Guid actor,
         CreateMissionRequest request,
         Guid? id,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool manager = false);
+    Task SubmitAsync(Guid id, Guid actor, Guid operationId, CancellationToken cancellationToken = default);
     Task ConfirmHighRiskAsync(
        Guid missionId,
        Guid pilotId,
-       CancellationToken cancellationToken = default);
+       CancellationToken cancellationToken = default, Guid? updateRequestId = null, Guid? validationRunId = null);
 
     Task CancelHighRiskAsync(
         Guid missionId,
         Guid pilotId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, Guid? updateRequestId = null);
     Task CancelAsync(
         Guid id,
         Guid actor,

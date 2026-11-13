@@ -44,9 +44,11 @@ builder.WebHost.UseUrls("http://127.0.0.1:0");
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
     ["IntegrationSettings:ApiKey"] = integrationKey,
+    ["IntegrationSettings:Sources:0:SourceId"] = "sim-uav-001",
+    ["IntegrationSettings:Sources:0:UavId"] = fixtureUavId.ToString(),
+    ["IntegrationSettings:Sources:1:SourceId"] = "fence-source",
+    ["IntegrationSettings:Sources:1:UavId"] = fixtureUavId.ToString(),
     ["TelemetryMonitoring:LowBatteryPercent"] = "20",
-    ["TelemetryMonitoring:MaximumAltitudeMeters"] = "120",
-    ["TelemetryMonitoring:MaximumGroundSpeedMetersPerSecond"] = "25",
     ["TelemetryMonitoring:StaleAfterSeconds"] = "1",
     ["TelemetryMonitoring:OfflineAfterSeconds"] = "2"
 });
@@ -60,6 +62,7 @@ builder.Services.AddScoped<IMissionValidationRepository, MissionValidationReposi
 builder.Services.AddScoped<IMissionApprovalRepository, MissionApprovalRepository>();
 builder.Services.AddScoped<IMissionWeatherQueryRepository, MissionWeatherQueryRepository>();
 builder.Services.AddScoped<IMissionPreflightRepository, MissionPreflightRepository>();
+builder.Services.AddSingleton<MissionStreamSnapshots>();
 builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddSingleton<IDroneConnectionRepository,FixtureDroneConnectionRepository>();
 builder.Services.AddRateLimiter(o=>{o.AddFixedWindowLimiter("gateway-pairing",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-ingest",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});o.AddFixedWindowLimiter("gateway-websocket",p=>{p.PermitLimit=1000;p.Window=TimeSpan.FromMinutes(1);});});
@@ -95,7 +98,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Users.Add(new User { Id = pilotId, FullName = "Fixture Pilot", Email = "pilot@fixture.test", PasswordHash = "fixture", CreatedAt = DateTimeOffset.UtcNow });
     db.UAVs.AddRange(
-        new UAV { Id = fixtureUavId, PilotId = pilotId, Code = "SIM-001", Name = "PX4 fixture", Status = "Active", CreatedAt = DateTimeOffset.UtcNow },
+        new UAV { Id = fixtureUavId, PilotId = pilotId, Code = "SIM-001", Name = "Single drone fixture", MaxSpeedKmh = 90, Status = "Active", CreatedAt = DateTimeOffset.UtcNow },
         new UAV { Id = otherUavId, PilotId = pilotId, Code = "SIM-002", Name = "Wrong mapping fixture", Status = "Active", CreatedAt = DateTimeOffset.UtcNow });
     db.Missions.Add(new Mission { Id = missionId, CreatedBy = pilotId, UAVId = fixtureUavId, Name = "KAN-44 smoke mission", Status = "In Progress", CreatedAt = DateTime.UtcNow });
     db.Missions.Add(new Mission { Id = emptyMissionId, CreatedBy = pilotId, UAVId = fixtureUavId, Name = "Missing telemetry fixture", Status = "Approved", CreatedAt = DateTime.UtcNow });
@@ -115,10 +118,34 @@ void Check(bool condition, string name)
     passed++;
 }
 
+var idlePoll = new IdlePollDelay(TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(60));
+Check(idlePoll.Next(false) == TimeSpan.FromSeconds(10), "empty worker queue starts backing off");
+for (var cycle = 0; cycle < 12; cycle++) idlePoll.Next(false);
+Check(idlePoll.Next(false) == TimeSpan.FromSeconds(60), "idle worker delay caps at sixty seconds");
+Check(idlePoll.Next(true) == TimeSpan.FromSeconds(5), "productive worker immediately restores normal interval");
+var sharedSnapshots = app.Services.GetRequiredService<MissionStreamSnapshots>();
+MissionStreamSnapshots.Snapshot previousSnapshot;
+using (var first = sharedSnapshots.Subscribe(missionId))
+using (var second = sharedSnapshots.Subscribe(missionId))
+{
+    var results = await Task.WhenAll(first.ReadAsync(default), second.ReadAsync(default));
+    Check(ReferenceEquals(results[0], results[1]), "concurrent SSE subscribers share one mission refresh");
+    previousSnapshot = results[0];
+    using var differentMission = sharedSnapshots.Subscribe(Guid.NewGuid());
+    Check(!ReferenceEquals(previousSnapshot, await differentMission.ReadAsync(default)), "SSE snapshots are isolated by mission");
+    using var canceled = new CancellationTokenSource();
+    canceled.Cancel();
+    try { await second.ReadAsync(canceled.Token); Check(false, "canceled SSE read must stop"); }
+    catch (OperationCanceledException) { Check(true, "canceled subscriber does not cancel other subscriptions"); }
+    Check(ReferenceEquals(previousSnapshot, await first.ReadAsync(default)), "remaining SSE subscriber survives another reader cancellation");
+}
+using (var reconnected = sharedSnapshots.Subscribe(missionId))
+    Check(!ReferenceEquals(previousSnapshot, await reconnected.ReadAsync(default)), "last SSE disconnect releases cached mission state");
+
 var scheduled = DateTimeOffset.UtcNow.AddMinutes(10);
 Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5).AddTicks(-1), scheduled, scheduled.AddMinutes(30)), "automatic confirmation rejects times before T-5");
 Check(MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5), scheduled, scheduled.AddMinutes(30)), "automatic confirmation opens exactly at T-5");
-Check(MissionAutomationService.InConfirmationWindow(scheduled, scheduled, scheduled.AddMinutes(30)), "late confirmation remains available before mission end");
+Check(!MissionAutomationService.InConfirmationWindow(scheduled, scheduled, scheduled.AddMinutes(30)), "confirmation closes at the scheduled start");
 Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(30), scheduled, scheduled.AddMinutes(30)), "confirmation closes exactly at mission end");
 var reviewedPlan = new Mission { Id = Guid.NewGuid(), CreatedBy = Guid.NewGuid(), Name = "Review fingerprint" };
 var manualHash = DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan);
@@ -164,7 +191,7 @@ try
     var now = DateTimeOffset.UtcNow;
     Check((await client.SendAsync(Ingest("auth-missing", Sample(now), null))).StatusCode == HttpStatusCode.Unauthorized, "invalid/missing integration credential is rejected");
     Check((await client.SendAsync(Ingest("invalid-range", Sample(now, latitude: 91m)))).StatusCode == HttpStatusCode.BadRequest, "invalid coordinate is rejected by API validation");
-    Check((await client.SendAsync(Ingest("wrong-mapping", Sample(now, otherUavId)))).StatusCode == HttpStatusCode.BadRequest, "mission-to-UAV mapping mismatch is rejected");
+    Check((await client.SendAsync(Ingest("wrong-mapping", Sample(now, otherUavId)))).StatusCode == HttpStatusCode.Forbidden, "mission-to-UAV mapping mismatch is rejected");
 
     var missingGps = await client.SendAsync(Ingest("missing-gps", Sample(now.AddSeconds(-2), latitude: null, longitude: null)));
     Check(missingGps.StatusCode == HttpStatusCode.Created, $"missing GPS packet is accepted without inventing zero coordinates ({missingGps.StatusCode}: {await missingGps.Content.ReadAsStringAsync()})");
@@ -201,7 +228,7 @@ try
     Check(latestResponse.StatusCode == HttpStatusCode.OK, $"manager can read latest API ({latestResponse.StatusCode})");
     var latest = await Json(latestResponse);
     Check(latest.GetProperty("missionSequence").GetInt32() == 3, "latest API keeps the newest projection");
-    Check(latest.GetProperty("latitude").GetDecimal() == 10.849m && latest.GetProperty("progressPercent").GetDouble() == 75, "units, map coordinates and mission progress survive end-to-end");
+    Check(latest.GetProperty("latitude").GetDecimal() == 10.849m && latest.GetProperty("progressPercent").ValueKind == JsonValueKind.Null, "current command sequence never fabricates reached-waypoint progress");
     Check(latest.GetProperty("headingDegrees").GetDecimal() == 215.5m && latest.GetProperty("batteryVoltageVolts").GetDecimal() == 15.8m, "optional heading and battery voltage are preserved when supplied");
     Check(latest.GetProperty("batteryCurrentAmps").GetDecimal() == 12.5m &&
           latest.GetProperty("batteryTemperatureCelsius").GetDecimal() == 31.5m &&
@@ -233,6 +260,13 @@ try
     latest = await Json(await client.GetAsync($"/api/missions/{missionId}/telemetry/latest"));
     Check(latest.GetProperty("connectivityStatus").GetString() == "Online" && latest.GetProperty("batteryPercent").GetInt32() == 66, "reconnect restores a fresh snapshot");
 
+    using (var unauthorizedStream = new HttpRequestMessage(HttpMethod.Get, $"/api/live/stream?missionId={missionId}"))
+    {
+        unauthorizedStream.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(Guid.NewGuid(), "uav_operator"));
+        using var denied = await client.SendAsync(unauthorizedStream);
+        Check(denied.StatusCode == HttpStatusCode.Forbidden, "shared SSE snapshot remains forbidden to another pilot");
+    }
+
     using var sseCts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
     using var sse = await client.GetAsync($"/api/live/stream?missionId={missionId}", HttpCompletionOption.ResponseHeadersRead, sseCts.Token);
     Check(sse.StatusCode == HttpStatusCode.OK && sse.Content.Headers.ContentType?.MediaType == "text/event-stream", "authenticated SSE stream opens");
@@ -259,9 +293,10 @@ try
     // Incident detector: một mẫu nhiễu không mở incident; mẫu vi phạm thứ hai mới mở.
     client.DefaultRequestHeaders.Authorization = null;
     var detectorAt = DateTimeOffset.UtcNow;
-    await client.SendAsync(Ingest("low-battery-1", Sample(detectorAt, battery: 20, sequence: 10)));
+    await client.SendAsync(Ingest("low-battery-1", Sample(detectorAt, battery: 19, sequence: 10)));
     await using (var scope = app.Services.CreateAsyncScope())
         Check(!await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "LowBattery"), "one violating sample does not raise a noisy incident");
+    await Task.Delay(TimeSpan.FromSeconds(1.05));
     var lowBatterySecond = await Json(await client.SendAsync(Ingest("low-battery-2", Sample(detectorAt.AddSeconds(1), battery: 19, sequence: 11))));
     Check(lowBatterySecond.GetProperty("raisedIncidentId").ValueKind == JsonValueKind.String, "second consecutive violating sample raises an incident");
     var lowBatteryIncidentId = lowBatterySecond.GetProperty("raisedIncidentId").GetGuid();
@@ -279,18 +314,33 @@ try
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));
     var unread = await Json(await client.GetAsync("/api/incidents/alerts/unread"));
     Check(unread.GetArrayLength() >= 1, "raised incident creates a durable unread alert for the mission owner");
-    var acknowledge = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/acknowledge", new { notes = "Pilot is handling the event." });
+    var acknowledge = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/acknowledge", new { notes = "Pilot is handling the event.", expectedStatus = "Open", expectedRevision = 1 });
     Check(acknowledge.StatusCode == HttpStatusCode.OK && (await Json(acknowledge)).GetProperty("status").GetString() == "Acknowledged", "pilot acknowledges an incident through HTTP API");
-    var forbiddenResolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced." });
-    Check(forbiddenResolve.StatusCode == HttpStatusCode.Forbidden, "pilot cannot resolve an incident");
+    var resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced.", expectedStatus = "Acknowledged", expectedRevision = 2 });
+    Check(resolve.StatusCode == HttpStatusCode.Forbidden, "pilot cannot resolve an incident");
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(managerId, "operation_manager"));
-    var resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced." });
-    Check(resolve.StatusCode == HttpStatusCode.OK && (await Json(resolve)).GetProperty("status").GetString() == "Resolved", "manager resolves an incident with mandatory notes");
+    var staleResolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Reviewed.", expectedStatus = "Open", expectedRevision = 1 });
+    Check(staleResolve.StatusCode == HttpStatusCode.Conflict, "stale incident form is rejected");
+    resolve = await client.PostAsJsonAsync($"/api/incidents/{lowBatteryIncidentId}/resolve", new { resolutionNotes = "Battery was replaced.", expectedStatus = "Acknowledged", expectedRevision = 2 });
+    Check(resolve.StatusCode == HttpStatusCode.OK, "manager resolves with current state and reason");
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));
     var history = await Json(await client.GetAsync($"/api/incidents/{lowBatteryIncidentId}/history"));
     Check(history.GetArrayLength() == 3 && history[0].GetProperty("eventType").GetString() == "Raised", "incident history preserves raised, acknowledged and resolved transitions");
     var alertId = unread[0].GetProperty("id").GetGuid();
     Check((await client.PostAsync($"/api/incidents/alerts/{alertId}/read", null)).StatusCode == HttpStatusCode.OK, "recipient can mark a durable alert as read");
+
+    // Manual closure is not measured recovery and must not duplicate an episode.
+    client.DefaultRequestHeaders.Authorization = null;
+    await Task.Delay(TimeSpan.FromSeconds(1.05));
+    await client.SendAsync(Ingest("low-battery-still-abnormal", Sample(detectorAt.AddSeconds(2), battery: 18)));
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Check(await db.Incidents.CountAsync(x => x.Type == "LowBattery") == 1,
+            "manual resolution does not create a second incident before measured recovery");
+        Check((await db.Incidents.SingleAsync(x => x.Type == "LowBattery")).Severity == "Warning",
+            "low battery follows the SRS Warning severity");
+    }
 
     // Hysteresis/recovery: vùng giữa ngưỡng không đóng incident; hai mẫu khỏe liên tiếp mới đóng.
     client.DefaultRequestHeaders.Authorization = null;
@@ -306,18 +356,64 @@ try
         SourceTimestamp = detectorAt.AddSeconds(4), Latitude = 10.849m, Longitude = 106.772m,
         GroundSpeedMetersPerSecond = 31, BatteryPercent = 70, Armed = true, MissionSequence = 14
     };
+    await Task.Delay(TimeSpan.FromSeconds(3));
     await client.SendAsync(Ingest("speed-high-real-1", highSpeed1));
+    await Task.Delay(TimeSpan.FromSeconds(1.05));
     await client.SendAsync(Ingest("speed-high-real-2", highSpeed2));
     var middle = highSpeed2; middle.SourceTimestamp = detectorAt.AddSeconds(5); middle.GroundSpeedMetersPerSecond = 23; middle.MissionSequence = 15;
+    await Task.Delay(TimeSpan.FromSeconds(1.05));
     await client.SendAsync(Ingest("speed-middle", middle));
     await using (var scope = app.Services.CreateAsyncScope())
-        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.Status != "Resolved"), "hysteresis band keeps the speed incident open");
+        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.Status != "Resolved"), "one within-limit sample does not end the abnormal episode");
     middle.SourceTimestamp = detectorAt.AddSeconds(6); middle.GroundSpeedMetersPerSecond = 20; middle.MissionSequence = 16;
+    // Another within-limit sample completes the required two-sample recovery.
+    await Task.Delay(TimeSpan.FromSeconds(1.05));
     await client.SendAsync(Ingest("speed-recovery-1", middle));
     middle.SourceTimestamp = detectorAt.AddSeconds(7); middle.MissionSequence = 17;
+    await Task.Delay(TimeSpan.FromSeconds(1.05));
     await client.SendAsync(Ingest("speed-recovery-2", middle));
     await using (var scope = app.Services.CreateAsyncScope())
-        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.Status == "Resolved"), "two healthy samples automatically resolve the incident");
+        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(x => x.Type == "SpeedExceeded" && x.RecoveredAt != null), "two healthy samples record recovery without bypassing Manager resolution");
+
+    // Mission-specific keep-in fences reuse the existing incident lifecycle.
+    var fenceMissionId = Guid.NewGuid();
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Missions.Add(new Mission { Id=fenceMissionId,CreatedBy=pilotId,UAVId=fixtureUavId,Name="Mission fence check",Status="In Progress",
+            StartTime=DateTime.UtcNow.AddMinutes(-5),EndTime=DateTime.UtcNow.AddMinutes(20),CreatedAt=DateTime.UtcNow,
+            Waypoints=[new Waypoint {Id=Guid.NewGuid(),MissionId=fenceMissionId,SequenceOrder=1,Latitude=10.84m,Longitude=106.77m,
+                Navigation=new(MissionFences:[new MissionFence("test-circle","Circle",Center:new(10.84m,106.77m),RadiusMeters:100)])}] });
+        await db.SaveChangesAsync();
+    }
+    var fenceAt=DateTimeOffset.UtcNow.AddSeconds(-5);var fenceSequence=0;
+    async Task FenceSample(decimal? latitude,decimal? longitude)
+    {
+        fenceSequence++;
+        var response=await client.SendAsync(Ingest("mission-fence-"+fenceSequence,new IngestTelemetrySampleRequest {
+            SourceId="fence-source",UavId=fixtureUavId,MissionId=fenceMissionId,SourceTimestamp=fenceAt.AddMilliseconds(fenceSequence*200),
+            Latitude=latitude,Longitude=longitude,Armed=true,BatteryPercent=70,AltitudeMeters=20,GroundSpeedMetersPerSecond=2 }));
+        Check(response.IsSuccessStatusCode,"mission fence telemetry accepted");
+    }
+    await FenceSample(10.85m,106.77m);
+    await using(var scope=app.Services.CreateAsyncScope())
+        Check(!await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.AnyAsync(i=>i.MissionId==fenceMissionId),"one outside sample does not raise a fence incident");
+    await FenceSample(10.85m,106.77m);await FenceSample(10.85m,106.77m);
+    await using(var scope=app.Services.CreateAsyncScope())
+    {
+        var incidents=await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.Where(i=>i.MissionId==fenceMissionId).ToListAsync();
+        Check(incidents.Count==1 && incidents[0].Type=="GeofenceBreach" && incidents[0].Evidence!.Contains("test-circle"),"outside samples create one existing GeofenceBreach with frozen mission-fence evidence");
+    }
+    await FenceSample(10.84m,106.77m);await FenceSample(10.84m,106.77m);
+    await using(var scope=app.Services.CreateAsyncScope())
+    {
+        var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Check(await db.Incidents.AnyAsync(i=>i.MissionId==fenceMissionId && i.RecoveredAt!=null),"two inside samples recover the mission-fence episode");
+        var ended=await db.Missions.FindAsync(fenceMissionId);ended!.EndTime=DateTime.UtcNow.AddSeconds(-1);await db.SaveChangesAsync();
+    }
+    await FenceSample(10.85m,106.77m);await FenceSample(10.85m,106.77m);
+    await using(var scope=app.Services.CreateAsyncScope())
+        Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.CountAsync(i=>i.MissionId==fenceMissionId)==1,"ended mission does not generate a new fence incident");
 
     if (args.Length == 2 && args[0] == "--gateway")
     {

@@ -12,15 +12,21 @@ import PilotRegistrationRequests from "./pilot-registration-requests";
 type Pilot = { avatarUrl?: string | null; id: string; fullName: string; email: string; role: string; createdAt: string };
 type UserPage = { items: Pilot[]; totalPages: number };
 
-export default function PilotRoster() {
+export default function PilotRoster({ initialRegistrationId }: { initialRegistrationId?: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState("roster");
+  const [view, setView] = useState(initialRegistrationId ? "requests" : "roster");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pilots, setPilots] = useState<Pilot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    if (!initialRegistrationId) return;
+    const timer = window.setTimeout(() => document.getElementById("registration-requests")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    return () => window.clearTimeout(timer);
+  }, [initialRegistrationId]);
 
   useEffect(() => {
     let alive = true;
@@ -65,7 +71,7 @@ export default function PilotRoster() {
       <button type="button" role="tab" aria-selected={view === "roster"} onClick={() => setView("roster")}>Operator Roster</button>
       <button type="button" role="tab" aria-selected={view === "requests"} onClick={() => setView("requests")}>Registration Requests</button>
     </div>
-    {view === "requests" ? <PilotRegistrationRequests /> : <div className={styles.layout}>
+    {view === "requests" ? <PilotRegistrationRequests initialRegistrationId={initialRegistrationId} /> : <div className={styles.layout}>
       <section className={styles.roster} aria-busy={loading} aria-label="Pilot directory">
         <div className={styles.filters}><label><span aria-hidden="true">⌕</span><span className="sr-only">Search pilots</span><input value={query} onChange={event => { setQuery(event.target.value); setPage(1); setLoading(true); }} placeholder="Search pilot by name or email" /></label><span className={styles.roleBadge}>ALL PILOTS</span></div>
         <div className={styles.tableMeta}><span>ROSTER MATCHES: <b>{unavailable ? "—" : pilots.length} OPERATORS</b></span><span>PERSONNEL DIRECTORY</span></div>

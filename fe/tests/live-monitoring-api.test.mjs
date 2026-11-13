@@ -73,11 +73,11 @@ test("incident actions acknowledge and resolve through the exact backend contrac
     return Response.json({ id: "incident-id", status: url.endsWith("/resolve") ? "Resolved" : "Acknowledged" });
   });
   try {
-    assert.equal((await client.acknowledgeIncident("incident-id")).status, "Acknowledged");
-    assert.equal((await client.resolveIncident("incident-id", "  Link restored and verified.  ")).status, "Resolved");
+    assert.equal((await client.acknowledgeIncident("incident-id", "Open", 1)).status, "Acknowledged");
+    assert.equal((await client.resolveIncident("incident-id", "  Link restored and verified.  ", "Acknowledged", 2)).status, "Resolved");
     assert.deepEqual(calls, [
-      ["/api/incidents/incident-id/acknowledge", "POST", { notes: null }],
-      ["/api/incidents/incident-id/resolve", "POST", { resolutionNotes: "Link restored and verified." }],
+      ["/api/incidents/incident-id/acknowledge", "POST", { notes: null, expectedStatus: "Open", expectedRevision: 1 }],
+      ["/api/incidents/incident-id/resolve", "POST", { resolutionNotes: "Link restored and verified.", expectedStatus: "Acknowledged", expectedRevision: 2 }],
     ]);
   } finally {
     mock.mock.restore();
@@ -98,6 +98,6 @@ test("proxy permits incident lifecycle actions and rejects invented actions", as
   const id = "11111111-1111-1111-1111-111111111111";
   assert.equal(allowed.test(`incidents/${id}/acknowledge`), true);
   assert.equal(allowed.test(`incidents/${id}/resolve`), true);
-  assert.equal(allowed.test(`incidents/${id}/history`), false);
+  assert.equal(allowed.test(`incidents/${id}/history`), true);
   assert.equal(allowed.test(`incidents/${id}/delete`), false);
 });
