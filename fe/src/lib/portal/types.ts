@@ -419,7 +419,7 @@ export type BatteryAssessment = {
 export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
-  status: "Pending" | "Available" | "Failed";
+  status: "Pending" | "Available" | "Outdated" | "Failed" | "ProviderUnavailable";
   result: { automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
     retrieval?: { method: string; featureSchema: string; maximumResults: number };
     historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; incidentIds: string[] }> } | null;
