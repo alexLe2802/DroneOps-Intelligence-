@@ -44,8 +44,15 @@ export type PagedResponse<T> = {
 };
 
 // CapturePhoto is retained only to read historical records; new camera actions are deferred.
+<<<<<<< HEAD
 export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
 export type WaypointNavigation = { speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
+=======
+export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land" | "Return";
+export type MissionFence = { id: string; shape: "Polygon" | "Circle"; vertices?: GeofenceCoordinate[] | null; center?: GeofenceCoordinate | null; radiusMeters?: number | null };
+export type PlannedHome = { latitude: number; longitude: number; altitudeMslMeters?: number | null };
+export type WaypointNavigation = { missionFences?: MissionFence[] | null; plannedHome?: PlannedHome | null; speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 export type FirmwareParameterSnapshot = { firmwareVersion: string; values: Record<string, number>; observedAtUtc: string; hardwareIdentity?: string | null; source: string };
 export type MissionWaypoint = {
   navigation?: WaypointNavigation | null;
@@ -59,6 +66,8 @@ export type CreateMissionRequest = {
   automaticFlightRequested?: boolean;
   automaticFlightLimits?: AutomaticFlightLimits | null;
   operationId?: string;
+  expectedPlanHash?: string;
+  expectedPendingRequestId?: string | null;
   altitudeReference?: "AGL" | "MSL" | "Relative" | null;
   uavId: string;
   name: string;
@@ -69,8 +78,8 @@ export type CreateMissionRequest = {
   endTime: string;
   waypoints: MissionWaypoint[];
 };
-export type MissionUpdateSummary = { id: string; status: string; isInitial: boolean; createdAt: string; actorId: string; reviewedBy?: string | null; reviewedAt?: string | null; reason?: string | null; basePlan?: CreateMissionRequest | null; proposedPlan: CreateMissionRequest; validation?: MissionValidationResult | null };
-export type MissionDetail = PilotMission & { altitudeReference?: string | null; pendingUpdate?: MissionUpdateSummary | null; waypoints: MissionWaypoint[]; detailAvailable?: boolean; validation?: MissionValidationResult | null; latestValidation?: MissionValidationResult | null; flightReadiness?: string; preflightValidation?: MissionValidationResult | null };
+export type MissionUpdateSummary = { requiresPilotConfirmation?: boolean; pilotConfirmedBy?: string | null; pilotConfirmedAt?: string | null; id: string; status: string; isInitial: boolean; createdAt: string; actorId: string; reviewedBy?: string | null; reviewedAt?: string | null; reason?: string | null; basePlan?: CreateMissionRequest | null; proposedPlan: CreateMissionRequest; validation?: MissionValidationResult | null };
+export type MissionDetail = PilotMission & { planHash?: string; altitudeReference?: string | null; pendingUpdate?: MissionUpdateSummary | null; waypoints: MissionWaypoint[]; detailAvailable?: boolean; validation?: MissionValidationResult | null; latestValidation?: MissionValidationResult | null; flightReadiness?: string; preflightValidation?: MissionValidationResult | null };
 export type ManagerMission = MissionDetail & {
   createdBy: string;
   uavName: string | null;
@@ -81,6 +90,27 @@ export type MissionValidationResult = {
   id?: string; updateRequestId?: string | null; restrictionRevision?: string; stale?: boolean; incomplete?: boolean; error?: boolean; outcome?: "Pass" | "Fail" | "Incomplete" | "Error"; findings?: { geofenceId: string; revision: number; rule: string; waypointSequence?: number; segmentFrom?: number; segmentTo?: number; reason: string }[]; restrictionEvidence?: { geofenceId: string; revision: number; name: string; restrictionType: "OperationalBoundary" | "Restricted" | "NoFly"; coordinatesJson: string; verticalRule: string; altitudeReference?: string | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; text: string }[]; missionId?: string | null; stage?: string; checkedAt?: string;
   isValid: boolean; message: string; status?: "Pass" | "Fail" | "Incomplete" | "Error" | "Stale"; issues?: string[]; warnings?: string[];
   weather?: MissionWeather | null;
+  battery?: MissionBatteryRisk | null;
+};
+
+export type MissionBatteryRisk = {
+  status: string;
+  riskLevel: string;
+  requiresConfirmation: boolean;
+  routeDistanceMeters: number;
+  estimatedFlightMinutes: number;
+  uavMaxFlightTimeMinutes: number | null;
+  batteryCapacityMah: number | null;
+  batteryVoltage: number | null;
+  batteryEnergyWh: number | null;
+  baseBatteryPercent: number;
+  weatherMultiplier: number;
+  weatherAdjustmentPercent: number;
+  safetyReservePercent: number;
+  requiredBatteryPercent: number;
+  message: string;
+  reasons: string[];
+  warnings: string[];
 };
 
 export type MissionWeather = {
@@ -115,6 +145,9 @@ export type LiveMission = {
 };
 
 export type MissionTelemetry = {
+  staleAfterSeconds?: number;
+  offlineAfterSeconds?: number;
+  detectionDiagnostics?: string[];
   batteryVoltageVolts?: number | null;
   batteryCurrentAmps?: number | null;
   batteryTemperatureCelsius?: number | null;
@@ -146,6 +179,7 @@ export type MissionTelemetry = {
 };
 
 export type IncidentItem = {
+  revision: number;
   id: string;
   missionId: string;
   missionName: string;
@@ -206,6 +240,8 @@ export type NotificationFeed = {
 };
 
 export type PendingMissionApproval = {
+  requiresPilotConfirmation?: boolean;
+  proposalAuthorId?: string;
   isInitial: boolean;
   updateRequestId: string;
   currentPlan: CreateMissionRequest;
@@ -279,6 +315,9 @@ export type AssignedUav = {
   totalFlightHours: number;
   totalFlights: number;
   imageUrl: string | null;
+  imageModerationStatus?: "Pending" | "Processing" | "RetryScheduled" | "Approved" | "Rejected" | "ManualReview" | null;
+  imageModeratedAt?: string | null;
+  imageModerationReason?: string | null;
   createdAt: string;
 };
 

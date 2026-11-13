@@ -4,10 +4,14 @@ namespace DroneOps.Persistence.Interfaces;
 
 public interface IMissionValidationRepository
 {
+    Task<MissionUpdateRequest?> GetReviewRequestAsync(Guid missionId, Guid requestId, CancellationToken ct = default);
     Task<Mission?> GetMissionWithWaypointsAsync(
         Guid missionId,
         bool tracking = false,
         CancellationToken cancellationToken = default);
+
+    Task<List<MissionReviewHistoryRecord>> GetReviewHistoryAsync(
+        Guid missionId, CancellationToken cancellationToken = default);
 
     Task<Mission?> GetMissionAsync(
         Guid missionId,
@@ -81,3 +85,5 @@ public interface IMissionValidationRepository
 
 public sealed record MissionScheduleConflict(Guid MissionId, string MissionName, string Status,
     DateTime StartTime, DateTime EndTime, bool UavConflict, bool OperatorConflict);
+
+public sealed record MissionReviewHistoryRecord(MissionUpdateRequest Request, MissionValidationRun? Validation);

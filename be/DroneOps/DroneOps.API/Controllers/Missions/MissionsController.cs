@@ -137,7 +137,7 @@ public sealed class MissionsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "uav_operator")]
+    [Authorize(Roles = "uav_operator,operation_manager")]
     public async Task<ActionResult<MissionResponse>>
     UpdateAsync(
         Guid id,
@@ -158,7 +158,7 @@ public sealed class MissionsController : ControllerBase
                 id,
                 userId,
                 request,
-                cancellationToken);
+                cancellationToken, User.IsInRole("operation_manager"));
 
         if (result is null)
         {
@@ -173,27 +173,20 @@ public sealed class MissionsController : ControllerBase
     /// </summary>
     [HttpPut("{id:guid}/submit")]
     [Authorize(Roles = "uav_operator")]
-    public IActionResult SubmitMission(Guid id)
-        => Conflict(new { message = "Mission creation and edits now validate and submit automatically. Save the plan to send it for review." });
+    public async Task<IActionResult> SubmitMission(Guid id, [FromBody] SubmitMissionRequest request, CancellationToken ct)
+    {
+        if (!TryGetUserId(out var actor)) return Unauthorized();
+        await _workflow.SubmitAsync(id, actor, request.OperationId, ct);
+        return Ok(await _missionService.GetByIdAsync(id, ct));
+    }
 
-    /// <summary>
-    /// Kiểm tra tính hợp lệ của tham số / waypoints nhiệm vụ bay (Validate Mission)
-    /// </summary>
-    //[HttpPost("validate")]
-    //[Authorize(Roles = "uav_operator,operation_manager")]
-    //[ProducesResponseType(StatusCodes.Status200OK)]
-    //[ProducesResponseType(StatusCodes.Status400BadRequest)]
-    //public async Task<IActionResult> ValidateMission([FromBody] MissionValidateDto request, CancellationToken cancellationToken)
-    //{
-    //    if (!TryGetUserId(out var actor)) return Unauthorized();
-    //    try
-    //    {
-    //        // Always load the saved plan; ignore client-supplied waypoint replacements.
-    //        return Ok(await _validation.RevalidateAsync(request.MissionId, actor, User.IsInRole("operation_manager"), "Manager", cancellationToken, request.UpdateRequestId));
-    //    }
-    //    catch (UnauthorizedAccessException e) { return StatusCode(403, new { message = e.Message }); }
-    //    catch (KeyNotFoundException e) { return NotFound(new { message = e.Message }); }
-    //}
+    [HttpPost("validate")]
+    public async Task<IActionResult> ValidateMission([FromBody] MissionValidateDto request, CancellationToken ct)
+    {
+        if (!TryGetUserId(out var actor)) return Unauthorized();
+        // The saved proposal is authoritative; client waypoint replacements are ignored.
+        return Ok(await _validation.RevalidateAsync(request.MissionId, actor, User.IsInRole("operation_manager"), "Manager", ct, request.UpdateRequestId));
+    }
 
     [HttpPost("{id:guid}/start")]
     [Authorize(Roles = "uav_operator,operation_manager")]
@@ -269,6 +262,7 @@ public sealed class MissionsController : ControllerBase
     [Authorize(Roles = "uav_operator")]
     public async Task<IActionResult> ConfirmHighRiskAsync(
     Guid id,
+    [FromBody] ConfirmMissionRiskRequest request,
     CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var pilotId))
@@ -279,14 +273,14 @@ public sealed class MissionsController : ControllerBase
         await _workflow.ConfirmHighRiskAsync(
             id,
             pilotId,
-            cancellationToken);
+            cancellationToken, request.UpdateRequestId, request.ValidationRunId);
 
         return Ok(new
         {
             missionId = id,
             status = "Pending Review",
             message =
-                "High weather risk confirmed. " +
+                "Pre-flight risk confirmed for the reviewed proposal. " +
                 "The mission has been submitted for review."
         });
     }
@@ -295,6 +289,7 @@ public sealed class MissionsController : ControllerBase
     [Authorize(Roles = "uav_operator")]
     public async Task<IActionResult> CancelHighRiskAsync(
     Guid id,
+    [FromQuery] Guid updateRequestId,
     CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var pilotId))
@@ -305,13 +300,13 @@ public sealed class MissionsController : ControllerBase
         await _workflow.CancelHighRiskAsync(
             id,
             pilotId,
-            cancellationToken);
+            cancellationToken, updateRequestId);
 
         return Ok(new
         {
             missionId = id,
             message =
-                "The high-risk mission has been cancelled and deleted."
+                "The risk proposal was withdrawn. Mission data and decision history were retained."
         });
     }
     private bool TryGetUserId(out Guid userId)

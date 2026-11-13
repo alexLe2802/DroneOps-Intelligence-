@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DroneOps.Domain.Entities;
 
@@ -9,6 +9,11 @@ public class TelemetryRecord
     public Guid Id { get; set; }
 
     public string? SourceId { get; set; }
+    public string? SourceBootId { get; set; }
+    public string? SourceEventId { get; set; }
+    public DateTimeOffset? BatteryObservedAt { get; set; }
+    public DateTimeOffset? AltitudeObservedAt { get; set; }
+    public DateTimeOffset? SpeedObservedAt { get; set; }
 
     public Guid UAVId { get; set; }
 
@@ -26,6 +31,8 @@ public class TelemetryRecord
     public decimal? Longitude { get; set; }
 
     public decimal? Altitude { get; set; }
+
+    public decimal? AltitudeMslMeters { get; set; }
 
     public string? AltitudeReference { get; set; } = "Relative";
 

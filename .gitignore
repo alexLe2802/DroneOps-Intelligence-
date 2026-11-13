@@ -134,3 +134,6 @@ tmp/final-submission/
 *.xlsx.inspect.ndjson
 outputs/final-submission/
 tmp/submission-review/
+
+# Local temporary workspace
+/tmp/

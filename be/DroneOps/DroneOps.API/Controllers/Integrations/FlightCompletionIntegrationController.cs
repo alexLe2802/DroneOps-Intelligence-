@@ -20,6 +20,12 @@ public sealed class FlightCompletionIntegrationController : ControllerBase
         [FromBody] RecordFlightCompletionRequest request,
         CancellationToken cancellationToken)
     {
+        var configuration = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        if (!configuration.GetValue<bool>("IntegrationSettings:AllowLegacyCompletion"))
+            return Conflict(new { message = "Completion is reconciled from the bound gateway flight evidence; legacy completion is disabled." });
+        var allowed = configuration.GetSection("IntegrationSettings:Sources").GetChildren().Any(source =>
+            source["SourceId"] == request.SourceId && Guid.TryParse(source["UavId"], out var uav) && uav == request.UavId);
+        if (!allowed) return StatusCode(403, new { message = "Completion source is not configured for this UAV." });
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             return BadRequest(new { message = "Header 'Idempotency-Key' is required." });
         try

@@ -60,9 +60,21 @@ test('license validation rejects empty number, nonfuture expiry, invalid issue d
  assert.match(validate('LIC-02','2026-01-01','2027-01-01',[image,image]),/Attach one/);
  assert.match(validate('LIC-02','2026-01-01','2027-01-01',[{...image,type:'application/octet-stream'}]),/Attach one/);
 });
-test('license client sends a single multipart transaction and preserves upload and pending conflicts',async()=>{
+test('license client sends the backend form fields in one multipart transaction and preserves conflicts',async()=>{
+ const formSource=await readFile(new URL('../src/app/portal/profile/license-changes.tsx',import.meta.url),'utf8');
+ assert.match(formSource,/body\.set\("PilotLicenseNo"/);
+ assert.match(formSource,/body\.set\("LicenseIssuedDate"/);
+ assert.match(formSource,/body\.set\("LicenseExpiredDate"/);
+ assert.match(formSource,/body\.append\("Files"/);
+ assert.doesNotMatch(formSource,/body\.set\("data"/);
+ assert.match(formSource,/detail\?\.status === "Rejected"/);
+ assert.match(formSource,/defaultValue=\{source\?\.pilotLicenseNo/);
+ assert.match(formSource,/Submit revised license/);
+ assert.match(formSource,/rejected request remains in your history/i);
+ assert.match(formSource,/detailAnchorRef\.current\?\.scrollIntoView/);
+ assert.match(formSource,/Loading private documents…/);
  for(const status of [200,409,503]) {
-  const body=new FormData(); body.set('data',JSON.stringify({pilotLicenseNo:'LIC-02',licenseIssuedDate:'2026-01-01',licenseExpiredDate:'2027-01-01'})); body.append('files',new Blob(['synthetic']), 'license.png');
+  const body=new FormData(); body.set('PilotLicenseNo','LIC-02'); body.set('LicenseIssuedDate','2026-01-01'); body.set('LicenseExpiredDate','2027-01-01'); body.append('Files',new Blob(['synthetic']), 'license.png');
   const mock=test.mock.method(globalThis,'fetch',async(url,options)=>{
    assert.equal(url,'/api/users/pilot-update-requests');assert.equal(options.body,body);assert.equal(options.headers.has('content-type'),false);
    return Response.json({message:status===409?'Pending request already exists':'Upload result'},{status});
