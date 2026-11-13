@@ -252,7 +252,10 @@ class FlightControlTests(unittest.TestCase):
         names = [call.args[2] for call in self.link.mav.param_request_read_send.call_args_list]
         self.assertIn(b'WP_RADIUS_M', names)
         self.assertIn(b'LAND_SPD_MS', names)
+<<<<<<< HEAD
+=======
         self.assertIn(b'BATT_CAPACITY', names)
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
         self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=(4 << 24) | (7 << 16) | (1 << 8)), self.link)
         for name, value in [('WP_RADIUS_M', 2), ('WP_SPD', 10), ('LAND_SPD_MS', .5)]:
             self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
@@ -262,6 +265,8 @@ class FlightControlTests(unittest.TestCase):
         self.assertEqual(snapshot['values']['LAND_SPD_MS'], .5)
         self.link.mav.param_set_send.assert_not_called()
 
+<<<<<<< HEAD
+=======
     def test_battery_capacity_is_automatically_read_for_both_firmwares(self):
         for autopilot, parameter in ((3, 'BATT_CAPACITY'), (12, 'BAT1_CAPACITY')):
             self.control.parameters_requested = float('-inf')
@@ -273,6 +278,7 @@ class FlightControlTests(unittest.TestCase):
             self.assertEqual(self.control.evidence()['firmwareParameters']['values'][parameter], 8000)
         self.link.mav.param_set_send.assert_not_called()
 
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
     def test_nonfinite_or_stale_fc_parameters_are_not_defaults(self):
         self.control.accept(message('PARAM_VALUE', param_id='NAV_ACC_RAD', param_value=float('nan')), self.link)
         self.assertIsNone(self.control.evidence()['firmwareParameters'])

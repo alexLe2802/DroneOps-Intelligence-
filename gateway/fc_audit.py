@@ -9,7 +9,11 @@ import time
 os.environ.setdefault('MAVLINK20', '1')
 
 ARDUPILOT_PARAMETERS = (
+<<<<<<< HEAD
+    'FRAME_CLASS', 'FRAME_TYPE', 'ARMING_CHECK', 'ARMING_OPTIONS',
+=======
     'FRAME_CLASS', 'FRAME_TYPE', 'ARMING_CHECK', 'ARMING_SKIPCHK', 'ARMING_OPTIONS',
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
     'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'WP_ACC',
     'WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'WPNAV_ACCEL',
     'PILOT_TKOFF_ALT', 'PILOT_SPEED_UP', 'LAND_SPEED', 'LAND_SPEED_HIGH', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS',
@@ -79,9 +83,12 @@ def audit(link, duration=30, clock=time.monotonic, sleep=time.sleep):
             sleep(.01)
     report['missingParameters'] = sorted(requested - report['parameters'].keys())
     report['heartbeatReceived'] = target is not None
+<<<<<<< HEAD
+=======
     if report['firmware'] == 'ArduPilot':
         from arducopter_recovery import assess
         report['recoveryPreflight'] = assess(report['parameters'], report['messages'])
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
     return report
 
 

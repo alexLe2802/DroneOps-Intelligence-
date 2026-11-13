@@ -153,6 +153,8 @@ tranh cổng 14551 với gateway đang chạy hoặc mở trực tiếp USB đan
 Công cụ chỉ yêu cầu đọc message/parameter, báo thiếu tham số theo firmware và
 không cấp quyền bay. Không phát heartbeat GCS, không ghi tham số hoặc lệnh bay.
 Xem [kết quả Pixhawk 6C / ArduCopter 4.7.1](../docs/fc-commissioning-2026-11-05.vi.md).
+<<<<<<< HEAD
+=======
 
 ## Mission waypoint cơ bản
 
@@ -166,3 +168,4 @@ GPS/Home, pre-arm, phi công xác nhận và upload/read-back vẫn được ki�
 được xác nhận, hệ thống đếm 10 giây rồi gửi START một lần. Điểm cuối được tiếp cận
 ở độ cao đã đặt trước LAND; không cần nhập ground elevation cho ArduCopter.
 Xem tài liệu trong repository: `docs/waypoint-flight-execution.vi.md`.
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
