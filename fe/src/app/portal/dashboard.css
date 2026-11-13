@@ -264,8 +264,4 @@
 @media(max-width:760px){.mission-create-builder .waypoint-list>article,.mission-edit-waypoint-list>article{grid-template-columns:repeat(2,minmax(0,1fr))}.mission-builder .waypoint-list>article>b{grid-column:1/-1}.mission-builder .waypoint-list>article>label{grid-column:auto}.mission-builder .waypoint-list>article>button{grid-column:auto}.mission-edit-waypoint-list .waypoint-order-actions{grid-column:1/-1}.mission-altitude-reference{align-items:flex-start;flex-direction:column}}
 
 .mission-create-builder .waypoint-list>article>.waypoint-order-actions{grid-column:span 3}.mission-builder .waypoint-order-actions .waypoint-remove{grid-column:auto}@media(max-width:760px){.mission-create-builder .waypoint-list>article>.waypoint-order-actions{grid-column:1/-1;justify-content:end}.mission-builder .waypoint-order-actions button{grid-column:auto}}
-<<<<<<< HEAD
-=======
-
 .airspace-popup a{display:inline-block;margin-top:6px;color:#79d9ff;font:700 9px/1.45 Consolas,monospace;text-decoration:none}.airspace-popup a:hover{text-decoration:underline}
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
