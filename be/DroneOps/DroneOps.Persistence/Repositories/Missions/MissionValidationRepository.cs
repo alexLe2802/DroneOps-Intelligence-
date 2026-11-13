@@ -13,6 +13,8 @@ public sealed class MissionValidationRepository(
     IMemoryCache cache)
     : IMissionValidationRepository
 {
+    public Task<MissionUpdateRequest?> GetReviewRequestAsync(Guid missionId, Guid requestId, CancellationToken ct = default)
+        => db.MissionUpdateRequests.SingleOrDefaultAsync(x => x.MissionId == missionId && x.Id == requestId, ct);
     public async Task<Mission?> GetMissionWithWaypointsAsync(
         Guid missionId,
         bool tracking = false,
@@ -29,6 +31,18 @@ public sealed class MissionValidationRepository(
         return await query.SingleOrDefaultAsync(
             x => x.Id == missionId,
             cancellationToken);
+    }
+
+    public async Task<List<MissionReviewHistoryRecord>> GetReviewHistoryAsync(
+        Guid missionId, CancellationToken cancellationToken = default)
+    {
+        return await (from request in db.MissionUpdateRequests.AsNoTracking()
+            join run in db.MissionValidationRuns.AsNoTracking().Where(r => r.MissionId == missionId)
+                on request.ValidationRunId equals (Guid?)run.Id into runs
+            from run in runs.DefaultIfEmpty()
+            where request.MissionId == missionId
+            orderby request.CreatedAt descending, request.Id descending
+            select new MissionReviewHistoryRecord(request, run)).ToListAsync(cancellationToken);
     }
 
     public async Task<Mission?> GetMissionAsync(
@@ -176,6 +190,7 @@ public sealed class MissionValidationRepository(
     {
         return await db.Pilots
             .AsNoTracking()
+            .Include(x => x.User)
             .FirstOrDefaultAsync(
                 x => x.UserId == userId,
                 cancellationToken);

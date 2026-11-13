@@ -35,6 +35,7 @@ public interface IUavRepository
       int TotalCount)> GetAllPagedAsync(
           string? keyword,
           string? status,
+          string? imageModerationStatus,
           int pageNumber,
           int pageSize,
           CancellationToken cancellationToken = default);

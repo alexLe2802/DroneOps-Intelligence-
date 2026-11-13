@@ -52,9 +52,20 @@ public sealed class CommunicationLossMonitor : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await DroneOps.Persistence.RealtimeWrite.RunAsync(context, async () =>
+        {
+            await DetectLockedAsync(scope, context, cancellationToken);
+            return true;
+        }, cancellationToken);
+    }
+
+    private async Task DetectLockedAsync(IServiceScope scope, AppDbContext context, CancellationToken cancellationToken)
+    {
         var lifecycle = scope.ServiceProvider.GetRequiredService<IIncidentLifecycleService>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
-        var options = _options.CurrentValue;
+        var revision = await context.MonitoringRuleRevisions.AsNoTracking().OrderByDescending(r => r.CreatedAt)
+            .Select(r => r.SettingsJson).FirstOrDefaultAsync(cancellationToken);
+        var options = revision == null ? _options.CurrentValue : JsonSerializer.Deserialize<TelemetryMonitoringOptions>(revision)!;
         var cutoff = DateTimeOffset.UtcNow.AddSeconds(-Math.Max(1, options.CommunicationLossSeconds));
 
         var candidates = await context.Missions
@@ -62,12 +73,16 @@ public sealed class CommunicationLossMonitor : BackgroundService
             .Select(m => new
             {
                 Mission = m,
+                Connection = context.DroneConnections.Where(c => c.MissionId == m.Id && c.UavId == m.UAVId
+                    && c.PairedAt != null && c.RevokedAt == null && c.ExpiresAt > DateTimeOffset.UtcNow)
+                    .OrderByDescending(c => c.CreatedAt).FirstOrDefault(),
                 Latest = context.TelemetryRecords
                     .Where(t => t.MissionId == m.Id && t.IsValid)
-                    .OrderByDescending(t => t.ReceivedAt)
+                    .OrderByDescending(t => t.SourceTimestamp).ThenByDescending(t => t.ReceivedAt)
                     .FirstOrDefault()
             })
-            .Where(x => x.Latest != null && x.Latest.ReceivedAt < cutoff)
+            .Where(x => x.Latest != null && (x.Latest.ReceivedAt < cutoff || x.Latest.SourceTimestamp < cutoff)
+                || x.Latest == null && x.Connection != null && x.Connection.PairedAt < cutoff)
             .ToListAsync(cancellationToken);
 
         var raisedIncidents = new List<(Guid IncidentId, Guid PilotUserId)>();
@@ -76,7 +91,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
             var hasOpenIncident = await context.Incidents.AnyAsync(
                 i => i.MissionId == candidate.Mission.Id &&
                      i.Type == "CommunicationLoss" &&
-                     i.Status != "Resolved",
+                     i.RecoveredAt == null,
                 cancellationToken);
 
             if (hasOpenIncident)
@@ -84,7 +99,7 @@ public sealed class CommunicationLossMonitor : BackgroundService
                 continue;
             }
 
-            var latest = candidate.Latest!;
+            var latest = candidate.Latest;
             var raisedIncidentId = await lifecycle.RaiseIfOpenMissingAsync(new Incident
             {
                 Id = Guid.NewGuid(),
@@ -94,18 +109,18 @@ public sealed class CommunicationLossMonitor : BackgroundService
                 Type = "CommunicationLoss",
                 Severity = "Critical",
                 Status = "Open",
-                Latitude = latest.Latitude,
-                Longitude = latest.Longitude,
+                Latitude = latest?.Latitude,
+                Longitude = latest?.Longitude,
                 Evidence = JsonSerializer.Serialize(new
                 {
-                    sourceId = latest.SourceId,
-                    latitude = latest.Latitude,
-                    longitude = latest.Longitude,
-                    altitude = latest.Altitude,
-                    speed = latest.Speed,
-                    batteryPercent = latest.BatteryLevel,
-                    sourceTimestamp = latest.SourceTimestamp,
-                    receivedAt = latest.ReceivedAt,
+                    sourceId = latest?.SourceId,
+                    latitude = latest?.Latitude,
+                    longitude = latest?.Longitude,
+                    altitude = latest?.Altitude,
+                    speed = latest?.Speed,
+                    batteryPercent = latest?.BatteryLevel,
+                    sourceTimestamp = latest?.SourceTimestamp,
+                    receivedAt = latest?.ReceivedAt,
                     detectedAt = DateTimeOffset.UtcNow,
                     appliedRule = "CommunicationLoss",
                     threshold = options.CommunicationLossSeconds

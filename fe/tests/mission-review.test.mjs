@@ -32,9 +32,9 @@ test("approval requires an exact mission, proposal and persisted run identity", 
 
 test("operator and manager lifecycle controls respect ownership, pending proposals and terminal states", () => {
   const mission = { id: "mission", createdBy: "pilot", status: "Approved" };
-  assert.equal(missionActions(mission, "uav_operator", "pilot").start, true);
+  assert.equal(missionActions(mission, "uav_operator", "pilot").start, false);
   assert.equal(missionActions(mission, "operation_manager", "manager").cancel, true);
-  assert.equal(missionActions(mission, "operation_manager", "manager").edit, false);
+  assert.equal(missionActions(mission, "operation_manager", "manager").edit, true);
   for (const actor of ["other", undefined]) {
     assert.ok(Object.values(missionActions(mission, "uav_operator", actor)).every(value => !value));
   }
@@ -47,7 +47,7 @@ test("operator and manager lifecycle controls respect ownership, pending proposa
   assert.equal(missionActions({ ...mission, status: "Draft" }, "uav_operator", "pilot").submit, true);
   assert.equal(missionActions({ ...pending, status: "Draft" }, "uav_operator", "pilot").submit, false);
   assert.equal(missionActions({ ...mission, status: "Pending Review" }, "uav_operator", "pilot").submit, false);
-  assert.equal(missionActions({ ...mission, status: "Pending Confirm" }, "uav_operator", "pilot").edit, false);
+  assert.equal(missionActions({ ...mission, status: "Pending Confirm" }, "uav_operator", "pilot").edit, true);
 });
 
 test("history sorts newest requests first without rewriting the server evidence", () => {

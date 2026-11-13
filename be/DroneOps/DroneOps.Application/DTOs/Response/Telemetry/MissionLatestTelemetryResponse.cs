@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,6 +9,8 @@ namespace DroneOps.Application.DTOs.Response.Telemetry;
 public class MissionLatestTelemetryResponse
 {
     public Guid MissionId { get; set; }
+    public int StaleAfterSeconds { get; set; } = 10;
+    public int OfflineAfterSeconds { get; set; } = 30;
     public Guid? UavId { get; set; }
     public string? UavCode { get; set; }
     public string? UavName { get; set; }
@@ -49,9 +51,10 @@ public class MissionLatestTelemetryResponse
     public string SnapshotKind { get; set; } = "Missing";
 
     public int WaypointTotal { get; set; }
+    public List<string> DetectionDiagnostics { get; set; } = [];
 
     /// <summary>
-    /// Tiến độ D-05: missionSequence / tổng waypoint, kẹp 0–100; không dùng Completed khi mất kết nối.
+    /// Unavailable until confirmed reached waypoints can be mapped to the immutable execution snapshot.
     /// </summary>
     public double? ProgressPercent { get; set; }
 }

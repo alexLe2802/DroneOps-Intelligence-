@@ -8,12 +8,13 @@ import type { Account } from "@/lib/auth/types";
 import { getIncident, getIncidents } from "@/lib/portal/client";
 import { incidentDescription } from "@/lib/portal/incident-display";
 import type { IncidentDetail, IncidentItem, PagedIncidents } from "@/lib/portal/types";
+import MonitoringSettings from "./monitoring-settings";
 import IncidentMap from "./incident-map";
 import styles from "./incident-management.module.css";
 
 const PAGE_SIZE = 6;
 const EMPTY_PAGE: PagedIncidents = { items: [], totalCount: 0, pageNumber: 1, pageSize: PAGE_SIZE, totalPages: 0 };
-const SEVERITIES = ["", "Critical", "High", "Medium", "Low"];
+const SEVERITIES = ["", "Critical", "High", "Warning", "Medium", "Low"];
 const STATUSES = ["", "Open", "Acknowledged", "Resolved"];
 const TYPES = ["", "LowBattery", "AltitudeExceeded", "SpeedExceeded", "GeofenceBreach", "CommunicationLoss"];
 
@@ -193,6 +194,7 @@ export default function IncidentManagementClient({ account }: { account: Account
   }
 
   return <div className={styles.registry}>
+    <MonitoringSettings manager={account.role === "operation_manager"} />
     <header className={styles.heading}>
       <div>
         <h1>Tactical Incidents &amp; Operational Anomaly Log</h1>

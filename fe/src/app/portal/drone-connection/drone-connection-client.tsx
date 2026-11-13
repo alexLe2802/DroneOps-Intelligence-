@@ -28,7 +28,43 @@ export default function DroneConnectionClient({ initialMissionId, embedded = fal
   const [now,setNow]=useState(()=>Date.now());
   useEffect(()=>{let active=true;void Promise.all([getAssignedUavs(),getPilotMissions(),getDroneConnections(),getDroneBindings()]).then(([a,m,c,b])=>{if(!active)return;setAircraft(a.filter(x=>x.status.toLowerCase()==="active"));setMissions(m.filter(x=>["approved","inprogress"].includes(x.status.toLowerCase().replaceAll(" ",""))));setConnections(c);setBindings(b);const chosen=m.find(x=>x.id===initialMissionId);if(chosen){setMission(chosen.id);setUav(chosen.uavId??"");}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[initialMissionId]);
   useEffect(()=>{let active=true;void fetch("/api/gateway-bootstrap",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error("Unable to determine the hosted backend address.");return response.json() as Promise<BootstrapInfo>;}).then(info=>{if(active)setBootstrapInfo(info);}).catch(e=>{if(active)setError(e instanceof Error?e.message:"Unable to prepare the Jetson command.");});return()=>{active=false;};},[]);
-  useEffect(()=>{let active=true;const timer=setInterval(()=>{setNow(Date.now());void Promise.all([getDroneConnections(),getDroneBindings()]).then(([c,b])=>{if(active){setConnections(c);setBindings(b);setStatusError("");}}).catch(()=>{if(active)setStatusError("Connection status could not be refreshed. Check your network and reload.");});},5000);return()=>{active=false;clearInterval(timer);};},[]);
+  useEffect(() => {
+    if (loading) return;
+    let active = true, pending = false;
+    let nextBindingsRefresh = Date.now() + 30_000;
+    async function refresh() {
+      if (!active || pending || document.visibilityState !== "visible" || !navigator.onLine) return;
+      pending = true;
+      setNow(Date.now());
+      // Session status stays at 5s; hardware bindings change much less often.
+      const refreshBindings = Date.now() >= nextBindingsRefresh;
+      try {
+        const results = await Promise.allSettled([
+          getDroneConnections(),
+          refreshBindings ? getDroneBindings() : Promise.resolve(null),
+        ]);
+        if (!active) return;
+        const [sessions, aircraftBindings] = results;
+        if (sessions.status === "fulfilled") setConnections(sessions.value);
+        if (aircraftBindings.status === "fulfilled" && aircraftBindings.value) {
+          setBindings(aircraftBindings.value);
+          nextBindingsRefresh = Date.now() + 30_000;
+        }
+        setStatusError(results.some(result => result.status === "rejected")
+          ? "Connection status could not be refreshed. Check your network and reload." : "");
+      } finally { pending = false; }
+    }
+    const resume = () => { nextBindingsRefresh = 0; void refresh(); };
+    const timer = window.setInterval(() => void refresh(), 5000);
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", resume);
+    };
+  }, [loading]);
   const eligible=missions.filter(m=>m.uavId===uav);
   const pairedState=pairing?connections.find(c=>c.id===pairing.connection.id):null;
   const codeVisible=pairing && !pairedState?.pairedAt && !pairedState?.revokedAt && new Date(pairing.connection.codeExpiresAt).getTime()>now;
