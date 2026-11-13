@@ -1,32 +1,5 @@
 # DroneOps Intelligence
 
-<<<<<<< HEAD
-Nền tảng lập kế hoạch, duyệt và giám sát nhiệm vụ UAV. Portal hỗ trợ người vận hành và quản lý từ đăng ký phi công, quản lý drone đến theo dõi telemetry và xử lý sau chuyến bay.
-
-## Phạm vi chức năng của hồ sơ cuối
-
-- Tài khoản, hồ sơ phi công, giấy phép, yêu cầu cập nhật và quy trình quản lý phê duyệt.
-- Quản lý UAV, thông số kỹ thuật, hình ảnh và định danh flight controller.
-- Lập nhiệm vụ theo waypoint, thời gian, tốc độ và độ cao; đánh giá kế hoạch với dữ liệu thời tiết, vùng hạn chế, địa hình và rủi ro pin.
-- Đề xuất/duyệt thay đổi kế hoạch, phân biệt bản hiện hành và bản đề xuất, lưu lịch sử và bằng chứng validation.
-- Kết nối drone qua gateway Python trên Jetson hoặc laptop với radio telemetry; ghép UID, đăng ký gateway tin cậy và cấp lease theo mission.
-- Giám sát telemetry trực tiếp, cảnh báo/sự cố, thông báo và quy trình sau chuyến bay.
-- **Bay tự động theo lịch:** duyệt lựa chọn `AutomaticFlightRequested`, biên dịch/upload/read-back mission, xác nhận pilot trước giờ bay, kiểm tra gate đúng giờ, gateway thực thi theo profile và ghi nhận trạng thái bay/completion từ telemetry.
-
-Đặc tả hỗ trợ ArduPilot Copter và PX4 multicopter qua gateway tin cậy. Approval, consent, dispatch, ACK và trạng thái bay là các bước riêng; autopilot giữ điều khiển ổn định và failsafe onboard. Xem [quy trình vận hành bay tự động](docs/automatic-flight-operations.md). Đây là phạm vi đặc tả cuối; khi triển khai hoặc demo phải đối chiếu cấu hình và hành vi của bản runtime sử dụng.
-
-## Kiến trúc
-
-Phân công mainflow: MF1 — NghiaHQ (planning/preflight); MF2 — ThongLQ (automatic execution, realtime, incidents); MF3 — DucDDA (post-flight); MF4 — KhanhGNG (AI). ThongLQ giữ vai trò trưởng nhóm và điều phối hồ sơ.
-
-```text
-Portal Next.js → /api proxy → ASP.NET Core API → PostgreSQL
-                                  ↑                 
-Flight controller → MAVLink → Python gateway → HTTPS/WSS
-                                  API → SSE → Portal
-```
-
-=======
 **DroneOps Intelligence là nền tảng web quản lý nhiệm vụ bay drone từ lập kế hoạch, kiểm tra và phê duyệt đến thực thi, giám sát và xem lại kết quả.** Hệ thống kết nối với flight controller qua gateway MAVLink để đưa dữ liệu drone lên portal, đồng thời lưu kế hoạch, quyết định duyệt, telemetry và sự cố phục vụ tra cứu sau chuyến bay.
 
 Người vận hành có thể chuẩn bị tuyến bay theo waypoint, gửi quản lý duyệt, kết nối đúng drone và theo dõi chuyến bay trên một giao diện. Người quản lý có thể xem hồ sơ phi công, duyệt UAV và mission, kiểm tra bằng chứng validation, theo dõi sự cố và đánh giá kết quả vận hành. Phần AI hỗ trợ đối chiếu các chuyến bay lịch sử tương tự và trình bày rủi ro cùng dữ liệu làm căn cứ.
@@ -180,7 +153,6 @@ Frontend giữ phiên bằng cookie HttpOnly và chuyển yêu cầu qua proxy; 
 
 ### Cấu trúc repository
 
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 | Thư mục | Nội dung |
 | --- | --- |
 | `fe/` | Next.js 16, React 19, TypeScript; portal, bản đồ và API proxy |
@@ -189,15 +161,6 @@ Frontend giữ phiên bằng cookie HttpOnly và chuyển yêu cầu qua proxy; 
 | `database/` | SQL migrations, thứ tự triển khai và cấu hình dữ liệu |
 | `docs/` | Hướng dẫn vận hành và phạm vi chức năng; báo cáo tham khảo trong `reports/` |
 | `deploy/`, `scripts/` | Cấu hình service, recovery và công cụ kiểm tra |
-<<<<<<< HEAD
-
-## Chạy local
-
-Cần Node.js >=20.9, npm, .NET SDK 8 theo `global.json`, Python >=3.9 cho gateway và PostgreSQL đã áp dụng schema tương ứng.
-
-1. Cấu hình backend bằng biến môi trường hoặc file không commit `be/DroneOps/DroneOps.API/appsettings.Local.json` khi chạy Development. Đặt `ConnectionStrings__DefaultConnection` cho database của môi trường của bạn; cấu hình JWT, SMTP, dịch vụ AI và storage theo tính năng cần chạy. Dùng đường dẫn certificate hợp lệ nếu kết nối database yêu cầu. Không đưa credential vào tài liệu hoặc commit.
-2. Áp dụng migration có chủ đích theo [migration-order.txt](database/migration-order.txt), backup trước khi triển khai. Migration gateway/flight preparation là `20261104115300_gateway_enrollment_and_flight_preparation.sql`.
-=======
 | `.github/workflows/` | CI cho backend, frontend, gateway và workflow SITL |
 
 `tmp/`, môi trường Python, dependencies, build output và cấu hình riêng được bỏ qua bằng `.gitignore`.
@@ -227,18 +190,13 @@ Trong JSON, dùng cấu trúc lồng nhau tương ứng, ví dụ `Jwt:Key`; tro
 
 1. Cấu hình backend bằng biến môi trường hoặc file không commit `be/DroneOps/DroneOps.API/appsettings.Local.json` khi chạy Development. Đặt `ConnectionStrings__DefaultConnection` cho database của môi trường của bạn; cấu hình JWT, SMTP, dịch vụ AI và storage theo tính năng cần chạy. Dùng đường dẫn certificate hợp lệ nếu kết nối database yêu cầu. Không đưa credential vào tài liệu hoặc commit.
 2. Chuẩn bị database, role/account quản trị ban đầu và storage cho môi trường của bạn. Áp dụng migration theo [migration-order.txt](database/migration-order.txt), backup trước khi triển khai; không chỉ sắp xếp tên SQL theo alphabet vì có migration cùng tiền tố số. Không coi khởi động API là đã áp đủ mọi migration.
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 3. Chạy API từ thư mục gốc:
 
    ```powershell
    dotnet run --project be/DroneOps/DroneOps.API --no-launch-profile -- --urls http://localhost:5159 --environment Development
    ```
 
-<<<<<<< HEAD
-4. Trong `fe/`, sao chép `.env.example` thành `.env.local`, điền cấu hình Firebase và giữ `API_BASE_URL=http://localhost:5159` cho API local:
-=======
 4. Trong `fe/`, sao chép [.env.example](fe/.env.example) thành `.env.local`, đặt `API_BASE_URL=http://localhost:5159`. Các biến Firebase web trong mẫu dành cho phần tích hợp Firebase khi sử dụng; luồng đăng nhập portal hiện trao đổi với backend JWT. Không dùng credential Firebase thay cấu hình JWT/SMTP của backend.
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 
    ```powershell
    cd fe
@@ -246,9 +204,6 @@ Trong JSON, dùng cấu trúc lồng nhau tương ứng, ví dụ `Jwt:Key`; tro
    npm run dev
    ```
 
-<<<<<<< HEAD
-Mở `http://localhost:3000`. Frontend gọi API qua proxy cùng origin. Để nối drone thật, làm theo [hướng dẫn kết nối](docs/drone-connection-guide.md); hướng dẫn đó sử dụng domain production, cần chọn đúng môi trường khi thử local.
-=======
 | Địa chỉ local | Mục đích |
 | --- | --- |
 | `http://localhost:3000` | Portal |
@@ -262,7 +217,6 @@ Frontend gọi API qua proxy cùng origin; `API_BASE_URL` là origin backend, kh
 Vào **Connect Drone** hoặc phần chuẩn bị trong **Live Monitoring**, chọn UAV/mission phù hợp rồi làm theo [hướng dẫn kết nối](docs/drone-connection-guide.md). Tài liệu/gói tải từ môi trường hosted có thể dùng domain cố định; chọn đúng backend khi thử local.
 
 Để phát triển gateway, tạo virtual environment, cài [requirements.txt](gateway/requirements.txt), rồi dùng launcher hoặc bộ cài Jetson theo [gateway/README.md](gateway/README.md). Không để GCS và gateway cùng chiếm trực tiếp một serial port; dùng router/forwarding khi cần chia luồng MAVLink.
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 
 ## Kiểm tra khi phát triển
 
@@ -271,10 +225,6 @@ Chạy các lệnh phù hợp với phần thay đổi, từ thư mục gốc tr
 ```powershell
 dotnet build be/DroneOps/DroneOps.sln
 dotnet run --project be/DroneOps/DroneOps.AuthChecks
-<<<<<<< HEAD
-python -m pip install -r gateway/requirements.txt
-python -m unittest discover -s gateway -p 'test_*.py'
-=======
 dotnet run --project be/DroneOps/DroneOps.TelemetryChecks
 dotnet run --project be/DroneOps/DroneOps.PostFlightChecks
 ```
@@ -285,7 +235,6 @@ Gateway, trong môi trường Python đã kích hoạt:
 python -m pip install -r gateway/requirements.txt
 python -m unittest discover -s gateway -p 'test_*.py'
 python gateway/package.py
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 ```
 
 Trong `fe/`:
@@ -297,9 +246,6 @@ npm run lint
 npm run build
 ```
 
-<<<<<<< HEAD
-Các kiểm tra tích hợp có ghi database/storage cần môi trường development; xem [AuthChecks](be/DroneOps/DroneOps.AuthChecks/README.md). Đọc `fe/AGENTS.md` và hướng dẫn Next.js cài trong dự án trước khi sửa frontend. Giao diện dùng nền navy, accent cyan và token dùng chung trong `tokens.css`; giữ trạng thái focus và hỗ trợ reduced motion.
-=======
 Các bộ kiểm tra mặc định bao phủ auth contracts, telemetry/incident HTTP fixtures, post-flight và FE contracts/rendering. Một số chương trình mở HTTP server local và cần quyền bind port. Các chế độ integration có ghi database/storage phải dùng môi trường development; xem [AuthChecks](be/DroneOps/DroneOps.AuthChecks/README.md) trước khi chạy.
 
 [CI](.github/workflows/ci.yml) kiểm tra backend Release/analyzers, frontend lint/typecheck/tests/build và Python gateway. [Workflow SITL](.github/workflows/arducopter-sitl.yml) có phạm vi riêng; kết quả test phần mềm không tự xác nhận deployment hoặc phần cứng.
@@ -328,19 +274,15 @@ Các bộ kiểm tra mặc định bao phủ auth contracts, telemetry/incident 
 | Gateway online nhưng chưa có vị trí | MAVLink/serial/baud, UID, mission mapping và dữ liệu GPS thực; heartbeat gateway không phải sample GPS |
 | Telemetry stale/offline | Packet timestamps, link drone–gateway, Internet tới backend và kết nối SSE của trình duyệt |
 | Không xác nhận/ARM được Automatic | Mở Flight readiness/FC settings, kiểm tra plan đã duyệt, pending update, lịch, UID, GPS/Home, pre-arm và upload/read-back theo hướng dẫn waypoint |
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 
 ## Tài liệu
 
 - [Kết nối Jetson hoặc radio + laptop](docs/drone-connection-guide.md)
 - [Vận hành nhiệm vụ bay tự động](docs/automatic-flight-operations.md)
-<<<<<<< HEAD
-=======
 - [Thực thi waypoint — luồng hiện tại](docs/waypoint-flight-execution.vi.md)
 - [Luồng người dùng bay tự động](docs/automatic-flight-user-flow.vi.md)
 - [Giới hạn vận hành và tham số FC](docs/automatic-flight-operating-envelope.md)
 - [Telemetry pin và đánh giá nhu cầu pin](docs/battery-telemetry-and-assessment.md)
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 - [Diagram cần cập nhật cho phạm vi mới](docs/diagram-update-checklist.md)
 - [Gateway và đóng gói](gateway/README.md)
 - [Media và hồ sơ phi công](database/USER_MEDIA.md)
@@ -348,10 +290,7 @@ Các bộ kiểm tra mặc định bao phủ auth contracts, telemetry/incident 
 - [Báo cáo dự án](docs/reports/) và [slide](docs/slides/)
 
 Khi làm việc với agent, bắt đầu từ README này và chỉ đọc tài liệu liên quan đến nhiệm vụ. Báo cáo/slide là tài liệu tham khảo theo thời điểm; đối chiếu code cho hành vi hiện tại. Cập nhật hướng dẫn đang có khi chức năng thay đổi, tránh tạo thêm nhật ký hoàn thành hoặc bản tóm tắt trùng nội dung.
-<<<<<<< HEAD
-=======
 
 Chi tiết chia sẻ snapshot SSE, backoff worker và xác minh production: [Giảm Fluid Active CPU](docs/fluid-cpu-remediation.vi.md).
 
 Deploy demo miễn phí thay Vercel: [Render Free](docs/render-free-demo.vi.md), cấu hình [render.yaml](render.yaml).
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
