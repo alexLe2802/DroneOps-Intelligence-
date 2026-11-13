@@ -28,12 +28,12 @@ export function missionActions(mission: MissionDetail, role: AccountRole, actorI
   const authorized = role === "operation_manager" || (!!actorId && mission.createdBy === actorId);
   const preflight = ["draft", "rejected", "pending", "pendingreview", "submitted", "approved", "pendingconfirm"].includes(status);
   return {
-    edit: authorized && role === "uav_operator" && preflight && status !== "pendingconfirm",
-    submit: authorized && role === "uav_operator" && status === "draft" && !mission.pendingUpdate,
+    edit: authorized && preflight,
+    submit: authorized && role === "uav_operator" && ["draft", "rejected"].includes(status) && !mission.pendingUpdate,
     validate: authorized && preflight && status !== "pendingconfirm",
     cancel: authorized && preflight,
-    start: authorized && status === "approved" && !mission.pendingUpdate,
-    review: authorized && role === "operation_manager" && !!mission.pendingUpdate && ["pending", "pendingreview", "submitted", "approved"].includes(status),
+    start: false,
+    review: authorized && role === "operation_manager" && !!mission.pendingUpdate && preflight,
   };
 }
 

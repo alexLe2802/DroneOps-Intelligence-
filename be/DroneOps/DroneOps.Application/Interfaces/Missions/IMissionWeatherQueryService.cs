@@ -9,5 +9,5 @@ public interface IMissionWeatherQueryService
         Guid actor,
         bool manager,
         bool refresh,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, Guid? updateRequestId = null);
 }

@@ -14,7 +14,7 @@ public sealed class MissionValidationResult
     public Guid? MissionId { get; set; }
     public string Stage { get; set; } = "Creation";
     public DateTimeOffset CheckedAt { get; set; } = DateTimeOffset.UtcNow;
-    public bool IsValid => Issues.Count == 0 && !Incomplete && !Stale;
+    public bool IsValid => Issues.Count == 0 && !Incomplete && !Stale && !Error;
     public string Outcome => Error ? "Error" : Incomplete ? "Incomplete" : IsValid ? "Pass" : "Fail";
     public string Status => Stale ? "Stale" : Outcome;
     public string Message => IsValid ? "Mandatory checks passed." : string.Join(" ", Issues);
