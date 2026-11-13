@@ -44,15 +44,10 @@ export type PagedResponse<T> = {
 };
 
 // CapturePhoto is retained only to read historical records; new camera actions are deferred.
-<<<<<<< HEAD
-export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land";
-export type WaypointNavigation = { speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
-=======
 export type WaypointAction = "TakeOff" | "FlyThrough" | "Hover" | "CapturePhoto" | "Land" | "Return";
 export type MissionFence = { id: string; shape: "Polygon" | "Circle"; vertices?: GeofenceCoordinate[] | null; center?: GeofenceCoordinate | null; radiusMeters?: number | null };
 export type PlannedHome = { latitude: number; longitude: number; altitudeMslMeters?: number | null };
 export type WaypointNavigation = { missionFences?: MissionFence[] | null; plannedHome?: PlannedHome | null; speedMetersPerSecond?: number | null; holdTimeSeconds?: number | null; acceptanceRadiusMeters?: number | null; passRadiusMeters?: number | null; yawDegrees?: number | null; emergencyLandingCandidate?: boolean; landingGroundAltitudeMeters?: number | null; landingSiteNotes?: string | null; landingSiteSurvey?: LandingSiteSurvey | null };
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 export type FirmwareParameterSnapshot = { firmwareVersion: string; values: Record<string, number>; observedAtUtc: string; hardwareIdentity?: string | null; source: string };
 export type MissionWaypoint = {
   navigation?: WaypointNavigation | null;
@@ -424,7 +419,7 @@ export type BatteryAssessment = {
 export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
-  status: "Pending" | "Available" | "Failed";
+  status: "Pending" | "Available" | "Outdated" | "Failed" | "ProviderUnavailable";
   result: { automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
     retrieval?: { method: string; featureSchema: string; maximumResults: number };
     historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; incidentIds: string[] }> } | null;

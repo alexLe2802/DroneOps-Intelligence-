@@ -227,14 +227,9 @@ export default function MissionEditClient({ id, actorId, role }: { id: string; a
     {mission.pendingUpdate && <p role="status">Editing the pending proposal. The current mission remains unchanged until approval.</p>}
     <form className="mission-builder mission-edit-form" onSubmit={submit}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
-<<<<<<< HEAD
-      <FlightModeFields value={value.automaticFlightRequested ? "automatic" : "manual"} onChange={mode => patchValue(mode === "automatic"
-        ? { automaticFlightRequested: true, averageSpeedMetersPerSecond: "3", maxSpeedMetersPerSecond: "3", altitudeReference: "Relative" }
-=======
       <MissionFenceFields fences={value.missionFences} onChange={fences => patchValue({ missionFences: fences })} drawing={fenceDrawing.drawing} onDraw={shape => { fenceDrawing.begin(shape); }} vertexCount={fenceDrawing.draft.length} onFinish={fenceDrawing.finish} disabled={saving} />
       <FlightModeFields value={value.automaticFlightRequested ? "automatic" : "manual"} onChange={mode => patchValue(mode === "automatic"
         ? { automaticFlightRequested: true, averageSpeedMetersPerSecond: "11.2", maxSpeedMetersPerSecond: "15", automaticFlightLimits: defaultAutomaticLimits(), altitudeReference: "Relative" }
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
         : { automaticFlightRequested: false })} />
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Plan configuration</h2><p>Revise the assigned aircraft, schedule and mission brief.</p></div><button type="button" className="text-action" disabled={!dirty} onClick={resetChanges}>RESET CHANGES</button></div>
@@ -249,11 +244,7 @@ export default function MissionEditClient({ id, actorId, role }: { id: string; a
         </div>
       </section>
 
-<<<<<<< HEAD
-      {value.automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => patchValue({ averageSpeedMetersPerSecond: "2.77", maxSpeedMetersPerSecond: "2.77" })}>USE ≤10 KM/H TARGET (2.77 M/S)</button>}
-=======
       {value.automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => patchValue({ averageSpeedMetersPerSecond: "11.2", maxSpeedMetersPerSecond: "15", automaticFlightLimits: defaultAutomaticLimits() })}>USE V2 DEFAULT SPEEDS (11.2 M/S)</button>}
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
       {value.automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === value.uavId)?.firmwareNavigationDefaults} />}
       {value.automaticFlightRequested && <AutomaticFlightFields value={value.automaticFlightLimits} onChange={automaticFlightLimits => patchValue({ automaticFlightLimits })} />}
       <section className="route-builder">

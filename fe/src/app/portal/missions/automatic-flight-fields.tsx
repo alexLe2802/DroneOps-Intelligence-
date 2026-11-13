@@ -10,21 +10,12 @@ export const defaultAutomaticLimits = (): AutomaticFlightLimits => ({
   maxAltitudeMeters: 30, maxWindMetersPerSecond: 3, maxGustMetersPerSecond: 5,
   policyVersion: "multicopter-envelope-v2",
 });
-<<<<<<< HEAD
-const groups = [
-  { title: "Vertical speeds", fields: [
-    ["takeoffSpeedMetersPerSecond", "Takeoff", "m/s", 1, 1.5],
-    ["climbSpeedMetersPerSecond", "Climb", "m/s", 1, 1.5],
-    ["descentSpeedMetersPerSecond", "Descent", "m/s", 0.6, 1],
-    ["landingSpeedMetersPerSecond", "Landing", "m/s", 0.6, 0.7],
-=======
 const groups = (v2: boolean) => [
   { title: "Vertical speeds", fields: [
     ["takeoffSpeedMetersPerSecond", "Takeoff", "m/s", 1, v2 ? 8 : 1.5],
     ["climbSpeedMetersPerSecond", "Climb", "m/s", 1, v2 ? 8 : 1.5],
     ["descentSpeedMetersPerSecond", "Descent", "m/s", 0.6, v2 ? 6 : 1],
     ["landingSpeedMetersPerSecond", "Landing", "m/s", 0.6, v2 ? 1.5 : 0.7],
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
   ] },
   { title: "Altitude & weather", fields: [
     ["maxAltitudeMeters", "Altitude ceiling", "m", 10.1, 30],
@@ -37,11 +28,7 @@ export default function AutomaticFlightFields({ value, onChange }: { value: Auto
     <header className={styles.heading}><div><h2>Automatic flight limits</h2><p>Optional overrides · system defaults are prefilled</p></div>
       <button type="button" className={styles.reset} onClick={() => onChange({ ...defaultAutomaticLimits(), recoveryEnergyProfile: value.recoveryEnergyProfile })}><RotateCcw size={14} aria-hidden="true" />Reset defaults</button>
     </header>
-<<<<<<< HEAD
-    {groups.map(group => <fieldset className={styles.group} key={group.title}>
-=======
     {groups(value.policyVersion === "multicopter-envelope-v2").map(group => <fieldset className={styles.group} key={group.title}>
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
       <legend>{group.title}</legend>
       <div className={styles.limitGrid}>{group.fields.map(([key, label, unit, min, max]) => <label key={key} className={styles.field}>
         <span>{label}</span>
