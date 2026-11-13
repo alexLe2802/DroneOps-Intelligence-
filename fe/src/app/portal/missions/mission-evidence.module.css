@@ -24,8 +24,11 @@
 .validationEvidence dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:14px 0}
 .validationEvidence dt{color:#9bacc1;font-size:11px}.validationEvidence dd{margin:4px 0;color:#dae3ee}
 .validationEvidence ul{padding-left:20px}.validationEvidence li+li{margin-top:8px}.validationEvidence a{color:#7ed5f7;text-decoration:underline}
+<<<<<<< HEAD
+=======
 .batteryAdvisory{margin:18px 0;padding:16px;border:1px solid #35667b;border-left:3px solid #5fd7ff;border-radius:7px;background:linear-gradient(135deg,#102632,#111a25)}
 .batteryAdvisory header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.batteryAdvisory header div{display:grid;gap:5px}.batteryAdvisory header span{color:#83cce6;font:10px Consolas,monospace;letter-spacing:1.2px}.batteryAdvisory header strong{color:#a7b8c9;font:9px Consolas,monospace;letter-spacing:.8px}.batteryAdvisory header b{color:#78e5c5;font:700 18px Consolas,monospace;white-space:nowrap}.validationEvidence .batteryMessage{margin:13px 0;color:#dbe8f2}.validationEvidence .batteryMetrics{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin:12px 0 0}.validationEvidence .batteryMetrics div{padding:10px;border:1px solid #2a4352;border-radius:5px;background:#0d1721}.validationEvidence .batteryMetrics dt{font:9px Consolas,monospace;letter-spacing:.8px;text-transform:uppercase}.validationEvidence .batteryMetrics dd{color:#83e6ca;font:700 13px Consolas,monospace}.validationEvidence .batteryWarnings{color:#ffb2b2}
 @media(max-width:520px){.batteryAdvisory header{flex-direction:column}.batteryAdvisory header b{white-space:normal}}
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 
 .recoveryMeasurements{margin:16px;border:1px solid #2c455a;border-radius:8px;padding:14px}.recoveryMeasurements summary{cursor:pointer;color:#a0d2e9;font-size:12px}.recoveryMeasurements p{font-size:12px;line-height:1.6;color:#96aec3}.recoveryMeasurements h3{font-size:12px;color:#c5d9e9}.recoveryMeasurements pre{max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;background:#0d1723;border-radius:6px;font:11px/1.6 Consolas,monospace;color:#a4bbcf}

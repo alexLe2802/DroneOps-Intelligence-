@@ -164,6 +164,11 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   const offlineAfter = telemetry?.offlineAfterSeconds ?? 30;
   const connection = packetAge == null ? "offline" : packetAge > offlineAfter ? "offline" : packetAge > staleAfter ? "stale" : streamState === "live" ? "online" : "unknown";
   const batteryTelemetry = telemetry?.missionId === selectedId ? telemetry : null;
+  const packCapacityMah = aircraft?.id === selected?.uavId ? aircraft?.batteryCapacityMah : null;
+  const consumedMah = batteryTelemetry?.uavId === selected?.uavId ? batteryTelemetry?.batteryConsumedMah : null;
+  const remainingChargeMah = packCapacityMah != null && Number.isFinite(packCapacityMah) && packCapacityMah > 0
+    && consumedMah != null && Number.isFinite(consumedMah) && consumedMah >= 0
+    ? Math.max(0, packCapacityMah - consumedMah) : null;
   const arming = armingDisplay(telemetry, selectedId, streamState === "live",
     telemetry?.sourceTimestamp || telemetry?.receivedAt ? packetAge : null);
   const missionEnded = mission?.id === selectedId && (Boolean(mission.endTime && new Date(mission.endTime).getTime() <= clock)
@@ -269,6 +274,10 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
             `Pack voltage: ${valueOr(batteryTelemetry?.batteryVoltageVolts, " V", 2)}`,
             `Current: ${valueOr(batteryTelemetry?.batteryCurrentAmps, " A", 2)}`,
             `Consumed charge (FC): ${valueOr(batteryTelemetry?.batteryConsumedMah, " mAh", 0)}`,
+<<<<<<< HEAD
+            `Estimated remaining charge: ${valueOr(remainingChargeMah, " mAh", 0)}`,
+=======
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
             `State: ${arming.label}`,
           ]} />
           <TelemetryCard index="05" label="LINK & TELEMETRY" value={connection.toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />

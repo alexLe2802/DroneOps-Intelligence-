@@ -126,7 +126,11 @@ class FlightControl:
         if not heartbeat:
             return
         names = ('WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED',
+<<<<<<< HEAD
+                 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS') if heartbeat.autopilot == 3 else (
+=======
                  'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS', 'BATT_CAPACITY') if heartbeat.autopilot == 3 else (
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
                  'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN',
                  'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST', 'BAT1_CAPACITY') if heartbeat.autopilot == 12 else ()
         if heartbeat.autopilot == 3:
@@ -160,8 +164,12 @@ class FlightControl:
             name = message.param_id.decode('ascii', errors='ignore') if isinstance(message.param_id, bytes) else message.param_id
             name = name.split('\0')[0]
             allowed = {'WPNAV_SPEED', 'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_RADIUS', 'LAND_SPEED', 'WP_SPD', 'WP_SPD_UP', 'WP_SPD_DN', 'WP_RADIUS_M', 'LAND_SPD_MS', 'LAND_SPD_HIGH_MS', 'RTL_ALT_M', 'RTL_SPEED_MS',
+<<<<<<< HEAD
+                'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN', 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST'}
+=======
                 'MPC_XY_CRUISE', 'MPC_XY_VEL_MAX', 'MPC_Z_V_AUTO_UP', 'MPC_Z_V_AUTO_DN', 'MPC_TKO_SPEED', 'MPC_LAND_SPEED', 'NAV_ACC_RAD', 'GF_MAX_VER_DIST', 'BATT_CAPACITY', 'BAT1_CAPACITY'}
             allowed.update((*ARDUCOPTER_RECOVERY_PARAMETERS, 'ARMING_SKIPCHK', 'RALLY_TOTAL', 'RTL_ALT_TYPE'))
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
             if name in allowed and math.isfinite(message.param_value):
                 self.parameters[name] = (message.param_value, self.clock(), dt.datetime.now(dt.timezone.utc).isoformat())
         if kind == 'HEARTBEAT' and (message.type == 6 or message.autopilot == 8):

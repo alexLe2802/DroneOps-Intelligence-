@@ -20,9 +20,12 @@ import WaypointNavigationFields, { FirmwareDefaultsNotice } from "../waypoint-na
 import AutomaticFlightFields, { defaultAutomaticLimits } from "../automatic-flight-fields";
 import FlightModeFields, { type FlightMode } from "../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
+<<<<<<< HEAD
+=======
 
 import MissionFenceFields, { useFenceDrawing } from "../mission-fence-fields";
 import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
 
 const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
 
@@ -62,7 +65,14 @@ export default function MissionForm() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+<<<<<<< HEAD
+  const [highRiskMission, setHighRiskMission] = useState<MissionDetail | null>(null);
+  const [riskBusy, setRiskBusy] = useState<"confirm" | "cancel" | null>(null);
+  const [riskError, setRiskError] = useState("");
+  useUnsavedChanges(!saved && Boolean(flightMode || name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
+=======
   useUnsavedChanges(!saved && Boolean(missionFences.length || fenceDrawing.draft.length || flightMode || name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
   function load() {
     setAircraft(null); setLoadError(null);
     void Promise.allSettled([getAssignedUavs(), getGeofences()]).then(([uavs, zones]) => {
@@ -162,10 +172,16 @@ export default function MissionForm() {
       setError(`${label}: ${message}`);
     }}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
+<<<<<<< HEAD
+      <FlightModeFields value={flightMode} onChange={mode => {
+        setFlightMode(mode);
+        if (mode === "automatic") { setAverageSpeed("3"); setMaxSpeed("3"); setAltitudeReference("Relative"); }
+=======
       <MissionFenceFields fences={missionFences} onChange={setMissionFences} drawing={fenceDrawing.drawing} onDraw={shape => { fenceDrawing.begin(shape); }} vertexCount={fenceDrawing.draft.length} onFinish={fenceDrawing.finish} disabled={saving} />
       <FlightModeFields value={flightMode} onChange={mode => {
         setFlightMode(mode);
         if (mode === "automatic") { setAverageSpeed("11.2"); setMaxSpeed("15"); setAltitudeReference("Relative"); }
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
       }} />
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
@@ -173,30 +189,51 @@ export default function MissionForm() {
           <label>ASSIGNED UAV · required<select value={uavId} onChange={event => { setUavId(event.target.value); setError(""); }} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME · required<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
           <label className="full-field">DESCRIPTION · optional<textarea value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
+<<<<<<< HEAD
+          <label>CRUISE SPEED (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-average-speed" type="number" min={automaticFlightRequested ? "0.5" : "0.1"} max={automaticFlightRequested ? 5 : undefined} step="0.01" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — planning default 3" : "10.0"} required={!automaticFlightRequested} /><small>{averageSpeed ? `${(Number(averageSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
+          <label>SPEED CEILING (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-max-speed" type="number" min="0.1" max={automaticFlightRequested ? 5 : undefined} step="0.01" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — planning ceiling 3" : "15.0"} required={!automaticFlightRequested} /><small>{maxSpeed ? `${(Number(maxSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
+=======
           <label>CRUISE SPEED (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-average-speed" type="number" min={automaticFlightRequested ? "0.5" : "0.1"} max={automaticFlightRequested ? 15 : undefined} step="0.01" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — flight default 11.2" : "10.0"} required={!automaticFlightRequested} /><small>{averageSpeed ? `${(Number(averageSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
           <label>SPEED CEILING (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-max-speed" type="number" min="0.1" max={automaticFlightRequested ? 15 : undefined} step="0.01" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — speed ceiling 15" : "15.0"} required={!automaticFlightRequested} /><small>{maxSpeed ? `${(Number(maxSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
           <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME · required</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setStartTime(event.target.value); setError(""); }} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">VIETNAM GMT+7 / START MUST BE IN THE FUTURE</small></div>
           <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME · required</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setEndTime(event.target.value); setError(""); }} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">VIETNAM GMT+7 / MUST BE LATER THAN START</small></div>
         </div>
         {activeAircraft.length === 0 && <p className="form-warning">No active UAV is ready for mission planning.</p>}
       </section>
+<<<<<<< HEAD
+      {automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => { setAverageSpeed("2.77"); setMaxSpeed("2.77"); }}>USE ≤10 KM/H TARGET (2.77 M/S)</button>}
+=======
       {automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => { setAverageSpeed("11.2"); setMaxSpeed("15"); setAutomaticFlightLimits(defaultAutomaticLimits()); }}>USE V2 DEFAULT SPEEDS (11.2 M/S)</button>}
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
       {automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === uavId)?.firmwareNavigationDefaults} />}
       {automaticFlightRequested && <AutomaticFlightFields value={automaticFlightLimits} onChange={setAutomaticFlightLimits} />}
       <section className="route-builder">
         <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>Start with Takeoff/Home. Finish with Land at the last point, or Return/RTL to visit it and return to FC Home.</p></div><button type="button" className="text-action" disabled={!waypoints.length} onClick={() => { if (window.confirm("Clear all waypoints?")) setWaypoints([]); }}>CLEAR ROUTE</button></div>
         {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
+<<<<<<< HEAD
+        <MissionMap waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
+        <button type="button" className="module-secondary mission-add-waypoint" onClick={() => addWaypoint()}>ADD WAYPOINT MANUALLY</button>
+        <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => {
+          const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : index === waypoints.length - 1 ? "Land" : null;
+          return <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE · required<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE · required<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M) · required<input type="number" min="10.1" max={automaticFlightRequested ? automaticFlightLimits.maxAltitudeMeters : undefined} step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION · required<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option>{endpointAction}</option> : intermediateActions.map(action => <option key={action}>{action}</option>)}</select></label><div className="waypoint-order-actions"><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div>{automaticFlightRequested && <WaypointNavigationFields point={point} maximumSpeed={Number(maxSpeed) || 3} onChange={navigation => updateWaypoint(index, { navigation })} />}</article>;
+=======
         <MissionMap missionFences={missionFences} draftFence={fenceDrawing.draft} drawingFence={fenceDrawing.drawing} onFenceUpdate={fence => setMissionFences(current => current.map(f => f.id === fence.id ? fence : f))} plannedHome={null} waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
         <button type="button" className="module-secondary mission-add-waypoint" onClick={() => addWaypoint()}>ADD WAYPOINT MANUALLY</button>
         <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => {
           const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : null;
           return <article key={index}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE · required<input type="number" min="-90" max="90" step="0.000001" value={Number.isFinite(point.latitude) ? point.latitude : ""} onChange={event => updateWaypoint(index, { latitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>LONGITUDE · required<input type="number" min="-180" max="180" step="0.000001" value={Number.isFinite(point.longitude) ? point.longitude : ""} onChange={event => updateWaypoint(index, { longitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M) · required<input type="number" min="10.1" max={automaticFlightRequested ? automaticFlightLimits.maxAltitudeMeters : undefined} step="any" value={point.altitude != null && Number.isFinite(point.altitude) ? point.altitude : ""} onChange={event => updateWaypoint(index, { altitude: event.target.value === "" ? NaN : Number(event.target.value) })} required /></label><label>ACTION · required<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option value={endpointAction}>{waypointActionLabel(endpointAction)}</option> : index === waypoints.length - 1 ? <><option value="Land">Land</option><option value="Return">Return/RTL</option></> : intermediateActions.map(action => <option key={action}>{action}</option>)}</select></label><div className="waypoint-order-actions"><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} earlier`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" className="text-action" aria-label={`Move waypoint ${index + 1} later`} disabled={index === waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div>{automaticFlightRequested && <WaypointNavigationFields point={point} maximumSpeed={Number(maxSpeed) || 3} onChange={navigation => updateWaypoint(index, { navigation })} />}</article>;
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
         })}</div>
       </section>
       </fieldset>
       <label className="mission-altitude-reference">Altitude reference<select value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option disabled={automaticFlightRequested} value="AGL">AGL — above ground</option><option disabled={automaticFlightRequested} value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select></label>
       {error && <p className="form-error" role="alert" aria-live="assertive">{error}</p>}
+<<<<<<< HEAD
+      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Mandatory checks must pass before the mission is sent for manager review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0 || flightMode === null}>{saving ? "VALIDATING…" : "CREATE & VALIDATE MISSION"}</button></div></footer>
+=======
       <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Save a Draft, then submit it from Mission Details for validation and review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0 || flightMode === null}>{saving ? "SAVING…" : "SAVE DRAFT MISSION"}</button></div></footer>
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
     </form>
   </>;
 }
