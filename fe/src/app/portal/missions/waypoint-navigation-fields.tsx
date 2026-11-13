@@ -7,11 +7,7 @@ import styles from "./mission-authoring.module.css";
 export function FirmwareDefaultsNotice({ snapshot }: { snapshot?: FirmwareParameterSnapshot | null }) {
   const parameters = snapshot?.values ?? {};
   const cruise = parameters.MPC_XY_CRUISE ?? parameters.WP_SPD ?? (parameters.WPNAV_SPEED != null ? parameters.WPNAV_SPEED / 100 : null);
-<<<<<<< HEAD
-  const radius = parameters.NAV_ACC_RAD ?? (parameters.WPNAV_RADIUS != null ? parameters.WPNAV_RADIUS / 100 : null);
-=======
   const radius = parameters.NAV_ACC_RAD ?? parameters.WP_RADIUS_M ?? (parameters.WPNAV_RADIUS != null ? parameters.WPNAV_RADIUS / 100 : null);
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
   return <aside className={styles.fcNotice}><span className={styles.status} aria-hidden="true" /><details><summary><strong>Flight controller</strong> · {snapshot ? "Planning defaults available" : "Awaiting connection"}</summary>
     <p>{snapshot ? `Firmware ${snapshot.firmwareVersion} · cruise ${cruise ?? "unknown"} m/s · acceptance radius ${radius ?? "unknown"} m · ${formatVietnamDateTime(snapshot.observedAtUtc)}.` : "No FC parameter snapshot is available yet. Connect the assigned drone after approval."}</p>
     <p>Home is read from the bound FC before flight. Cached defaults must be verified again before launch.</p>
@@ -24,11 +20,7 @@ export default function WaypointNavigationFields({ point, maximumSpeed, onChange
   const hover = point.actionType === "Hover";
   const landing = point.actionType === "Land" || Boolean(value.emergencyLandingCandidate);
   return <details className={styles.navigation} open={hover || landing}>
-<<<<<<< HEAD
-    <summary><span><ChevronRight size={14} aria-hidden="true" />Navigation settings</span><span className={hover || landing ? styles.required : styles.optional}>{hover ? "Hold time required" : landing ? "Ground elevation before flight" : "Optional"}</span></summary>
-=======
     <summary><span><ChevronRight size={14} aria-hidden="true" />Navigation settings</span><span className={hover || landing ? styles.required : styles.optional}>{hover ? "Hold time required" : landing ? "Landing options" : "Optional"}</span></summary>
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
     <div className={styles.navigationBody}>
       <div className={styles.navigationToolbar}><button type="button" className={styles.reset} onClick={() => onChange({})}><RotateCcw size={13} aria-hidden="true" />Clear overrides</button></div>
       <div className={styles.navigationGrid}>
@@ -41,11 +33,7 @@ export default function WaypointNavigationFields({ point, maximumSpeed, onChange
         <label className={styles.landingToggle}><input type="checkbox" checked={value.emergencyLandingCandidate ?? false} onChange={event => onChange({ ...value, emergencyLandingCandidate: event.target.checked,
           landingSiteSurvey: !event.target.checked && point.actionType !== "Land" ? null : value.landingSiteSurvey })} />Emergency landing candidate<span className={styles.optional}>Optional</span></label>
         {landing && <>
-<<<<<<< HEAD
-          <label className={styles.field}><span>Ground elevation <em className={styles.required}>{value.emergencyLandingCandidate ? "Required" : "Before flight"}</em></span><input aria-label="Landing ground altitude relative to takeoff (m) · required before flight" type="number" min="0" max="30" step="0.1" required={Boolean(value.emergencyLandingCandidate)} value={value.landingGroundAltitudeMeters ?? ""} placeholder="Relative to FC Home" onChange={event => number("landingGroundAltitudeMeters", event.target.value)} /><small>Metres · 0 only for the same ground level as Home</small></label>
-=======
           <label className={styles.field}><span>Ground elevation <em className={styles.required}>{value.emergencyLandingCandidate ? "Required" : "Optional for ArduCopter"}</em></span><input aria-label="Landing ground altitude relative to takeoff (m) · optional for ArduCopter" type="number" min="0" max="30" step="0.1" required={Boolean(value.emergencyLandingCandidate)} value={value.landingGroundAltitudeMeters ?? ""} placeholder="Relative to FC Home" onChange={event => number("landingGroundAltitudeMeters", event.target.value)} /><small>Metres · 0 only for the same ground level as Home</small></label>
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
           <label className={`${styles.field} ${styles.siteNotes}`}><span>Site clearance notes <em className={value.emergencyLandingCandidate ? styles.required : styles.optional}>{value.emergencyLandingCandidate ? "Required" : "Optional"}</em></span><textarea aria-label={`Landing-site clearance notes · ${value.emergencyLandingCandidate ? "required" : "optional"}`} required={Boolean(value.emergencyLandingCandidate)} minLength={value.emergencyLandingCandidate ? 10 : undefined} maxLength={500} placeholder="Landing area and approach clearance" value={value.landingSiteNotes ?? ""} onChange={event => onChange({ ...value, landingSiteNotes: event.target.value || null })} /></label>
         </>}
         {value.emergencyLandingCandidate && <p className={styles.landingHint}>Requires ground elevation, clearance notes and verification before use.</p>}
