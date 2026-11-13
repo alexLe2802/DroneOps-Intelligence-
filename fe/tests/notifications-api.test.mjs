@@ -35,16 +35,49 @@ test("notification read mutations use persistent read endpoints", async () => {
   } finally { mock.mock.restore(); }
 });
 
-test("notification links open the exact mission workflow without trusting external URLs", () => {
+test("notification links open the exact manager and pilot workflow without trusting external URLs", () => {
   assert.equal(routing.notificationDestination({ type: "UavManualReview", referenceId: null, actionUrl: "/uav-management?imageModerationStatus=ManualReview" }), "/portal/uav-management?imageModerationStatus=ManualReview");
   assert.equal(routing.notificationDestination({ type: "NewPendingMission", referenceId: id, actionUrl: null }), `/portal/mission-approvals?missionId=${id}`);
   assert.equal(routing.notificationDestination({ type: "MissionApproved", referenceId: id, actionUrl: null }), `/portal/missions/${id}`);
+  assert.equal(routing.notificationDestination({ type: "NewPilotRegistration", referenceId: id, actionUrl: "/operators" }), `/portal/operators?registrationId=${id}`);
+  assert.equal(routing.notificationDestination({ type: "NewPilotUpdateRequest", referenceId: id, actionUrl: "/operators" }), `/portal/operators?requestId=${id}`);
+  for (const type of ["PilotUpdateApproved", "PilotUpdateRejected"]) {
+    assert.equal(routing.notificationDestination({ type, referenceId: id, actionUrl: "/profile" }), `/portal/profile?requestId=${id}`);
+  }
+  assert.equal(routing.notificationDestination({ type: "IncidentRaised", referenceId: id, actionUrl: "/incident-management" }), `/portal/incidents/${id}`);
+  for (const type of ["UavApproved", "UavRejected"]) {
+    assert.equal(routing.notificationDestination({ type, referenceId: id, actionUrl: "/uav-management" }), `/portal/uav/${id}`);
+  }
+  assert.equal(routing.notificationDestination({ type: "UavImageRejected", referenceId: id, actionUrl: null }), `/portal/uav/${id}/edit`);
+  for (const type of ["NewPendingUav", "UavUpdatePending"]) {
+    assert.equal(routing.notificationDestination({ type, referenceId: id, actionUrl: null }), `/portal/uav-management?uavId=${id}`);
+  }
   for (const type of ["FlightConnectionRequired", "FlightConfirmationRequired"]) {
     assert.equal(routing.notificationDestination({ type, referenceId: id, actionUrl: null }), `/portal/live-monitoring?missionId=${id}`);
   }
   assert.equal(routing.notificationDestination({ type: "Legacy", referenceId: null, actionUrl: `/validation-approvals?missionId=${id}` }), `/portal/mission-approvals?missionId=${id}`);
   assert.equal(routing.notificationDestination({ type: "Legacy", referenceId: null, actionUrl: "/uav-management?imageModerationStatus=ManualReview" }), "/portal/uav-management?imageModerationStatus=ManualReview");
+  assert.equal(routing.notificationDestination({ type: "Legacy", referenceId: null, actionUrl: `/operators?requestId=${id}` }), `/portal/operators?requestId=${id}`);
+  assert.equal(routing.notificationDestination({ type: "Legacy", referenceId: null, actionUrl: `/profile?requestId=${id}` }), `/portal/profile?requestId=${id}`);
+  assert.equal(routing.notificationDestination({ type: "Legacy", referenceId: null, actionUrl: `/incident-management?incidentId=${id}` }), `/portal/incidents/${id}`);
   assert.equal(routing.notificationDestination({ type: "Unknown", referenceId: null, actionUrl: "https://example.com/phishing" }), "/portal");
+});
+
+test("notification request links are consumed by their destination pages", async () => {
+  const operatorsPage = await readFile(new URL("../src/app/portal/operators/page.tsx", import.meta.url), "utf8");
+  const pilotRoster = await readFile(new URL("../src/app/portal/operators/pilot-roster.tsx", import.meta.url), "utf8");
+  const registrations = await readFile(new URL("../src/app/portal/operators/pilot-registration-requests.tsx", import.meta.url), "utf8");
+  const profilePage = await readFile(new URL("../src/app/portal/profile/page.tsx", import.meta.url), "utf8");
+  const profileClient = await readFile(new URL("../src/app/portal/profile/profile-client.tsx", import.meta.url), "utf8");
+  const licenseChanges = await readFile(new URL("../src/app/portal/profile/license-changes.tsx", import.meta.url), "utf8");
+
+  assert.match(operatorsPage, /initialRegistrationId=\{registrationId\}/);
+  assert.match(operatorsPage, /initialRequestId=\{requestId\}/);
+  assert.match(pilotRoster, /initialRegistrationId=\{initialRegistrationId\}/);
+  assert.match(registrations, /initialRegistrationId \?\? result\.items\[0\]/);
+  assert.match(profilePage, /initialLicenseRequestId=\{requestId\}/);
+  assert.match(profileClient, /initialRequestId=\{initialLicenseRequestId\}/);
+  assert.match(licenseChanges, /inspect\(initialRequestId\)/);
 });
 
 test("manager notification feed groups pending missions and UAV requests", () => {

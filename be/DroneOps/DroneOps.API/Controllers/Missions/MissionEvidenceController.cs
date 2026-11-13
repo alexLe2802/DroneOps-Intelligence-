@@ -40,8 +40,17 @@ public sealed class MissionEvidenceController(
     public async Task<IActionResult> Validation(
         Guid id,
         [FromQuery] bool latest,
+        [FromQuery] Guid? updateRequestId,
         CancellationToken ct)
     {
+        if (updateRequestId.HasValue)
+        {
+            var row = (await validation.HistoryAsync(id, Actor, Manager, ct)).SingleOrDefault(x => x.Id == updateRequestId);
+            if (row is null) return NotFound();
+            return row.Validation?.Id is { } runId
+                ? Ok(await validation.ReadRunAsync(id, runId, Actor, Manager, ct))
+                : Ok(null);
+        }
         if (latest)
         {
             var latestResult =
@@ -92,6 +101,7 @@ public sealed class MissionEvidenceController(
     [HttpGet("{id:guid}/weather")]
     public async Task<IActionResult> Weather(
         Guid id,
+        [FromQuery] Guid? updateRequestId,
         CancellationToken ct)
     {
         var result =
@@ -100,7 +110,7 @@ public sealed class MissionEvidenceController(
                 Actor,
                 Manager,
                 false,
-                ct);
+                ct, updateRequestId);
 
         return Ok(result);
     }
@@ -112,6 +122,7 @@ public sealed class MissionEvidenceController(
     [HttpPost("{id:guid}/weather/refresh")]
     public async Task<IActionResult> RefreshWeather(
         Guid id,
+        [FromQuery] Guid? updateRequestId,
         CancellationToken ct)
     {
         var result =
@@ -120,7 +131,7 @@ public sealed class MissionEvidenceController(
                 Actor,
                 Manager,
                 true,
-                ct);
+                ct, updateRequestId);
 
         return Ok(result);
     }
