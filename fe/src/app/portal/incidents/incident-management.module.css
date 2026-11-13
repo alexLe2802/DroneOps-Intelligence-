@@ -965,6 +965,7 @@
 
 .severityLine.severitycritical,
 .severityLine.severityhigh { background: var(--danger); }
+.severityLine.severitywarning,
 .severityLine.severitymedium { background: #f2cb76; }
 .severityLine.severitylow { background: var(--cyan); }
 
@@ -1002,6 +1003,7 @@
 
 .severitycritical,
 .severityhigh { color: var(--danger) !important; }
+.severitywarning,
 .severitymedium { color: #f2cc79 !important; }
 .severitylow { color: var(--cyan) !important; }
 
@@ -1072,6 +1074,7 @@
   color: #ffb0b4;
 }
 
+.statusBadge.statuswarning,
 .statusBadge.statusmedium {
   background: #44371f;
   color: #f5d17f;

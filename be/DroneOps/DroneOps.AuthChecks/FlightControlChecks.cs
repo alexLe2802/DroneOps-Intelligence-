@@ -19,7 +19,7 @@ internal static class FlightControlChecks
         command.DeliveredAt = now;
         state.Evidence = state.Evidence! with { Armed = true };
         state.Complete(command.Id, true, null, now);
-        Check(state.Stage == "Countdown" && state.LaunchAt == now.AddSeconds(10), "observed ARM plus successful report starts full ten-second countdown");
+        Check(state.Stage == "Countdown" && state.LaunchAt == now, "observed ARM makes the verified mission eligible for immediate scheduled START");
         state.EvidenceAt = now.AddSeconds(9); state.PilotAt = now.AddSeconds(9);
         state.Tick(now.AddSeconds(9), true);
         Check(state.Stage == "Countdown" && state.Pending == null, "countdown does not send start before deadline");

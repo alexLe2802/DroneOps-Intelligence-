@@ -23,3 +23,7 @@
 20261104160247_manual_arm_countdown.sql
 20261104163328_automatic_flight_envelope_and_battery_max_voltage.sql
 20261105000100_uav_image_moderation_queue.sql
+
+20261110000100_realtime_episodes.sql
+20261110000200_realtime_execution.sql
+20261111000100_mf1_review_integrity.sql

@@ -1,4 +1,4 @@
-﻿using DroneOps.Domain.Entities;
+using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.EntityFrameworkCore;

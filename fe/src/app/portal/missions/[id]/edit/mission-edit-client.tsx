@@ -4,12 +4,14 @@ import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietn
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
-import { getAssignedUavs, getGeofences, getMission, updateMission } from "@/lib/portal/client";
+import { getAssignedUavs, getManagedUavs, getGeofences, getMission, updateMission } from "@/lib/portal/client";
 import { missionActions } from "@/lib/portal/mission-review";
+import type { AccountRole } from "@/lib/auth/types";
 import type { AssignedUav, Geofence, MissionDetail, MissionWaypoint, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../../module-state";
 import MissionMap from "../../mission-map";
-import { appendLandingWaypoint, normalizeWaypointActions } from "@/lib/maps/mission-waypoints";
+import { appendLandingWaypoint, normalizeWaypointActions, waypointActionLabel } from "@/lib/maps/mission-waypoints";
+import { withPlannedHome } from "@/lib/maps/planned-home";
 import { missionSpeedError, routeError } from "@/lib/maps/planning-validation";
 
 import WaypointNavigationFields, { FirmwareDefaultsNotice } from "../../waypoint-navigation-fields";
@@ -17,6 +19,10 @@ import AutomaticFlightFields, { defaultAutomaticLimits } from "../../automatic-f
 import FlightModeFields from "../../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
 import type { AutomaticFlightLimits } from "@/lib/portal/types";
+
+import MissionFenceFields, { useFenceDrawing } from "../../mission-fence-fields";
+import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
+import type { MissionFence } from "@/lib/portal/types";
 
 const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
 
@@ -26,6 +32,7 @@ const toLocalInput = (value: string | null) => {
 };
 
 type EditorValue = {
+  missionFences: MissionFence[];
   automaticFlightRequested: boolean;
   automaticFlightLimits: AutomaticFlightLimits;
   altitudeReference: "AGL" | "MSL" | "Relative" | "";
@@ -43,6 +50,7 @@ const editorValue = (saved: MissionDetail): EditorValue => { const mission = sav
   altitudeReference: (mission.pendingUpdate?.proposedPlan.altitudeReference ?? mission.altitudeReference ?? "") as EditorValue["altitudeReference"],
   automaticFlightRequested: mission.automaticFlightRequested ?? false,
   automaticFlightLimits: mission.automaticFlightLimits ?? defaultAutomaticLimits(),
+  missionFences: mission.waypoints.find(p => p.sequenceOrder === 1)?.navigation?.missionFences ?? [],
   uavId: mission.uavId ?? "",
   name: mission.name,
   description: mission.description ?? "",
@@ -53,11 +61,12 @@ const editorValue = (saved: MissionDetail): EditorValue => { const mission = sav
   waypoints: normalizeWaypointActions(mission.waypoints.map(point => ({ ...point }))),
 }); };
 
-export default function MissionEditClient({ id, actorId }: { id: string; actorId: string }) {
+export default function MissionEditClient({ id, actorId, role }: { id: string; actorId: string; role: AccountRole }) {
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [aircraft, setAircraft] = useState<AssignedUav[]>([]);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [value, setValue] = useState<EditorValue | null>(null);
+  const fenceDrawing = useFenceDrawing(value?.missionFences ?? [], fences => patchValue({ missionFences: fences }));
   const [initialValue, setInitialValue] = useState("");
   const [loadError, setLoadError] = useState<unknown>(null);
   const [formError, setFormError] = useState("");
@@ -70,7 +79,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
     setMission(null);
     setValue(null);
     setLoadError(null);
-    void Promise.allSettled([getMission(id), getAssignedUavs(), getGeofences()]).then(([missionResult, uavResult, zoneResult]) => {
+    void Promise.allSettled([getMission(id), (role === "operation_manager" ? getManagedUavs({ pageSize: 100 }).then(result => result.items) : getAssignedUavs()), getGeofences()]).then(([missionResult, uavResult, zoneResult]) => {
       if (missionResult.status === "rejected") {
         setLoadError(missionResult.reason);
         return;
@@ -82,11 +91,11 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       setAircraft(uavResult.status === "fulfilled" ? uavResult.value : []);
       setGeofences(zoneResult.status === "fulfilled" ? zoneResult.value : []);
     });
-  }, [id]);
+  }, [id, role]);
 
   useEffect(() => {
     let active = true;
-    void Promise.allSettled([getMission(id), getAssignedUavs(), getGeofences()]).then(([missionResult, uavResult, zoneResult]) => {
+    void Promise.allSettled([getMission(id), (role === "operation_manager" ? getManagedUavs({ pageSize: 100 }).then(result => result.items) : getAssignedUavs()), getGeofences()]).then(([missionResult, uavResult, zoneResult]) => {
       if (!active) return;
       if (missionResult.status === "rejected") {
         setLoadError(missionResult.reason);
@@ -100,7 +109,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       setGeofences(zoneResult.status === "fulfilled" ? zoneResult.value : []);
     });
     return () => { active = false; };
-  }, [id]);
+  }, [id, role]);
 
   const dirty = useMemo(() => Boolean(value && initialValue && JSON.stringify(value) !== initialValue), [initialValue, value]);
 
@@ -119,6 +128,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
 
   function addWaypoint(longitude: number, latitude: number) {
     if (!value) return;
+    if (fenceDrawing.point(longitude, latitude)) return;
     patchValue({ waypoints: appendLandingWaypoint(value.waypoints, { latitude: Number(latitude.toFixed(6)), longitude: Number(longitude.toFixed(6)), altitude: value.automaticFlightRequested ? 20 : 50 }) });
   }
 
@@ -154,15 +164,17 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!value || !mission || !missionActions(mission, "uav_operator", actorId).edit || savePending.current) return;
+    if (!value || !mission || !missionActions(mission, role, actorId).edit || savePending.current) return;
     setFormError("");
     setNotice("");
-    const normalizedWaypoints = normalizeWaypointActions(value.waypoints);
+    const fenceError = missionFencesError(value.missionFences);
+    if (fenceDrawing.drawing || fenceError) { setFormError(fenceError || "Finish or cancel fence drawing before saving."); return; }
+    const normalizedWaypoints = withPlannedHome(withMissionFences(normalizeWaypointActions(value.waypoints), value.missionFences), null);
     const invalidRoute = routeError(normalizedWaypoints);
     if (invalidRoute) { setFormError(invalidRoute); return; }
     if (new Date(value.endTime) <= new Date(value.startTime)) { setFormError("End time must be later than start time."); return; }
-    const averageSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.averageSpeedMetersPerSecond.trim() ? "3" : value.averageSpeedMetersPerSecond);
-    const maxSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.maxSpeedMetersPerSecond.trim() ? "3" : value.maxSpeedMetersPerSecond);
+    const averageSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.averageSpeedMetersPerSecond.trim() ? (value.automaticFlightLimits.policyVersion === "multicopter-envelope-v2" ? "11.2" : "3") : value.averageSpeedMetersPerSecond);
+    const maxSpeedMetersPerSecond = Number(value.automaticFlightRequested && !value.maxSpeedMetersPerSecond.trim() ? (value.automaticFlightLimits.policyVersion === "multicopter-envelope-v2" ? "15" : "3") : value.maxSpeedMetersPerSecond);
     const invalidSpeed = missionSpeedError(averageSpeedMetersPerSecond, maxSpeedMetersPerSecond);
     if (invalidSpeed) { setFormError(invalidSpeed); return; }
     const invalidAutomatic = value.automaticFlightRequested ? automaticFlightError(value.altitudeReference, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, value.automaticFlightLimits, normalizedWaypoints) : null;
@@ -185,7 +197,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
       };
       const signature = JSON.stringify(payload);
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
-      const saved = await updateMission(id, { ...payload, operationId: operation.current.id });
+      const saved = await updateMission(id, { ...payload, operationId: operation.current.id, expectedPlanHash: mission.planHash, expectedPendingRequestId: mission.pendingUpdate?.id ?? null });
       const next = editorValue(saved);
       setMission(saved);
       setValue(next);
@@ -202,7 +214,7 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!mission || !value) return <ModuleLoading label="Loading mission editor" />;
 
-  const canEdit = missionActions(mission, "uav_operator", actorId).edit;
+  const canEdit = missionActions(mission, role, actorId).edit;
   if (!canEdit) return <section className="module-state error"><span className="state-symbol">!</span><p className="module-kicker">MISSION LOCKED</p><h2>This plan cannot be edited</h2><p>Only pre-flight missions can be proposed for editing. The current mission status is {mission.status}.</p><Link className="module-primary module-link" href={`/portal/missions/${id}`}>BACK TO MISSION</Link></section>;
 
   const approvedAircraft = aircraft.filter(item => item.status.toLowerCase() === "active" || item.id === mission.uavId);
@@ -215,8 +227,14 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
     {mission.pendingUpdate && <p role="status">Editing the pending proposal. The current mission remains unchanged until approval.</p>}
     <form className="mission-builder mission-edit-form" onSubmit={submit}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
+<<<<<<< HEAD
       <FlightModeFields value={value.automaticFlightRequested ? "automatic" : "manual"} onChange={mode => patchValue(mode === "automatic"
         ? { automaticFlightRequested: true, averageSpeedMetersPerSecond: "3", maxSpeedMetersPerSecond: "3", altitudeReference: "Relative" }
+=======
+      <MissionFenceFields fences={value.missionFences} onChange={fences => patchValue({ missionFences: fences })} drawing={fenceDrawing.drawing} onDraw={shape => { fenceDrawing.begin(shape); }} vertexCount={fenceDrawing.draft.length} onFinish={fenceDrawing.finish} disabled={saving} />
+      <FlightModeFields value={value.automaticFlightRequested ? "automatic" : "manual"} onChange={mode => patchValue(mode === "automatic"
+        ? { automaticFlightRequested: true, averageSpeedMetersPerSecond: "11.2", maxSpeedMetersPerSecond: "15", automaticFlightLimits: defaultAutomaticLimits(), altitudeReference: "Relative" }
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
         : { automaticFlightRequested: false })} />
       <section className="mission-fields">
         <div className="builder-section-title"><span>01</span><div><h2>Plan configuration</h2><p>Revise the assigned aircraft, schedule and mission brief.</p></div><button type="button" className="text-action" disabled={!dirty} onClick={resetChanges}>RESET CHANGES</button></div>
@@ -224,22 +242,26 @@ export default function MissionEditClient({ id, actorId }: { id: string; actorId
           <label>ASSIGNED UAV · required<select value={value.uavId} onChange={event => patchValue({ uavId: event.target.value })} required><option value="">Select an active UAV</option>{approvedAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
           <label>MISSION NAME · required<input value={value.name} onChange={event => patchValue({ name: event.target.value })} minLength={2} maxLength={200} required /></label>
           <label className="full-field">DESCRIPTION · optional<textarea value={value.description} onChange={event => patchValue({ description: event.target.value })} maxLength={2000} /></label>
-          <label>CRUISE SPEED (M/S) · optional for automatic mode<input type="number" min="0.1" step="0.01" max={value.automaticFlightRequested ? 5 : undefined} value={value.averageSpeedMetersPerSecond} onChange={event => patchValue({ averageSpeedMetersPerSecond: event.target.value })} required={!value.automaticFlightRequested} /></label>
-          <label>SPEED CEILING (M/S) · optional for automatic mode<input type="number" min="0.1" step="0.01" max={value.automaticFlightRequested ? 5 : undefined} value={value.maxSpeedMetersPerSecond} onChange={event => patchValue({ maxSpeedMetersPerSecond: event.target.value })} required={!value.automaticFlightRequested} /></label>
+          <label>CRUISE SPEED (M/S) · optional for automatic mode<input type="number" min="0.1" step="0.01" max={value.automaticFlightRequested ? (value.automaticFlightLimits.policyVersion === "multicopter-envelope-v2" ? 15 : 5) : undefined} value={value.averageSpeedMetersPerSecond} onChange={event => patchValue({ averageSpeedMetersPerSecond: event.target.value })} required={!value.automaticFlightRequested} /></label>
+          <label>SPEED CEILING (M/S) · optional for automatic mode<input type="number" min="0.1" step="0.01" max={value.automaticFlightRequested ? (value.automaticFlightLimits.policyVersion === "multicopter-envelope-v2" ? 15 : 5) : undefined} value={value.maxSpeedMetersPerSecond} onChange={event => patchValue({ maxSpeedMetersPerSecond: event.target.value })} required={!value.automaticFlightRequested} /></label>
           <label>START TIME (GMT+7) · required<input type="datetime-local" value={value.startTime} onChange={event => patchValue({ startTime: event.target.value })} required /></label>
           <label>END TIME (GMT+7) · required<input type="datetime-local" value={value.endTime} onChange={event => patchValue({ endTime: event.target.value })} required /></label>
         </div>
       </section>
 
+<<<<<<< HEAD
       {value.automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => patchValue({ averageSpeedMetersPerSecond: "2.77", maxSpeedMetersPerSecond: "2.77" })}>USE ≤10 KM/H TARGET (2.77 M/S)</button>}
+=======
+      {value.automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => patchValue({ averageSpeedMetersPerSecond: "11.2", maxSpeedMetersPerSecond: "15", automaticFlightLimits: defaultAutomaticLimits() })}>USE V2 DEFAULT SPEEDS (11.2 M/S)</button>}
+>>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
       {value.automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === value.uavId)?.firmwareNavigationDefaults} />}
       {value.automaticFlightRequested && <AutomaticFlightFields value={value.automaticFlightLimits} onChange={automaticFlightLimits => patchValue({ automaticFlightLimits })} />}
       <section className="route-builder">
-        <div className="builder-section-title"><span>02</span><div><h2>Route and waypoint sequence</h2><p>Drag route nodes, click the map to add one, or edit exact values below.</p></div><button type="button" className="text-action" disabled={!value.waypoints.length} onClick={() => patchValue({ waypoints: [] })}>CLEAR ROUTE</button></div>
-        <MissionMap waypoints={value.waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
+        <div className="builder-section-title"><span>02</span><div><h2>Route and waypoint sequence</h2><p>Start with Takeoff/Home. Finish with Land at the last point, or Return/RTL to visit it and return to FC Home.</p></div><button type="button" className="text-action" disabled={!value.waypoints.length} onClick={() => patchValue({ waypoints: [] })}>CLEAR ROUTE</button></div>
+        <MissionMap missionFences={value.missionFences} draftFence={fenceDrawing.draft} drawingFence={fenceDrawing.drawing} onFenceUpdate={fence => patchValue({ missionFences: value.missionFences.map(f => f.id === fence.id ? fence : f) })} plannedHome={null} waypoints={value.waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
         <div className="waypoint-list mission-edit-waypoint-list">{value.waypoints.length === 0 ? <div className="waypoint-empty">Click the map to add the first route waypoint.</div> : value.waypoints.map((point, index) => {
-          const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : index === value.waypoints.length - 1 ? "Land" : null;
-          return <article key={`${point.sequenceOrder}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE · required<input type="number" min="-90" max="90" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE · required<input type="number" min="-180" max="180" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M) · required<input type="number" min="10.1" max={value.automaticFlightRequested ? value.automaticFlightLimits.maxAltitudeMeters : undefined} step="any" value={point.altitude ?? ""} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION · required<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option>{endpointAction}</option> : <>{point.actionType === "CapturePhoto" && <option value="CapturePhoto" disabled>Camera action deferred — select another action</option>}{intermediateActions.map(action => <option key={action}>{action}</option>)}</>}</select></label><div className="waypoint-order-actions"><button type="button" title="Move waypoint up" aria-label={`Move waypoint ${index + 1} up`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" title="Move waypoint down" aria-label={`Move waypoint ${index + 1} down`} disabled={index === value.waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" title="Remove waypoint" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div>{value.automaticFlightRequested && <WaypointNavigationFields point={point} maximumSpeed={Number(value.maxSpeedMetersPerSecond) || 3} onChange={navigation => updateWaypoint(index, { navigation })} />}</article>;
+          const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : null;
+          return <article key={`${point.sequenceOrder}-${index}`}><b>{String(index + 1).padStart(2, "0")}</b><label>LATITUDE · required<input type="number" min="-90" max="90" step="0.000001" value={point.latitude} onChange={event => updateWaypoint(index, { latitude: Number(event.target.value) })} required /></label><label>LONGITUDE · required<input type="number" min="-180" max="180" step="0.000001" value={point.longitude} onChange={event => updateWaypoint(index, { longitude: Number(event.target.value) })} required /></label><label>ALTITUDE (&gt;10 M) · required<input type="number" min="10.1" max={value.automaticFlightRequested ? value.automaticFlightLimits.maxAltitudeMeters : undefined} step="any" value={point.altitude ?? ""} onChange={event => updateWaypoint(index, { altitude: Number(event.target.value) })} required /></label><label>ACTION · required<select value={point.actionType} disabled={endpointAction !== null} onChange={event => updateWaypoint(index, { actionType: event.target.value as WaypointAction })}>{endpointAction ? <option value={endpointAction}>{waypointActionLabel(endpointAction)}</option> : index === value.waypoints.length - 1 ? <><option value="Land">Land</option><option value="Return">Return/RTL</option></> : <>{point.actionType === "CapturePhoto" && <option value="CapturePhoto" disabled>Camera action deferred — select another action</option>}{intermediateActions.map(action => <option key={action}>{action}</option>)}</>}</select></label><div className="waypoint-order-actions"><button type="button" title="Move waypoint up" aria-label={`Move waypoint ${index + 1} up`} disabled={index === 0} onClick={() => moveWaypoint(index, -1)}>↑</button><button type="button" title="Move waypoint down" aria-label={`Move waypoint ${index + 1} down`} disabled={index === value.waypoints.length - 1} onClick={() => moveWaypoint(index, 1)}>↓</button><button type="button" className="waypoint-remove" title="Remove waypoint" aria-label={`Remove waypoint ${index + 1}`} onClick={() => removeWaypoint(index)}>×</button></div>{value.automaticFlightRequested && <WaypointNavigationFields point={point} maximumSpeed={Number(value.maxSpeedMetersPerSecond) || 3} onChange={navigation => updateWaypoint(index, { navigation })} />}</article>;
         })}</div>
       </section>
       </fieldset>

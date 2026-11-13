@@ -17,6 +17,14 @@ public sealed class FlightControlState
     public string Message { get; set; } = "Save explicit FC mission settings before upload.";
     public bool UploadVerified { get; set; }
     public DateTimeOffset? LaunchAt { get; set; }
+    public Guid? DispatchId { get; set; }
+    public DateTimeOffset? DispatchAttemptedAt { get; set; }
+    public DateTimeOffset? DispatchDeadline { get; set; }
+    public DateTimeOffset? FlightObservedAt { get; set; }
+    public int LandedSamples { get; set; }
+    public DateTimeOffset? LastTerminalObservationAt { get; set; }
+    public List<int> WaypointCommands { get; set; } = [];
+    public string? ApprovedPlanJson { get; set; }
     public List<FlightControlCommand> Commands { get; set; } = [];
     [System.Text.Json.Serialization.JsonIgnore]
     public FlightControlCommand? Pending => Commands.LastOrDefault(c => c.Result == null);
@@ -27,7 +35,7 @@ public sealed class FlightControlState
 
     public void Cancel(string reason)
     {
-        if (Stage is "Starting" or "Running") return; // No promise to undo an already-issued start.
+        if (Stage is "Starting" or "AwaitingFlight" or "Running" or "Completed" or "Aborted") return; // No promise to undo an already-issued start.
         if (Pending is { } command) command.Result = command.DeliveredAt == null ? "Cancelled" : "Unknown";
         LaunchAt = null;
         Stage = "Cancelled";
@@ -85,9 +93,9 @@ public sealed class FlightControlState
         switch (command.Action)
         {
             case "Upload": UploadVerified = true; Stage = "Ready"; Message = "Mission uploaded and read-back verified on FC."; break;
-            case "Arm": Stage = "Countdown"; LaunchAt = now.AddSeconds(10); Message = "FC confirmed ARM. Takeoff countdown started."; break;
+            case "Arm": Stage = "Countdown"; LaunchAt = now; Message = "FC confirmed ARM; scheduled dispatch will start the verified route."; break;
             case "Disarm": Stage = "Ready"; LaunchAt = null; Message = "FC confirmed DISARM."; break;
-            case "Start": Stage = "Running"; LaunchAt = null; Message = "FC accepted mission start. Monitor flight telemetry."; break;
+            case "Start": Stage = "AwaitingFlight"; LaunchAt = null; Message = "FC accepted START; waiting for observed in-air mission execution."; break;
         }
     }
 }
@@ -96,7 +104,8 @@ public sealed record FlightControllerEvidence(Guid GatewayInstance, string? Firm
     int? LandedState, bool NavigationReady, bool PreArmReady, string? UploadedHash,
     DroneOps.Domain.Entities.FirmwareParameterSnapshot? FirmwareParameters = null,
     decimal? HomeLatitudeDegrees = null, decimal? HomeLongitudeDegrees = null, decimal? HomeAltitudeMslMeters = null,
-    string? VerifiedEnvelopeHash = null);
+    string? VerifiedEnvelopeHash = null, string? FcProfileError = null,
+    int? MissionCurrent = null, bool MissionMode = false, int[]? ReachedCommands = null, DateTimeOffset? LandedObservedAtUtc = null);
 
 public sealed class FlightControlCommand
 {

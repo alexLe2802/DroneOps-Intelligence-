@@ -11,7 +11,8 @@ WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_HTTP_PORTS=8080 \
     PORT=8080 \
-    Monitoring__Enabled=false
+    Monitoring__Enabled=false \
+    Monitoring__DedicatedProcessRequired=true
 COPY --from=build --chown=app:app /out/ ./
 USER app
 EXPOSE 8080

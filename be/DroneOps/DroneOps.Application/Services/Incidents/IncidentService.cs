@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using DroneOps.Application.DTOs.Request.Incidents;
 using DroneOps.Application.DTOs.Response.Incidents;
 using DroneOps.Application.Interfaces.Incidents;
@@ -104,7 +104,7 @@ public class IncidentService : IIncidentService
             .Take(pageSize)
             .Select(i => new IncidentItemResponse
             {
-                Id = i.Id,
+                Id = i.Id, Revision = i.Revision,
                 MissionId = i.MissionId,
                 MissionName = i.Mission != null ? i.Mission.Name : string.Empty,
                 UavId = i.Mission != null ? i.Mission.UAVId : null,
@@ -158,7 +158,7 @@ public class IncidentService : IIncidentService
 
         return new IncidentDetailResponse
         {
-            Id = incident.Id,
+            Id = incident.Id, Revision = incident.Revision,
             MissionId = incident.MissionId,
             MissionName = incident.Mission.Name,
             UavId = incident.Mission.UAVId,
@@ -221,7 +221,7 @@ public class IncidentService : IIncidentService
             .OrderBy(i => i.CreatedAt)
             .Select(i => new IncidentItemResponse
             {
-                Id = i.Id,
+                Id = i.Id, Revision = i.Revision,
                 MissionId = i.MissionId,
                 MissionName = i.Mission.Name,
                 UavId = i.Mission.UAVId,
@@ -241,14 +241,19 @@ public class IncidentService : IIncidentService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IncidentDetailResponse> AcknowledgeAsync(
-        Guid incidentId,
-        Guid currentUserId,
-        bool isManager,
-        string? notes,
-        CancellationToken cancellationToken = default)
+    public Task<IncidentDetailResponse> AcknowledgeAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string? notes,
+        CancellationToken cancellationToken = default, string? expectedStatus = null, int? expectedRevision = null) =>
+        DroneOps.Persistence.RealtimeWrite.RunAsync(_context,
+            () => AcknowledgeCoreAsync(incidentId, currentUserId, isManager, notes, cancellationToken, expectedStatus, expectedRevision), cancellationToken);
+
+    private async Task<IncidentDetailResponse> AcknowledgeCoreAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string? notes,
+        CancellationToken cancellationToken, string? expectedStatus, int? expectedRevision)
     {
         var incident = await GetForMutationAsync(incidentId, currentUserId, isManager, cancellationToken);
+        if (expectedRevision.HasValue && incident.Revision != expectedRevision || expectedStatus != null && !string.Equals(incident.Status, expectedStatus, StringComparison.Ordinal))
+            throw new InvalidOperationException("Incident changed. Reload its latest state before acting.");
         if (incident.Status == "Resolved")
         {
             throw new InvalidOperationException("A resolved incident cannot be acknowledged.");
@@ -269,12 +274,15 @@ public class IncidentService : IIncidentService
         return await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);
     }
 
-    public async Task<IncidentDetailResponse> ResolveAsync(
-        Guid incidentId,
-        Guid currentUserId,
-        bool isManager,
-        string resolutionNotes,
-        CancellationToken cancellationToken = default)
+    public Task<IncidentDetailResponse> ResolveAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string resolutionNotes,
+        CancellationToken cancellationToken = default, string? expectedStatus = null, int? expectedRevision = null) =>
+        DroneOps.Persistence.RealtimeWrite.RunAsync(_context,
+            () => ResolveCoreAsync(incidentId, currentUserId, isManager, resolutionNotes, cancellationToken, expectedStatus, expectedRevision), cancellationToken);
+
+    private async Task<IncidentDetailResponse> ResolveCoreAsync(
+        Guid incidentId, Guid currentUserId, bool isManager, string resolutionNotes,
+        CancellationToken cancellationToken, string? expectedStatus, int? expectedRevision)
     {
         if (!isManager)
         {
@@ -287,6 +295,8 @@ public class IncidentService : IIncidentService
         }
 
         var incident = await GetForMutationAsync(incidentId, currentUserId, isManager, cancellationToken);
+        if (expectedRevision.HasValue && incident.Revision != expectedRevision || expectedStatus != null && !string.Equals(incident.Status, expectedStatus, StringComparison.Ordinal))
+            throw new InvalidOperationException("Incident changed. Reload its latest state before acting.");
         if (incident.Status == "Resolved")
         {
             return await GetRequiredDetailAsync(incidentId, currentUserId, isManager, cancellationToken);

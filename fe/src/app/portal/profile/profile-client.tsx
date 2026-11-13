@@ -15,8 +15,9 @@ import { useRouter } from "next/navigation";
 import { getPilotProfile, getProfile, updateProfile } from "@/lib/portal/client";
 import type { PilotProfile, UserProfile } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../module-state";
+import { avatarFileError } from "@/lib/avatar-file";
 
-export default function ProfileClient({ account }: { account: Account }) {
+export default function ProfileClient({ account, initialLicenseRequestId }: { account: Account; initialLicenseRequestId?: string }) {
   const router = useRouter();
   const [pilot, setPilot] = useState<PilotProfile | null>(null);
   const [pilotError, setPilotError] = useState("");
@@ -29,12 +30,18 @@ export default function ProfileClient({ account }: { account: Account }) {
   const [avatarPreview, setAvatarPreview] = useState("");
   const [avatarMessage, setAvatarMessage] = useState("");
   useEffect(() => () => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); }, [avatarPreview]);
+  function clearAvatarSelection() {
+    setAvatarFile(null);
+    setAvatarPreview("");
+    if (avatarInput.current) avatarInput.current.value = "";
+  }
   function chooseAvatar(file: File | undefined) {
     setAvatarError(""); setAvatarMessage("");
     if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) {
-      setAvatarError("Choose a JPEG, PNG or WebP image up to 5 MB.");
-      if (avatarInput.current) avatarInput.current.value = "";
+    const validationError = avatarFileError(file);
+    if (validationError) {
+      clearAvatarSelection();
+      setAvatarError(validationError);
       return;
     }
     setAvatarFile(file); setAvatarPreview(URL.createObjectURL(file));
@@ -45,12 +52,17 @@ export default function ProfileClient({ account }: { account: Account }) {
     if (!avatarFile || uploading) return;
     setUploading(true); setAvatarError(""); setAvatarMessage("");
     try {
-      if (!["image/jpeg", "image/png", "image/webp"].includes(avatarFile.type) || avatarFile.size > 5 * 1024 * 1024) throw new Error("Choose a JPEG, PNG or WebP image up to 5 MB.");
+      const validationError = avatarFileError(avatarFile);
+      if (validationError) throw new Error(validationError);
       const body = new FormData(); body.set("file", avatarFile);
       const result = await api<{ avatarUrl: string }>("/users/avatar", { method: "POST", body });
       setProfile(current => current ? { ...current, avatarUrl: result.avatarUrl } : current);
-      setAvatarFile(null); setAvatarPreview(""); if (avatarInput.current) avatarInput.current.value = ""; setAvatarMessage("Avatar updated successfully."); router.refresh();
-    } catch (e) { setAvatarError(e instanceof Error ? e.message : "Avatar upload failed."); }
+      clearAvatarSelection(); setAvatarMessage("Avatar updated successfully."); router.refresh();
+    } catch (e) {
+      clearAvatarSelection();
+      const detail = e instanceof Error ? e.message : "Avatar upload failed.";
+      setAvatarError(`${detail} Your current avatar was kept.`);
+    }
     finally { setUploading(false); }
   }
   const [message, setMessage] = useState("");
@@ -93,12 +105,12 @@ export default function ProfileClient({ account }: { account: Account }) {
     <section className="profile-layout"><aside className={styles.card}>
       <UserAvatar src={avatarPreview || profile.avatarUrl} name={profile.fullName} size={96} className={styles.avatar} />
       <div className={styles.controls}>
-        <input ref={avatarInput} className={styles.hiddenInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose avatar image" disabled={uploading} onChange={e => chooseAvatar(e.target.files?.[0])} />
+        <input ref={avatarInput} className={styles.hiddenInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose avatar image" aria-describedby="avatar-file-help avatar-file-error" aria-invalid={Boolean(avatarError)} disabled={uploading} onChange={e => chooseAvatar(e.target.files?.[0])} />
         <button type="button" className={styles.choose} disabled={uploading} onClick={() => avatarInput.current?.click()}>Choose image</button>
-        <p className={styles.hint}>JPEG, PNG or WebP · up to 5 MB</p>
+        <p className={styles.hint} id="avatar-file-help">JPEG, PNG or WebP · up to 5 MB</p>
         {avatarFile && <p className={styles.filename}>{avatarFile.name}</p>}
+        {avatarError && <p className={styles.error} id="avatar-file-error" role="alert">{avatarError}</p>}
         <button type="button" className="module-primary" disabled={!avatarFile || uploading} onClick={() => void uploadAvatar()}>{uploading ? "Uploading…" : "Save avatar"}</button>
-        {avatarError && <p className={styles.error} role="alert">{avatarError}</p>}
         {avatarMessage && <p className={styles.success} role="status">{avatarMessage}</p>}
       </div>
       <div className={styles.identity}><h2>{profile.fullName}</h2><p>{profile.email}</p><b className={styles.role}>{profile.role.replaceAll("_", " ")}</b><small className={styles.member}>Member since {formatVietnamDate(profile.createdAt)}</small></div>
@@ -112,6 +124,6 @@ export default function ProfileClient({ account }: { account: Account }) {
 
     <EmailChange onChanged={async () => { window.location.replace("/login?emailChanged=1"); }} />
     {account.role === "uav_operator" && pilot && <OperatorEdit key={`${pilot.phoneNumber}-${pilot.dateOfBirth}-${pilot.experienceYears}`} pilot={pilot} onUpdated={async () => setPilot(await getPilotProfile())} />}
-    {account.role === "uav_operator" && <LicenseChanges onRefresh={retryPilot} />}
+    {account.role === "uav_operator" && <LicenseChanges onRefresh={retryPilot} initialRequestId={initialLicenseRequestId} />}
   </>;
 }

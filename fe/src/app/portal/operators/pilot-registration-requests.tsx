@@ -17,6 +17,7 @@ import {
   type PilotRegistrationStatus,
   type PilotRegistrationSummary,
 } from "@/lib/pilot-registration";
+import ReviewConfirmationDialog, { type ReviewAction } from "../review-confirmation-dialog";
 
 const dateValue = (value: string | null | undefined) => value
   ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "short", year: "numeric" }).format(apiInstant(value))
@@ -24,7 +25,7 @@ const dateValue = (value: string | null | undefined) => value
 
 const statusClass = (status: PilotRegistrationStatus) => `request-status ${status.toLowerCase()}`;
 
-export default function PilotRegistrationRequests() {
+export default function PilotRegistrationRequests({ initialRegistrationId }: { initialRegistrationId?: string }) {
   const [items, setItems] = useState<PilotRegistrationSummary[]>([]);
   const [selected, setSelected] = useState<PilotRegistrationDetail | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export default function PilotRegistrationRequests() {
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [rejectReason, setRejectReason] = useState("");
+  const [pendingAction, setPendingAction] = useState<ReviewAction | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -54,6 +56,7 @@ export default function PilotRegistrationRequests() {
       const detail = await getPilotRegistration(id);
       setSelected(detail);
       setRejectReason("");
+      setPendingAction(null);
     } catch (value) {
       setSelected(null);
       setError(describeError(value));
@@ -69,7 +72,7 @@ export default function PilotRegistrationRequests() {
       const result = await getPilotRegistrations({ status, search: appliedSearch });
       setItems(result.items);
       setTotalItems(result.totalItems);
-      const nextId = result.items[0]?.id ?? null;
+      const nextId = initialRegistrationId ?? result.items[0]?.id ?? null;
       if (nextId) await loadDetail(nextId);
       else { setSelectedId(null); setSelected(null); }
     } catch (value) {
@@ -80,7 +83,7 @@ export default function PilotRegistrationRequests() {
     } finally {
       setLoading(false);
     }
-  }, [appliedSearch, describeError, loadDetail, status]);
+  }, [appliedSearch, describeError, initialRegistrationId, loadDetail, status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadList(), 0);
@@ -92,8 +95,9 @@ export default function PilotRegistrationRequests() {
     setAppliedSearch(search.trim());
   }
 
-  async function review(action: "approve" | "reject") {
-    if (!selected || busy) return;
+  async function review() {
+    if (!selected || !pendingAction || busy) return;
+    const action = pendingAction;
     if (action === "reject" && !rejectReason.trim()) {
       setError("Enter a rejection reason before rejecting this request.");
       return;
@@ -105,15 +109,24 @@ export default function PilotRegistrationRequests() {
         : await rejectPilotRegistration(selected.id, rejectReason);
       setMessage(result.message);
       setSelected(null); setSelectedId(null); setRejectReason("");
+      setPendingAction(null);
       await loadList();
     } catch (value) {
-      setError(describeError(value));
+      const staleDecision = value instanceof ApiError && (value.status === 409
+        || value.status === 400 && /already|currently in|cannot be/i.test(value.message));
+      if (staleDecision) {
+        setPendingAction(null);
+        await loadList();
+        setError("This request changed or was already reviewed. The latest data has been loaded.");
+      } else {
+        setError(describeError(value));
+      }
     } finally {
       setBusy(false);
     }
   }
 
-  return <section className="registration-requests" aria-label="Pilot registration requests">
+  return <section id="registration-requests" className="registration-requests" aria-label="Pilot registration requests">
     <div className="request-list-panel">
       <header className="request-panel-heading">
         <div><span className="auth-kicker">PILOT INTAKE QUEUE</span><h2>Registration Requests</h2><p>Review identity, license, and operating details submitted by new Pilots.</p></div>
@@ -158,12 +171,10 @@ export default function PilotRegistrationRequests() {
         <div className="request-license-evidence"><span>Flight license documents</span>{selected.licenseImageUrls?.length ? <div className="request-license-files">{selected.licenseImageUrls.map((url, index) => <article key={url}><a href={url} target="_blank" rel="noreferrer">{licenseDocumentLabel(url) ? <b>Open license {licenseDocumentLabel(url)} {index + 1}</b> : <Image unoptimized width={800} height={800} style={{ width: "100%", height: "auto" }} src={url} alt={`Flight license page ${index + 1} submitted by ${selected.fullName}`} />}</a><small>License document {index + 1}</small></article>)}</div> : <div><b>Documents unavailable</b><p>No documents were uploaded with this application.</p></div>}<button type="button" onClick={() => void loadDetail(selected.id)}>Refresh document links</button></div>
         <div className="request-description"><span>Flight experience</span><p>{selected.description || "No additional description was submitted."}</p></div>
         {selected.rejectReason && <div className="request-rejection"><span>Rejection reason</span><p>{selected.rejectReason}</p></div>}
-        {selected.status === "Pending" && <div className="request-review-controls">
-          <label>Rejection reason<textarea value={rejectReason} onChange={event => setRejectReason(event.target.value)} maxLength={500} rows={3} placeholder="Required only when rejecting this request" /></label>
-          <div><button type="button" className="request-reject" disabled={busy} onClick={() => void review("reject")}>{busy ? "Working..." : "Reject Request"}</button><button type="button" className="request-approve" disabled={busy} onClick={() => void review("approve")}>{busy ? "Working..." : "Approve Pilot"}</button></div>
-        </div>}
+        {selected.status === "Pending" && <div className="request-review-controls"><p>Confirm the decision before it is sent. A reason is required when rejecting.</p><div><button type="button" className="request-reject" disabled={busy} onClick={() => setPendingAction("reject")}>Review rejection</button><button type="button" className="request-approve" disabled={busy} onClick={() => setPendingAction("approve")}>Review approval</button></div></div>}
         {selected.status !== "Pending" && <footer>Reviewed {dateValue(selected.reviewedAt)}</footer>}
       </>}
     </aside>
+    <ReviewConfirmationDialog action={pendingAction} requestKind="pilot registration" pilotName={selected?.fullName ?? "Selected pilot"} proposedLicense={selected?.pilotLicenseNo} reason={rejectReason} busy={busy} onReasonChange={setRejectReason} onCancel={() => { if (!busy) setPendingAction(null); }} onConfirm={() => void review()} />
   </section>;
 }

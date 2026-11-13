@@ -31,9 +31,7 @@ public static class MissionBatteryRiskCalculator
                 MidpointRounding.AwayFromZero);
         }
 
-        var orderedWaypoints = mission.Waypoints
-            .OrderBy(x => x.SequenceOrder)
-            .ToList();
+        var orderedWaypoints = DroneOps.Application.Services.Missions.MissionRouteGeometry.PlanningWaypoints(mission);
 
         if (orderedWaypoints.Count < 2)
         {

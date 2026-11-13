@@ -93,17 +93,20 @@ test("manager approval uses the pending UAV approval endpoint", async () => {
   finally { mock.mock.restore(); }
 });
 
-test("manager image rejection uses the dedicated endpoint and preserves its reason", async () => {
-  const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
-    assert.equal(url, `/api/admin/uavs/${id}/image/reject`);
-    assert.equal(options.method, "POST");
-    assert.deepEqual(JSON.parse(options.body), { reason: "Not the registered aircraft" });
-    return Response.json({ id, status: "Active", imageUrl: null, imageModerationStatus: "Rejected" });
+test("manager manual-review queue sends the moderation filter and preserves AI evidence", async () => {
+  const mock = test.mock.method(globalThis, "fetch", async url => {
+    assert.equal(url, "/api/admin/uavs?PageNumber=1&PageSize=20&imageModerationStatus=ManualReview");
+    return Response.json({
+      items: [{ id, code: "UAV-02", name: "Survey", status: "Pending", imageUrl: "/uav.png", imageModerationStatus: "ManualReview", imageModerationReason: "AI retries exhausted." }],
+      pageNumber: 1, pageSize: 20, totalItems: 12, totalPages: 1,
+    });
   });
   try {
-    const result = await client.rejectManagedUavImage(id, "Not the registered aircraft");
-    assert.equal(result.status, "Active");
-    assert.equal(result.imageModerationStatus, "Rejected");
+    const result = await client.getManagedUavs({ imageModerationStatus: "ManualReview" });
+    assert.equal(result.totalItems, 12);
+    assert.equal(result.items[0].imageModerationStatus, "ManualReview");
+    assert.equal(result.items[0].imageModerationReason, "AI retries exhausted.");
+    assert.equal(result.items[0].imageUrl, "/uav.png");
   } finally { mock.mock.restore(); }
 });
 
@@ -111,6 +114,6 @@ test("proxy permits exact UAV IDs and admin actions, rejecting invented routes",
   const source = await readFile(new URL("../src/app/api/[...path]/route.ts", import.meta.url), "utf8");
   const declaration = source.split("\n").find(line => line.startsWith("const allowed = "));
   const allowed = Function(`${declaration} return allowed;`)();
-  for (const path of ["uavs", "uavs/myUAV", `uavs/${id}`, `uavs/${id}/image`, "admin/uavs", `admin/uavs/${id}/approve`, `admin/uavs/${id}/deactivate`, `admin/uavs/${id}/image/reject`]) assert.equal(allowed.test(path), true, path);
+  for (const path of ["uavs", "uavs/myUAV", `uavs/${id}`, `uavs/${id}/image`, "admin/uavs", `admin/uavs/${id}/approve`, `admin/uavs/${id}/deactivate`]) assert.equal(allowed.test(path), true, path);
   for (const path of ["uavs/not-an-id", `admin/uavs/${id}/delete`, `uavs/${id}/deactivate`, `uavs/${id}/images`]) assert.equal(allowed.test(path), false, path);
 });

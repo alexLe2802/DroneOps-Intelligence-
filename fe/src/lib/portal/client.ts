@@ -16,6 +16,7 @@ function normalizeMission(mission: MissionApiRecord, uavCode: string | null): Mi
       : Number(mission.maxSpeedMetersPerSecond),
     detailAvailable: true,
     waypoints: Array.isArray(mission.waypoints) ? mission.waypoints.map((point, index) => ({
+      ...point,
       sequenceOrder: point.sequenceOrder ?? index + 1,
       latitude: Number(point.latitude),
       longitude: Number(point.longitude),
@@ -32,11 +33,11 @@ export async function getPilotMissions(): Promise<MissionDetail[]> {
 
 export async function getManagerMissions(): Promise<ManagerMission[]> {
   const [missions, fleet] = await Promise.all([
-    api<Array<MissionApiRecord & { createdBy: string }>>("/missions"),
+    api<PagedResponse<MissionApiRecord & { createdBy: string }>>("/missions?pageSize=100"),
     getManagedUavs({ pageNumber: 1, pageSize: 100 }).catch(() => null),
   ]);
   const aircraft = new Map((fleet?.items ?? []).map(item => [item.id, item]));
-  return missions.map(record => {
+  return (Array.isArray(missions) ? missions as Array<MissionApiRecord & { createdBy: string }> : missions.items).map(record => {
     const assigned = record.uavId ? aircraft.get(record.uavId) : undefined;
     return {
       ...normalizeMission(record, assigned?.code ?? null),
@@ -58,24 +59,28 @@ export async function getValidationMissionOptions(role: AccountRole): Promise<Va
 }
 
 export async function createMission(request: CreateMissionRequest): Promise<MissionDetail> {
-  const result = await api<Omit<MissionDetail, "uavCode">>("/missions", { method: "POST", body: JSON.stringify(request) });
-  return { ...result, uavCode: null };
+  const result = await api<MissionApiRecord>("/missions", { method: "POST", body: JSON.stringify(request) });
+  return normalizeMission(result, result.uavCode ?? null);
 }
 
-export function confirmHighRiskMission(id: string): Promise<{ missionId: string; status: string; message: string }> {
-  return api<{ missionId: string; status: string; message: string }>(`/missions/${encodeURIComponent(id)}/confirm-high-risk`, { method: "POST" });
+export function submitMission(id: string, operationId: string): Promise<MissionDetail> {
+  return api<MissionDetail>(`/missions/${encodeURIComponent(id)}/submit`, { method: "PUT", body: JSON.stringify({ operationId }) });
 }
 
-export function cancelHighRiskMission(id: string): Promise<{ missionId: string; message: string }> {
-  return api<{ missionId: string; message: string }>(`/missions/${encodeURIComponent(id)}/cancel-high-risk`, { method: "DELETE" });
+export function confirmHighRiskMission(id: string, updateRequestId: string, validationRunId: string): Promise<{ missionId: string; status: string; message: string }> {
+  return api(`/missions/${encodeURIComponent(id)}/confirm-high-risk`, { method: "POST", body: JSON.stringify({ updateRequestId, validationRunId }) });
+}
+
+export function cancelHighRiskMission(id: string, updateRequestId: string): Promise<{ missionId: string; message: string }> {
+  return api(`/missions/${encodeURIComponent(id)}/cancel-high-risk?updateRequestId=${encodeURIComponent(updateRequestId)}`, { method: "DELETE" });
 }
 
 export async function updateMission(id: string, request: CreateMissionRequest): Promise<MissionDetail> {
-  const result = await api<Omit<MissionDetail, "uavCode">>(`/missions/${encodeURIComponent(id)}`, {
+  const result = await api<MissionApiRecord>(`/missions/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: JSON.stringify(request),
   });
-  return { ...result, uavCode: null, detailAvailable: true };
+  return normalizeMission(result, result.uavCode ?? null);
 }
 
 export function validateMission(mission: Pick<MissionDetail, "id">, updateRequestId?: string): Promise<MissionValidationResult> {
@@ -142,21 +147,26 @@ export function getIncidents(filters: IncidentFilters = {}): Promise<PagedIncide
   return api<PagedIncidents>(`/incidents?${params}`);
 }
 
+export type IncidentTransition = { id: string; fromStatus: string; toStatus: string; eventType: string; notes: string | null; changedByName: string | null; createdAt: string };
+export function getIncidentHistory(id: string): Promise<IncidentTransition[]> {
+  return api<IncidentTransition[]>(`/incidents/${encodeURIComponent(id)}/history`);
+}
+
 export function getIncident(id: string): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}`);
 }
 
-export function acknowledgeIncident(id: string, notes?: string | null): Promise<IncidentDetail> {
+export function acknowledgeIncident(id: string, expectedStatus: string, expectedRevision: number, notes?: string | null): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}/acknowledge`, {
     method: "POST",
-    body: JSON.stringify({ notes: notes?.trim() || null }),
+    body: JSON.stringify({ notes: notes?.trim() || null, expectedStatus, expectedRevision }),
   });
 }
 
-export function resolveIncident(id: string, resolutionNotes: string): Promise<IncidentDetail> {
+export function resolveIncident(id: string, resolutionNotes: string, expectedStatus: string, expectedRevision: number): Promise<IncidentDetail> {
   return api<IncidentDetail>(`/incidents/${encodeURIComponent(id)}/resolve`, {
     method: "POST",
-    body: JSON.stringify({ resolutionNotes: resolutionNotes.trim() }),
+    body: JSON.stringify({ resolutionNotes: resolutionNotes.trim(), expectedStatus, expectedRevision }),
   });
 }
 
@@ -236,6 +246,7 @@ export async function getMission(id: string): Promise<MissionDetail> {
     createdAt: result.createdAt ?? "",
     detailAvailable: true,
     waypoints: result.waypoints.map((point, index) => ({
+      ...point,
       sequenceOrder: point.sequenceOrder ?? index + 1,
       latitude: Number(point.latitude),
       longitude: Number(point.longitude),
@@ -327,10 +338,11 @@ export async function deleteAssignedUav(id: string): Promise<void> {
   await api(`/uavs/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export async function getManagedUavs(filters: { pageNumber?: number; pageSize?: number; keyword?: string; status?: string } = {}): Promise<PagedResponse<AssignedUav>> {
+export async function getManagedUavs(filters: { pageNumber?: number; pageSize?: number; keyword?: string; status?: string; imageModerationStatus?: string } = {}): Promise<PagedResponse<AssignedUav>> {
   const params = new URLSearchParams({ PageNumber: String(filters.pageNumber ?? 1), PageSize: String(filters.pageSize ?? 20) });
   if (filters.keyword?.trim()) params.set("Keyword", filters.keyword.trim());
   if (filters.status) params.set("Status", filters.status);
+  if (filters.imageModerationStatus) params.set("imageModerationStatus", filters.imageModerationStatus);
   const result = await api<PagedResponse<UavApiRecord>>(`/admin/uavs?${params}`);
   return { ...result, items: result.items.map(normalizeUav) };
 }
@@ -453,3 +465,7 @@ export function getMissionValidation(id: string, updateRequestId?: string) { ret
 export function getMissionValidationRun(id: string, runId: string) { return api<MissionValidationResult>(`/missions/${encodeURIComponent(id)}/validation/runs/${encodeURIComponent(runId)}`); }
 export function getLatestMissionValidation(id: string) { return api<MissionValidationResult | null>(`/missions/${encodeURIComponent(id)}/validation?latest=true`); }
 export function getMissionWeather(id: string, updateRequestId?: string, refresh = false) { return api<import("./types").MissionWeather>(`/missions/${encodeURIComponent(id)}/weather${refresh ? "/refresh" : ""}${updateRequestId ? `?updateRequestId=${encodeURIComponent(updateRequestId)}` : ""}`, refresh ? { method: "POST" } : {}); }
+
+export function getGeofenceRevisions(id: string): Promise<Array<{ id: string; revision: number; action: string; recordedAt: string; snapshot: unknown }>> {
+  return api(`/geofences/${encodeURIComponent(id)}/revisions`);
+}
