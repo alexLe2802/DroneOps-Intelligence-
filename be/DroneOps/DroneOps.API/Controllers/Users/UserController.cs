@@ -263,6 +263,10 @@ public sealed class UserController : ControllerBase
         {
             return Conflict(new { message = ex.Message });
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (InvalidOperationException ex)
             when (ex.Message.Contains(
                 "pending",
