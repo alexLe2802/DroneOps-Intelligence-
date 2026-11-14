@@ -68,8 +68,8 @@ public class AdminUavController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPut("{id:guid}/{action:regex(^(approve|reject|activate|deactivate)$)}")]
-    public async Task<IActionResult> Decide(Guid id, string action,
+    [HttpPut("{id:guid}/{operation:regex(^(approve|reject|activate|deactivate)$)}")]
+    public async Task<IActionResult> Decide(Guid id, string operation,
         [FromBody] DroneOps.Application.Services.UAVs.UavReviewDecision request,
         [FromServices] DroneOps.Application.Services.UAVs.UavReviewWorkflow reviews,
         CancellationToken cancellationToken)
@@ -78,7 +78,7 @@ public class AdminUavController : ControllerBase
         if (!Guid.TryParse(actorValue, out var actor)) return Unauthorized();
         try
         {
-            await reviews.DecideAsync(id, actor, action, request, cancellationToken);
+            await reviews.DecideAsync(id, actor, operation, request, cancellationToken);
             return Ok(await _uavService.GetDetailAsync(id, cancellationToken));
         }
         catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
