@@ -435,6 +435,7 @@ export type AiAssessment = {
 export type PortalRole = AccountRole;
 
 export type PilotProfile = {
+  profileVersion: number;
   userId: string; fullName: string; email: string; createdAt: string;
   pilotId: string; phoneNumber: string | null; dateOfBirth: string | null;
   pilotLicenseNo: string; licenseIssuedDate: string | null;

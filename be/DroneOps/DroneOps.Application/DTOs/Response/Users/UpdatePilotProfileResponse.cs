@@ -2,6 +2,7 @@
 
 public sealed class UpdatePilotProfileResponse
 {
+    public long ProfileVersion { get; set; }
     public Guid UserId { get; set; }
 
     public Guid PilotId { get; set; }

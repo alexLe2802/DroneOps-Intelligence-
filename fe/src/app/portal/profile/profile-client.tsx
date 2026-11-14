@@ -49,14 +49,16 @@ export default function ProfileClient({ account, initialLicenseRequestId }: { ac
   const [avatarError, setAvatarError] = useState("");
   const [uploading, setUploading] = useState(false);
   async function uploadAvatar() {
-    if (!avatarFile || uploading) return;
+    if (!avatarFile || uploading || !profile) return;
     setUploading(true); setAvatarError(""); setAvatarMessage("");
     try {
       const validationError = avatarFileError(avatarFile);
       if (validationError) throw new Error(validationError);
       const body = new FormData(); body.set("file", avatarFile);
+      body.set("expectedVersion", String(profile.profileVersion));
       const result = await api<{ avatarUrl: string }>("/users/avatar", { method: "POST", body });
-      setProfile(current => current ? { ...current, avatarUrl: result.avatarUrl } : current);
+      setProfile({ ...(await getProfile()), avatarUrl: result.avatarUrl });
+      if (account.role === "uav_operator") setPilot(await getPilotProfile());
       clearAvatarSelection(); setAvatarMessage("Avatar updated successfully."); router.refresh();
     } catch (e) {
       clearAvatarSelection();
@@ -95,6 +97,7 @@ export default function ProfileClient({ account, initialLicenseRequestId }: { ac
     try {
       const updated = await updateProfile({ fullName: name.trim(), expectedVersion: profile.profileVersion });
       setProfile(updated); setName(updated.fullName); setMessage("Profile updated successfully."); router.refresh();
+      if (account.role === "uav_operator") setPilot(await getPilotProfile());
     } catch (reason) { setError(reason); }
     finally { setSaving(false); }
   }
@@ -123,7 +126,7 @@ export default function ProfileClient({ account, initialLicenseRequestId }: { ac
     ].map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "Not provided"}</b></div>)}</div>}</section>}
 
     <EmailChange onChanged={async () => { window.location.replace("/login?emailChanged=1"); }} />
-    {account.role === "uav_operator" && pilot && <OperatorEdit key={`${pilot.phoneNumber}-${pilot.dateOfBirth}-${pilot.experienceYears}`} pilot={pilot} onUpdated={async () => setPilot(await getPilotProfile())} />}
+    {account.role === "uav_operator" && pilot && <OperatorEdit key={`${pilot.profileVersion}-${pilot.phoneNumber}-${pilot.dateOfBirth}-${pilot.experienceYears}`} pilot={pilot} onUpdated={async () => { const [updatedProfile, updatedPilot] = await Promise.all([getProfile(), getPilotProfile()]); setProfile(updatedProfile); setName(updatedProfile.fullName); setPilot(updatedPilot); }} />}
     {account.role === "uav_operator" && <LicenseChanges onRefresh={retryPilot} initialRequestId={initialLicenseRequestId} />}
   </>;
 }
