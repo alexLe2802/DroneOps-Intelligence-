@@ -73,6 +73,7 @@ if (args.Length == 1 && args[0] == "--mission-compiler")
 if (args.Length == 1 && args[0] == "--battery-assessment")
 {
     BatteryAssessmentChecks.Run();
+    await AiAssessmentChecks.RunAsync();
     return;
 }
 

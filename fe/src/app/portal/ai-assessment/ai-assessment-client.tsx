@@ -14,6 +14,7 @@ import {
 import type { AiAssessment, MissionDetail } from "@/lib/portal/types";
 import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
+import LiveBattery from "./live-battery";
 
 const metric = (value: number | null | undefined, unit: string) =>
   value == null ? "Unavailable" : `${value.toFixed(1)} ${unit}`;
@@ -145,7 +146,7 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
       <div>
         <p className="module-kicker">MISSION / AI DECISION SUPPORT</p>
         <h1>AI Risk Assessment</h1>
-        <p>Compare a mission with recorded flight evidence, then review generated risks and precautions. AI cannot approve a mission.</p>
+        <p>Review route risks, estimated battery demand and connected UAV charge. Each finding explains the evidence and what to do next.</p>
       </div>
       <button className="module-primary" disabled={busy || !selectedMission || context?.id !== missionId} onClick={() => void generate()}>
         {busy ? "ASSESSING…" : items?.length ? "GENERATE NEW ASSESSMENT" : "GENERATE ASSESSMENT"}
@@ -164,7 +165,7 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
             <div><h2>{selectedMission.name}</h2><p>Status: {selectedMission.status} · Planned waypoints: {context?.waypoints.length ?? "Loading…"}</p></div>
             <span>CURRENT MISSION CONTEXT</span>
           </div>
-          <small>This assessment uses the current mission record. Pending-proposal selection and automatic Outdated detection require a versioned assessment contract from the backend.</small>
+          <small>Assessments use the current saved mission. Pending proposals are separate; an assessment does not approve a mission.</small>
         </>}
       </section>}
 
@@ -175,6 +176,8 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
 
     {selectedMission && !items && !error && <ModuleLoading label="Loading assessment history" />}
     {selectedMission && items?.length === 0 && <ModuleEmpty title="No assessment yet" message="Generate an assessment to compare this mission with recorded evidence." />}
+
+    {context?.id === missionId && <LiveBattery key={missionId} missionId={missionId} uavId={context.uavId} assessment={activeAssessment} />}
 
     {items && items.length > 0 && <div className="ai-workspace">
       <aside className="ai-history" aria-label="Assessment history">
@@ -189,11 +192,31 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
         </div>
       </aside>
 
-      {activeAssessment && <main className="ai-assessment-detail">
+      {activeAssessment && <div className="ai-assessment-detail">
         <section className="ai-run-summary">
           <div className="ai-run-summary-copy"><p className="module-kicker">SELECTED ASSESSMENT</p><h2>Assessment evidence</h2><div className="ai-run-meta"><span><small>PROVIDER</small>{readableIdentifier(activeAssessment.provider)}</span><span><small>METHOD</small>{readableIdentifier(activeAssessment.model)}</span><span><small>MISSION VERSION</small>{activeAssessment.missionVersion}</span></div></div>
           <span className={`ai-run-status ${statusClass(activeAssessment.status)}`}>{activeAssessment.status}</span>
         </section>
+
+        {activeAssessment.isOutdated && <section className="ai-unavailable"><b>ASSESSMENT OUTDATED</b><p>{activeAssessment.outdatedReason ?? "The mission plan has changed."} Generate a new assessment before using its findings.</p></section>}
+
+        {result && <section className="ai-result">
+          <header><div><p className="module-kicker">WHAT NEEDS ATTENTION</p><h2>Risks and next actions</h2></div><span>NO APPROVAL AUTHORITY</span></header>
+          <dl className="ai-risk-overview">
+            <div><dt>CURRENT-PLAN FINDINGS</dt><dd>{result.risks.filter(risk => risk.category !== "Historical" && !risk.title.startsWith("Historical")).length}</dd></div>
+            <div><dt>EVIDENCE GAPS</dt><dd>{result.missingData.length}</dd></div>
+            <div><dt>SIMILAR FLIGHTS REVIEWED</dt><dd>{historicalFlights.length}</dd></div>
+          </dl>
+          <p className="ai-summary">{result.summary}</p>
+          {result.risks.length > 0 ? <div className="ai-risk-list">{[...result.risks].sort((a, b) => Number(a.category === "Historical" || a.title.startsWith("Historical")) - Number(b.category === "Historical" || b.title.startsWith("Historical"))).map((risk, index) => <article key={`${risk.title}-${index}`}>
+            <span className={`ai-severity ${risk.severity.toLowerCase()}`}>{risk.severity} · {risk.category === "Historical" || risk.title.startsWith("Historical") ? "Historical evidence" : "Current plan"}</span>
+            <h3>{risk.title}</h3><p><b>Why it matters:</b> {risk.evidence}</p><p><b>What to do:</b> {risk.precaution}</p>
+            {risk.sourceIncidentIds?.map((id, i) => <Link className="ai-flight-link" key={id} href={`/portal/incidents/${encodeURIComponent(id)}`}>Inspect incident {i + 1} →</Link>)}
+          </article>)}</div> : <div className="ai-no-evidence"><b>No generated risk item</b><p>This is not a zero-risk conclusion. Review the missing evidence and mandatory validation.</p></div>}
+          <div className="ai-result-notes"><div><h3>Recommended precautions</h3>{result.precautions.length ? <ul>{result.precautions.map(value => <li key={value}>{value}</li>)}</ul> : <p>None generated; manual review still applies.</p>}</div><div><h3>Missing evidence to resolve</h3>{result.missingData.length ? <ul>{result.missingData.map(value => <li key={value}>{value}</li>)}</ul> : <p>None reported in this snapshot.</p>}</div></div>
+          <p><Link className="module-secondary" href={`/portal/missions/${encodeURIComponent(missionId)}`}>Review mission and validation</Link></p>
+          <footer>{result.disclaimer}</footer>
+        </section>}
 
         {result?.automaticFlightLimits && <section className="ai-context">
           <h2>Automatic operating envelope</h2>
@@ -202,16 +225,23 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
         </section>}
 
         {battery && <section className="ai-context" aria-label="Battery assessment">
-          <header><h2>Battery requirement · {battery.status === "EstimateOnly" ? "Estimate only" : "More data required"}</h2></header>
-          <dl><div><dt>FC BATTERY REMAINING</dt><dd>{metric(battery.currentBatteryPercent, "%")}</dd></div><div><dt>FC CONSUMED CHARGE</dt><dd>{metric(battery.consumedMah, "mAh")}</dd></div><div><dt>CONFIGURED PACK CAPACITY</dt><dd>{metric(battery.configuredCapacityMah, "mAh")}</dd></div><div><dt>ESTIMATED MISSION REQUIREMENT</dt><dd>{metric(battery.requiredBatteryPercent, "%")}</dd></div></dl>
+          <header><h2>Planning estimate · {battery.requiredBatteryPercent != null ? `${battery.requiredBatteryPercent.toFixed(1)}% needed at departure` : "Inputs needed"}</h2></header>
+          <p>Captured {formatVietnamDateTime(activeAssessment.completedAt ?? activeAssessment.createdAt)}. The live battery panel above updates separately.</p>
+          <dl><div><dt>ROUTE DISTANCE</dt><dd>{metric(battery.routeDistanceMeters, "m")}</dd></div><div><dt>ESTIMATED FLIGHT TIME</dt><dd>{metric(battery.estimatedFlightMinutes, "min")}</dd></div><div><dt>REQUIRED CHARGE ESTIMATE</dt><dd>{metric(battery.estimatedRequiredChargeMah, "mAh")}</dd></div><div><dt>RESERVE INCLUDED</dt><dd>{metric(battery.safetyReservePercent, "%")}</dd></div></dl>
+          <p>Calculation: route demand {metric(battery.baseBatteryPercent, "%")} + weather adjustment {metric(battery.weatherAdjustmentPercent, "percentage points")} + reserve {metric(battery.safetyReservePercent, "percentage points")}.</p>
+          {battery.reasons && <ul>{battery.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}
           <p>Capacity source: {battery.capacitySource}. Telemetry snapshot: {battery.telemetrySourceTimestamp ? formatVietnamDateTime(battery.telemetrySourceTimestamp) : "Unavailable"}.</p>
-          <p>{battery.meetsEstimatedRequirement == null ? "Battery sufficiency cannot be determined from the available evidence." : battery.meetsEstimatedRequirement ? "Reported battery meets this estimate; preflight checks still apply." : "Reported battery is below the estimated mission requirement."}</p>
+          <p>At capture: FC charge {metric(battery.currentBatteryPercent, "%")}. {battery.meetsEstimatedRequirement == null ? "Battery sufficiency was not established." : battery.meetsEstimatedRequirement ? "Reported battery met the estimate at capture; preflight checks still apply." : "Reported battery was below the estimate at capture."}</p>
+          {battery.missingData.length > 0 && <div><h3>To complete the battery assessment</h3><ul>{battery.missingData.map(value => <li key={value}>{value}</li>)}</ul></div>}
           {battery.warnings.length > 0 && <ul>{battery.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
         </section>}
 
         {result && <>
+          <details className="ai-history-evidence">
+          <summary>Historical supporting evidence · {historicalFlights.length} similar completed flights</summary>
           <section className="ai-evidence">
             <header><div><p className="module-kicker">RECORDED HISTORICAL EVIDENCE</p><h2>Similar flights</h2></div><div className="ai-retrieval"><span>{result.retrieval?.method ?? "Retrieval method unavailable"}</span><small>{result.retrieval?.featureSchema ?? "Feature schema unavailable"} · {historicalFlights.length}/{result.retrieval?.maximumResults ?? 5} sources</small></div></header>
+            <p>Similarity compares recorded route, duration, altitude and UAV features. A match of 80% does not mean 80% safe or a 20% chance of failure. Historical incidents require review for relevance.</p>
             {historicalFlights.length === 0 ? <div className="ai-no-evidence"><b>No historical evidence</b><p>No authorized matching flight was returned for this assessment. This does not mean zero risk; continue manual review using mission, weather, airspace and UAV evidence.</p></div> :
               <div className="ai-source-list">{historicalFlights.map(flight => <article className="ai-source-card" key={flight.missionId}>
                 <header><div><span className="ai-severity low">{(flight.similarityScore * 100).toFixed(1)}% MATCH</span><h3>{flight.missionName}</h3></div><span className="ai-source-type">FLIGHT RECORD</span></header>
@@ -219,18 +249,11 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
                 <div className="ai-source-actions"><Link className="ai-flight-link" href={`/portal/flight-history/${encodeURIComponent(flight.missionId)}`}>View flight evidence <span aria-hidden="true">→</span></Link>{flight.incidentIds.length > 0 ? <div className="ai-incident-links"><span>RELATED INCIDENTS</span>{flight.incidentIds.map((incidentId, index) => <Link key={incidentId} aria-label={`Open linked incident ${index + 1}`} href={`/portal/incidents/${encodeURIComponent(incidentId)}`}>Incident {String(index + 1).padStart(2, "0")} <span aria-hidden="true">→</span></Link>)}</div> : <span className="ai-no-incidents">NO LINKED INCIDENTS</span>}</div>
               </article>)}</div>}
           </section>
-
-          <section className="ai-result">
-            <header><div><p className="module-kicker">GENERATED HUMAN-REVIEW ADVISORY</p><h2>Summary, risks and precautions</h2></div><span>NO APPROVAL AUTHORITY</span></header>
-            <p className="ai-summary">{result.summary}</p>
-            {result.risks.length > 0 ? <div className="ai-risk-list">{result.risks.map((risk, index) => <article key={`${risk.title}-${index}`}><span className={`ai-severity ${risk.severity.toLowerCase()}`}>{risk.severity}</span><h3>{risk.title}</h3><p><b>Evidence:</b> {risk.evidence}</p><p><b>Precaution:</b> {risk.precaution}</p></article>)}</div> : <div className="ai-no-evidence"><b>No generated risk item</b><p>This is not a zero-risk conclusion. Review the historical evidence and operational checks manually.</p></div>}
-            <div className="ai-result-notes"><div><h3>Recommended precautions</h3>{result.precautions.length ? <ul>{result.precautions.map(value => <li key={value}>{value}</li>)}</ul> : <p>None generated; manual review still applies.</p>}</div><div><h3>Missing data</h3>{result.missingData.length ? <ul>{result.missingData.map(value => <li key={value}>{value}</li>)}</ul> : <p>None reported.</p>}</div></div>
-            <footer>{result.disclaimer}</footer>
-          </section>
+          </details>
         </>}
 
         {!result && <section className="ai-unavailable"><div><b>RESULT NOT AVAILABLE</b><p>{activeAssessment.errorCode ?? "The selected assessment has no result payload."}</p><span>Use the mission evidence for manual review or retry the provider.</span></div></section>}
-      </main>}
+      </div>}
     </div>}
   </>;
 }
