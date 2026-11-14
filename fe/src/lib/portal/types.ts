@@ -353,6 +353,7 @@ export type OperationalAnalytics = {
   reportCoveragePercentage: number | null; fromDate: string | null; toDate: string | null;
   uavId: string | null; missionId: string | null;
   completionTrend: Array<{ date: string; totalFlights: number; completedFlights: number; failedOrAbortedFlights: number }>;
+  incidentTypeBreakdown: Record<string, number>;
   incidentSeverityBreakdown: Record<string, number>;
   excludedReportReasons: Record<string, number>;
   contract: {
@@ -420,6 +421,7 @@ export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
   status: "Pending" | "Available" | "Outdated" | "Failed" | "ProviderUnavailable";
+  contextHash: string; isOutdated: boolean; outdatedReason: string | null;
   result: { automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
     retrieval?: { method: string; featureSchema: string; maximumResults: number };
     historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; incidentIds: string[] }> } | null;

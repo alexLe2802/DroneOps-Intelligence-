@@ -178,6 +178,13 @@ class TelemetryState:
             return False
         kind = message.get_type()
         now = self.clock()
+        if kind == 'HEARTBEAT':
+            # Repeated heartbeats are expected to have identical payloads. They
+            # refresh link liveness, but deduplication below still prevents them
+            # from being recorded as new telemetry evidence.
+            if message.type == 6 or message.autopilot == 8:
+                return False
+            self.heartbeat_at = now
         raw = message.get_msgbuf() if hasattr(message, 'get_msgbuf') else repr(message).encode()
         fingerprint = hashlib.sha256(bytes(raw)).hexdigest()
         if fingerprint in self.packet_seen and now - self.packet_seen[fingerprint] < 10:
@@ -192,10 +199,6 @@ class TelemetryState:
             self.boot_ms = max(boot_ms, self.boot_ms or 0) if self.boot_ms is None or boot_ms + 1000 >= self.boot_ms else boot_ms
         fields = {}
         if kind == 'HEARTBEAT':
-            # GCS/invalid autopilot heartbeats are not evidence of a drone link.
-            if message.type == 6 or message.autopilot == 8:
-                return False
-            self.heartbeat_at = now
             fields = {'armed': bool(message.base_mode & 128), 'flightMode': mode(message)}
         elif kind == 'GLOBAL_POSITION_INT':
             lat, lon = message.lat / 1e7, message.lon / 1e7

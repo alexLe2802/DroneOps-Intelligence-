@@ -100,13 +100,11 @@ public static class DependencyInjection
                 TimeSpan.FromSeconds(15);
         });
 
-        services.AddHttpClient<
-IAIService,
-OpenAIService>(client =>
-{
-    client.BaseAddress =
-    new Uri("https://api.openai.com/v1/");
-});
+        services.AddHttpClient<IAIService, GeminiAIService>(client =>
+        {
+            client.BaseAddress =
+                new Uri("https://generativelanguage.googleapis.com/");
+        });
         return services;
     }
 }

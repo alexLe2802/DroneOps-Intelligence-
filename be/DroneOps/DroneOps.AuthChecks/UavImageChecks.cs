@@ -98,11 +98,23 @@ internal static class UavImageChecks
         await db.SaveChangesAsync();
 
         var storage = new TrackingStorage();
+        var enabledModerationConfiguration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["UavImageModeration:Enabled"] = "true" }).Build();
         INotificationService notifications = new NotificationService(
             new NotificationRepository(db), new MissionRepository(db));
         var service = new UavService(
             new UavRepository(db), new PilotRepository(db), notifications,
-            NullLogger<UavService>.Instance, storage, new AllowModeration());
+            NullLogger<UavService>.Instance, storage, new AllowModeration(),
+            enabledModerationConfiguration);
+
+        await service.UpdateAsync(ownerId, uavId,
+            new DroneOps.Application.DTOs.Request.UAVs.UpdateUavRequest
+            {
+                Code = "IMG-1",
+                Name = "Image fixture"
+            });
+        Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).Status == "Active",
+            "unchanged edit DTO before image upload preserves the UAV operational status");
 
         await using (var first = new MemoryStream(png))
             await service.UploadOrReplaceUavImageAsync(
@@ -111,6 +123,8 @@ internal static class UavImageChecks
         Check(firstPath is not null && storage.Paths.SetEquals([firstPath]), "first UAV image is stored and referenced");
         Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageModerationStatus == "Pending",
             "UAV image upload is queued for durable asynchronous moderation");
+        Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).Status == "Active",
+            "optional image upload preserves the UAV operational status");
 
         await using (var second = new MemoryStream(png))
             await service.UploadOrReplaceUavImageAsync(
@@ -130,15 +144,50 @@ internal static class UavImageChecks
 
         var unavailableService = new UavService(
             new UavRepository(db), new PilotRepository(db), notifications,
-            NullLogger<UavService>.Instance, storage, new UnavailableModeration());
+            NullLogger<UavService>.Instance, storage, new UnavailableModeration(),
+            enabledModerationConfiguration);
         await using (var deferred = new MemoryStream(png))
             await unavailableService.UploadOrReplaceUavImageAsync(
                 uavId, ownerId, "uav_operator", deferred, "deferred.png", "image/png", png.Length);
         Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageModerationStatus == "Pending",
             "provider outage never falsely rejects a valid upload");
+        Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).Status == "Active",
+            "image moderation outage does not deactivate the UAV");
+
+        var automaticUavId = Guid.NewGuid();
+        db.UAVs.Add(new UAV
+        {
+            Id = automaticUavId, PilotId = pilotId, Code = "IMG-AUTO", Name = "Automatic image fixture",
+            Status = "Active"
+        });
+        await db.SaveChangesAsync();
+        var disabledModerationConfiguration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["UavImageModeration:Enabled"] = "false" }).Build();
+        var automaticService = new UavService(
+            new UavRepository(db), new PilotRepository(db), notifications,
+            NullLogger<UavService>.Instance, storage, new UnavailableModeration(),
+            disabledModerationConfiguration);
+        await using (var automatic = new MemoryStream(png))
+            await automaticService.UploadOrReplaceUavImageAsync(
+                automaticUavId, ownerId, "uav_operator", automatic, "automatic.png", "image/png", png.Length);
+        var automaticallyApproved = await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == automaticUavId);
+        Check(automaticallyApproved.ImageModerationStatus == "Approved" &&
+                automaticallyApproved.Status == "Active" &&
+                automaticallyApproved.ImageModerationNextAttemptAt == null,
+            "disabled AI accepts the optional image immediately without changing UAV status");
+
+        await automaticService.RejectUavImageAsync(automaticUavId, "Image does not show the registered aircraft.");
+        var manuallyRejected = await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == automaticUavId);
+        Check(manuallyRejected.ImageStoragePath == null &&
+                manuallyRejected.ImageModerationStatus == "Rejected" &&
+                manuallyRejected.Status == "Active" &&
+                manuallyRejected.ImageModerationReason == "Image does not show the registered aircraft.",
+            "manager image rejection removes only the image and preserves UAV operations");
+        Check(await db.Notifications.AnyAsync(x => x.RecipientUserId == ownerId &&
+                x.Type == "UavImageRejected" && x.Message.Contains("Image does not show")),
+            "manager image rejection notifies the owner with the reason");
 
         var firstManual = await db.UAVs.SingleAsync(x => x.Id == uavId);
-        firstManual.Status = "Pending";
         firstManual.ImageModerationStatus = "ManualReview";
         await db.SaveChangesAsync();
         await notifications.RefreshUavManualReviewAsync();
@@ -151,7 +200,7 @@ internal static class UavImageChecks
         db.UAVs.Add(new UAV
         {
             Id = secondUavId, PilotId = pilotId, Code = "IMG-2", Name = "Second manual fixture",
-            Status = "Pending", ImageStoragePath = "uavs/fixture/second.png",
+            Status = "Active", ImageStoragePath = "uavs/fixture/second.png",
             ImageModerationStatus = "ManualReview"
         });
         await db.SaveChangesAsync();
@@ -166,13 +215,17 @@ internal static class UavImageChecks
         Check(manualQueue.TotalCount == 2 && manualQueue.Items.All(x => x.ImageModerationStatus == "ManualReview"),
             "manager UAV API can filter the manual-review queue server-side");
 
-        firstManual.Status = "Active";
-        (await db.UAVs.SingleAsync(x => x.Id == secondUavId)).Status = "Rejected";
+        firstManual.ImageModerationStatus = "Approved";
+        (await db.UAVs.SingleAsync(x => x.Id == secondUavId)).ImageModerationStatus = "Rejected";
         await db.SaveChangesAsync();
         await notifications.RefreshUavManualReviewAsync();
         aggregate = await db.Notifications.SingleAsync(x => x.Type == "UavManualReview");
         Check(aggregate.IsRead && aggregate.ReferenceType == "UAVManualReviewQueueClosed",
             "manual-review aggregate closes automatically after all items are resolved");
+
+        Check(await service.DeleteUavImageAsync(uavId, ownerId, "uav_operator") &&
+                (await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).Status == "Active",
+            "optional image deletion preserves the UAV operational status");
 
         return passed;
     }

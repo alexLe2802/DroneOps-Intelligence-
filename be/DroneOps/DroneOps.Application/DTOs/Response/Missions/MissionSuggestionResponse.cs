@@ -16,7 +16,7 @@ public sealed class MissionSuggestionResponse
 
     public int SuggestedWaypointCount { get; set; }
 
-    public int SuggestedFlightDuration { get; set; }
+    public double SuggestedFlightDuration { get; set; }
 
     public string RiskAssessment { get; set; } = string.Empty;
 

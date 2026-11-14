@@ -284,7 +284,11 @@ public class IncidentService : IIncidentService
         Guid incidentId, Guid currentUserId, bool isManager, string resolutionNotes,
         CancellationToken cancellationToken, string? expectedStatus, int? expectedRevision)
     {
-        if (!isManager) throw new UnauthorizedAccessException("Only an Operations Manager can resolve an incident.");
+        if (!isManager)
+        {
+            throw new UnauthorizedAccessException("Only an Operations Manager may resolve an incident.");
+        }
+
         if (string.IsNullOrWhiteSpace(resolutionNotes))
         {
             throw new ArgumentException("Resolution notes are required.");

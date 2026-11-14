@@ -132,16 +132,19 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
         };
         db.AiAssessments.Add(entity);
         await db.SaveChangesAsync(cancellationToken);
-        return Map(entity);
+        return Map(entity, planHash);
     }
 
     public async Task<List<AiAssessmentResponse>> GetByMissionAsync(string missionRef, Guid userId, bool isManager, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(missionRef, out var missionId)) throw new ArgumentException("Mission reference must be a UUID.");
-        if (!await AuthorizedMissions(userId, isManager).AnyAsync(x => x.Id == missionId, cancellationToken))
-            throw new KeyNotFoundException("Mission was not found in the authorized scope.");
+        var mission = await AuthorizedMissions(userId, isManager).Include(x => x.Waypoints)
+            .SingleOrDefaultAsync(x => x.Id == missionId, cancellationToken)
+            ?? throw new KeyNotFoundException("Mission was not found in the authorized scope.");
+        var currentPlanHash = MissionValidationService.Hash(mission);
         return (await db.AiAssessments.AsNoTracking().Where(x => x.MissionRef == missionId.ToString())
-            .OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken)).Select(Map).ToList();
+            .OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken))
+            .Select(value => Map(value, currentPlanHash)).ToList();
     }
 
     private IQueryable<Mission> AuthorizedMissions(Guid userId, bool isManager) =>
@@ -154,10 +157,35 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
         ["incidentCount"] = value.IncidentCount
     };
 
-    private static AiAssessmentResponse Map(AiAssessment value) => new()
+    private static AiAssessmentResponse Map(AiAssessment value, string currentPlanHash)
     {
-        Id = value.Id, MissionRef = value.MissionRef, MissionVersion = value.MissionVersion, Provider = value.Provider,
-        Model = value.Model, Status = value.Status, ErrorCode = value.ErrorCode, CreatedAt = value.CreatedAt,
-        CompletedAt = value.CompletedAt, Result = string.IsNullOrWhiteSpace(value.Result) ? null : JsonSerializer.Deserialize<AiAssessmentResultResponse>(value.Result, JsonOptions)
-    };
+        var isOutdated = !ContextContainsPlanHash(value.ContextSnapshot, currentPlanHash);
+        return new()
+        {
+            Id = value.Id, MissionRef = value.MissionRef, MissionVersion = value.MissionVersion,
+            Provider = value.Provider, Model = value.Model, Status = value.Status,
+            ContextHash = value.ContextHash, IsOutdated = isOutdated,
+            OutdatedReason = isOutdated
+                ? "The mission plan has changed since this assessment was captured."
+                : null,
+            ErrorCode = value.ErrorCode, CreatedAt = value.CreatedAt, CompletedAt = value.CompletedAt,
+            Result = string.IsNullOrWhiteSpace(value.Result)
+                ? null
+                : JsonSerializer.Deserialize<AiAssessmentResultResponse>(value.Result, JsonOptions)
+        };
+    }
+
+    private static bool ContextContainsPlanHash(string contextSnapshot, string currentPlanHash)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(contextSnapshot);
+            return document.RootElement.TryGetProperty("planHash", out var planHash) &&
+                   string.Equals(planHash.GetString(), currentPlanHash, StringComparison.Ordinal);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 }
