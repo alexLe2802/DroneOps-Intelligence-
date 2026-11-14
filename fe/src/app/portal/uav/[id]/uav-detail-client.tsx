@@ -45,6 +45,7 @@ export default function UavDetailClient({ id }: { id: string }) {
 
   const submitted = searchParams.get("submitted");
   const imageUpload = searchParams.get("imageUpload");
+  const imageUploadMessage = searchParams.get("imageUploadMessage");
   const normalizedStatus = aircraft.status.toLowerCase();
   const approvalLabel = normalizedStatus === "active"
     ? "ADMIN APPROVED"
@@ -74,7 +75,7 @@ export default function UavDetailClient({ id }: { id: string }) {
         {imageUpload === "success" && <p className="module-success uav-image-feedback" role="status">UAV image uploaded and queued for AI review. This page refreshes the result automatically.</p>}
         {aircraft.imageModerationStatus === "ManualReview" && <p className="approval-banner" role="status">AI is temporarily unavailable. The image is waiting for manager review and was not rejected.</p>}
         {aircraft.imageModerationStatus === "Rejected" && <p className="form-error uav-image-feedback" role="alert">AI could not confirm this as a safe UAV image. Replace it or ask a manager to review it.</p>}
-        {imageUpload === "failed" && <p className="form-error uav-image-feedback" role="alert">The UAV was saved, but its image could not be uploaded. The previous image was kept. Edit the UAV to try again.</p>}
+        {imageUpload === "failed" && <p className="form-error uav-image-feedback" role="alert">The UAV was saved, but AI review did not start because the image upload failed. {imageUploadMessage || "The previous image was kept. Contact an administrator or edit the UAV to try again."}</p>}
         <div className="uav-actions"><Link className="module-secondary module-link" href={`/portal/uav/${aircraft.id}/edit`}>EDIT UAV</Link><DeleteUavButton id={aircraft.id} code={aircraft.code} /></div>
       </div>
     </section>

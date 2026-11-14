@@ -42,7 +42,6 @@ public sealed class NotificationRepository(AppDbContext db) : GenericRepository<
 
     public Task<int> GetPendingUavManualReviewCountAsync(CancellationToken cancellationToken = default) =>
         DbContext.UAVs.CountAsync(x =>
-            x.Status.ToLower() == "pending" &&
             x.ImageModerationStatus == "ManualReview", cancellationToken);
 
     public Task<Notification?> GetActiveUavManualReviewAsync(

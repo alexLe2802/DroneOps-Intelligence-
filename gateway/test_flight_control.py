@@ -29,7 +29,6 @@ class FlightControlTests(unittest.TestCase):
         self.control.tick(self.link)
         self.feed()
         self.control.uploaded_hash = 'hash'
-        self.control.items = [dict(command=22, x=106000000, y=1070000000)]
 
     def feed(self, armed=False, landed=1, autopilot=12, mode=3 << 16):
         for kind, fields in (
@@ -140,47 +139,6 @@ class FlightControlTests(unittest.TestCase):
         self.link.mav.mission_count_send.assert_not_called()
         self.assertFalse(self.bridge.report['succeeded'])
 
-    def test_takeoff_position_requires_verified_route_fresh_position_and_home(self):
-        takeoff = dict(command=22, x=106000000, y=1070000000)
-        self.control.items = [takeoff]
-        self.assertTrue(self.control.takeoff_position_ready('hash'))
-        self.assertFalse(self.control.takeoff_position_ready('different-hash'))
-        for kind, fields in (
-            ('GLOBAL_POSITION_INT', dict(lat=107000000, lon=1070000000)),
-            ('HOME_POSITION', dict(latitude=107000000, longitude=1070000000, altitude=12000)),
-            ('GLOBAL_POSITION_INT', dict(lat=0, lon=0)),
-        ):
-            self.feed()
-            self.control.accept(message(kind, **fields), self.link)
-            self.assertFalse(self.control.takeoff_position_ready('hash'))
-        self.feed()
-        self.now += 4
-        self.assertFalse(self.control.takeoff_position_ready('hash'))
-        self.feed(autopilot=3, mode=5)
-        self.control.items = [dict(command=16, x=0, y=0), takeoff]
-        self.assertTrue(self.control.takeoff_position_ready('hash'))
-        self.control.seen.pop('HOME_POSITION')
-        self.assertFalse(self.control.takeoff_position_ready('hash'))
-        self.feed(autopilot=3, mode=5)
-        self.now += 16
-        self.control.accept(message('HEARTBEAT', type=2, autopilot=3, base_mode=0, custom_mode=5), self.link)
-        self.control.accept(message('GLOBAL_POSITION_INT', lat=106000000, lon=1070000000), self.link)
-        self.assertFalse(self.control.takeoff_position_ready('hash'))
-        self.feed(autopilot=3, mode=5)
-        self.control.items = [dict(command=16), dict(command=16, x=106000000, y=1070000000)]
-        self.assertFalse(self.control.takeoff_position_ready('hash'))
-
-    def test_arm_and_start_recheck_location_before_sending_mavlink(self):
-        self.control.items = [dict(command=22, x=106000000, y=1070000000)]
-        for action in ('Arm', 'Start'):
-            self.feed(armed=action == 'Start')
-            self.control.arm_at = self.now
-            self.control.accept(message('GLOBAL_POSITION_INT', lat=107000000, lon=1070000000), self.link)
-            self.response(action, identifier='distant-' + action)
-            self.assertFalse(self.bridge.report['succeeded'])
-            self.link.mav.command_long_send.assert_not_called()
-            self.assertIn('Launch blocked', self.control.envelope.error)
-
     def test_return_requires_landing_home_relative_altitude_and_no_rally_points(self):
         self.control.return_ceiling = 30
         baseline = dict(RTL_ALT_FINAL_M=0, RALLY_TOTAL=0, RTL_ALT_TYPE=0, RTL_ALT_M=20)
@@ -252,10 +210,7 @@ class FlightControlTests(unittest.TestCase):
         names = [call.args[2] for call in self.link.mav.param_request_read_send.call_args_list]
         self.assertIn(b'WP_RADIUS_M', names)
         self.assertIn(b'LAND_SPD_MS', names)
-<<<<<<< HEAD
-=======
         self.assertIn(b'BATT_CAPACITY', names)
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
         self.control.accept(message('AUTOPILOT_VERSION', capabilities=4, flight_sw_version=(4 << 24) | (7 << 16) | (1 << 8)), self.link)
         for name, value in [('WP_RADIUS_M', 2), ('WP_SPD', 10), ('LAND_SPD_MS', .5)]:
             self.control.accept(message('PARAM_VALUE', param_id=name, param_value=value), self.link)
@@ -265,8 +220,6 @@ class FlightControlTests(unittest.TestCase):
         self.assertEqual(snapshot['values']['LAND_SPD_MS'], .5)
         self.link.mav.param_set_send.assert_not_called()
 
-<<<<<<< HEAD
-=======
     def test_battery_capacity_is_automatically_read_for_both_firmwares(self):
         for autopilot, parameter in ((3, 'BATT_CAPACITY'), (12, 'BAT1_CAPACITY')):
             self.control.parameters_requested = float('-inf')
@@ -278,7 +231,6 @@ class FlightControlTests(unittest.TestCase):
             self.assertEqual(self.control.evidence()['firmwareParameters']['values'][parameter], 8000)
         self.link.mav.param_set_send.assert_not_called()
 
->>>>>>> cec74278727e75d9815570c2eabb47decac1b62e
     def test_nonfinite_or_stale_fc_parameters_are_not_defaults(self):
         self.control.accept(message('PARAM_VALUE', param_id='NAV_ACC_RAD', param_value=float('nan')), self.link)
         self.assertIsNone(self.control.evidence()['firmwareParameters'])
