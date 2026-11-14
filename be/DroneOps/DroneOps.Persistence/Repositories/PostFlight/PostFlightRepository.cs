@@ -11,6 +11,8 @@ namespace DroneOps.Persistence.Repositories;
 /// </summary>
 public class PostFlightRepository : IPostFlightRepository
 {
+    public Task<MissionFlightExecution?> GetExecutionAsync(Guid missionId, CancellationToken cancellationToken = default) =>
+        _context.MissionFlightExecutions.AsNoTracking().SingleOrDefaultAsync(x => x.MissionId == missionId, cancellationToken);
     public Task<List<Incident>> GetIncidentsForMissionsAsync(Guid[] missionIds, CancellationToken cancellationToken = default) =>
         _context.Incidents.AsNoTracking().Where(x => missionIds.Contains(x.MissionId)).ToListAsync(cancellationToken);
 
@@ -163,7 +165,7 @@ public class PostFlightRepository : IPostFlightRepository
         DateTime? fromDate = null,
         DateTime? toDate = null,
         Guid? pilotUserId = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, Guid? missionId = null)
     {
         var query = _context.Missions
             .Include(m => m.UAV)
@@ -172,6 +174,7 @@ public class PostFlightRepository : IPostFlightRepository
             .AsQueryable();
 
         // Pilot chỉ xem các chuyến bay do chính mình tạo
+        if (missionId.HasValue) query = query.Where(m => m.Id == missionId.Value);
         if (pilotUserId.HasValue)
         {
             query = query.Where(m => m.CreatedBy == pilotUserId.Value);

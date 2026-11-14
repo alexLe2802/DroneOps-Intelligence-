@@ -8,6 +8,7 @@ import { getAssignedUav } from "@/lib/portal/client";
 import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import DeleteUavButton from "../delete-uav-button";
+import UavReviewPanel from "../uav-review-panel";
 import UavInformation from "../uav-information";
 
 export default function UavDetailClient({ id }: { id: string }) {
@@ -71,7 +72,7 @@ export default function UavDetailClient({ id }: { id: string }) {
         <header><span className={`status status-${normalizedStatus}`}>{aircraft.status}</span><small className={normalizedStatus === "active" ? "approval-approved" : "approval-pending"}>{approvalLabel}</small></header>
         <h2>{aircraft.name}</h2><p>{aircraft.model ?? "Model not specified"}</p>
         <dl><div><dt>Code</dt><dd>{aircraft.code}</dd></div><div><dt>Name</dt><dd>{aircraft.name}</dd></div><div><dt>Model</dt><dd>{aircraft.model ?? "Not specified"}</dd></div><div><dt>Status</dt><dd>{aircraft.status}</dd></div><div><dt>Image check</dt><dd>{aircraft.imageModerationStatus ?? "No image"}</dd></div><div><dt>Created at</dt><dd>{aircraft.createdAt.slice(0, 10)}</dd></div><div><dt>Pilot</dt><dd>{aircraft.pilotName || "Current pilot"}</dd></div></dl>
-        {submitted && <p className="approval-banner" role="status" aria-live="polite">{submitted === "create" ? "UAV registration submitted. Waiting for manager approval." : "UAV changes saved successfully."}</p>}
+        {submitted && <p className="approval-banner" role="status" aria-live="polite">{submitted === "create" ? "UAV registration submitted. Waiting for manager approval." : "UAV proposal submitted. Current approved information remains unchanged until Manager approval."}</p>}
         {imageUpload === "success" && <p className="module-success uav-image-feedback" role="status">UAV image uploaded and queued for AI review. This page refreshes the result automatically.</p>}
         {aircraft.imageModerationStatus === "ManualReview" && <p className="approval-banner" role="status">AI is temporarily unavailable. The image is waiting for manager review and was not rejected.</p>}
         {aircraft.imageModerationStatus === "Rejected" && <p className="form-error uav-image-feedback" role="alert">AI could not confirm this as a safe UAV image. Replace it or ask a manager to review it.</p>}
@@ -80,5 +81,6 @@ export default function UavDetailClient({ id }: { id: string }) {
       </div>
     </section>
     <UavInformation aircraft={aircraft} />
+    <UavReviewPanel key={aircraft.id} uavId={aircraft.id} />
   </>;
 }

@@ -593,3 +593,7 @@
     grid-template-columns: 1fr;
   }
 }
+
+.routeEvidence{padding:16px;border-block-start:1px solid #344355;line-height:1.6;overflow-wrap:anywhere}.routeEvidence ol{max-block-size:220px;overflow:auto}.filters>div{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}.filters :is(input,select):focus-visible{outline:2px solid #82ddfc;outline-offset:2px}.records nav a{padding:10px;color:#82ddfc;min-block-size:40px}.records>footer nav{flex-wrap:wrap}
+
+.filterField{display:grid;align-content:start;gap:8px;min-inline-size:0}

@@ -1,5 +1,6 @@
 "use client";
 
+import { ApiError } from "@/lib/auth/client";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -40,6 +41,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
   const imageInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [form, setForm] = useState(() => initialValue(aircraft));
+  const [stale, setStale] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -69,7 +71,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (pending.current) return;
+    if (pending.current || stale) return;
 
     const request: CreateUavRequest = {
       code: form.code.trim().toUpperCase(),
@@ -118,7 +120,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       let id: string;
       let submitted: "create" | "update";
       if (aircraft) {
-        await updateAssignedUav(aircraft.id, request);
+        await updateAssignedUav(aircraft.id, { ...request, expectedVersion: aircraft.registryVersion });
         id = aircraft.id;
         submitted = "update";
       } else {
@@ -145,6 +147,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       router.push(`/portal/uav/${id}?${detailQuery}`);
       router.refresh();
     } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 409) setStale(true);
       setError(reason instanceof Error ? reason.message : "Unable to submit the UAV request.");
     } finally {
       pending.current = false;
@@ -162,7 +165,9 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
     </header>
 
     <form className="uav-form" onSubmit={submit}>
-      <fieldset className="uav-form-fields" disabled={saving}>
+      {stale && <p role="alert">The UAV changed or has a pending proposal. <button type="button" onClick={() => window.location.reload()}>Reload UAV before editing</button></p>}
+      {aircraft?.hasPendingProposal && <p role="status">A proposal is awaiting review. Wait for the Manager decision before submitting another change.</p>}
+      <fieldset className="uav-form-fields" disabled={saving || stale || aircraft?.hasPendingProposal}>
         <legend className="sr-only">Aircraft details</legend>
 
         <section className="uav-form-section">

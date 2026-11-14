@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Options;
+using DroneOps.Application.DTOs.Options;
 using DroneOps.Application.Interfaces;
 using DroneOps.Application.Interfaces.AI;
 using DroneOps.Application.Interfaces.Auth;
@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.Configure<PostFlightOptions>(
             configuration.GetSection(PostFlightOptions.SectionName));
         services.AddMemoryCache();
+        services.AddScoped<UavReviewWorkflow>();
 
         services.AddFluentValidationAutoValidation();
 

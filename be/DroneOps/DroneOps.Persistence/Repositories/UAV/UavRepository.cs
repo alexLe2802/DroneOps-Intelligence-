@@ -42,6 +42,10 @@ public sealed class UavRepository
                     "A UAV with a permanent flight-controller binding cannot be deleted. Deactivate it, or use the administrator-verified flight-controller replacement process.");
             }
 
+            if (await DbContext.UavReviewRequests.AnyAsync(x => x.UavId == uavId && x.ReviewedAt != null, cancellationToken))
+                throw new InvalidOperationException("A UAV with review decisions must retain its audit history. Deactivate the UAV instead of deleting it.");
+            await DbContext.UavReviewRequests.Where(x => x.UavId == uavId).ExecuteDeleteAsync(cancellationToken);
+
             // Preserve missions and their audit history, but release the deleted aircraft assignment.
             await DbContext.Missions
                 .Where(x => x.UAVId == uavId)
@@ -68,7 +72,7 @@ public sealed class UavRepository
         CancellationToken cancellationToken = default)
     {
         return await DbSet.AnyAsync(
-            x => x.Code == code,
+            x => x.Code.ToLower() == code.ToLower(),
             cancellationToken);
     }
 
@@ -83,7 +87,7 @@ public sealed class UavRepository
             .AsNoTracking()
             .Include(x => x.Pilot)
             .ThenInclude(x => x.User)
-            .Where(x => x.Status == "Pending" || x.Status == "Pending Review");
+            .Where(x => x.HasPendingProposal || x.Status == "Pending" || x.Status == "Pending Review");
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -147,7 +151,7 @@ public sealed class UavRepository
             if (normalizedStatus is "pending" or "pending review")
             {
                 query = query.Where(x =>
-                    x.Status.ToLower() == "pending" ||
+                    x.HasPendingProposal || x.Status.ToLower() == "pending" ||
                     x.Status.ToLower() == "pending review");
             }
             else
@@ -217,7 +221,7 @@ public sealed class UavRepository
             if (normalizedStatus == "pending" || normalizedStatus == "pending review")
             {
                 query = query.Where(uav =>
-                    uav.Status.ToLower() == "pending" ||
+                    uav.HasPendingProposal || uav.Status.ToLower() == "pending" ||
                     uav.Status.ToLower() == "pending review");
             }
             else

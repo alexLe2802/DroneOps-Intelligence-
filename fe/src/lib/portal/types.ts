@@ -140,6 +140,7 @@ export type LiveMission = {
 };
 
 export type MissionTelemetry = {
+  batteryObservedAt?: string | null;
   staleAfterSeconds?: number;
   offlineAfterSeconds?: number;
   detectionDiagnostics?: string[];
@@ -280,7 +281,10 @@ export type MissionDecision = {
 
 export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
+export type UavReview = { id: string; kind: string; status: string; submittedBy: string | null; submittedAt: string | null; baseVersion: number; reviewedBy: string | null; reviewedAt: string | null; reason: string | null; currentAtSubmission: Partial<CreateUavRequest>; proposed: CreateUavRequest };
+export type UavReviewState = { registryVersion: number; status: string; hasApprovedInformation: boolean; current: CreateUavRequest; pending: UavReview | null; history: UavReview[]; legacyHistoryUnavailable: boolean };
 export type AssignedUav = {
+  registryVersion: number; hasPendingProposal: boolean; hasApprovedInformation: boolean;
   firmwareNavigationDefaults?: FirmwareParameterSnapshot | null;
   id: string;
   code: string;
@@ -337,7 +341,7 @@ export type CreateUavRequest = {
   maxOperatingAltitudeMeters: number | null;
   purchaseDate: string | null;
 };
-export type UpdateUavRequest = CreateUavRequest;
+export type UpdateUavRequest = CreateUavRequest & { expectedVersion: number };
 
 export type FlightHistoryItem = {
   missionId: string; missionName: string; status: string; uavId: string | null;
@@ -371,6 +375,7 @@ export type FlightTelemetryPoint = {
   speed: number | null; batteryLevel: number | null; recordedAt: string;
 };
 export type PostFlightReport = {
+  executionRoute?: { planHash: string; startedAt: string; altitudeReference: string | null; waypoints: Array<{ sequenceOrder: number; latitude: number; longitude: number; altitude: number | null }> } | null;
   reportId: string; missionId: string; missionName: string; missionDescription: string | null;
   status: string; generationStatus: string; revision: number; isCurrent: boolean;
   coveredTelemetryFrom: string | null; coveredTelemetryThrough: string | null;
@@ -416,8 +421,11 @@ export type BatteryAssessment = {
   telemetrySourceTimestamp: string | null; estimatedRemainingChargeMah: number | null;
   requiredBatteryPercent: number | null; estimatedRequiredChargeMah: number | null;
   meetsEstimatedRequirement: boolean | null; missingData: string[]; warnings: string[];
+  routeDistanceMeters?: number | null; estimatedFlightMinutes?: number | null;
+  baseBatteryPercent?: number | null; weatherAdjustmentPercent?: number | null;
+  safetyReservePercent?: number | null; reasons?: string[];
 };
-export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
+export type AiRisk = { category?: string; sourceIncidentIds?: string[]; severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
   status: "Pending" | "Available" | "Outdated" | "Failed" | "ProviderUnavailable";
@@ -431,6 +439,7 @@ export type AiAssessment = {
 export type PortalRole = AccountRole;
 
 export type PilotProfile = {
+  profileVersion: number;
   userId: string; fullName: string; email: string; createdAt: string;
   pilotId: string; phoneNumber: string | null; dateOfBirth: string | null;
   pilotLicenseNo: string; licenseIssuedDate: string | null;
