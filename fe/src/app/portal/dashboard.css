@@ -310,3 +310,10 @@
 
 .mission-create-builder .waypoint-list>article>.waypoint-order-actions{grid-column:span 3}.mission-builder .waypoint-order-actions .waypoint-remove{grid-column:auto}@media(max-width:760px){.mission-create-builder .waypoint-list>article>.waypoint-order-actions{grid-column:1/-1;justify-content:end}.mission-builder .waypoint-order-actions button{grid-column:auto}}
 .airspace-popup a{display:inline-block;margin-top:6px;color:#79d9ff;font:700 9px/1.45 Consolas,monospace;text-decoration:none}.airspace-popup a:hover{text-decoration:underline}
+
+/* Keep the review table inside its scroll region instead of expanding the fleet grid. */
+.manager-uav-queue,.manager-uav-detail{min-inline-size:0}
+.manager-uav-row>span,.manager-uav-row>em{min-inline-size:0;overflow-wrap:anywhere}
+.manager-uav-detail .uav-actions,.manager-uav-queue>.uav-actions{flex-wrap:wrap}
+@media(max-width:1100px){.manager-uav-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:700px){.manager-uav-row{grid-template-columns:52px minmax(0,1fr)}.manager-uav-row>em{grid-column:2}.manager-uav-queue>.uav-actions>*{max-inline-size:100%}}

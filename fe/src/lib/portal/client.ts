@@ -262,6 +262,9 @@ function normalizeUav(record: UavApiRecord): AssignedUav {
   const numberOrNull = (value: number | null | undefined) => value == null ? null : Number(value);
   return {
     ...record,
+    registryVersion: record.registryVersion ?? 0,
+    hasPendingProposal: record.hasPendingProposal ?? false,
+    hasApprovedInformation: record.hasApprovedInformation ?? ["Active", "Inactive"].includes(record.status),
     manufacturer: record.manufacturer ?? null,
     model: record.model ?? null,
     serialNumber: record.serialNumber ?? null,
@@ -357,8 +360,8 @@ export async function getManagedUav(id: string): Promise<AssignedUav> {
   return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}`));
 }
 
-export async function setManagedUavStatus(id: string, action: "approve" | "activate" | "reject" | "deactivate"): Promise<AssignedUav> {
-  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" }));
+export async function setManagedUavStatus(id: string, action: "approve" | "activate" | "reject" | "deactivate", decision: { expectedVersion: number; requestId?: string | null; reason: string }): Promise<AssignedUav> {
+  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT", body: JSON.stringify(decision) }));
 }
 
 export async function rejectManagedUavImage(id: string, reason: string): Promise<AssignedUav> {
@@ -470,3 +473,5 @@ export function getMissionWeather(id: string, updateRequestId?: string, refresh 
 export function getGeofenceRevisions(id: string): Promise<Array<{ id: string; revision: number; action: string; recordedAt: string; snapshot: unknown }>> {
   return api(`/geofences/${encodeURIComponent(id)}/revisions`);
 }
+
+export function getUavReviews(id: string) { return api<import("./types").UavReviewState>(`/uavs/${encodeURIComponent(id)}/reviews`); }

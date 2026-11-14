@@ -68,68 +68,22 @@ public class AdminUavController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPut("{id:guid}/reject")]
-    public async Task<IActionResult> Reject(
-        Guid id,
+    [HttpPut("{id:guid}/{action:regex(^(approve|reject|activate|deactivate)$)}")]
+    public async Task<IActionResult> Decide(Guid id, string action,
+        [FromBody] DroneOps.Application.Services.UAVs.UavReviewDecision request,
+        [FromServices] DroneOps.Application.Services.UAVs.UavReviewWorkflow reviews,
         CancellationToken cancellationToken)
     {
+        var actorValue = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(actorValue, out var actor)) return Unauthorized();
         try
         {
-            var result = await _uavService.RejectAsync(id, cancellationToken);
-            return result is null ? NotFound() : Ok(result);
+            await reviews.DecideAsync(id, actor, action, request, cancellationToken);
+            return Ok(await _uavService.GetDetailAsync(id, cancellationToken));
         }
-        catch (InvalidOperationException exception)
-        {
-            return Conflict(new { message = exception.Message });
-        }
-    }
-
-    [HttpPut("{id:guid}/approve")]
-    public async Task<IActionResult> Approve(
-        Guid id,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _uavService.ApproveAsync(id, cancellationToken);
-            return result is null ? NotFound() : Ok(result);
-        }
-        catch (InvalidOperationException exception)
-        {
-            return Conflict(new { message = exception.Message });
-        }
-    }
-
-    [HttpPut("{id:guid}/activate")]
-    public async Task<IActionResult> Activate(
-        Guid id,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _uavService.ActivateAsync(id, cancellationToken);
-            return result is null ? NotFound() : Ok(result);
-        }
-        catch (InvalidOperationException exception)
-        {
-            return Conflict(new { message = exception.Message });
-        }
-    }
-
-    [HttpPut("{id:guid}/deactivate")]
-    public async Task<IActionResult> Deactivate(
-        Guid id,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _uavService.DeactivateAsync(id, cancellationToken);
-            return result is null ? NotFound() : Ok(result);
-        }
-        catch (InvalidOperationException exception)
-        {
-            return Conflict(new { message = exception.Message });
-        }
+        catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
+        catch (ArgumentException exception) { return BadRequest(new { message = exception.Message }); }
+        catch (InvalidOperationException exception) { return Conflict(new { message = exception.Message }); }
     }
 
     [HttpPost("{id:guid}/image/reject")]
@@ -143,6 +97,7 @@ public class AdminUavController : ControllerBase
             var result = await _uavService.RejectUavImageAsync(id, request.Reason, cancellationToken);
             return result is null ? NotFound() : Ok(result);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException) { return Conflict(new { message = "UAV changed concurrently. Reload before reviewing its image." }); }
         catch (ArgumentException exception)
         {
             return BadRequest(new { message = exception.Message });

@@ -5,6 +5,10 @@ namespace DroneOps.Domain.Entities;
 [Table("UAV")]
 public class UAV
 {
+    public bool HasPendingProposal { get; set; }
+    public long RegistryVersion { get; set; }
+    public bool HasApprovedInformation { get; set; }
+
     public Guid Id { get; set; }
 
     public Guid PilotId { get; set; }

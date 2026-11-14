@@ -10,6 +10,12 @@ using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
 using Microsoft.AspNetCore.Authorization;
 
+if (args.Length == 1 && args[0] == "--uav-review-postgres")
+{
+    Console.WriteLine($"{await UavReviewChecks.RunAsync(true)} isolated PostgreSQL UAV review checks passed.");
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--ci-migrations")
 {
     await CiDatabaseChecks.RunAsync(Path.GetFullPath(args[1]));
@@ -191,6 +197,7 @@ request = Valid(); request.LicenseIssuedDate = today.AddYears(2);
 Check(!validator.Validate(request).IsValid, "Reversed license dates rejected");
 request = Valid(); request.Password = "short";
 Check(!validator.Validate(request).IsValid, "Short password rejected");
+passed += await UavReviewChecks.RunAsync();
 passed += await UavImageChecks.RunAsync();
 passed += await GeofenceServiceChecks.RunAsync();
 Console.WriteLine($"{passed} current auth contract checks passed. Legacy Firebase session checks are archived and were not executed.");
