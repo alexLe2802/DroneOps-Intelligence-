@@ -368,7 +368,7 @@ export async function rejectManagedUavImage(id: string, reason: string): Promise
   }));
 }
 
-export type FlightHistoryFilters = { pageNumber?: number; pageSize?: number; search?: string; status?: string; uavId?: string; fromDate?: string; toDate?: string };
+export type FlightHistoryFilters = { pageNumber?: number; pageSize?: number; search?: string; status?: string; uavId?: string; missionId?: string; fromDate?: string; toDate?: string };
 
 function postFlightUtcBoundary(value: string, endOfDay: boolean): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -385,6 +385,7 @@ export function getFlightHistory(filters: FlightHistoryFilters = {}): Promise<Pa
   if (filters.search) params.set("search", filters.search);
   if (filters.status) params.set("status", filters.status);
   if (filters.uavId) params.set("uavId", filters.uavId);
+  if (filters.missionId) params.set("missionId", filters.missionId);
   if (filters.fromDate) params.set("fromDate", postFlightUtcBoundary(filters.fromDate, false));
   if (filters.toDate) params.set("toDate", postFlightUtcBoundary(filters.toDate, true));
   return api<PagedResponse<FlightHistoryItem>>(`/flight-history?${params}`);

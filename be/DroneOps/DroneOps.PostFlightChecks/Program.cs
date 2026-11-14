@@ -25,6 +25,8 @@ if (args.Length == 2 && args[0] == "--lifecycle-postgres")
     return;
 }
 
+await OperatorAllocationChecks.RunAsync();
+
 var options = new DbContextOptionsBuilder<AppDbContext>()
     .UseInMemoryDatabase($"post-flight-checks-{Guid.NewGuid()}")
     .Options;
@@ -142,6 +144,34 @@ Check(report.GenerationStatus == "Available" && report.Revision == 1, "report be
 Check(report.TotalTelemetryRecords == 2 && report.TotalIncidents == 1, "report consolidates evidence");
 Check(report.TotalFlightDurationMinutes == 10 && report.BatteryConsumedPercentage == 30,
     "report metrics use covered telemetry window");
+Check(report.ExecutionRoute is null, "legacy flight without execution snapshot does not borrow the current mission route");
+var execution = new MissionFlightExecution
+{
+    MissionId=missionId,UavId=uavId,PlanHash="immutable-fixture",StartedAt=now.AddMinutes(-10),CompletedAt=now,
+    ApprovedPlanJson="""{"altitudeReference":"MSL","waypoints":[{"sequenceOrder":2,"latitude":12.1,"longitude":108.1,"altitude":40},{"sequenceOrder":1,"latitude":12,"longitude":108,"altitude":null}]}"""
+};
+db.MissionFlightExecutions.Add(execution);
+var currentWaypoint = new Waypoint {Id=Guid.NewGuid(),MissionId=missionId,SequenceOrder=1,Latitude=20,Longitude=110};
+db.Waypoints.Add(currentWaypoint);
+await db.SaveChangesAsync();
+var route = (await service.GetReportByMissionIdAsync(missionId,pilotId,false)).ExecutionRoute;
+Check(route?.PlanHash=="immutable-fixture"&&route.AltitudeReference=="MSL"&&route.Waypoints[0].Latitude==12&&route.Waypoints[0].Altitude is null,
+    "report reads ordered immutable execution waypoints and missing altitude independently of the current plan");
+db.Waypoints.Remove(currentWaypoint);
+var savedSnapshot = execution.ApprovedPlanJson;
+foreach(var malformed in new[]{"not-json","[]","""{"waypoints":[{"longitude":108}]}""","""{"waypoints":[{"latitude":null,"longitude":108}]}"""})
+{
+    execution.ApprovedPlanJson=malformed;await db.SaveChangesAsync();
+    Check((await service.GetReportByMissionIdAsync(missionId,pilotId,false)).ExecutionRoute is null,
+        "unusable execution snapshot remains unavailable without fabricated coordinates");
+}
+execution.ApprovedPlanJson=savedSnapshot;await db.SaveChangesAsync();
+await ExpectThrowsAsync<UnauthorizedAccessException>(()=>service.GetReportByMissionIdAsync(missionId,Guid.NewGuid(),false),
+    "immutable execution route remains protected by report ownership");
+var scopedHistory = await service.GetFlightHistoryAsync(new GetFlightHistoryRequest {UavId=uavId,MissionId=missionId},pilotId);
+Check(scopedHistory.TotalItems==1&&scopedHistory.Items.Single().MissionId==missionId,"flight history combines exact mission and UAV filters");
+Check((await service.GetFlightHistoryAsync(new GetFlightHistoryRequest {UavId=uavId,MissionId=missionId},Guid.NewGuid())).TotalItems==0,
+    "exact mission filter cannot bypass ownership");
 
 var generatedAt = report.GeneratedAt!.Value;
 var late = Sample(missionId, now.AddMinutes(-5), armed: true, 50m, 5m, 75);
