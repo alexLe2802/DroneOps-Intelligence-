@@ -16,10 +16,12 @@ with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
         (root/'connect-drone.sh','connect-drone.sh'),
         (root/'connect-drone.cmd','connect-drone.cmd'),
         (root/'requirements.txt','requirements.txt'),
+        (root/'README.md','README.md'),
         (root/'droneops-gateway.service.example','droneops-gateway.service.example'),
         (root/'droneops-router.service.example','droneops-router.service.example'),
         (root/'install-jetson.sh','install-jetson.sh'),
         (root/'pair-jetson.sh','pair-jetson.sh'),
+        (root.parent/'docs/drone-connection-guide.md','CONNECTION_SETUP.md'),
     )
     for source, name in files:
         # Fixed metadata makes the package reproducible.
