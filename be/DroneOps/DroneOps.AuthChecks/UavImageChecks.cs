@@ -105,11 +105,12 @@ internal static class UavImageChecks
         var service = new UavService(
             new UavRepository(db), new PilotRepository(db), notifications,
             NullLogger<UavService>.Instance, storage, new AllowModeration(),
-            enabledModerationConfiguration);
+            enabledModerationConfiguration, new UavReviewWorkflow(db));
 
         await service.UpdateAsync(ownerId, uavId,
             new DroneOps.Application.DTOs.Request.UAVs.UpdateUavRequest
             {
+                ExpectedVersion = 0,
                 Code = "IMG-1",
                 Name = "Image fixture"
             });

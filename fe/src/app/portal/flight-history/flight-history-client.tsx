@@ -3,9 +3,11 @@
 import { apiInstant } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
+import AnalyticsDetails from "../analytics-details";
+import { archiveHref, archiveQuery } from "@/lib/portal/analytics-scope";
 import { ArrowRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { getFlightHistory, getOperationalAnalytics } from "@/lib/portal/client";
+import { useEffect, useState } from "react";
+import { getFlightHistory, getOperationalAnalytics, getAssignedUavs, getManagedUavs } from "@/lib/portal/client";
 import type { FlightHistoryItem, OperationalAnalytics, PagedResponse } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
 import styles from "./flight-history.module.css";
@@ -20,7 +22,6 @@ const dateTime = (value: string | null) => {
     : new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(parsed);
 };
 const reportLabel = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2");
-const percent = (value: number | null) => value == null ? "N/A" : `${value.toFixed(1)}%`;
 const duration = (minutes: number) => {
   const safeMinutes = Number.isFinite(minutes) ? Math.max(0, minutes) : 0;
   return safeMinutes >= 60
@@ -28,95 +29,70 @@ const duration = (minutes: number) => {
     : `${Math.round(safeMinutes)}m`;
 };
 
-export default function FlightHistoryClient() {
+export default function FlightHistoryClient({ initialQuery = "", role = "uav_operator", sourceView = false }: { initialQuery?: string; role?: string; sourceView?: boolean }) {
+  const params = new URLSearchParams(initialQuery);
+  const rawPage = params.get("page") || "1";
+  const page = /^[1-9][0-9]{0,5}$/.test(rawPage) ? Number(rawPage) : 1;
+  const scope = archiveQuery(params);
   const [result, setResult] = useState<PagedResponse<FlightHistoryItem> | null>(null);
   const [analytics, setAnalytics] = useState<OperationalAnalytics | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [page, setPage] = useState(1);
-  const [refreshing, setRefreshing] = useState(false);
-
+  const [aircraft, setAircraft] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [aircraftError, setAircraftError] = useState("");
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => {
-    const timer = window.setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 300);
-    return () => window.clearTimeout(timer);
-  }, [searchInput]);
-
-  const load = useCallback(async (showLoading = false) => {
-    if (showLoading) setResult(null);
-    else setRefreshing(true);
-    setError(null);
-    try {
-      const filters = { pageNumber: page, pageSize: PAGE_SIZE, search: search || undefined, status: status || undefined, fromDate: fromDate || undefined, toDate: toDate || undefined };
-      const [history, summary] = await Promise.all([
-        getFlightHistory(filters),
-        getOperationalAnalytics({ fromDate: filters.fromDate, toDate: filters.toDate }),
-      ]);
-      setResult(history);
-      setAnalytics(summary);
-    } catch (reason) { setError(reason); }
-    finally { setRefreshing(false); }
-  }, [fromDate, page, search, status, toDate]);
-
+    let active = true;
+    const query = new URLSearchParams(scope);
+    const filters = { pageNumber: page, pageSize: PAGE_SIZE, search: query.get("search") || undefined, status: query.get("status") || undefined, uavId: query.get("uavId") || undefined, missionId: query.get("missionId") || undefined, fromDate: query.get("fromDate") || undefined, toDate: query.get("toDate") || undefined };
+    void Promise.all([getFlightHistory(filters), getOperationalAnalytics(filters)]).then(([history, summary]) => {
+      if (active) { setResult(history); setAnalytics(summary); setError(null); }
+    }).catch(reason => { if (active) setError(reason); });
+    return () => { active = false; };
+  }, [page, scope, refresh]);
   useEffect(() => {
-    const timer = window.setTimeout(() => void load(true), 0);
-    return () => window.clearTimeout(timer);
-  }, [load]);
-
-  const pages = useMemo(() => {
-    const total = result?.totalPages ?? 0;
-    const start = Math.max(1, Math.min(page - 1, Math.max(1, total - 3)));
-    return Array.from({ length: Math.min(4, total) }, (_, index) => start + index);
-  }, [page, result?.totalPages]);
-
-  function resetFilters() {
-    setSearchInput(""); setSearch(""); setStatus(""); setFromDate(""); setToDate(""); setPage(1);
-  }
-
-  if (error) return <ModuleError error={error} retry={() => void load(true)} />;
+    let active = true;
+    async function readAircraft() {
+      if (role !== "operation_manager") return getAssignedUavs();
+      const first = await getManagedUavs({ pageSize: 100 });
+      const all = [...first.items];
+      for(let pageNumber=2;pageNumber<=first.totalPages;pageNumber++) {
+        if (!active) break;
+        all.push(...(await getManagedUavs({ pageSize:100,pageNumber })).items);
+      }
+      return all;
+    }
+    void readAircraft().then(items => { if(active) setAircraft(items); }).catch(() => { if(active) setAircraftError("Aircraft options unavailable. You can still enter an exact UAV ID."); });
+    return () => { active = false; };
+  }, [role]);
+  const base = sourceView ? "/portal/flight-history/sources" : "/portal/flight-history";
+  function pageHref(value: number) { const p = new URLSearchParams(scope); p.set("page",String(value)); return archiveHref(p,base); }
+  if (error) return <ModuleError error={error} retry={() => setRefresh(v=>v+1)} />;
   if (!result || !analytics) return <ModuleLoading label="Loading flight archive" />;
-
-  const rangeStart = result.totalItems ? (result.pageNumber - 1) * result.pageSize + 1 : 0;
-  const rangeEnd = Math.min(result.pageNumber * result.pageSize, result.totalItems);
-  const averageDurationMinutes = analytics.reportsAvailable
-    ? analytics.totalFlightHours * 60 / analytics.reportsAvailable
-    : 0;
   return <div className={styles.archive}>
-    <header className={styles.heading}>
-      <div><p><i /> ARCHIVAL CERTIFICATION</p><h1>Flight History &amp; Reports</h1><span>Audit-ready repository of finalized missions, telemetry coverage, incidents, and post-flight reports.</span></div>
-      <div className={styles.headingActions}><span><i /> BACKEND ARCHIVE ONLINE</span><button type="button" onClick={() => void load(false)} disabled={refreshing}>{refreshing ? "SYNCING ARCHIVE" : "REFRESH ARCHIVE"}</button></div>
-    </header>
-
-    <section className={styles.metrics} aria-label="Post-flight analytics">
-      <article><span>TOTAL LOGGED FLIGHTS</span><b className={`${styles.metricIcon} ${styles.takeoffIcon}`} aria-hidden="true"><span>✈</span></b><strong>{analytics.totalFlights}<em> SORTIES</em></strong><small>{analytics.completedFlights} completed records</small><div className={styles.metricMeta}><b>ARCHIVE VOLUME</b><span>{analytics.totalIncidentsRecorded} incidents linked</span></div><i style={{ width: "100%" }} /></article>
-      <article><span>AIRFRAME ACCRUED TIME</span><b className={styles.metricIcon} aria-hidden="true">◴</b><strong>{analytics.totalFlightHours.toFixed(1)}<em> HRS</em></strong><small>{analytics.totalDistanceKilometers.toFixed(1)} km reported</small><div className={styles.metricMeta}><b>AVG REPORTED</b><span>{duration(averageDurationMinutes)}</span></div><i style={{ width: `${Math.min(100, analytics.reportCoveragePercentage ?? 0)}%` }} /></article>
-      <article><span>MISSION SUCCESS RATE</span><b className={styles.metricIcon} aria-hidden="true">◇</b><strong>{percent(analytics.successRatePercentage)}</strong><small>{analytics.abortedOrFailedFlights} diverted / aborted</small><div className={styles.metricMeta}><b>COMPLETED</b><span>{analytics.completedFlights} nominal</span></div><i style={{ width: `${analytics.successRatePercentage ?? 0}%` }} /></article>
-      <article><span>REPORT COVERAGE</span><b className={styles.metricIcon} aria-hidden="true">▤</b><strong>{percent(analytics.reportCoveragePercentage)}</strong><small>{analytics.reportsAvailable} available / {analytics.reportsExcluded} excluded</small><div className={styles.metricMeta}><b>LEDGER STATE</b><span>{analytics.reportsAvailable ? "REPORTS INDEXED" : "AWAITING REPORTS"}</span></div><i style={{ width: `${analytics.reportCoveragePercentage ?? 0}%` }} /></article>
-    </section>
-
-    <section className={styles.filters} aria-label="Flight archive filters">
-      <header><b><span aria-hidden="true">⌕</span> TELEMETRY &amp; MISSION FILTERING CONTROLS</b><button type="button" onClick={resetFilters}>RESET QUERY FILTERS</button></header>
+    <header className={styles.heading}><div><p>FLIGHTS / RECORDED EVIDENCE</p><h1>{sourceView ? "Analytics source flights" : "Flight History & Reports"}</h1><span>Inspect recorded flights, report coverage and their source evidence.</span></div><button type="button" onClick={()=>setRefresh(v=>v+1)}>Refresh records</button></header>
+    <form className={styles.filters} method="get">
+      <header><b>Filter start-time window (UTC)</b><Link href={base}>Reset filters</Link></header>
       <div>
-        <label className={styles.search}><span>MISSION / FLIGHT ID</span><input value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="Search mission name or identifier" /></label>
-        <label><span>FROM DATE</span><input type="date" value={fromDate} max={toDate || undefined} onChange={event => { setFromDate(event.target.value); setPage(1); }} /></label>
-        <label><span>TO DATE</span><input type="date" value={toDate} min={fromDate || undefined} onChange={event => { setToDate(event.target.value); setPage(1); }} /></label>
-        <label><span>MISSION OUTCOME</span><select value={status} onChange={event => { setStatus(event.target.value); setPage(1); }}>{terminalStatuses.map(value => <option key={value || "all"} value={value}>{value || "All outcomes"}</option>)}</select></label>
-      </div>
-      <footer><span>QUERY STATUS: <b>{result.totalItems} MATCHING FLIGHT RECORD{result.totalItems === 1 ? "" : "S"}</b></span><b>{refreshing ? "REFRESHING" : "BACKEND SYNCED"}</b></footer>
-    </section>
-
-    {result.items.length === 0 ? <ModuleEmpty title="No flights found" message="No mission matches the current filters." /> : <section className={styles.records} aria-label="Logged flight records">
-      <header><h2>Logged Sorties <span>{result.totalItems} AVAILABLE</span></h2><small>SORT: DATE DESCENDING (GMT+7)</small></header>
-      <div>{result.items.map(item => <FlightRecord key={item.missionId} item={item} />)}</div>
-      <footer><span>Showing <b>{rangeStart}-{rangeEnd}</b> of <b>{result.totalItems}</b> completed flight records</span><nav aria-label="Flight history pages"><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>&lt;</button>{pages.map(value => <button type="button" key={value} className={value === page ? styles.currentPage : ""} aria-current={value === page ? "page" : undefined} onClick={() => setPage(value)}>{value}</button>)}<button type="button" disabled={page >= result.totalPages} onClick={() => setPage(value => value + 1)}>&gt;</button></nav></footer>
+        <label htmlFor="archive-search">Search mission<input id="archive-search" name="search" defaultValue={params.get("search") || ""} placeholder="Mission name" /></label>
+        <label htmlFor="archive-from">From date (UTC)<input id="archive-from" name="fromDate" type="date" defaultValue={params.get("fromDate") || ""} /></label>
+        <label htmlFor="archive-to">To date (UTC)<input id="archive-to" name="toDate" type="date" defaultValue={params.get("toDate") || ""} /></label>
+        <div className={styles.filterField}><label htmlFor="archive-uav">UAV</label>{aircraftError ? <input id="archive-uav" name="uavId" defaultValue={params.get("uavId") || ""} /> : <select id="archive-uav" name="uavId" defaultValue={params.get("uavId") || ""}><option value="">All authorized UAVs</option>{params.get("uavId") && !aircraft.some(a=>a.id===params.get("uavId")) && <option value={params.get("uavId")!}>Selected UAV: {params.get("uavId")}</option>}{aircraft.map(a=><option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select>}</div>
+        <label htmlFor="archive-mission">Exact mission ID<input id="archive-mission" name="missionId" defaultValue={params.get("missionId") || ""} placeholder="Optional mission UUID" /></label>
+        <label htmlFor="archive-status">History status<select id="archive-status" name="status" defaultValue={params.get("status") || ""}>{terminalStatuses.map(value=><option key={value} value={value}>{value || "All statuses"}</option>)}</select></label>
+      </div><footer><button type="submit" className="module-primary">Apply filters</button><span>{result.totalItems} matching records. Search/status filter the registry; analytics includes all started flights in the selected date/UAV/mission scope.</span></footer>
+      {aircraftError && <p role="status">{aircraftError}</p>}
+    </form>
+    {!sourceView && <AnalyticsDetails data={analytics} scope={scope} />}
+    {sourceView && <p><Link href={archiveHref(params)}>Back to scoped analytics</Link> · Select a flight to inspect its immutable route, telemetry and incidents. The registry may include unstarted mission records; only started flights enter the analytics denominator.</p>}
+    {result.items.length === 0 ? <ModuleEmpty title="No records found" message="No mission matches the current filters." /> : <section className={styles.records} aria-label="Flight records">
+      <header><h2>Flight registry</h2><small>{result.totalItems} matching records</small></header>
+      <div>{result.items.map(item=><FlightRecord key={item.missionId} item={item} scope={scope} sourceView={sourceView} />)}</div>
+      <footer><span>Page {result.pageNumber} of {result.totalPages}</span><nav aria-label="Flight history pages">{page>1 && <Link href={pageHref(page-1)}>Previous page</Link>}{page<result.totalPages && <Link href={pageHref(page+1)}>Next page</Link>}</nav></footer>
     </section>}
   </div>;
 }
 
-function FlightRecord({ item }: { item: FlightHistoryItem }) {
+function FlightRecord({ item, scope, sourceView }: { item: FlightHistoryItem; scope: string; sourceView: boolean }) {
   const missionStatus = item.status?.trim() || "Completed";
   const reportStatus = item.reportStatus?.trim() || (item.hasReport ? "Available" : "NotQueued");
   const reportAvailable = reportStatus !== "NotQueued";
@@ -126,9 +102,9 @@ function FlightRecord({ item }: { item: FlightHistoryItem }) {
   return <article className={`${styles.record} ${isFailure ? styles.recordDanger : ""}`}>
     <header><div><b>FLT-{shortMissionId}</b><code>MS-{item.missionId.slice(0, 4).toUpperCase()}</code><span className={`${styles.outcome} ${isFailure ? styles.danger : ""}`}>{missionStatus}</span></div><time>{dateTime(item.startTime)} GMT+7</time></header>
     <div className={styles.recordBody}>
-      <div className={styles.recordIdentity}><h3>{item.missionName}</h3><dl><div><dt>AIRFRAME</dt><dd>{item.uavCode || "N/A"}<small>{item.uavName || "Aircraft unavailable"}</small></dd></div><div><dt>PIC / OPERATOR</dt><dd>{item.pilotName || "N/A"}<small>CERTIFIED FLIGHT CREW</small></dd></div><div><dt>DURATION</dt><dd>{duration(item.durationMinutes)}<small>RECORDED FLIGHT</small></dd></div><div><dt>INCIDENTS</dt><dd className={item.totalIncidents ? styles.alertText : ""}>{item.totalIncidents}<small>{item.totalIncidents ? "REVIEW REQUIRED" : "NOMINAL"}</small></dd></div><div><dt>REPORT REV.</dt><dd>{item.reportRevision ?? "--"}<small>{reportLabel(reportStatus)}</small></dd></div></dl></div>
-      <div className={styles.reportState}><span className={`${styles.reportBadge} ${styles[reportStatus.toLowerCase()] ?? ""}`}>{reportLabel(reportStatus)}</span><small>{item.reportRevision ? `REVISION ${item.reportRevision}` : "NO REVISION"}{" // "}{item.telemetryCoverageComplete ? "TELEMETRY COVERED" : "COVERAGE INCOMPLETE"}</small>{reportAvailable ? <Link href={`/portal/flight-history/${encodeURIComponent(item.missionId)}`}>VIEW REPORT <ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></Link> : <button type="button" disabled>REPORT NOT QUEUED</button>}</div>
+      <div className={styles.recordIdentity}><h3>{item.missionName}</h3><dl><div><dt>AIRFRAME</dt><dd>{item.uavCode || "N/A"}<small>{item.uavName || "Aircraft unavailable"}</small></dd></div><div><dt>PIC / OPERATOR</dt><dd>{item.pilotName || "N/A"}<small>ASSIGNED OPERATOR</small></dd></div><div><dt>DURATION</dt><dd>{duration(item.durationMinutes)}<small>{item.hasReport ? "REPORT DURATION" : "SCHEDULED DURATION"}</small></dd></div><div><dt>INCIDENTS</dt><dd className={item.totalIncidents ? styles.alertText : ""}>{item.totalIncidents}<small>{item.totalIncidents ? "REVIEW REQUIRED" : "NO LINKED INCIDENTS"}</small></dd></div><div><dt>REPORT REV.</dt><dd>{item.reportRevision ?? "--"}<small>{reportLabel(reportStatus)}</small></dd></div></dl></div>
+      <div className={styles.reportState}><span className={`${styles.reportBadge} ${styles[reportStatus.toLowerCase()] ?? ""}`}>{reportLabel(reportStatus)}</span><small>{item.reportRevision ? `REVISION ${item.reportRevision}` : "NO REVISION"}{" // "}{item.telemetryCoverageComplete ? "TELEMETRY COVERED" : "COVERAGE INCOMPLETE"}</small>{reportAvailable ? <Link href={archiveHref(new URLSearchParams(scope), `/portal/flight-history/${encodeURIComponent(item.missionId)}`)}>VIEW REPORT <ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></Link> : <Link href={archiveHref(new URLSearchParams(scope), `/portal/missions/${encodeURIComponent(item.missionId)}`)}>VIEW MISSION</Link>}</div>
     </div>
-    <footer className={styles.recordTelemetry}><span><i className={item.telemetryCoverageComplete ? styles.nominalDot : styles.mutedDot} /> TELEMETRY: {item.telemetryCoverageComplete ? "COMPLETE" : "INCOMPLETE"}</span><span>END: {dateTime(item.endTime)}</span><span>INCIDENT LEDGER: {item.totalIncidents ? `${item.totalIncidents} LINKED` : "CLEAR"}</span><b>{reportAvailable ? "POST-FLIGHT RECORD AVAILABLE" : "REPORT GENERATION PENDING"}</b></footer>
+    <footer className={styles.recordTelemetry}>{sourceView && <Link href={archiveHref(new URLSearchParams(scope), item.hasReport ? `/portal/flight-history/${encodeURIComponent(item.missionId)}` : `/portal/missions/${encodeURIComponent(item.missionId)}`)}>{item.hasReport ? "Inspect source evidence" : "Inspect mission record (report unavailable)"}</Link>}<span><i className={item.telemetryCoverageComplete ? styles.nominalDot : styles.mutedDot} /> TELEMETRY: {item.telemetryCoverageComplete ? "COMPLETE" : "INCOMPLETE"}</span><span>END: {dateTime(item.endTime)}</span><span>INCIDENT LEDGER: {item.totalIncidents ? `${item.totalIncidents} LINKED` : "CLEAR"}</span><b>{reportAvailable ? "REPORT STATE RECORDED" : "NO QUEUED REPORT"}</b></footer>
   </article>;
 }

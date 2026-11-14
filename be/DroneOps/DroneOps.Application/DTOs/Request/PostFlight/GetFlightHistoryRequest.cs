@@ -13,6 +13,7 @@ public class GetFlightHistoryRequest
     public string? Search { get; set; }
     public string? Status { get; set; }
     public Guid? UavId { get; set; }
+    public Guid? MissionId { get; set; }
     public DateTime? FromDate { get; set; }
     public DateTime? ToDate { get; set; }
 }
