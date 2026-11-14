@@ -372,6 +372,7 @@ export type FlightTelemetryPoint = {
   speed: number | null; batteryLevel: number | null; recordedAt: string;
 };
 export type PostFlightReport = {
+  executionRoute?: { planHash: string; startedAt: string; altitudeReference: string | null; waypoints: Array<{ sequenceOrder: number; latitude: number; longitude: number; altitude: number | null }> } | null;
   reportId: string; missionId: string; missionName: string; missionDescription: string | null;
   status: string; generationStatus: string; revision: number; isCurrent: boolean;
   coveredTelemetryFrom: string | null; coveredTelemetryThrough: string | null;

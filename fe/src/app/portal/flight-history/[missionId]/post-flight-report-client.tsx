@@ -11,15 +11,16 @@ import type { FlightTelemetryPoint, PostFlightIncident, PostFlightReport } from 
 import { ModuleError, ModuleLoading } from "../../module-state";
 import FlightPathMap from "./flight-path-map";
 import styles from "../flight-history.module.css";
+import { archiveHref } from "@/lib/portal/analytics-scope";
 
 const dateTime = (value: string | null) => value ? formatVietnamDateTime(value) : "Not available";
 const metric = (value: number | null, unit: string, digits = 1) => value == null ? "N/A" : `${value.toFixed(digits)} ${unit}`;
 const duration = (minutes: number) => minutes >= 60 ? `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m` : `${Math.round(minutes)}m`;
 const label = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2");
 
-type ReportData = { report: PostFlightReport; revisions: PostFlightReport[]; telemetry: FlightTelemetryPoint[]; incidents: PostFlightIncident[] };
+type ReportData = { report: PostFlightReport; revisions: PostFlightReport[]; telemetry: FlightTelemetryPoint[]; incidents: PostFlightIncident[]; unavailable: string[] };
 
-export default function PostFlightReportClient({ missionId, role }: { missionId: string; role: AccountRole }) {
+export default function PostFlightReportClient({ missionId, role, returnScope = "" }: { missionId: string; role: AccountRole; returnScope?: string }) {
   const [data, setData] = useState<ReportData | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
@@ -32,12 +33,14 @@ export default function PostFlightReportClient({ missionId, role }: { missionId:
     setError(null);
     try {
       const report = await getPostFlightReport(missionId);
-      const [revisions, telemetry, incidents] = await Promise.all([
-        getPostFlightReportRevisions(missionId).catch(() => [report]),
-        getFlightTelemetry(missionId).catch(() => []),
-        getPostFlightIncidents(missionId).catch(() => []),
+      const [revisions, telemetry, incidents] = await Promise.allSettled([
+        getPostFlightReportRevisions(missionId),
+        getFlightTelemetry(missionId),
+        getPostFlightIncidents(missionId),
       ]);
-      setData({ report, revisions, telemetry, incidents });
+      setData({ report, revisions: revisions.status === "fulfilled" ? revisions.value : [report],
+        telemetry: telemetry.status === "fulfilled" ? telemetry.value : [], incidents: incidents.status === "fulfilled" ? incidents.value : [],
+        unavailable: [["Report revisions",revisions.status],["Telemetry",telemetry.status],["Incidents",incidents.status]].filter(([,status])=>status === "rejected").map(([name])=>name) });
     } catch (reasonValue) { setError(reasonValue); }
   }, [missionId]);
 
@@ -74,17 +77,18 @@ export default function PostFlightReportClient({ missionId, role }: { missionId:
 
   if (error && !data) return <ModuleError error={error} retry={() => void load()} />;
   if (!data) return <ModuleLoading label="Loading post-flight report" />;
-  const { report, revisions, telemetry, incidents } = data;
+  const { report, revisions, telemetry, incidents, unavailable } = data;
   const available = report.generationStatus === "Available";
   const coverage = report.totalTelemetryRecords > 0 && report.coveredTelemetryThrough;
 
   return <div className={styles.reportPage}>
     <header className={styles.reportHeading}>
-      <div><Link className={styles.reportBackButton} href="/portal/flight-history"><ArrowLeft size={15} strokeWidth={2} aria-hidden="true" /> BACK TO FLIGHT HISTORY</Link><p>POST-FLIGHT DEBRIEF // REVISION {report.revision}</p><h1>{report.missionName}</h1><span>{report.missionDescription || "No mission description was recorded."}</span></div>
+      <div><Link className={styles.reportBackButton} href={archiveHref(new URLSearchParams(returnScope))}><ArrowLeft size={15} strokeWidth={2} aria-hidden="true" /> BACK TO FLIGHT HISTORY</Link><p>POST-FLIGHT DEBRIEF // REVISION {report.revision}</p><h1>{report.missionName}</h1><span>{report.missionDescription || "No mission description was recorded."}</span></div>
       <div className={styles.reportHeadingActions}><span className={`${styles.generationState} ${styles[report.generationStatus.toLowerCase()] ?? ""}`}>{label(report.generationStatus)}</span>{role === "operation_manager" && <button type="button" onClick={() => setDialogOpen(true)} disabled={busy}>REGENERATE REPORT</button>}</div>
     </header>
 
     {!available && <section className={`${styles.reportNotice} ${report.generationStatus === "Failed" ? styles.noticeDanger : ""}`} role="status"><b>REPORT {report.generationStatus.toUpperCase()}</b><span>{report.failureReason || "This report is not currently available as a finalized snapshot."}</span></section>}
+    {!!unavailable.length && <section className={styles.reportNotice} role="status"><span>{unavailable.join(", ")} could not be loaded. Missing source responses do not mean zero records.</span><button type="button" onClick={()=>void load()}>Retry sources</button></section>}
     {notice && <section className={styles.reportNotice} role="status"><b>REQUEST ACCEPTED</b><span>{notice}</span><button type="button" onClick={() => setNotice("")}>DISMISS</button></section>}
     {Boolean(error) && <section className={`${styles.reportNotice} ${styles.noticeDanger}`} role="alert"><b>REQUEST FAILED</b><span>{error instanceof Error ? error.message : "Unable to process this report."}</span><button type="button" onClick={() => setError(null)}>DISMISS</button></section>}
 
@@ -98,14 +102,15 @@ export default function PostFlightReportClient({ missionId, role }: { missionId:
 
     <section className={styles.reportGrid}>
       <div className={styles.reportMain}>
-        <article className={styles.mapPanel}><header><div><span>TELEMETRY PLAYBACK</span><h2>Recorded Flight Path</h2></div><b>{coverage ? `COVERED THROUGH ${dateTime(report.coveredTelemetryThrough)}` : "COVERAGE UNAVAILABLE"}</b></header><FlightPathMap telemetry={telemetry} uavCode={report.uavCode} /></article>
+        <article className={styles.mapPanel}><header><div><span>TELEMETRY PLAYBACK</span><h2>Planned & recorded flight path</h2></div><b>{coverage ? `COVERED THROUGH ${dateTime(report.coveredTelemetryThrough)}` : "COVERAGE UNAVAILABLE"}</b></header>{unavailable.includes("Telemetry") ? <p>Recorded telemetry is unavailable. Retry loading sources; the execution snapshot is listed below.</p> : <FlightPathMap telemetry={telemetry} uavCode={report.uavCode} planned={report.executionRoute} />}
+          <div className={styles.routeEvidence}><p>Solid cyan: recorded GPS. Dashed amber: immutable approved execution route.</p>{report.executionRoute ? <><p>Execution started {dateTime(report.executionRoute.startedAt)} · Plan hash: <code>{report.executionRoute.planHash}</code> · Altitude reference: {report.executionRoute.altitudeReference || "Unavailable"}</p><ol>{report.executionRoute.waypoints.map(p=><li key={p.sequenceOrder}>Waypoint {p.sequenceOrder}: {p.latitude}, {p.longitude} · {p.altitude == null ? "Altitude unavailable" : `${p.altitude} m`}</li>)}</ol></> : <p>Planned route unavailable: no usable execution snapshot was recorded. The current editable mission plan is not substituted.</p>}</div></article>
         <article className={styles.summaryPanel}><header><span>GENERATED DEBRIEF</span><h2>Report Summary</h2></header><p>{report.summary || "The generated report does not include a narrative summary."}</p><dl><div><dt>Safety evaluation</dt><dd>{report.safetyEvaluation || "Not evaluated"}</dd></div><div><dt>Generation reason</dt><dd>{report.generationReason || "Not recorded"}</dd></div><div><dt>Generated at</dt><dd>{dateTime(report.generatedAt)}</dd></div><div><dt>Notes</dt><dd>{report.notes || "No report notes"}</dd></div></dl></article>
-        <article className={styles.telemetryPanel}><header><span>RECENT TELEMETRY SAMPLES</span><b>{telemetry.length} TOTAL</b></header>{telemetryWindow.length ? <div><table><thead><tr><th>RECORDED</th><th>POSITION</th><th>ALTITUDE</th><th>SPEED</th><th>BATTERY</th></tr></thead><tbody>{telemetryWindow.map((point, index) => <tr key={`${point.recordedAt}-${index}`}><td>{dateTime(point.recordedAt)}</td><td>{point.latitude == null || point.longitude == null ? "N/A" : `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`}</td><td>{metric(point.altitude, "m")}</td><td>{metric(point.speed, "m/s")}</td><td>{point.batteryLevel == null ? "N/A" : `${point.batteryLevel}%`}</td></tr>)}</tbody></table></div> : <p>No telemetry samples were returned for this flight.</p>}</article>
+        <article className={styles.telemetryPanel}><header><span>RECENT TELEMETRY SAMPLES</span><b>{telemetry.length} TOTAL</b></header>{telemetryWindow.length ? <div><table><thead><tr><th>RECORDED</th><th>POSITION</th><th>ALTITUDE</th><th>SPEED</th><th>BATTERY</th></tr></thead><tbody>{telemetryWindow.map((point, index) => <tr key={`${point.recordedAt}-${index}`}><td>{dateTime(point.recordedAt)}</td><td>{point.latitude == null || point.longitude == null ? "N/A" : `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`}</td><td>{metric(point.altitude, "m")}</td><td>{metric(point.speed, "m/s")}</td><td>{point.batteryLevel == null ? "N/A" : `${point.batteryLevel}%`}</td></tr>)}</tbody></table></div> : <p>{unavailable.includes("Telemetry") ? "Telemetry source unavailable." : "No telemetry samples were returned for this flight."}</p>}</article>
       </div>
 
       <aside className={styles.reportAside}>
         <article className={styles.identityPanel}><header><span>FLIGHT RECORD</span><b>MS-{report.missionId.slice(0, 8).toUpperCase()}</b></header><dl><div><dt>AIRFRAME</dt><dd>{report.uavCode || "N/A"}<small>{report.uavName || "Aircraft unavailable"}</small></dd></div><div><dt>PILOT IN COMMAND</dt><dd>{report.pilotName || "N/A"}</dd></div><div><dt>MISSION STATUS</dt><dd>{report.status}</dd></div><div><dt>REPORT ID</dt><dd>{report.reportId}</dd></div></dl></article>
-        <article className={styles.incidentPanel}><header><span>INCIDENT CROSS-REFERENCES</span><b>{incidents.length}</b></header>{incidents.length ? <ul>{incidents.map(incident => <li key={incident.id}><div><span className={styles[incident.severity?.toLowerCase() ?? ""]}>{incident.severity || "Unrated"}</span><b>{incident.title}</b><small>{incident.type}{" // "}{dateTime(incident.createdAt)}</small></div><Link href={`/portal/incidents/${encodeURIComponent(incident.id)}`}>OPEN</Link></li>)}</ul> : <p>No incidents are associated with this flight.</p>}</article>
+        <article className={styles.incidentPanel}><header><span>INCIDENT CROSS-REFERENCES</span><b>{unavailable.includes("Incidents") ? "Unavailable" : incidents.length}</b></header>{incidents.length ? <ul>{incidents.map(incident => <li key={incident.id}><div><span className={styles[incident.severity?.toLowerCase() ?? ""]}>{incident.severity || "Unrated"}</span><b>{incident.title}</b><small>{incident.type}{" // "}{dateTime(incident.createdAt)}</small></div><Link href={`/portal/incidents/${encodeURIComponent(incident.id)}`}>OPEN</Link></li>)}</ul> : <p>{unavailable.includes("Incidents") ? "Incident source unavailable; no incident count can be inferred." : "No incidents are associated with this flight."}</p>}</article>
         <article className={styles.revisionPanel}><header><span>IMMUTABLE REPORT REVISIONS</span><b>{revisions.length}</b></header><ol>{revisions.map(revision => <li key={revision.reportId} className={revision.isCurrent ? styles.currentRevision : ""}><div><b>REV {revision.revision}</b><span>{revision.generationStatus}</span></div><time>{dateTime(revision.createdAt)}</time><small>{revision.generationReason || "No generation reason"}</small></li>)}</ol></article>
       </aside>
     </section>

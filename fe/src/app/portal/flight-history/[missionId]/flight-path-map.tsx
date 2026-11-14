@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
-import type { FlightTelemetryPoint } from "@/lib/portal/types";
+import type { FlightTelemetryPoint, PostFlightReport } from "@/lib/portal/types";
 import styles from "../flight-history.module.css";
 
 const DEFAULT_CENTER: Leaflet.LatLngTuple = [10.7769, 106.7009];
@@ -10,7 +10,7 @@ const positioned = (point: FlightTelemetryPoint) => point.latitude !== null && p
   && Number.isFinite(point.latitude) && Number.isFinite(point.longitude)
   && Math.abs(point.latitude) <= 90 && Math.abs(point.longitude) <= 180;
 
-export default function FlightPathMap({ telemetry, uavCode }: { telemetry: FlightTelemetryPoint[]; uavCode: string }) {
+export default function FlightPathMap({ telemetry, uavCode, planned }: { telemetry: FlightTelemetryPoint[]; uavCode: string; planned?: PostFlightReport["executionRoute"] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
   const layersRef = useRef<Leaflet.Layer[]>([]);
@@ -54,26 +54,30 @@ export default function FlightPathMap({ telemetry, uavCode }: { telemetry: Fligh
     if (!map || !ready) return;
     layersRef.current.forEach(layer => layer.remove());
     layersRef.current = [];
-    if (!points.length) { map.setView(DEFAULT_CENTER, 12, { animate: false }); return; }
+    if (!points.length && !planned?.waypoints.length) { map.setView(DEFAULT_CENTER, 12, { animate: false }); return; }
     let cancelled = false;
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || mapRef.current !== map) return;
       const stride = Math.max(1, Math.ceil(points.length / 1500));
       const rendered = points.filter((_, index) => index % stride === 0 || index === points.length - 1);
       const coordinates = rendered.map(point => [point.latitude!, point.longitude!] as Leaflet.LatLngTuple);
+      const plannedCoordinates = (planned?.waypoints ?? []).map(p => [p.latitude, p.longitude] as Leaflet.LatLngTuple);
+      if(plannedCoordinates.length) layersRef.current.push(L.polyline(plannedCoordinates,{color:"#ffd078",weight:3,dashArray:"8 8"}).bindTooltip("APPROVED EXECUTION ROUTE").addTo(map));
+      if(coordinates.length) {
       const route = L.polyline(coordinates, { color: "#58d4fb", weight: 4, opacity: .9 }).addTo(map);
       const start = L.circleMarker(coordinates[0], { radius: 7, color: "#08141d", weight: 3, fillColor: "#5ce0b5", fillOpacity: 1 }).bindTooltip("FLIGHT START").addTo(map);
       const end = L.circleMarker(coordinates.at(-1)!, { radius: 7, color: "#08141d", weight: 3, fillColor: "#ff9d99", fillOpacity: 1 }).bindTooltip("FLIGHT END").addTo(map);
-      layersRef.current = [route, start, end];
-      map.fitBounds(L.latLngBounds(coordinates), { padding: [44, 44], maxZoom: 16, animate: false });
+      layersRef.current.push(route, start, end);
+      }
+      map.fitBounds(L.latLngBounds([...coordinates,...plannedCoordinates]), { padding: [44, 44], maxZoom: 16, animate: false });
     });
     return () => { cancelled = true; };
-  }, [points, ready]);
+  }, [points, planned, ready]);
 
   return <div className={styles.flightMap}>
     <div ref={containerRef} className={styles.flightMapCanvas} />
     <div className={styles.flightMapBanner}>{points.length ? `${uavCode || "UAV"} // ${points.length} POSITION FIXES` : `0 OF ${telemetry.length} VALID POSITION FIXES`}</div>
-    {!points.length && <div className={styles.flightMapEmpty} role="status" aria-live="polite">
+    {!points.length && !planned?.waypoints.length && <div className={styles.flightMapEmpty} role="status" aria-live="polite">
       <div>
         <span className={styles.flightMapEmptyIcon} aria-hidden="true">!</span>
         <b>{missingRoute.title}</b>

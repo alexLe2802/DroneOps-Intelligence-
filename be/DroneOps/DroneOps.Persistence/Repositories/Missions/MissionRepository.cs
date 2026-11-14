@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.Interfaces.Missions;
+using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
@@ -51,12 +51,16 @@ public sealed class MissionRepository : IMissionRepository
      DateTime? toDate,
      int pageNumber,
      int pageSize,
-     CancellationToken cancellationToken = default)
+     CancellationToken cancellationToken = default,
+     Guid? createdBy = null)
     {
         var query = _context.Missions
             .AsNoTracking()
             .Include(x => x.Waypoints)
             .AsQueryable();
+
+        if (createdBy.HasValue)
+            query = query.Where(x => x.CreatedBy == createdBy.Value);
 
         // Search theo Name hoặc Description
         if (!string.IsNullOrWhiteSpace(search))
@@ -92,6 +96,7 @@ public sealed class MissionRepository : IMissionRepository
 
         var items = await query
             .OrderByDescending(x => x.CreatedAt)
+            .ThenBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);

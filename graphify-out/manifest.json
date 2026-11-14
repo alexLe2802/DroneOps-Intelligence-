@@ -403,10 +403,10 @@
     "semantic_hash": "96446b798b6afb0570996ca811b43fb6"
   },
   "be/DroneOps/DroneOps.Application/DTOs/Request/Missions/MissionFilterRequest.cs": {
-    "mtime": 1793379836.0528533,
-    "seen": 1794648892.5391319,
-    "ast_hash": "bcca57ce0cb8baf82f43abf43c58348a",
-    "semantic_hash": "bcca57ce0cb8baf82f43abf43c58348a"
+    "mtime": 1794655717.8669016,
+    "seen": 1794655955.1782882,
+    "ast_hash": "4717b21633df507fa3190d660eed5fc0",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Application/DTOs/Request/Missions/MissionReviewRequests.cs": {
     "mtime": 1794374785.14987,
@@ -433,10 +433,10 @@
     "semantic_hash": "6bc7cdef7eb0cb3511569717acb32d29"
   },
   "be/DroneOps/DroneOps.Application/DTOs/Request/PostFlight/GetFlightHistoryRequest.cs": {
-    "mtime": 1791842734.6794384,
-    "seen": 1794648892.539136,
-    "ast_hash": "8ec82c7c58d6a946d095a9e83f7a7a85",
-    "semantic_hash": "8ec82c7c58d6a946d095a9e83f7a7a85"
+    "mtime": 1794651628.3041813,
+    "seen": 1794655397.775557,
+    "ast_hash": "0e7096afb63e329916c9ca44743fe932",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Application/DTOs/Request/PostFlight/GetOperationalAnalyticsRequest.cs": {
     "mtime": 1792759332.365397,
@@ -697,10 +697,10 @@
     "semantic_hash": "41d11e3a79ddd0e00a125e75a8f71a71"
   },
   "be/DroneOps/DroneOps.Application/DTOs/Response/PostFlight/PostFlightReportResponse.cs": {
-    "mtime": 1793379836.0538995,
-    "seen": 1794648892.539168,
-    "ast_hash": "48320a6867865d175c981e812cd74af3",
-    "semantic_hash": "48320a6867865d175c981e812cd74af3"
+    "mtime": 1794651628.3282952,
+    "seen": 1794655397.775594,
+    "ast_hash": "76738af57405a46a444a7bb740b0b8d3",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Application/DTOs/Response/Telemetry/DroneConnectionResponses.cs": {
     "mtime": 1794307155.0654457,
@@ -1045,10 +1045,10 @@
     "semantic_hash": "3139f6b128119e99ee38d4b7587e1fb5"
   },
   "be/DroneOps/DroneOps.Application/Services/Missions/MissionService.cs": {
-    "mtime": 1794380771.4782436,
-    "seen": 1794648892.53921,
-    "ast_hash": "ae6ca031227acc028b02c07e11d796ae",
-    "semantic_hash": "ae6ca031227acc028b02c07e11d796ae"
+    "mtime": 1794655717.8680034,
+    "seen": 1794655955.1783779,
+    "ast_hash": "535a63feba62738df757185f6b6cafa8",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Application/Services/Missions/MissionSuggestionService.cs": {
     "mtime": 1791842734.684845,
@@ -1099,10 +1099,10 @@
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Application/Services/PostFlight/PostFlightService.cs": {
-    "mtime": 1794644941.779148,
-    "seen": 1794648962.359144,
-    "ast_hash": "10f2538b3e81d12aae924a9f3fa62d81",
-    "semantic_hash": "10f2538b3e81d12aae924a9f3fa62d81"
+    "mtime": 1794652101.1649923,
+    "seen": 1794655397.77565,
+    "ast_hash": "18bfef2bcc6517f2ac18e891336bdae9",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Application/Services/Storage/UserMediaStorage.cs": {
     "mtime": 1794644941.7794616,
@@ -1712,10 +1712,10 @@
     "semantic_hash": "71155fdc5815a265c2399bd3d1ab61a2"
   },
   "be/DroneOps/DroneOps.Persistence/Interfaces/Missions/IMissionRepository.cs": {
-    "mtime": 1793379836.0619001,
-    "seen": 1794648892.539291,
-    "ast_hash": "c1ab0584e4ff107eae1f988ab8a448f8",
-    "semantic_hash": "c1ab0584e4ff107eae1f988ab8a448f8"
+    "mtime": 1794655874.5378602,
+    "seen": 1794655955.178474,
+    "ast_hash": "03a74910625ef874166c5576bb49227d",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/Interfaces/Missions/IMissionSuggestionRepository.cs": {
     "mtime": 1791842734.689627,
@@ -1748,10 +1748,10 @@
     "semantic_hash": "7427581af46429ac11906bfe38fc85de"
   },
   "be/DroneOps/DroneOps.Persistence/Interfaces/PostFlight/IPostFlightRepository.cs": {
-    "mtime": 1793780670.775137,
-    "seen": 1794648892.539296,
-    "ast_hash": "d88fd29c25f8108f451c0374de066867",
-    "semantic_hash": "d88fd29c25f8108f451c0374de066867"
+    "mtime": 1794651628.2552407,
+    "seen": 1794655397.775742,
+    "ast_hash": "6aa8c7d5b36fe6f561d119a98ab570eb",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/Interfaces/UAV/IUavRepository.cs": {
     "mtime": 1794307155.1229067,
@@ -1820,10 +1820,10 @@
     "semantic_hash": "feb5af36b2aa4e8a23d346ad366befb6"
   },
   "be/DroneOps/DroneOps.Persistence/Repositories/Missions/MissionRepository.cs": {
-    "mtime": 1793780670.7784333,
-    "seen": 1794648892.539304,
-    "ast_hash": "ee30afcb1ffb5757a63f81d442912301",
-    "semantic_hash": "ee30afcb1ffb5757a63f81d442912301"
+    "mtime": 1794655874.5375915,
+    "seen": 1794655955.1784902,
+    "ast_hash": "4dea63cb50a670165afecbec4ba7c1ac",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/Repositories/Missions/MissionSuggestionRepository.cs": {
     "mtime": 1791842734.6902082,
@@ -1868,10 +1868,10 @@
     "semantic_hash": "aedd0a4f247b274102415d3db44f9aea"
   },
   "be/DroneOps/DroneOps.Persistence/Repositories/PostFlight/PostFlightRepository.cs": {
-    "mtime": 1794644941.781518,
-    "seen": 1794648962.3662121,
-    "ast_hash": "6c8ffed682b45346e2c43c2fcf7dcf8d",
-    "semantic_hash": "6c8ffed682b45346e2c43c2fcf7dcf8d"
+    "mtime": 1794651628.2808094,
+    "seen": 1794655397.775758,
+    "ast_hash": "55f00a361fb9acfda7076d3ef96f816c",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/Repositories/UAV/UavRepository.cs": {
     "mtime": 1794307155.1533556,
@@ -1916,10 +1916,10 @@
     "semantic_hash": "a42a6dbb93788f0ebc03d57ecea9560a"
   },
   "be/DroneOps/DroneOps.PostFlightChecks/Program.cs": {
-    "mtime": 1794648683.952486,
-    "seen": 1794648962.3666172,
-    "ast_hash": "0983e90915cbc761d6fa2f290553cc41",
-    "semantic_hash": "0983e90915cbc761d6fa2f290553cc41"
+    "mtime": 1794655801.9176245,
+    "seen": 1794655955.178505,
+    "ast_hash": "80b1a1bdd7f31f0172f443b9fd9e60fe",
+    "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.PostFlightChecks/ReadPerformanceChecks.cs": {
     "mtime": 1793780670.7871559,
@@ -2044,20 +2044,20 @@
     "semantic_hash": "9e81f5f8611ceb3d2e33c3cb05de592a"
   },
   "fe/src/app/login/first-time/first-time-form.tsx": {
-    "mtime": 1792239492.869162,
-    "seen": 1794648892.539354,
+    "mtime": 1794652957.2154522,
+    "seen": 1794655397.775807,
     "ast_hash": "4cc9dbf11b90ebbab3674ca2ad5d2b27",
     "semantic_hash": "4cc9dbf11b90ebbab3674ca2ad5d2b27"
   },
   "fe/src/app/login/first-time/page.tsx": {
-    "mtime": 1792239492.8692393,
-    "seen": 1794648892.5393548,
+    "mtime": 1794652957.2069948,
+    "seen": 1794655397.775808,
     "ast_hash": "275c15ca7be7fe90e5c50258db8d1d2c",
     "semantic_hash": "275c15ca7be7fe90e5c50258db8d1d2c"
   },
   "fe/src/app/login/login-form.tsx": {
-    "mtime": 1793519742.5117729,
-    "seen": 1794648892.5393548,
+    "mtime": 1794652957.1987755,
+    "seen": 1794655397.775809,
     "ast_hash": "591ad8beb13ab44c3174ca4a778431d0",
     "semantic_hash": "591ad8beb13ab44c3174ca4a778431d0"
   },
@@ -2074,8 +2074,8 @@
     "semantic_hash": "cf53a73ae88f5fc27893a2262251167a"
   },
   "fe/src/app/portal/account-menu.tsx": {
-    "mtime": 1792509332.3429713,
-    "seen": 1794648892.539358,
+    "mtime": 1794652957.2236636,
+    "seen": 1794655397.775842,
     "ast_hash": "a1c185b3f18c14da207ef397846e428d",
     "semantic_hash": "a1c185b3f18c14da207ef397846e428d"
   },
@@ -2122,34 +2122,34 @@
     "semantic_hash": "832c7da617d0f46e0b9c56c7ea2c9467"
   },
   "fe/src/app/portal/flight-history/[missionId]/flight-path-map.tsx": {
-    "mtime": 1793379669.077389,
-    "seen": 1794648892.539364,
-    "ast_hash": "0c399e408e703301d6ea4f85353f503d",
-    "semantic_hash": "0c399e408e703301d6ea4f85353f503d"
+    "mtime": 1794651931.9615028,
+    "seen": 1794655397.77585,
+    "ast_hash": "2617354a8c6008dee5d73debc25b9dff",
+    "semantic_hash": ""
   },
   "fe/src/app/portal/flight-history/[missionId]/page.tsx": {
-    "mtime": 1792759332.3780837,
-    "seen": 1794648892.539365,
-    "ast_hash": "ca7911efb30e479ec425ae53df6f6c3e",
-    "semantic_hash": "ca7911efb30e479ec425ae53df6f6c3e"
+    "mtime": 1794651931.839598,
+    "seen": 1794655397.775851,
+    "ast_hash": "2f7d5d1a2a412b0085d9ce4ba6ec3440",
+    "semantic_hash": ""
   },
   "fe/src/app/portal/flight-history/[missionId]/post-flight-report-client.tsx": {
-    "mtime": 1794307155.4218268,
-    "seen": 1794648892.539366,
-    "ast_hash": "97d01f6aae203c069ca802bd07d49d81",
-    "semantic_hash": "97d01f6aae203c069ca802bd07d49d81"
+    "mtime": 1794652957.3274157,
+    "seen": 1794655397.775852,
+    "ast_hash": "bcf377da95f72497ed0cdbeadb05d757",
+    "semantic_hash": ""
   },
   "fe/src/app/portal/flight-history/flight-history-client.tsx": {
-    "mtime": 1794307155.4220304,
-    "seen": 1794648892.539366,
-    "ast_hash": "0171372bafda631f5c83e829d8d840b6",
-    "semantic_hash": "0171372bafda631f5c83e829d8d840b6"
+    "mtime": 1794652957.3271136,
+    "seen": 1794655397.7758532,
+    "ast_hash": "16b2695fb152ad3a8cbe3b5ab0a6b0f2",
+    "semantic_hash": ""
   },
   "fe/src/app/portal/flight-history/page.tsx": {
-    "mtime": 1792239492.8703153,
-    "seen": 1794648892.539367,
-    "ast_hash": "5d0215cd387f3d66759713d4d452eb9d",
-    "semantic_hash": "5d0215cd387f3d66759713d4d452eb9d"
+    "mtime": 1794651763.1925926,
+    "seen": 1794655397.7758532,
+    "ast_hash": "2a9c81ee52bad36156712eb2010081bf",
+    "semantic_hash": ""
   },
   "fe/src/app/portal/flight-preparation-presence.tsx": {
     "mtime": 1794307155.4221554,
@@ -2182,8 +2182,8 @@
     "semantic_hash": "31b4f28a750f8d2670e604aa6d599be4"
   },
   "fe/src/app/portal/incidents/[id]/incident-detail-client.tsx": {
-    "mtime": 1794644941.784866,
-    "seen": 1794648962.370236,
+    "mtime": 1794652957.3156402,
+    "seen": 1794655397.7758589,
     "ast_hash": "9ed2c6487cb61e99dc933e8f34976e3f",
     "semantic_hash": "9ed2c6487cb61e99dc933e8f34976e3f"
   },
@@ -2194,8 +2194,8 @@
     "semantic_hash": "bb4eeb11cabff438e64f78c7ca07553e"
   },
   "fe/src/app/portal/incidents/incident-management-client.tsx": {
-    "mtime": 1794307156.4711607,
-    "seen": 1794648892.5393732,
+    "mtime": 1794652957.3043482,
+    "seen": 1794655397.775861,
     "ast_hash": "88f1adf9ef79fa7700f14a400a72e3c6",
     "semantic_hash": "88f1adf9ef79fa7700f14a400a72e3c6"
   },
@@ -2242,8 +2242,8 @@
     "semantic_hash": "226705a23b18f6bdd9ea56f69fc6343f"
   },
   "fe/src/app/portal/live-monitoring/live-monitoring-client.tsx": {
-    "mtime": 1794644941.7854207,
-    "seen": 1794648962.370817,
+    "mtime": 1794652957.2946918,
+    "seen": 1794655397.775868,
     "ast_hash": "cb4dc40aef6482e10de76c48a5828507",
     "semantic_hash": "cb4dc40aef6482e10de76c48a5828507"
   },
@@ -2296,8 +2296,8 @@
     "semantic_hash": "ccff3bc509ebb5f1be278d6076266a8c"
   },
   "fe/src/app/portal/missions/[id]/mission-detail-client.tsx": {
-    "mtime": 1794376110.4564793,
-    "seen": 1794648892.539385,
+    "mtime": 1794652957.26722,
+    "seen": 1794655397.775875,
     "ast_hash": "afa326095ef4ff34dacc5132410e10a0",
     "semantic_hash": "afa326095ef4ff34dacc5132410e10a0"
   },
@@ -2338,20 +2338,20 @@
     "semantic_hash": "d04b95db6c038206573bd567d7893dcc"
   },
   "fe/src/app/portal/missions/mission-plan-comparison.tsx": {
-    "mtime": 1794307155.431607,
-    "seen": 1794648892.5393898,
+    "mtime": 1794652957.275512,
+    "seen": 1794655397.775881,
     "ast_hash": "b2c37b0be59c1832d6d12c891044dd5b",
     "semantic_hash": "b2c37b0be59c1832d6d12c891044dd5b"
   },
   "fe/src/app/portal/missions/mission-validation-evidence.tsx": {
-    "mtime": 1794307155.433168,
-    "seen": 1794648892.539391,
+    "mtime": 1794652957.2851887,
+    "seen": 1794655397.775882,
     "ast_hash": "a3d3789f953cc72fdd0e9436050eeea4",
     "semantic_hash": "a3d3789f953cc72fdd0e9436050eeea4"
   },
   "fe/src/app/portal/missions/missions-client.tsx": {
-    "mtime": 1794307155.433434,
-    "seen": 1794648892.539392,
+    "mtime": 1794652957.25907,
+    "seen": 1794655397.775883,
     "ast_hash": "1984bcb1262838d18feccbf853a91834",
     "semantic_hash": "1984bcb1262838d18feccbf853a91834"
   },
@@ -2404,8 +2404,8 @@
     "semantic_hash": "39b4fc721845adea75606053c37ebc21"
   },
   "fe/src/app/portal/notification-center.tsx": {
-    "mtime": 1794307155.4369183,
-    "seen": 1794648892.539399,
+    "mtime": 1794652957.2500772,
+    "seen": 1794655397.7758899,
     "ast_hash": "07c56022be3ddf0c2875cfeb2ae79e50",
     "semantic_hash": "07c56022be3ddf0c2875cfeb2ae79e50"
   },
@@ -2422,10 +2422,10 @@
     "semantic_hash": "67b1703f4c1643a775c2772a613f5295"
   },
   "fe/src/app/portal/operational-dashboard.tsx": {
-    "mtime": 1794644941.7864127,
-    "seen": 1794648962.372492,
-    "ast_hash": "0dd04a6683aa9a11e273ab9c0b6bebe2",
-    "semantic_hash": "0dd04a6683aa9a11e273ab9c0b6bebe2"
+    "mtime": 1794652012.2198029,
+    "seen": 1794655397.775892,
+    "ast_hash": "b34a1ffadf095ebad94693eba24c787a",
+    "semantic_hash": ""
   },
   "fe/src/app/portal/operators/operator-credentials.tsx": {
     "mtime": 1794307155.4393435,
@@ -2446,10 +2446,10 @@
     "semantic_hash": "d3e881e097be98e09db218fc9120ddc4"
   },
   "fe/src/app/portal/operators/pilot-roster.tsx": {
-    "mtime": 1794644941.7870479,
-    "seen": 1794648962.3726459,
-    "ast_hash": "cf47f08d88a6a0bd700e0fdcbf040774",
-    "semantic_hash": "cf47f08d88a6a0bd700e0fdcbf040774"
+    "mtime": 1794655759.467921,
+    "seen": 1794655955.178611,
+    "ast_hash": "47682adc3e3cc0678483ea2987f335e3",
+    "semantic_hash": ""
   },
   "fe/src/app/portal/page.tsx": {
     "mtime": 1791789565.4223454,
@@ -2470,8 +2470,8 @@
     "semantic_hash": "4e433f02038bf02f7f8286142d28e709"
   },
   "fe/src/app/portal/portal-shell.tsx": {
-    "mtime": 1794307155.5244164,
-    "seen": 1794648892.539409,
+    "mtime": 1794652957.2324195,
+    "seen": 1794655397.775899,
     "ast_hash": "c2739b2f1c9556015644425697a7d3d5",
     "semantic_hash": "c2739b2f1c9556015644425697a7d3d5"
   },
@@ -2506,8 +2506,8 @@
     "semantic_hash": "5995863d72060dba5994082fd33ca82f"
   },
   "fe/src/app/portal/profile/profile-client.tsx": {
-    "mtime": 1794649984.7225642,
-    "seen": 1794650006.82179,
+    "mtime": 1794652957.2411551,
+    "seen": 1794655397.775904,
     "ast_hash": "c5fc2aba89fd274236b40ec0620e87cd",
     "semantic_hash": ""
   },
@@ -2596,8 +2596,8 @@
     "semantic_hash": "83bb298ade8f63514af1c092d80890a6"
   },
   "fe/src/app/portal/validation-results/validation-results-client.tsx": {
-    "mtime": 1794307155.5507193,
-    "seen": 1794648892.5394251,
+    "mtime": 1794652957.3260622,
+    "seen": 1794655397.775917,
     "ast_hash": "018418257a317abb505f9e3e216b38d6",
     "semantic_hash": "018418257a317abb505f9e3e216b38d6"
   },
@@ -2722,10 +2722,10 @@
     "semantic_hash": "e54053c929c14ae7a34313a2cb78025c"
   },
   "fe/src/lib/portal/client.ts": {
-    "mtime": 1794647733.8844874,
-    "seen": 1794648962.375218,
-    "ast_hash": "1f890518b4cf214f530e823d80ea2bdb",
-    "semantic_hash": "1f890518b4cf214f530e823d80ea2bdb"
+    "mtime": 1794651763.1452458,
+    "seen": 1794655397.775937,
+    "ast_hash": "5fbbaa61a1448cd2c1cbb829bc956831",
+    "semantic_hash": ""
   },
   "fe/src/lib/portal/drone-connections.ts": {
     "mtime": 1794307155.5593457,
@@ -2776,9 +2776,9 @@
     "semantic_hash": "9a355e3659818a2356c5a8a519b8ae6a"
   },
   "fe/src/lib/portal/types.ts": {
-    "mtime": 1794649368.749285,
-    "seen": 1794650006.821829,
-    "ast_hash": "40cff4e15c780a728c7735038b0a4cc3",
+    "mtime": 1794651763.1689425,
+    "seen": 1794655397.775944,
+    "ast_hash": "6ebc26ccf24c3ee9b40ba36f81b0c5df",
     "semantic_hash": ""
   },
   "fe/src/lib/portal/vietnam-time.ts": {
@@ -3513,6 +3513,354 @@
     "mtime": 1794649295.8908377,
     "seen": 1794650006.82158,
     "ast_hash": "bacc756b6ff018e78173209c92a27aaa",
+    "semantic_hash": ""
+  },
+  "fe/src/app/portal/analytics-details.tsx": {
+    "mtime": 1794652957.326694,
+    "seen": 1794655397.775845,
+    "ast_hash": "0806f28eded026e39f1c0537690641eb",
+    "semantic_hash": ""
+  },
+  "fe/src/app/portal/flight-history/sources/page.tsx": {
+    "mtime": 1794651853.6213448,
+    "seen": 1794655397.775854,
+    "ast_hash": "471f2d46b1583c84d3b0a89117732e85",
+    "semantic_hash": ""
+  },
+  "fe/src/lib/portal/analytics-scope.ts": {
+    "mtime": 1794652101.2133546,
+    "seen": 1794655397.775934,
+    "ast_hash": "7c25c6589eb8a4eaea746bd8d4ecb287",
+    "semantic_hash": ""
+  },
+  "fe/tests/analytics-scope.test.mjs": {
+    "mtime": 1794652957.3295717,
+    "seen": 1794655397.7759511,
+    "ast_hash": "b5e779c0a8ca4ac2ee642f05ca02b332",
+    "semantic_hash": ""
+  },
+  "mobile/analysis_options.yaml": {
+    "mtime": 1794653369.110132,
+    "seen": 1794655397.7759979,
+    "ast_hash": "fdfe9ebc9dd8cfb3ddb637e388266802",
+    "semantic_hash": ""
+  },
+  "mobile/android/app/build.gradle.kts": {
+    "mtime": 1794655040.6068559,
+    "seen": 1794655397.775999,
+    "ast_hash": "eab051139662878e7c2d486e8915aba9",
+    "semantic_hash": ""
+  },
+  "mobile/android/app/src/main/kotlin/click/droneops/droneops_mobile/MainActivity.kt": {
+    "mtime": 1794653369.106541,
+    "seen": 1794655397.775999,
+    "ast_hash": "89bf762f9112ccbe5d2caf39739a0848",
+    "semantic_hash": ""
+  },
+  "mobile/android/build.gradle.kts": {
+    "mtime": 1794653369.1053343,
+    "seen": 1794655397.776,
+    "ast_hash": "f11f360aed44d4f6871b398346af14f0",
+    "semantic_hash": ""
+  },
+  "mobile/android/settings.gradle.kts": {
+    "mtime": 1794653369.1033518,
+    "seen": 1794655397.776001,
+    "ast_hash": "67a2bc8728c5df57688a38831602605d",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/AppDelegate.swift": {
+    "mtime": 1787176333.0,
+    "seen": 1794655397.776002,
+    "ast_hash": "2bd8469f2a4b701ff582f6574e58b13c",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json": {
+    "mtime": 1787176333.0,
+    "seen": 1794655397.776002,
+    "ast_hash": "c3cdf9688b604d14f2e76a8287e16167",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/LaunchImage.imageset/Contents.json": {
+    "mtime": 1787176333.0,
+    "seen": 1794655397.7760031,
+    "ast_hash": "770f4f65e02ca2fc57f46f4f4148d15d",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Runner-Bridging-Header.h": {
+    "mtime": 1787176333.0,
+    "seen": 1794655397.776004,
+    "ast_hash": "e07862ac930ed4d8479185d52c6cc66d",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/SceneDelegate.swift": {
+    "mtime": 1787176333.0,
+    "seen": 1794655397.776004,
+    "ast_hash": "748d701e783e68faf618c00464257a19",
+    "semantic_hash": ""
+  },
+  "mobile/ios/RunnerTests/RunnerTests.swift": {
+    "mtime": 1794653369.0647619,
+    "seen": 1794655397.776005,
+    "ast_hash": "a225a382d14d7b16b6f602a5c1d49331",
+    "semantic_hash": ""
+  },
+  "mobile/lib/core/api.dart": {
+    "mtime": 1794653917.1650617,
+    "seen": 1794655397.776006,
+    "ast_hash": "7e0d17e07a09595a7dcd461dab068e65",
+    "semantic_hash": ""
+  },
+  "mobile/lib/core/display.dart": {
+    "mtime": 1794653859.4119399,
+    "seen": 1794655397.776006,
+    "ast_hash": "0138641326bdf12c0a5f09b758e4c09a",
+    "semantic_hash": ""
+  },
+  "mobile/lib/core/polling.dart": {
+    "mtime": 1794653816.3892834,
+    "seen": 1794655397.776007,
+    "ast_hash": "26e0072a370f8421ebdab6a7fbc0e53d",
+    "semantic_hash": ""
+  },
+  "mobile/lib/main.dart": {
+    "mtime": 1794655131.8960378,
+    "seen": 1794655397.776008,
+    "ast_hash": "3687ed736a1a670b139744aae404f388",
+    "semantic_hash": ""
+  },
+  "mobile/lib/screens/alerts.dart": {
+    "mtime": 1794655229.5108745,
+    "seen": 1794655397.776008,
+    "ast_hash": "f06bb970185af864e403433e7b41d985",
+    "semantic_hash": ""
+  },
+  "mobile/lib/screens/history.dart": {
+    "mtime": 1794653917.1966498,
+    "seen": 1794655397.7760088,
+    "ast_hash": "163807a01ffdeb64bed3b104e134d154",
+    "semantic_hash": ""
+  },
+  "mobile/lib/screens/live.dart": {
+    "mtime": 1794653859.4124475,
+    "seen": 1794655397.77601,
+    "ast_hash": "b50a7e8bf28b7ec8704f52a66588eb97",
+    "semantic_hash": ""
+  },
+  "mobile/lib/screens/login.dart": {
+    "mtime": 1794653859.4123273,
+    "seen": 1794655397.776011,
+    "ast_hash": "b2c43f74e89cf870b533d934478b5ecd",
+    "semantic_hash": ""
+  },
+  "mobile/lib/screens/missions.dart": {
+    "mtime": 1794655348.0434253,
+    "seen": 1794655397.776011,
+    "ast_hash": "5fd304892029d796274721cd6e4b91c5",
+    "semantic_hash": ""
+  },
+  "mobile/lib/screens/profile.dart": {
+    "mtime": 1794653917.2222366,
+    "seen": 1794655397.776012,
+    "ast_hash": "c6488d4652e60561a1fd4ad155608206",
+    "semantic_hash": ""
+  },
+  "mobile/lib/screens/shared.dart": {
+    "mtime": 1794653859.412557,
+    "seen": 1794655397.7760131,
+    "ast_hash": "ace10790994cd6d2c3bfa2b61f0058af",
+    "semantic_hash": ""
+  },
+  "mobile/pubspec.yaml": {
+    "mtime": 1794653409.5033572,
+    "seen": 1794655397.776014,
+    "ast_hash": "c5f7b0bf35f1d3ca3f5c676132d9b7e5",
+    "semantic_hash": ""
+  },
+  "mobile/test/api_test.dart": {
+    "mtime": 1794653859.411758,
+    "seen": 1794655397.776014,
+    "ast_hash": "37e2c6d626a64d636931dca07d8fb275",
+    "semantic_hash": ""
+  },
+  "mobile/test/polling_test.dart": {
+    "mtime": 1794653816.4569697,
+    "seen": 1794655397.776015,
+    "ast_hash": "1273cd5a8b15415453881c384d41e21e",
+    "semantic_hash": ""
+  },
+  "mobile/test/profile_alerts_test.dart": {
+    "mtime": 1794655347.8652918,
+    "seen": 1794655397.7760158,
+    "ast_hash": "3cf5a936f5086b38291bbddad3a096c8",
+    "semantic_hash": ""
+  },
+  "mobile/test/widget_test.dart": {
+    "mtime": 1794653859.4118598,
+    "seen": 1794655397.7760158,
+    "ast_hash": "08868f7bc1a4dc617f77522f81386042",
+    "semantic_hash": ""
+  },
+  "scripts/checks/analytics-browser.cjs": {
+    "mtime": 1794652957.329935,
+    "seen": 1794655397.776018,
+    "ast_hash": "d3320d28fe09ee718c9c5795ebda3d8c",
+    "semantic_hash": ""
+  },
+  "mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher.png": {
+    "mtime": 1794655040.4673705,
+    "seen": 1794655397.776038,
+    "ast_hash": "2c76511de2f9995f732ccd5e7b257236",
+    "semantic_hash": ""
+  },
+  "mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher.png": {
+    "mtime": 1794655040.4468553,
+    "seen": 1794655397.776039,
+    "ast_hash": "2a09292242c6298074a383c7b51c834b",
+    "semantic_hash": ""
+  },
+  "mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png": {
+    "mtime": 1794655040.4886348,
+    "seen": 1794655397.776039,
+    "ast_hash": "c106cb4ce0bbdbee6ac8d7917caaae50",
+    "semantic_hash": ""
+  },
+  "mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png": {
+    "mtime": 1794655040.5112739,
+    "seen": 1794655397.7760398,
+    "ast_hash": "9dc6b6c822801fa6ba65f1cb6aca8d2d",
+    "semantic_hash": ""
+  },
+  "mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": {
+    "mtime": 1794655040.5334558,
+    "seen": 1794655397.776041,
+    "ast_hash": "11d925df6f095dbad0c5cffde4f73c78",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png": {
+    "mtime": 1794655040.2146313,
+    "seen": 1794655397.776042,
+    "ast_hash": "ae1f620650eef00295913da461cbb320",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png": {
+    "mtime": 1794655040.1571524,
+    "seen": 1794655397.776042,
+    "ast_hash": "ca17ec0886519e84e5bb8d82a60a6f94",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png": {
+    "mtime": 1794655040.2787366,
+    "seen": 1794655397.776043,
+    "ast_hash": "a7a4762f57d70afe721078471421e8f3",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png": {
+    "mtime": 1794655040.2582054,
+    "seen": 1794655397.7760441,
+    "ast_hash": "8be55baf73f4cc7322f07ef7733a2db2",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@1x.png": {
+    "mtime": 1794655040.1171725,
+    "seen": 1794655397.7760441,
+    "ast_hash": "ac07996a8c007687a420239944500555",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@2x.png": {
+    "mtime": 1794655040.4262185,
+    "seen": 1794655397.776045,
+    "ast_hash": "c959b102545c5991031fdeca7aef3ad6",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@3x.png": {
+    "mtime": 1794655040.299811,
+    "seen": 1794655397.776046,
+    "ast_hash": "fab66c2e86037a97491eb2b320c61617",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@1x.png": {
+    "mtime": 1794655040.1373212,
+    "seen": 1794655397.776046,
+    "ast_hash": "a7a4762f57d70afe721078471421e8f3",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@2x.png": {
+    "mtime": 1794655040.3204618,
+    "seen": 1794655397.776047,
+    "ast_hash": "c7b462e377ae0acd1f8719e00ed92641",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@3x.png": {
+    "mtime": 1794655040.4056852,
+    "seen": 1794655397.7760482,
+    "ast_hash": "260b2286920505a4c069a5d74091f8b1",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@2x.png": {
+    "mtime": 1794655040.3642514,
+    "seen": 1794655397.7760482,
+    "ast_hash": "260b2286920505a4c069a5d74091f8b1",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@3x.png": {
+    "mtime": 1794655040.3428156,
+    "seen": 1794655397.776049,
+    "ast_hash": "f044e45a04200f42de372613c4caf4f6",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@1x.png": {
+    "mtime": 1794655040.384851,
+    "seen": 1794655397.7760499,
+    "ast_hash": "a05d7228ca3c03e8cd93d16a86324b59",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@2x.png": {
+    "mtime": 1794655040.096443,
+    "seen": 1794655397.776051,
+    "ast_hash": "f520007b2c5bc490f440c9c27e9894ef",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-83.5x83.5@2x.png": {
+    "mtime": 1794655040.2374756,
+    "seen": 1794655397.776051,
+    "ast_hash": "3f8140988508bfd0cf9886a0ba18a169",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage.png": {
+    "mtime": 1794655040.5554633,
+    "seen": 1794655397.776052,
+    "ast_hash": "3e2764fa5cb77c8394aa7fb4597ac6af",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@2x.png": {
+    "mtime": 1794655040.5785909,
+    "seen": 1794655397.776053,
+    "ast_hash": "369c563135887006a57aeb57971f4531",
+    "semantic_hash": ""
+  },
+  "mobile/ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png": {
+    "mtime": 1794655040.6050854,
+    "seen": 1794655397.776053,
+    "ast_hash": "192835dee224ee7a2e38dfa216bca616",
+    "semantic_hash": ""
+  },
+  "be/DroneOps/DroneOps.PostFlightChecks/OperatorAllocationChecks.cs": {
+    "mtime": 1794655801.9223433,
+    "seen": 1794655955.1785028,
+    "ast_hash": "afdcb40e2285022d5bb2b03f6841965e",
+    "semantic_hash": ""
+  },
+  "fe/src/app/portal/operators/operator-allocations.tsx": {
+    "mtime": 1794655874.538123,
+    "seen": 1794655955.1786082,
+    "ast_hash": "7070494f64652a5e6f956c13b50c2dbb",
+    "semantic_hash": ""
+  },
+  "scripts/checks/kan28-browser.cjs": {
+    "mtime": 1794655949.0637178,
+    "seen": 1794655955.1787462,
+    "ast_hash": "4d708b21dd97f36fd1641129521bfbbc",
     "semantic_hash": ""
   },
   "fe/package-lock.json": {
