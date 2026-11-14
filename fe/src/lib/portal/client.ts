@@ -361,6 +361,13 @@ export async function setManagedUavStatus(id: string, action: "approve" | "activ
   return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" }));
 }
 
+export async function rejectManagedUavImage(id: string, reason: string): Promise<AssignedUav> {
+  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/image/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  }));
+}
+
 export type FlightHistoryFilters = { pageNumber?: number; pageSize?: number; search?: string; status?: string; uavId?: string; fromDate?: string; toDate?: string };
 
 function postFlightUtcBoundary(value: string, endOfDay: boolean): string {

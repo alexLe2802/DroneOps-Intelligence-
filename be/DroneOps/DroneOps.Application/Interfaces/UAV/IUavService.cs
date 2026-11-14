@@ -48,6 +48,11 @@ public interface IUavService
         string actorRole,
         CancellationToken cancellationToken = default);
 
+    Task<UavResponse?> RejectUavImageAsync(
+        Guid uavId,
+        string reason,
+        CancellationToken cancellationToken = default);
+
     Task<UavResponse?> RejectAsync(
         Guid uavId,
         CancellationToken cancellationToken = default);

@@ -17,7 +17,7 @@ import type { PilotProfile, UserProfile } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../module-state";
 import { avatarFileError } from "@/lib/avatar-file";
 
-export default function ProfileClient({ account }: { account: Account }) {
+export default function ProfileClient({ account, initialLicenseRequestId }: { account: Account; initialLicenseRequestId?: string }) {
   const router = useRouter();
   const [pilot, setPilot] = useState<PilotProfile | null>(null);
   const [pilotError, setPilotError] = useState("");
@@ -124,6 +124,6 @@ export default function ProfileClient({ account }: { account: Account }) {
 
     <EmailChange onChanged={async () => { window.location.replace("/login?emailChanged=1"); }} />
     {account.role === "uav_operator" && pilot && <OperatorEdit key={`${pilot.phoneNumber}-${pilot.dateOfBirth}-${pilot.experienceYears}`} pilot={pilot} onUpdated={async () => setPilot(await getPilotProfile())} />}
-    {account.role === "uav_operator" && <LicenseChanges onRefresh={retryPilot} />}
+    {account.role === "uav_operator" && <LicenseChanges onRefresh={retryPilot} initialRequestId={initialLicenseRequestId} />}
   </>;
 }

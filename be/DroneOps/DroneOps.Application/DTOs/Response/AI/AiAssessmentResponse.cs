@@ -8,6 +8,9 @@ public sealed class AiAssessmentResponse
     public string Provider { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public string ContextHash { get; set; } = string.Empty;
+    public bool IsOutdated { get; set; }
+    public string? OutdatedReason { get; set; }
     public AiAssessmentResultResponse? Result { get; set; }
     public string? ErrorCode { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
