@@ -53,6 +53,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Incident>().Property(i => i.Revision).IsConcurrencyToken();
         modelBuilder.Entity<MissionFlightExecution>().HasIndex(e => e.UavId).IsUnique().HasFilter("\"CompletedAt\" IS NULL");
         modelBuilder.Entity<User>().Property(x=>x.ProfileVersion).IsConcurrencyToken();
+        modelBuilder.Entity<PilotUpdateRequest>().Property(x => x.Status).IsConcurrencyToken();
         modelBuilder.Entity<AccountWorkflowAudit>().Property(x=>x.Id).ValueGeneratedOnAdd();
         modelBuilder.Entity<MissionWeatherCache>().HasKey(x => x.Key);
         modelBuilder.Entity<DroneHardwareIdentity>().HasOne(h=>h.Uav).WithOne()

@@ -335,8 +335,14 @@ var unknownBattery = Sample(planned.Id, DateTimeOffset.UtcNow.AddSeconds(1), fal
 unknownBattery.BatteryLevel = null;
 db.TelemetryRecords.Add(unknownBattery); await db.SaveChangesAsync();
 var unknownAssessment = await assessmentService.CreateAsync(new CreateAiAssessmentRequest { MissionRef = planned.Id.ToString() }, pilotId, false, default);
-Check(unknownAssessment.Result?.Battery is { Status: "MissingData", CurrentBatteryPercent: null, RequiredBatteryPercent: null },
+Check(unknownAssessment.Result?.Battery is { CurrentBatteryPercent: null, EstimatedRemainingChargeMah: null, MeetsEstimatedRequirement: null } unknown
+      && unknown.TelemetrySourceTimestamp == unknownBattery.SourceTimestamp
+      && unknown.MissingData.Any(message => message.Contains("remaining battery percentage")),
     "newer unknown battery sample cannot fall back to an older plausible percentage");
+Check(unknownAssessment.Result?.Battery is { Status: "EstimateOnly", RequiredBatteryPercent: > 0 } planningEstimate
+      && planningEstimate.RequiredBatteryPercent == withBattery.Result!.Battery!.RequiredBatteryPercent
+      && planningEstimate.EstimatedRequiredChargeMah == withBattery.Result.Battery.EstimatedRequiredChargeMah,
+    "unknown current battery preserves the independent route estimate without establishing available charge");
 
 Console.WriteLine($"{passed} post-flight checks passed.");
 

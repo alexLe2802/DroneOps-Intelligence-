@@ -259,6 +259,10 @@ public sealed class UserController : ControllerBase
 
             return Ok(result);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
         catch (InvalidOperationException ex)
             when (ex.Message.Contains(
                 "pending",
