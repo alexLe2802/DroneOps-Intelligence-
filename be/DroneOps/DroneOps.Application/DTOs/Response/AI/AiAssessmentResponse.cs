@@ -35,6 +35,8 @@ public sealed class AiAssessmentResultResponse
 
 public sealed class AiRiskResponse
 {
+    public string Category { get; set; } = "Operational";
+    public List<Guid> SourceIncidentIds { get; set; } = [];
     public string Severity { get; set; } = "Moderate";
     public string Title { get; set; } = string.Empty;
     public string Evidence { get; set; } = string.Empty;

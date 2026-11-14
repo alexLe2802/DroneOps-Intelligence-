@@ -3,6 +3,7 @@ using DroneOps.Application.Interfaces.Storage;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using DroneOps.Application.Services.Users;
 
 namespace DroneOps.Application.Services;
 
@@ -43,7 +44,8 @@ public sealed class AvatarService : IAvatarService
     public async Task<string?> UploadAvatarAsync(
         Guid userId,
         IFormFile file,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? expectedVersion = null)
     {
         var user = await _userRepository.GetByIdAsync(
             userId,
@@ -53,6 +55,7 @@ public sealed class AvatarService : IAvatarService
         {
             return null;
         }
+        ProfileConcurrency.Require(user, expectedVersion);
 
         await _storage.ValidateAsync(
             file,
@@ -70,6 +73,7 @@ public sealed class AvatarService : IAvatarService
         string? oldPath = user.AvatarPath;
 
         user.AvatarPath = newPath;
+        user.ProfileVersion++;
 
         try
         {

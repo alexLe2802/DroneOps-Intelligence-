@@ -1,4 +1,4 @@
-﻿using DroneOps.Domain.Entities;
+using DroneOps.Domain.Entities;
 
 namespace DroneOps.Application.Interfaces.Missions;
 
@@ -22,7 +22,8 @@ public interface IMissionRepository
         DateTime? toDate,
         int pageNumber,
         int pageSize,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Guid? createdBy = null);
 
     Task<List<Mission>> GetByCreatorAsync(
         Guid creatorId,

@@ -1,7 +1,9 @@
-﻿namespace DroneOps.Application.DTOs.Request.Missions;
+namespace DroneOps.Application.DTOs.Request.Missions;
 
 public sealed class MissionFilterRequest
 {
+    public Guid? CreatedBy { get; set; }
+
     public string? Search { get; set; }
 
     public string? Status { get; set; }

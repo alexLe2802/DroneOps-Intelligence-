@@ -4,6 +4,7 @@ using DroneOps.Application.Interfaces.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace DroneOps.API.Controllers;
 
@@ -94,6 +95,10 @@ public sealed class PilotUpdateRequestsController : ControllerBase
                 message = exception.Message
             });
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { message = "The license request changed. Reload before submitting again." });
+        }
         catch (InvalidOperationException exception)
         {
             return Conflict(new
@@ -113,6 +118,7 @@ public sealed class PilotUpdateRequestsController : ControllerBase
         {
             var result=await _pilotUpdateRequestService.ApproveAsync(id,UserId,cancellationToken);return Ok(result);
         }
+        catch(DbUpdateConcurrencyException){return Conflict(new {message="The license request or profile changed. Reload before reviewing again."});}
         catch(InvalidOperationException exception){return Conflict(new {message=exception.Message});}
     }
 
@@ -127,6 +133,7 @@ public sealed class PilotUpdateRequestsController : ControllerBase
         {
             var result=await _pilotUpdateRequestService.RejectAsync(id,UserId,request,cancellationToken);return Ok(result);
         }
+        catch(DbUpdateConcurrencyException){return Conflict(new {message="The license request changed. Reload before reviewing again."});}
         catch(InvalidOperationException exception){return Conflict(new {message=exception.Message});}
     }
     private static string GetFileExtension(

@@ -411,6 +411,10 @@ CancellationToken ct)
 
                     if (decision == "Approved")
                     {
+                        await FlightEligibility.LockAircraftAsync(db, proposedMission.UAVId, transactionCt);
+                        var allocationBlock = await FlightEligibility.BlockingReasonAsync(db, proposedMission, transactionCt);
+                        if (allocationBlock is not null) throw new InvalidOperationException(allocationBlock);
+
                         if (!reviewedValidationRunId.HasValue || updateRequest.ValidationRunId != reviewedValidationRunId)
                             throw new InvalidOperationException("Validation changed. Review the latest persisted run.");
                         if (reviewedValidationRunId.HasValue)

@@ -2,6 +2,8 @@
 
 public sealed class UpdatePilotProfileRequest
 {
+    public long? ExpectedVersion { get; set; }
+    public Guid? ExpectedPendingRequestId { get; set; }
     // Update trực tiếp vào Pilot
     public string? PhoneNumber { get; set; }
 

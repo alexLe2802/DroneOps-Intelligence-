@@ -109,8 +109,8 @@ export function getLiveMissions(): Promise<LiveMission[]> {
   return api<LiveMission[]>("/live/missions");
 }
 
-export function getLatestMissionTelemetry(id: string): Promise<MissionTelemetry> {
-  return api<MissionTelemetry>(`/missions/${encodeURIComponent(id)}/telemetry/latest`);
+export function getLatestMissionTelemetry(id: string, signal?: AbortSignal): Promise<MissionTelemetry> {
+  return api<MissionTelemetry>(`/missions/${encodeURIComponent(id)}/telemetry/latest`, { signal });
 }
 
 export function getMissionIncidents(missionId: string, pageSize = 8): Promise<PagedIncidents> {
@@ -262,6 +262,9 @@ function normalizeUav(record: UavApiRecord): AssignedUav {
   const numberOrNull = (value: number | null | undefined) => value == null ? null : Number(value);
   return {
     ...record,
+    registryVersion: record.registryVersion ?? 0,
+    hasPendingProposal: record.hasPendingProposal ?? false,
+    hasApprovedInformation: record.hasApprovedInformation ?? ["Active", "Inactive"].includes(record.status),
     manufacturer: record.manufacturer ?? null,
     model: record.model ?? null,
     serialNumber: record.serialNumber ?? null,
@@ -357,8 +360,8 @@ export async function getManagedUav(id: string): Promise<AssignedUav> {
   return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}`));
 }
 
-export async function setManagedUavStatus(id: string, action: "approve" | "activate" | "reject" | "deactivate"): Promise<AssignedUav> {
-  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT" }));
+export async function setManagedUavStatus(id: string, action: "approve" | "activate" | "reject" | "deactivate", decision: { expectedVersion: number; requestId?: string | null; reason: string }): Promise<AssignedUav> {
+  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/${action}`, { method: "PUT", body: JSON.stringify(decision) }));
 }
 
 export async function rejectManagedUavImage(id: string, reason: string): Promise<AssignedUav> {
@@ -368,7 +371,7 @@ export async function rejectManagedUavImage(id: string, reason: string): Promise
   }));
 }
 
-export type FlightHistoryFilters = { pageNumber?: number; pageSize?: number; search?: string; status?: string; uavId?: string; fromDate?: string; toDate?: string };
+export type FlightHistoryFilters = { pageNumber?: number; pageSize?: number; search?: string; status?: string; uavId?: string; missionId?: string; fromDate?: string; toDate?: string };
 
 function postFlightUtcBoundary(value: string, endOfDay: boolean): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -385,6 +388,7 @@ export function getFlightHistory(filters: FlightHistoryFilters = {}): Promise<Pa
   if (filters.search) params.set("search", filters.search);
   if (filters.status) params.set("status", filters.status);
   if (filters.uavId) params.set("uavId", filters.uavId);
+  if (filters.missionId) params.set("missionId", filters.missionId);
   if (filters.fromDate) params.set("fromDate", postFlightUtcBoundary(filters.fromDate, false));
   if (filters.toDate) params.set("toDate", postFlightUtcBoundary(filters.toDate, true));
   return api<PagedResponse<FlightHistoryItem>>(`/flight-history?${params}`);
@@ -469,3 +473,5 @@ export function getMissionWeather(id: string, updateRequestId?: string, refresh 
 export function getGeofenceRevisions(id: string): Promise<Array<{ id: string; revision: number; action: string; recordedAt: string; snapshot: unknown }>> {
   return api(`/geofences/${encodeURIComponent(id)}/revisions`);
 }
+
+export function getUavReviews(id: string) { return api<import("./types").UavReviewState>(`/uavs/${encodeURIComponent(id)}/reviews`); }

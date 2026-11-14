@@ -91,8 +91,7 @@ public sealed class UserService : IUserService
                 "Full name cannot be empty.");
         }
 
-        if(request.ExpectedVersion!=user.ProfileVersion)
-            throw new DbUpdateConcurrencyException("Profile changed since it was loaded.");
+        ProfileConcurrency.Require(user, request.ExpectedVersion);
         user.FullName = fullName;
         user.ProfileVersion++;
 
@@ -143,6 +142,7 @@ public sealed class UserService : IUserService
 
         return new PilotProfileResponse
         {
+            ProfileVersion = pilot.User.ProfileVersion,
             UserId = pilot.User.Id,
 
             PilotId = pilot.Id,
@@ -226,6 +226,22 @@ public sealed class UserService : IUserService
     }
 
     public async Task<UpdatePilotProfileResponse?> UpdatePilotProfileAsync(
+        Guid userId, UpdatePilotProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        if (_db is not null && _db.Database.IsRelational() && HasLicenseUpdate(request))
+            return await _db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                _db.ChangeTracker.Clear();
+                await using var transaction = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+                await _db.Users.FromSqlInterpolated($"SELECT * FROM public.\"User\" WHERE \"Id\"={userId} FOR UPDATE").SingleOrDefaultAsync(cancellationToken);
+                var result = await UpdatePilotProfileCoreAsync(userId, request, cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            });
+        return await UpdatePilotProfileCoreAsync(userId, request, cancellationToken);
+    }
+
+    private async Task<UpdatePilotProfileResponse?> UpdatePilotProfileCoreAsync(
     Guid userId,
     UpdatePilotProfileRequest request,
     CancellationToken cancellationToken = default)
@@ -242,22 +258,26 @@ public sealed class UserService : IUserService
 
         bool hasLicenseUpdate =
             HasLicenseUpdate(request);
+        var editsProfile = !hasLicenseUpdate || request.PhoneNumber is not null || request.DateOfBirth.HasValue || request.ExperienceYears.HasValue;
+        if (editsProfile) ProfileConcurrency.Require(pilot.User, request.ExpectedVersion);
 
         // Kiểm tra request license đang Pending
         if (hasLicenseUpdate)
         {
-            bool hasPendingRequest =
-                await _pilotRepository
-                    .HasPendingUpdateRequestAsync(
-                        pilot.Id,
-                        cancellationToken);
-
-            if (hasPendingRequest && _db is not null)
+            if (_db is not null)
             {
-                var prior=await _db.PilotUpdateRequests.SingleAsync(x=>x.PilotId==pilot.Id&&x.Status=="Pending",cancellationToken);
-                prior.Status="Superseded";
+                var prior = await _db.PilotUpdateRequests.SingleOrDefaultAsync(x => x.PilotId == pilot.Id && x.Status == "Pending", cancellationToken);
+                if (request.ExpectedPendingRequestId != prior?.Id)
+                    throw new InvalidOperationException("The pending license request changed. Reload before submitting a replacement.");
+                if (prior is not null)
+                {
+                    prior.Status = "Superseded";
+                    // Release the partial unique index before inserting its replacement,
+                    // inside the same transaction so a failure restores the prior request.
+                    if (_db.Database.IsRelational()) await _db.SaveChangesAsync(cancellationToken);
+                }
             }
-            else if (hasPendingRequest)
+            else if (request.ExpectedPendingRequestId.HasValue || await _pilotRepository.HasPendingUpdateRequestAsync(pilot.Id, cancellationToken))
             {
                 throw new InvalidOperationException(
                     "You already have a pending pilot update request.");
@@ -386,6 +406,7 @@ public sealed class UserService : IUserService
         // hoặc có PilotUpdateRequest mới cần insert
         if (profileChanged || hasLicenseUpdate)
         {
+            if (profileChanged) pilot.User.ProfileVersion++;
             try { await _pilotRepository.SaveChangesAsync(cancellationToken); }
             catch(DbUpdateException e) when(e.InnerException is PostgresException {SqlState:PostgresErrorCodes.UniqueViolation})
             { throw new InvalidOperationException("A concurrent license request is already pending.",e); }
@@ -393,6 +414,7 @@ public sealed class UserService : IUserService
 
         return new UpdatePilotProfileResponse
         {
+            ProfileVersion = pilot.User.ProfileVersion,
             UserId = pilot.UserId,
             PilotId = pilot.Id,
 
@@ -552,6 +574,7 @@ public sealed class UserService : IUserService
 
         Pilot pilot =
             updateRequest.Pilot;
+        pilot.User.ProfileVersion++;
 
         // Chính thức cập nhật thông tin giấy phép vào Pilot
         pilot.PilotLicenseNo =
@@ -758,15 +781,16 @@ public sealed class UserService : IUserService
             throw new Exception("Please wait 60 seconds before requesting a new verification code.");
         }
 
-        var otpCode = Generate5CharacterCode();
+        var otpCode = EmailVerificationCode.Generate();
         var cacheKey = $"CHANGE_EMAIL_OTP_{userId}";
         var cacheEntry = new PendingEmailChange
         {
+            Id = Guid.NewGuid(),
             UserId = userId,
             NewEmail = cleanNewEmail,
-            Code = otpCode,
             FailedAttempts = 0
         };
+        cacheEntry.CodeHash = ChallengeHash(cacheEntry.Id, otpCode);
 
 
         var emailBody = $@"
@@ -798,6 +822,8 @@ public sealed class UserService : IUserService
     {
         var cleanNewEmail = request.NewEmail?.Trim().ToLowerInvariant() ?? string.Empty;
         var cleanCode = request.Otp?.Trim() ?? string.Empty;
+        if (!EmailVerificationCode.IsValid(cleanCode))
+            throw new ArgumentException("Enter the six-digit verification code.");
 
         if(_db is not null)
             return await ConfirmPersistentEmailChallengeAsync(userId,cleanNewEmail,cleanCode,cancellationToken);
@@ -813,7 +839,7 @@ public sealed class UserService : IUserService
             throw new Exception("The provided email does not match the pending email change request.");
         }
 
-        if (!string.Equals(pending.Code, cleanCode, StringComparison.OrdinalIgnoreCase))
+        if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(pending.CodeHash), Convert.FromHexString(ChallengeHash(pending.Id, cleanCode))))
         {
             pending.FailedAttempts++;
             if (pending.FailedAttempts >= 5)
@@ -833,6 +859,7 @@ public sealed class UserService : IUserService
         if (await _userRepository.EmailExistsAsync(pending.NewEmail, userId, cancellationToken))
             throw new Exception("This email address is already registered by another account.");
         user.Email = pending.NewEmail;
+        user.ProfileVersion++;
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
@@ -868,27 +895,11 @@ public sealed class UserService : IUserService
         }
 
         user.PasswordHash = BC.HashPassword(request.NewPassword);
+        user.ProfileVersion++;
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
         return true;
-    }
-
-    // Hàm phụ trợ sinh mã ngẫu nhiên 5 ký tự
-    private string Generate5CharacterCode()
-    {
-        const string chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-        var result = new char[5];
-        using var rng = RandomNumberGenerator.Create();
-        var bytes = new byte[5];
-        rng.GetBytes(bytes);
-
-        for (int i = 0; i < 5; i++)
-        {
-            result[i] = chars[bytes[i] % chars.Length];
-        }
-
-        return new string(result);
     }
 
     private static string ChallengeHash(Guid id,string code)=>Convert.ToHexString(
@@ -897,17 +908,26 @@ public sealed class UserService : IUserService
     private async Task<string> RequestPersistentEmailChallengeAsync(User user,string newEmail,CancellationToken ct)
     {
         if(_db is null)throw new InvalidOperationException();
-        if(await _db.Users.AsNoTracking().AnyAsync(x=>x.Email.ToLower()==newEmail&&x.Id!=user.Id,ct))
-            throw new Exception("This email address is already registered by another account.");
-        var code=Generate5CharacterCode();var id=Guid.NewGuid();var now=DateTimeOffset.UtcNow;
-        await _db.EmailChangeChallenges.Where(x=>x.AccountId==user.Id&&x.Status=="Pending")
-            .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Status,"Superseded"),ct);
-        _db.EmailChangeChallenges.Add(new EmailChangeChallenge {Id=id,AccountId=user.Id,NewEmail=newEmail,
-            CodeHash=ChallengeHash(id,code),CreatedAt=now,ExpiresAt=now.AddMinutes(10),Status="Pending"});
-        _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=user.Id,TargetId=user.Id,
-            Action="email.challenge.requested",Result="Pending",OccurredAt=now,
-            DetailsJson=JsonSerializer.Serialize(new {challengeId=id,newEmail})});
-        await _db.SaveChangesAsync(ct);
+        var code=EmailVerificationCode.Generate();var id=Guid.NewGuid();var now=DateTimeOffset.UtcNow;
+        await _db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            _db.ChangeTracker.Clear();
+            await using var transaction = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+            await _db.Users.FromSqlInterpolated($"SELECT * FROM public.\"User\" WHERE \"Id\"={user.Id} FOR UPDATE").SingleAsync(ct);
+            if(await _db.Users.AsNoTracking().AnyAsync(x=>x.Email.ToLower()==newEmail&&x.Id!=user.Id,ct))
+                throw new Exception("This email address is already registered by another account.");
+            if (await _db.EmailChangeChallenges.AsNoTracking().AnyAsync(x => x.AccountId == user.Id && x.CreatedAt > now.AddSeconds(-60) && x.Status != "DeliveryFailed", ct))
+                throw new InvalidOperationException("Please wait 60 seconds before requesting a new verification code.");
+            await _db.EmailChangeChallenges.Where(x=>x.AccountId==user.Id&&x.Status=="Pending")
+                .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Status,"Superseded"),ct);
+            _db.EmailChangeChallenges.Add(new EmailChangeChallenge {Id=id,AccountId=user.Id,NewEmail=newEmail,
+                CodeHash=ChallengeHash(id,code),CreatedAt=now,ExpiresAt=now.AddMinutes(10),Status="Pending"});
+            _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=user.Id,TargetId=user.Id,
+                Action="email.challenge.requested",Result="Pending",OccurredAt=now,
+                DetailsJson=JsonSerializer.Serialize(new {challengeId=id,newEmail})});
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        });
         var body=$"<span style='font-size: 28px; font-weight: bold'>{code}</span>";
         try{await _emailService.SendEmailAsync(newEmail,"DroneOps - Email Change Verification Code",body);}
         catch
@@ -929,6 +949,7 @@ public sealed class UserService : IUserService
         {
             await _db.Database.CreateExecutionStrategy().ExecuteAsync(async()=>
             {
+                failure = null;
                 _db.ChangeTracker.Clear();
                 await using var tx=await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,ct);
                 var challenge=await _db.EmailChangeChallenges.FromSqlInterpolated(
@@ -970,9 +991,10 @@ public sealed class UserService : IUserService
 
     private class PendingEmailChange
     {
+        public Guid Id { get; set; }
         public Guid UserId { get; set; }
         public string NewEmail { get; set; } = string.Empty;
-        public string Code { get; set; } = string.Empty;
+        public string CodeHash { get; set; } = string.Empty;
         public int FailedAttempts { get; set; }
     }
 }

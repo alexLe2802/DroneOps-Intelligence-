@@ -10,7 +10,7 @@ using DroneOps.Persistence.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
+using Npgsql;
 using Microsoft.Extensions.Logging.Abstractions;
 using DroneOps.Application.Services;
 
@@ -18,15 +18,22 @@ internal static class LicenseWorkflowChecks
 {
     public static async Task RunAsync(string root)
     {
-        var config = new ConfigurationBuilder()
-            .AddJsonFile(root + "/be/DroneOps/DroneOps.API/appsettings.Local.json")
-            .Build();
-        await using var source = PostgresDataSourceFactory.Create(
-            config.GetConnectionString("DefaultConnection")!);
+        // Never load developer credentials or mutate a shared database for these checks.
+        var connection = CiDatabaseChecks.LocalConnection();
+        connection.Database = $"droneops_ci_profile_{Guid.NewGuid():N}";
+        await using var source = NpgsqlDataSource.Create(connection.ConnectionString);
         await using var db = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>()
                 .UseNpgsql(source, options => options.EnableRetryOnFailure())
                 .Options);
+        await db.Database.EnsureCreatedAsync();
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE UNIQUE INDEX "UX_ProfileCheck_Pending" ON "PilotUpdateRequest" ("PilotId") WHERE "Status"='Pending';
+            CREATE TABLE droneops.auth_sessions(id uuid PRIMARY KEY, account_id uuid NOT NULL,
+                token_hash text, login_proof_hash text, expires_at timestamptz, user_agent text, revoked_at timestamptz);
+            """);
+        db.Roles.AddRange(new Role { Id=Guid.NewGuid(),Name="uav_operator" },new Role {Id=Guid.NewGuid(),Name="operation_manager"});
+        await db.SaveChangesAsync();
         using var cache = new MemoryCache(new MemoryCacheOptions());
         var mail = new TestMail();
         var users = new UserRepository(db);
@@ -81,7 +88,7 @@ internal static class LicenseWorkflowChecks
 
             await service.UpdatePilotProfileAsync(userId, new UpdatePilotProfileRequest
             {
-                PhoneNumber = "0901234567", DateOfBirth = today.AddYears(-25), ExperienceYears = 4
+                PhoneNumber = "0901234567", DateOfBirth = today.AddYears(-25), ExperienceYears = 4, ExpectedVersion = 2
             });
             db.ChangeTracker.Clear();
             var pilot = await db.Pilots.AsNoTracking().SingleAsync(item => item.Id == pilotId);
@@ -93,14 +100,52 @@ internal static class LicenseWorkflowChecks
             await using(var avatarStream=new MemoryStream([1,2,3]))
             {
                 var avatarFile=new FormFile(avatarStream,0,3,"file","avatar.png"){Headers=new HeaderDictionary(),ContentType="image/png"};
-                try{await new AvatarService(users,new FailingStorage(),NullLogger<AvatarService>.Instance).UploadAvatarAsync(userId,avatarFile);throw new Exception("FAIL: failed avatar upload accepted");}
+                try{await new AvatarService(users,new FailingStorage(),NullLogger<AvatarService>.Instance).UploadAvatarAsync(userId,avatarFile,expectedVersion:3);throw new Exception("FAIL: failed avatar upload accepted");}
                 catch(HttpRequestException){db.ChangeTracker.Clear();Check((await db.Users.AsNoTracking().SingleAsync(x=>x.Id==userId)).AvatarPath==oldAvatar,"failed avatar upload preserves the current private avatar");}
+            }
+
+            await using (var staleContext = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(source).Options))
+            {
+                var stalePilots = new PilotRepository(staleContext);
+                await stalePilots.GetByUserIdForUpdateAsync(userId);
+                await service.UpdateProfileAsync(userId,new UpdateProfileRequest {FullName="Concurrent name",ExpectedVersion=3});
+                var staleService = new UserService(new UserRepository(staleContext),stalePilots,mail,cache,staleContext);
+                try { await staleService.UpdatePilotProfileAsync(userId,new UpdatePilotProfileRequest {PhoneNumber="0909999999",ExpectedVersion=3}); throw new Exception("FAIL: cross-form stale update accepted"); }
+                catch(DbUpdateConcurrencyException) { Check(true,"separate contexts reject a stale operator edit after a name change"); }
+            }
+            db.ChangeTracker.Clear();
+            Check((await db.Pilots.AsNoTracking().SingleAsync(x=>x.Id==pilotId)).PhoneNumber=="0901234567",
+                "profile conflict rolls back the operator fields atomically");
+            await using(var avatarStream=new MemoryStream([1,2,3]))
+            {
+                var avatarFile=new FormFile(avatarStream,0,3,"file","avatar.png"){Headers=new HeaderDictionary(),ContentType="image/png"};
+                var storage=new TestStorage();
+                try { await new AvatarService(users,storage,NullLogger<AvatarService>.Instance).UploadAvatarAsync(userId,avatarFile,expectedVersion:3); throw new Exception("FAIL: stale avatar accepted"); }
+                catch(DbUpdateConcurrencyException) { Check(storage.UploadCount==0,"stale avatar is rejected before uploading a file"); }
+                storage.OnUpload=async()=>
+                {
+                    await using var other=new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(source).Options);
+                    var current=await other.Users.SingleAsync(x=>x.Id==userId);
+                    current.FullName="Changed during upload";current.ProfileVersion++;
+                    await other.SaveChangesAsync();
+                };
+                try { await new AvatarService(users,storage,NullLogger<AvatarService>.Instance).UploadAvatarAsync(userId,avatarFile,expectedVersion:4); throw new Exception("FAIL: avatar race accepted"); }
+                catch(DbUpdateConcurrencyException)
+                {
+                    db.ChangeTracker.Clear();
+                    Check(storage.Deleted.Count==1&&storage.Deleted[0]!=oldAvatar
+                        &&(await db.Users.AsNoTracking().SingleAsync(x=>x.Id==userId)).AvatarPath==oldAvatar,
+                        "avatar race cleans only the new upload and preserves the saved avatar");
+                }
             }
 
             var originalEmail=(await db.Users.AsNoTracking().SingleAsync(x=>x.Id==userId)).Email;
             var raceEmail=$"race-{userId:N}@example.com";
             await service.RequestChangeEmailAsync(userId,new ChangeEmailRequest {NewEmail=raceEmail,CurrentPassword="Test-only-123!"});
-            var raceCode=Regex.Match(mail.Html,@">([A-Z0-9]{5})</span>").Groups[1].Value;
+            var raceCode=Regex.Match(mail.Html,@">([0-9]{6})</span>").Groups[1].Value;
+            Check(raceCode.Length==6,"email challenge contains exactly six numeric digits");
+            try { await service.RequestChangeEmailAsync(userId,new ChangeEmailRequest {NewEmail=raceEmail,CurrentPassword="Test-only-123!"}); throw new Exception("FAIL: resend cooldown bypassed"); }
+            catch(InvalidOperationException) { Check(true,"email challenge resend enforces the 60-second cooldown"); }
             var scopedRejected=false;try{await service.ConfirmChangeEmailAsync(userId,new VerifyChangeEmailRequest {NewEmail=$"other-{userId:N}@example.com",Otp=raceCode});}
             catch(Exception){scopedRejected=true;}Check(scopedRejected&&(await db.Users.AsNoTracking().SingleAsync(x=>x.Id==userId)).Email==originalEmail,"challenge is scoped to account and exact new email");
             var managerOriginal=(await db.Users.AsNoTracking().SingleAsync(x=>x.Id==managerId)).Email;
@@ -110,12 +155,15 @@ internal static class LicenseWorkflowChecks
             await db.Users.Where(x=>x.Id==managerId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Email,managerOriginal));
 
             var changedEmail = $"verified-{userId:N}@example.com";
+            await db.EmailChangeChallenges.Where(x=>x.AccountId==userId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.CreatedAt,DateTimeOffset.UtcNow.AddMinutes(-2)));
             await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO droneops.auth_sessions(id,account_id,token_hash,login_proof_hash,expires_at,user_agent) VALUES ({Guid.NewGuid()},{userId},{new string('a',64)},{new string('b',64)},now()+interval '1 day','fixture')");
             await service.RequestChangeEmailAsync(userId, new ChangeEmailRequest
             {
                 NewEmail = changedEmail, CurrentPassword = "Test-only-123!"
             });
-            var code = Regex.Match(mail.Html, @">([A-Z0-9]{5})</span>").Groups[1].Value;
+            var code = Regex.Match(mail.Html, @">([0-9]{6})</span>").Groups[1].Value;
+            try { await service.ConfirmChangeEmailAsync(userId,new VerifyChangeEmailRequest {NewEmail=raceEmail,Otp=raceCode}); throw new Exception("FAIL: superseded OTP accepted"); }
+            catch(Exception e) when(!e.Message.StartsWith("FAIL:")) { Check(true,"resend invalidates the previous email challenge"); }
             await service.ConfirmChangeEmailAsync(userId, new VerifyChangeEmailRequest
             {
                 NewEmail = changedEmail, Otp = code
@@ -127,16 +175,80 @@ internal static class LicenseWorkflowChecks
             Check(!await db.Database.SqlQuery<int>($"SELECT 1 AS \"Value\" FROM droneops.auth_sessions WHERE account_id={userId} AND revoked_at IS NULL").AnyAsync()
                   && await db.AccountWorkflowAudits.AnyAsync(x=>x.TargetId==userId&&x.Action=="email.changed"&&x.Result=="Succeeded"),
                 "email confirmation atomically revokes sessions and records actor/target/result/time audit");
+            try { await service.ConfirmChangeEmailAsync(userId,new VerifyChangeEmailRequest {NewEmail=changedEmail,Otp=code}); throw new Exception("FAIL: consumed OTP replayed"); }
+            catch(Exception e) when(!e.Message.StartsWith("FAIL:")) { Check(true,"consumed OTP cannot be replayed"); }
+
+            await db.EmailChangeChallenges.Where(x=>x.AccountId==userId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.CreatedAt,DateTimeOffset.UtcNow.AddMinutes(-2)));
+            var nextEmail=$"next-{userId:N}@example.com";
+            async Task<bool> ConcurrentEmailRequest()
+            {
+                await using var context=new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(source,o=>o.EnableRetryOnFailure()).Options);
+                using var localCache=new MemoryCache(new MemoryCacheOptions());
+                var local=new UserService(new UserRepository(context),new PilotRepository(context),mail,localCache,context);
+                try { await local.RequestChangeEmailAsync(userId,new ChangeEmailRequest {NewEmail=nextEmail,CurrentPassword="Test-only-123!"}); return true; }
+                catch(InvalidOperationException) { return false; }
+            }
+            var emails=await Task.WhenAll(ConcurrentEmailRequest(),ConcurrentEmailRequest());
+            Check(emails.Count(x=>x)==1&&await db.EmailChangeChallenges.CountAsync(x=>x.AccountId==userId&&x.Status=="Pending")==1,
+                "concurrent resends create one pending challenge and enforce cooldown");
+            var nextCode=Regex.Match(mail.Html,@">([0-9]{6})</span>").Groups[1].Value;
+            var wrong=nextCode=="000000"?"111111":"000000";
+            for(var attempt=0;attempt<5;attempt++)
+            {
+                try { await service.ConfirmChangeEmailAsync(userId,new VerifyChangeEmailRequest {NewEmail=nextEmail,Otp=wrong}); throw new Exception("FAIL: wrong OTP accepted"); }
+                catch(Exception e) when(!e.Message.StartsWith("FAIL:")) { }
+            }
+            Check(await db.EmailChangeChallenges.AnyAsync(x=>x.AccountId==userId&&x.Status=="Locked"&&x.FailedAttempts==5),
+                "five incorrect attempts invalidate the email challenge");
+            try { await service.ConfirmChangeEmailAsync(userId,new VerifyChangeEmailRequest {NewEmail=nextEmail,Otp=nextCode}); throw new Exception("FAIL: locked OTP accepted"); }
+            catch(Exception e) when(!e.Message.StartsWith("FAIL:")) { Check(true,"correct OTP cannot bypass a locked challenge"); }
+            await db.EmailChangeChallenges.Where(x=>x.AccountId==userId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.CreatedAt,DateTimeOffset.UtcNow.AddMinutes(-2)));
+            await service.RequestChangeEmailAsync(userId,new ChangeEmailRequest {NewEmail=nextEmail,CurrentPassword="Test-only-123!"});
+            nextCode=Regex.Match(mail.Html,@">([0-9]{6})</span>").Groups[1].Value;
+            await db.EmailChangeChallenges.Where(x=>x.AccountId==userId&&x.Status=="Pending").ExecuteUpdateAsync(s=>s.SetProperty(x=>x.ExpiresAt,DateTimeOffset.UtcNow.AddSeconds(-1)));
+            try { await service.ConfirmChangeEmailAsync(userId,new VerifyChangeEmailRequest {NewEmail=nextEmail,Otp=nextCode}); throw new Exception("FAIL: expired OTP accepted"); }
+            catch(Exception e) when(!e.Message.StartsWith("FAIL:")) { Check(await db.EmailChangeChallenges.AnyAsync(x=>x.AccountId==userId&&x.Status=="Expired"),"expired OTP leaves the current email unchanged"); }
 
             await service.UpdatePilotProfileAsync(userId, LicenseRequest("UPDATED-1"));
             db.ChangeTracker.Clear();
             var request = await db.PilotUpdateRequests.AsNoTracking().SingleAsync(item => item.PilotId == pilotId);
             Check(request.Status == "Pending", "license update remains pending until review");
 
-            await service.UpdatePilotProfileAsync(userId,LicenseRequest("UPDATED-1B"));db.ChangeTracker.Clear();
+            var replacement=LicenseRequest("UPDATED-1B");replacement.ExpectedPendingRequestId=request.Id;
+            await service.UpdatePilotProfileAsync(userId,replacement);db.ChangeTracker.Clear();
             var pending=await db.PilotUpdateRequests.AsNoTracking().SingleAsync(x=>x.PilotId==pilotId&&x.Status=="Pending");
             Check(await db.PilotUpdateRequests.AnyAsync(x=>x.Id==request.Id&&x.Status=="Superseded")&&pending.PilotLicenseNo=="UPDATED-1B",
                 "a new proposal supersedes history while retaining exactly one pending request");
+            Check((await db.Pilots.AsNoTracking().SingleAsync(x=>x.Id==pilotId)).PilotLicenseNo=="ORIGINAL",
+                "pending replacement preserves the current approved license");
+            try { await service.UpdatePilotProfileAsync(userId,replacement); throw new Exception("FAIL: stale replacement accepted"); }
+            catch(InvalidOperationException) { Check(true,"stale replacement cannot supersede a newer pending request"); }
+            try { await service.ApprovePilotUpdateRequestAsync(request.Id,managerId); throw new Exception("FAIL: superseded approval accepted"); }
+            catch(InvalidOperationException) { Check(true,"manager cannot approve superseded license evidence"); }
+            var expectedPending=pending.Id;
+            async Task<bool> ConcurrentReplace()
+            {
+                await using var context=new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(source,o=>o.EnableRetryOnFailure()).Options);
+                using var localCache=new MemoryCache(new MemoryCacheOptions());
+                var local=new UserService(new UserRepository(context),new PilotRepository(context),mail,localCache,context);
+                var proposal=LicenseRequest("UPDATED-1B");proposal.ExpectedPendingRequestId=expectedPending;
+                try { await local.UpdatePilotProfileAsync(userId,proposal); return true; }
+                catch(InvalidOperationException) { return false; }
+                catch(DbUpdateConcurrencyException) { return false; }
+            }
+            await using(var staleReview=new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(source).Options))
+            {
+                var staleRepository=new PilotRepository(staleReview);
+                await staleRepository.GetUpdateRequestForReviewAsync(expectedPending);
+                var replacements=await Task.WhenAll(ConcurrentReplace(),ConcurrentReplace());
+                Check(replacements.Count(x=>x)==1&&await db.PilotUpdateRequests.CountAsync(x=>x.PilotId==pilotId&&x.Status=="Pending")==1,
+                    "concurrent replacements accept exactly one successor");
+                var staleService=new UserService(new UserRepository(staleReview),staleRepository,mail,cache,staleReview);
+                try { await staleService.ApprovePilotUpdateRequestAsync(expectedPending,managerId); throw new Exception("FAIL: preloaded stale review accepted"); }
+                catch(DbUpdateConcurrencyException) { Check(true,"preloaded manager decision conflicts after pending replacement"); }
+            }
+            db.ChangeTracker.Clear();
+            pending=await db.PilotUpdateRequests.AsNoTracking().SingleAsync(x=>x.PilotId==pilotId&&x.Status=="Pending");
 
             try{await service.ApprovePilotUpdateRequestAsync(pending.Id,userId);throw new Exception("FAIL: self review accepted");}
             catch(InvalidOperationException){Check(true,"license request author cannot review their own request");}
@@ -167,6 +279,7 @@ internal static class LicenseWorkflowChecks
                 var local=new UserService(new UserRepository(context),new PilotRepository(context),mail,localCache,context);
                 try{await local.ApprovePilotUpdateRequestAsync(concurrent.Id,managerId);return true;}
                 catch(InvalidOperationException){return false;}
+                catch(DbUpdateConcurrencyException){return false;}
             }
             var decisions=await Task.WhenAll(ConcurrentApprove(),ConcurrentApprove());db.ChangeTracker.Clear();
             Check(decisions.Count(x=>x)==1&&await db.PilotUpdateDecisionAudits.CountAsync(x=>x.RequestId==concurrent.Id)==1,
@@ -188,6 +301,7 @@ internal static class LicenseWorkflowChecks
             await db.Pilots.Where(item => item.Id == pilotId).ExecuteDeleteAsync();
             await db.Users.Where(item => item.Id == userId || item.Id == managerId).ExecuteDeleteAsync();
             Console.WriteLine("Temporary test users, pilot, requests and files removed.");
+            await db.Database.EnsureDeletedAsync();
         }
     }
 
@@ -206,10 +320,13 @@ internal static class LicenseWorkflowChecks
 
     private sealed class TestStorage : IUserMediaStorage
     {
+        public int UploadCount {get;private set;}
+        public Func<Task>? OnUpload {get;set;}
+        public List<string> Deleted {get;} = [];
         public Task ValidateAsync(IFormFile file, bool avatar, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
-        public Task UploadAsync(string path, IFormFile file, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        public async Task UploadAsync(string path, IFormFile file, CancellationToken cancellationToken = default)
+        { UploadCount++; if(OnUpload is not null) await OnUpload(); }
         public async Task<byte[]> ReadValidatedUavImageAsync(Stream stream, string fileName, string contentType, long fileSize, CancellationToken cancellationToken = default)
         {
             using var buffer = new MemoryStream();
@@ -223,7 +340,7 @@ internal static class LicenseWorkflowChecks
         public Task<byte[]> DownloadAsync(string path, CancellationToken cancellationToken = default)
             => Task.FromResult(Array.Empty<byte>());
         public Task DeleteAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        { Deleted.AddRange(paths); return Task.CompletedTask; }
     }
 
     private sealed class FailingStorage : IUserMediaStorage

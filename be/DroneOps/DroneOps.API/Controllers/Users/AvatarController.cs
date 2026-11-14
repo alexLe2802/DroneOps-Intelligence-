@@ -49,6 +49,7 @@ public sealed class AvatarController : ControllerBase
     [RequestSizeLimit(6 * 1024 * 1024)]
     public async Task<IActionResult> Upload(
         IFormFile file,
+        [FromForm] long? expectedVersion,
         CancellationToken cancellationToken)
     {
         string? userIdValue =
@@ -68,7 +69,8 @@ public sealed class AvatarController : ControllerBase
                 await _avatarService.UploadAvatarAsync(
                     userId,
                     file,
-                    cancellationToken);
+                    cancellationToken,
+                    expectedVersion);
 
             if (avatarUrl is null)
             {
@@ -79,6 +81,10 @@ public sealed class AvatarController : ControllerBase
             {
                 avatarUrl
             });
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException exception)
+        {
+            return Conflict(new { message = exception.Message });
         }
         catch (ArgumentException exception)
         {

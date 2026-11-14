@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Pilot> Pilots { get; set; }
     public DbSet<Role> Roles { get; set; }
+    public DbSet<UavReviewRequest> UavReviewRequests { get; set; }
     public DbSet<UAV> UAVs { get; set; }
     public DbSet<Mission> Missions { get; set; }
     public DbSet<Waypoint> Waypoints { get; set; }
@@ -45,14 +46,45 @@ public class AppDbContext : DbContext
     public DbSet<MissionWeatherCache> MissionWeatherCaches { get; set; }
     public DbSet<MissionValidationRun> MissionValidationRuns { get; set; }
 
+    private void AdvanceUavVersions()
+    {
+        ChangeTracker.DetectChanges();
+        foreach (var entry in ChangeTracker.Entries<UAV>().Where(x => x.State == EntityState.Modified))
+        {
+            var version = entry.Property(x => x.RegistryVersion);
+            if (version.CurrentValue == version.OriginalValue)
+                version.CurrentValue = checked(version.OriginalValue + 1);
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AdvanceUavVersions();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        AdvanceUavVersions();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<UAV>().HasIndex(x => x.Code).IsUnique();
+        modelBuilder.Entity<UAV>().Property(x => x.RegistryVersion).IsConcurrencyToken();
+        modelBuilder.Entity<UavReviewRequest>().Property(x => x.Status).IsConcurrencyToken();
+        modelBuilder.Entity<UavReviewRequest>().HasIndex(x => x.UavId).IsUnique()
+            .HasFilter("\"Status\" = 'Pending'");
+        modelBuilder.Entity<UavReviewRequest>().HasOne<UAV>().WithMany()
+            .HasForeignKey(x => x.UavId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<MissionUpdateRequest>().HasIndex(x => x.MissionId).IsUnique()
             .HasFilter("\"Status\" = 'Pending'").HasDatabaseName("UX_MissionUpdateRequest_Pending");
         modelBuilder.Entity<Incident>().Property(i => i.Revision).IsConcurrencyToken();
         modelBuilder.Entity<MissionFlightExecution>().HasIndex(e => e.UavId).IsUnique().HasFilter("\"CompletedAt\" IS NULL");
         modelBuilder.Entity<User>().Property(x=>x.ProfileVersion).IsConcurrencyToken();
+        modelBuilder.Entity<PilotUpdateRequest>().Property(x => x.Status).IsConcurrencyToken();
         modelBuilder.Entity<AccountWorkflowAudit>().Property(x=>x.Id).ValueGeneratedOnAdd();
         modelBuilder.Entity<MissionWeatherCache>().HasKey(x => x.Key);
         modelBuilder.Entity<DroneHardwareIdentity>().HasOne(h=>h.Uav).WithOne()

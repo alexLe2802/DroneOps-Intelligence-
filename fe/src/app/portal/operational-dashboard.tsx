@@ -175,7 +175,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     {warnings.length > 0 && <section className="dashboard-service-warning" role="status"><b>PARTIAL BACKEND ACCESS</b>{warnings.map(message => <p key={message}>{message}</p>)}</section>}
 
     <section className="dashboard-heading">
-      <div><h1>Mission &amp; Fleet Operations Hub</h1></div>
+      <div><h1>Mission &amp; Fleet Operations Hub</h1><Link href="/portal/flight-history">Operational analytics · filter by date, UAV or mission</Link></div>
       <Link className="preset-button" href="/portal/geofences">⌁ SECTOR PRESETS</Link>
       <Link className="new-mission" href={manager ? "/portal/uav-management" : "/portal/missions/new"}>{manager ? "REVIEW UAV QUEUE" : "+ NEW MISSION DISPATCH"}</Link>
     </section>
