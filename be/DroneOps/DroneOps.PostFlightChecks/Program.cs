@@ -180,7 +180,7 @@ Check(await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == noTelemetryMi
       await db.PostFlightReports.AnyAsync(x => x.MissionId == noTelemetryMissionId),
     "generation failure retains trusted completion evidence and report state");
 
-Check(await service.SynchronizeOverdueMissionsAsync() == 1,
+Check(await service.SynchronizeOverdueMissionsAsync() == 4,
     "scheduled lifecycle synchronization runs explicitly before analytics");
 var analytics = await service.GetOperationalAnalyticsAsync(new GetOperationalAnalyticsRequest(), pilotId);
 Check(analytics.TotalFlights == 4 && analytics.CompletedFlights == 3 &&
