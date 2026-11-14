@@ -72,7 +72,7 @@ public sealed class UavImageModerationMonitor(
         logger.LogInformation("UAV image AI moderation is disabled; outstanding images were accepted by policy.");
     }
 
-    private async Task ProcessDueImagesAsync(CancellationToken cancellationToken)
+    private async Task<bool> ProcessDueImagesAsync(CancellationToken cancellationToken)
     {
         await using var discoveryScope = scopeFactory.CreateAsyncScope();
         var discoveryDb = discoveryScope.ServiceProvider.GetRequiredService<AppDbContext>();
