@@ -20,7 +20,6 @@ import WaypointNavigationFields, { FirmwareDefaultsNotice } from "../waypoint-na
 import AutomaticFlightFields, { defaultAutomaticLimits } from "../automatic-flight-fields";
 import FlightModeFields, { type FlightMode } from "../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
-
 import MissionFenceFields, { useFenceDrawing } from "../mission-fence-fields";
 import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
 

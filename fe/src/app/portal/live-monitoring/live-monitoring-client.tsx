@@ -4,8 +4,8 @@ import { ApiError } from "@/lib/auth/client";
 import { formatVietnamDateTime, formatVietnamTime } from "@/lib/portal/vietnam-time";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getLatestMissionTelemetry, getLiveMissions, getMission, getMissionIncidents, liveMissionStreamUrl } from "@/lib/portal/client";
-import type { IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
+import { getAssignedUav, getManagedUav, getLatestMissionTelemetry, getLiveMissions, getMission, getMissionIncidents, liveMissionStreamUrl } from "@/lib/portal/client";
+import type { AssignedUav, IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
 import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
 import { armingDisplay } from "@/lib/portal/arming-state";
 import LiveMap from "./live-map";
@@ -34,6 +34,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   const [missions, setMissions] = useState<LiveMission[] | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [mission, setMission] = useState<MissionDetail | null>(null);
+  const [aircraft, setAircraft] = useState<AssignedUav | null>(null);
   const [telemetry, setTelemetry] = useState<MissionTelemetry | null>(null);
   const browserReceiptTimes = useRef(new Map<string, string>());
   const [incidents, setIncidents] = useState<IncidentItem[]>([]);
@@ -74,6 +75,13 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   }, []);
 
   const selected = useMemo(() => missions?.find(item => item.missionId === selectedId) ?? null, [missions, selectedId]);
+  useEffect(() => {
+    if (!selected?.uavId) return;
+    let active = true;
+    const request = canPrepare ? getAssignedUav(selected.uavId) : getManagedUav(selected.uavId);
+    void request.then(value => { if (active) setAircraft(value); }).catch(() => { if (active) setAircraft(null); });
+    return () => { active = false; };
+  }, [selected?.uavId, canPrepare]);
 
   const loadSelected = useCallback(async () => {
     if (!selectedId || !selected) return;
@@ -164,6 +172,11 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   const offlineAfter = telemetry?.offlineAfterSeconds ?? 30;
   const connection = packetAge == null ? "offline" : packetAge > offlineAfter ? "offline" : packetAge > staleAfter ? "stale" : streamState === "live" ? "online" : "unknown";
   const batteryTelemetry = telemetry?.missionId === selectedId ? telemetry : null;
+  const packCapacityMah = aircraft?.id === selected?.uavId ? aircraft?.batteryCapacityMah : null;
+  const consumedMah = batteryTelemetry?.uavId === selected?.uavId ? batteryTelemetry?.batteryConsumedMah : null;
+  const remainingChargeMah = packCapacityMah != null && Number.isFinite(packCapacityMah) && packCapacityMah > 0
+    && consumedMah != null && Number.isFinite(consumedMah) && consumedMah >= 0
+    ? Math.max(0, packCapacityMah - consumedMah) : null;
   const arming = armingDisplay(telemetry, selectedId, streamState === "live",
     telemetry?.sourceTimestamp || telemetry?.receivedAt ? packetAge : null);
   const missionEnded = mission?.id === selectedId && (Boolean(mission.endTime && new Date(mission.endTime).getTime() <= clock)
@@ -269,6 +282,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
             `Pack voltage: ${valueOr(batteryTelemetry?.batteryVoltageVolts, " V", 2)}`,
             `Current: ${valueOr(batteryTelemetry?.batteryCurrentAmps, " A", 2)}`,
             `Consumed charge (FC): ${valueOr(batteryTelemetry?.batteryConsumedMah, " mAh", 0)}`,
+            `Estimated remaining charge: ${valueOr(remainingChargeMah, " mAh", 0)}`,
             `State: ${arming.label}`,
           ]} />
           <TelemetryCard index="05" label="LINK & TELEMETRY" value={connection.toUpperCase()} tone={connection === "online" ? "good" : connection === "stale" ? "warning" : "danger"} lines={[`Age: ${packetAge === null ? "Unavailable" : `${packetAge.toFixed(1)} s`}`, `Stream: ${streamState}`]} />

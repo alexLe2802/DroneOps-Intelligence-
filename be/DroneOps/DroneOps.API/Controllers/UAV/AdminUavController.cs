@@ -1,4 +1,5 @@
 using DroneOps.Application.DTOs.Request.UAV;
+using DroneOps.Application.DTOs.Request.UAVs;
 using DroneOps.Application.DTOs.Request.Uavs;
 using DroneOps.Application.Interfaces.UAVs;
 using Microsoft.AspNetCore.Authorization;
@@ -124,6 +125,27 @@ public class AdminUavController : ControllerBase
         {
             var result = await _uavService.DeactivateAsync(id, cancellationToken);
             return result is null ? NotFound() : Ok(result);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/image/reject")]
+    public async Task<IActionResult> RejectImage(
+        Guid id,
+        [FromBody] RejectUavImageRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _uavService.RejectUavImageAsync(id, request.Reason, cancellationToken);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { message = exception.Message });
         }
         catch (InvalidOperationException exception)
         {

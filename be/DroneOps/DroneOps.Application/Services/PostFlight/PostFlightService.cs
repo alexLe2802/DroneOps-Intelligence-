@@ -292,12 +292,9 @@ public sealed class PostFlightService : IPostFlightService
                             x.SourceTimestamp <= coveredThrough)
                 .ToList();
             var incidents = await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken);
-            if (telemetry.Count == 0 && !scheduledCompletion)
-                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
             if (telemetry.Count == 0)
-                PopulateScheduledReport(report, mission, incidents);
-            else
-                PopulateReport(report, mission, telemetry, incidents);
+                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
+            PopulateReport(report, mission, telemetry, incidents);
             report.CoveredTelemetryThrough = coveredThrough;
             report.GenerationStatus = "Available";
             report.GeneratedAt = DateTimeOffset.UtcNow;
@@ -425,6 +422,9 @@ public sealed class PostFlightService : IPostFlightService
                     CompletedFlights = group.Count(x => x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase)),
                     FailedOrAbortedFlights = group.Count(x => !x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
                 }).ToList(),
+            IncidentTypeBreakdown = distinctIncidents
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Type) ? "Unknown" : x.Type.Trim())
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
             IncidentSeverityBreakdown = distinctIncidents
                 .GroupBy(x => NormalizeSeverity(x.Severity))
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),

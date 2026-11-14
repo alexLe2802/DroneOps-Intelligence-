@@ -310,7 +310,7 @@ try
             "new incident creates one navigable Facebook-style notification for the pilot");
     }
 
-    // Pilot nhận alert bền vững, acknowledge/resolve và lịch sử append-only qua HTTP.
+    // Pilot nhận alert bền vững và acknowledge; chỉ Manager được resolve; lịch sử append-only qua HTTP.
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId, "uav_operator"));
     var unread = await Json(await client.GetAsync("/api/incidents/alerts/unread"));
     Check(unread.GetArrayLength() >= 1, "raised incident creates a durable unread alert for the mission owner");
