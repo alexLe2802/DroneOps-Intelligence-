@@ -281,7 +281,10 @@ export type MissionDecision = {
 
 export type UavStatus = "Pending" | "Active" | "Rejected" | "Inactive" | string;
 
+export type UavReview = { id: string; kind: string; status: string; submittedBy: string | null; submittedAt: string | null; baseVersion: number; reviewedBy: string | null; reviewedAt: string | null; reason: string | null; currentAtSubmission: Partial<CreateUavRequest>; proposed: CreateUavRequest };
+export type UavReviewState = { registryVersion: number; status: string; hasApprovedInformation: boolean; current: CreateUavRequest; pending: UavReview | null; history: UavReview[]; legacyHistoryUnavailable: boolean };
 export type AssignedUav = {
+  registryVersion: number; hasPendingProposal: boolean; hasApprovedInformation: boolean;
   firmwareNavigationDefaults?: FirmwareParameterSnapshot | null;
   id: string;
   code: string;
@@ -338,7 +341,7 @@ export type CreateUavRequest = {
   maxOperatingAltitudeMeters: number | null;
   purchaseDate: string | null;
 };
-export type UpdateUavRequest = CreateUavRequest;
+export type UpdateUavRequest = CreateUavRequest & { expectedVersion: number };
 
 export type FlightHistoryItem = {
   missionId: string; missionName: string; status: string; uavId: string | null;

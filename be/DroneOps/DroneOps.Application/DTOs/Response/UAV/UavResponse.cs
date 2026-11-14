@@ -2,6 +2,9 @@ namespace DroneOps.Application.DTOs.Response.UAVs;
 
 public sealed class UavResponse
 {
+    public bool HasPendingProposal { get; set; }
+    public long RegistryVersion { get; set; }
+    public bool HasApprovedInformation { get; set; }
     public DroneOps.Domain.Entities.FirmwareParameterSnapshot? FirmwareNavigationDefaults { get; set; }
     public Guid Id { get; set; }
 

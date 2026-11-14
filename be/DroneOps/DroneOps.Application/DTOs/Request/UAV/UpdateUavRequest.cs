@@ -4,6 +4,8 @@ namespace DroneOps.Application.DTOs.Request.UAVs;
 
 public sealed class UpdateUavRequest
 {
+    public long? ExpectedVersion { get; set; }
+
     [Required]
     [MaxLength(50)]
     public string Code { get; set; } = string.Empty;

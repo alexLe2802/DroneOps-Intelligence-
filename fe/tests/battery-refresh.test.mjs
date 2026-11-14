@@ -21,7 +21,7 @@ function setup({ auto = false, read = () => Promise.resolve(sample()), lastRead 
   const navigator = { onLine: true };
   const calls = { requests: 0, writes: 0, signals: [] };
   class Observer {
-    constructor(callback) { this.callback = callback; observer = this; }
+    constructor(callback) { this.callback = callback; observer = this.show.bind(this); }
     observe() {}
     disconnect() { this.disconnected = true; }
     show(value) { if (!this.disconnected) this.callback([{ isIntersecting: value }]); }
@@ -33,7 +33,7 @@ function setup({ auto = false, read = () => Promise.resolve(sample()), lastRead 
     (id, signal) => { calls.requests++; calls.signals.push(signal); return read(id, signal); }, assessmentBatteryState,
     write, write, write, write, write);
   const flush = () => new Promise(resolve => setImmediate(resolve));
-  return { document, window, navigator, calls, lastRead, flush, cleanup: () => cleanup?.(), show: value => observer?.show(value),
+  return { document, window, navigator, calls, lastRead, flush, cleanup: () => cleanup?.(), show: value => observer?.(value),
     async advance(ms) {
       const target = time + ms;
       while (true) {
