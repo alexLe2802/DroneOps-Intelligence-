@@ -109,8 +109,8 @@ export function getLiveMissions(): Promise<LiveMission[]> {
   return api<LiveMission[]>("/live/missions");
 }
 
-export function getLatestMissionTelemetry(id: string): Promise<MissionTelemetry> {
-  return api<MissionTelemetry>(`/missions/${encodeURIComponent(id)}/telemetry/latest`);
+export function getLatestMissionTelemetry(id: string, signal?: AbortSignal): Promise<MissionTelemetry> {
+  return api<MissionTelemetry>(`/missions/${encodeURIComponent(id)}/telemetry/latest`, { signal });
 }
 
 export function getMissionIncidents(missionId: string, pageSize = 8): Promise<PagedIncidents> {
