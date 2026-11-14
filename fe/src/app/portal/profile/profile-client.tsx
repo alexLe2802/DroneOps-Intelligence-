@@ -8,8 +8,8 @@ import EmailChange from "./email-change";
 import OperatorEdit from "./operator-edit";
 import LicenseChanges from "./license-changes";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { api } from "@/lib/auth/client";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ApiError, api } from "@/lib/auth/client";
 import type { Account } from "@/lib/auth/types";
 import { useRouter } from "next/navigation";
 import { getPilotProfile, getProfile, updateProfile } from "@/lib/portal/client";
@@ -29,6 +29,7 @@ export default function ProfileClient({ account, initialLicenseRequestId }: { ac
   const avatarInput = useRef<HTMLInputElement>(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [avatarMessage, setAvatarMessage] = useState("");
+  const [avatarStale, setAvatarStale] = useState(false);
   useEffect(() => () => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); }, [avatarPreview]);
   function clearAvatarSelection() {
     setAvatarFile(null);
@@ -49,29 +50,34 @@ export default function ProfileClient({ account, initialLicenseRequestId }: { ac
   const [avatarError, setAvatarError] = useState("");
   const [uploading, setUploading] = useState(false);
   async function uploadAvatar() {
-    if (!avatarFile || uploading || !profile) return;
+    if (!avatarFile || uploading || !profile || avatarStale) return;
     setUploading(true); setAvatarError(""); setAvatarMessage("");
+    let saved = false;
     try {
       const validationError = avatarFileError(avatarFile);
       if (validationError) throw new Error(validationError);
       const body = new FormData(); body.set("file", avatarFile);
       body.set("expectedVersion", String(profile.profileVersion));
       const result = await api<{ avatarUrl: string }>("/users/avatar", { method: "POST", body });
+      saved = true;
       setProfile({ ...(await getProfile()), avatarUrl: result.avatarUrl });
       if (account.role === "uav_operator") setPilot(await getPilotProfile());
       clearAvatarSelection(); setAvatarMessage("Avatar updated successfully."); router.refresh();
     } catch (e) {
       clearAvatarSelection();
       const detail = e instanceof Error ? e.message : "Avatar upload failed.";
-      setAvatarError(`${detail} Your current avatar was kept.`);
+      if (saved) { setAvatarStale(true); setAvatarError("Avatar saved. Reload your profile to display the latest information."); }
+      else if (e instanceof ApiError && e.status === 409) { setAvatarStale(true); setAvatarError("Your profile changed in another tab. Reload before uploading again."); }
+      else setAvatarError(`${detail} Your current avatar was kept.`);
     }
     finally { setUploading(false); }
   }
   const [message, setMessage] = useState("");
-  const load = useCallback(() => {
+  function load() {
     setProfile(null); setError(null);
-    void getProfile().then(value => { setProfile(value); setName(value.fullName); }).catch(setError);
-  }, []);
+    void Promise.all([getProfile(), account.role === "uav_operator" ? getPilotProfile() : Promise.resolve(null)])
+      .then(([value, operator]) => { setProfile(value); setName(value.fullName); setPilot(operator); setAvatarStale(false); setAvatarError(""); }).catch(setError);
+  }
   useEffect(() => {
     let active = true;
     void getProfile()
@@ -113,7 +119,8 @@ export default function ProfileClient({ account, initialLicenseRequestId }: { ac
         <p className={styles.hint} id="avatar-file-help">JPEG, PNG or WebP · up to 5 MB</p>
         {avatarFile && <p className={styles.filename}>{avatarFile.name}</p>}
         {avatarError && <p className={styles.error} id="avatar-file-error" role="alert">{avatarError}</p>}
-        <button type="button" className="module-primary" disabled={!avatarFile || uploading} onClick={() => void uploadAvatar()}>{uploading ? "Uploading…" : "Save avatar"}</button>
+        {avatarStale && <button type="button" className="module-secondary" onClick={load}>Reload latest profile</button>}
+        <button type="button" className="module-primary" disabled={!avatarFile || uploading || avatarStale} onClick={() => void uploadAvatar()}>{uploading ? "Uploading…" : "Save avatar"}</button>
         {avatarMessage && <p className={styles.success} role="status">{avatarMessage}</p>}
       </div>
       <div className={styles.identity}><h2>{profile.fullName}</h2><p>{profile.email}</p><b className={styles.role}>{profile.role.replaceAll("_", " ")}</b><small className={styles.member}>Member since {formatVietnamDate(profile.createdAt)}</small></div>

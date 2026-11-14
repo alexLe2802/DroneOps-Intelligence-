@@ -233,7 +233,7 @@ public sealed class UserService : IUserService
             {
                 _db.ChangeTracker.Clear();
                 await using var transaction = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
-                await _db.Users.FromSqlInterpolated($"SELECT * FROM droneops.\"User\" WHERE \"Id\"={userId} FOR UPDATE").SingleOrDefaultAsync(cancellationToken);
+                await _db.Users.FromSqlInterpolated($"SELECT * FROM public.\"User\" WHERE \"Id\"={userId} FOR UPDATE").SingleOrDefaultAsync(cancellationToken);
                 var result = await UpdatePilotProfileCoreAsync(userId, request, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
                 return result;
@@ -859,6 +859,7 @@ public sealed class UserService : IUserService
         if (await _userRepository.EmailExistsAsync(pending.NewEmail, userId, cancellationToken))
             throw new Exception("This email address is already registered by another account.");
         user.Email = pending.NewEmail;
+        user.ProfileVersion++;
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
@@ -894,6 +895,7 @@ public sealed class UserService : IUserService
         }
 
         user.PasswordHash = BC.HashPassword(request.NewPassword);
+        user.ProfileVersion++;
         _userRepository.Update(user);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
@@ -906,19 +908,26 @@ public sealed class UserService : IUserService
     private async Task<string> RequestPersistentEmailChallengeAsync(User user,string newEmail,CancellationToken ct)
     {
         if(_db is null)throw new InvalidOperationException();
-        if(await _db.Users.AsNoTracking().AnyAsync(x=>x.Email.ToLower()==newEmail&&x.Id!=user.Id,ct))
-            throw new Exception("This email address is already registered by another account.");
         var code=EmailVerificationCode.Generate();var id=Guid.NewGuid();var now=DateTimeOffset.UtcNow;
-        if (await _db.EmailChangeChallenges.AsNoTracking().AnyAsync(x => x.AccountId == user.Id && x.CreatedAt > now.AddSeconds(-60) && x.Status != "DeliveryFailed", ct))
-            throw new InvalidOperationException("Please wait 60 seconds before requesting a new verification code.");
-        await _db.EmailChangeChallenges.Where(x=>x.AccountId==user.Id&&x.Status=="Pending")
-            .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Status,"Superseded"),ct);
-        _db.EmailChangeChallenges.Add(new EmailChangeChallenge {Id=id,AccountId=user.Id,NewEmail=newEmail,
-            CodeHash=ChallengeHash(id,code),CreatedAt=now,ExpiresAt=now.AddMinutes(10),Status="Pending"});
-        _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=user.Id,TargetId=user.Id,
-            Action="email.challenge.requested",Result="Pending",OccurredAt=now,
-            DetailsJson=JsonSerializer.Serialize(new {challengeId=id,newEmail})});
-        await _db.SaveChangesAsync(ct);
+        await _db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            _db.ChangeTracker.Clear();
+            await using var transaction = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+            await _db.Users.FromSqlInterpolated($"SELECT * FROM public.\"User\" WHERE \"Id\"={user.Id} FOR UPDATE").SingleAsync(ct);
+            if(await _db.Users.AsNoTracking().AnyAsync(x=>x.Email.ToLower()==newEmail&&x.Id!=user.Id,ct))
+                throw new Exception("This email address is already registered by another account.");
+            if (await _db.EmailChangeChallenges.AsNoTracking().AnyAsync(x => x.AccountId == user.Id && x.CreatedAt > now.AddSeconds(-60) && x.Status != "DeliveryFailed", ct))
+                throw new InvalidOperationException("Please wait 60 seconds before requesting a new verification code.");
+            await _db.EmailChangeChallenges.Where(x=>x.AccountId==user.Id&&x.Status=="Pending")
+                .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Status,"Superseded"),ct);
+            _db.EmailChangeChallenges.Add(new EmailChangeChallenge {Id=id,AccountId=user.Id,NewEmail=newEmail,
+                CodeHash=ChallengeHash(id,code),CreatedAt=now,ExpiresAt=now.AddMinutes(10),Status="Pending"});
+            _db.AccountWorkflowAudits.Add(new AccountWorkflowAudit {ActorId=user.Id,TargetId=user.Id,
+                Action="email.challenge.requested",Result="Pending",OccurredAt=now,
+                DetailsJson=JsonSerializer.Serialize(new {challengeId=id,newEmail})});
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        });
         var body=$"<span style='font-size: 28px; font-weight: bold'>{code}</span>";
         try{await _emailService.SendEmailAsync(newEmail,"DroneOps - Email Change Verification Code",body);}
         catch
@@ -940,6 +949,7 @@ public sealed class UserService : IUserService
         {
             await _db.Database.CreateExecutionStrategy().ExecuteAsync(async()=>
             {
+                failure = null;
                 _db.ChangeTracker.Clear();
                 await using var tx=await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,ct);
                 var challenge=await _db.EmailChangeChallenges.FromSqlInterpolated(
