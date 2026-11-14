@@ -45,6 +45,20 @@
 
 /* AI assessment evidence workspace */
 .ai-context{max-width:1280px}
+.ai-battery-live{border-top:3px solid #63dcff}
+.ai-battery-live .ai-battery-verdict{padding:14px;border-left:3px solid #ffd36f;background:#282317;color:#ffe3a1}
+.ai-battery-live .ai-battery-verdict.high{border-color:#ff8d99;background:#321f28;color:#ffb0b7}
+.ai-battery-live .module-secondary{display:inline-block;min-height:24px;padding:10px 14px}
+.ai-risk-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ai-risk-overview>div{padding:14px;background:#101720;border:1px solid var(--line)}
+.ai-risk-overview dt{color:var(--sub);font-size:11px;line-height:1.5}
+.ai-risk-overview dd{margin:8px 0 0;font-size:28px;font-weight:700}
+.ai-risk-list .ai-flight-link{display:inline-block;margin:4px 12px 4px 0;padding:4px 0;min-height:24px}
+.ai-history-evidence{border:1px solid var(--line);border-radius:7px;background:var(--panel);min-width:0}
+.ai-history-evidence>summary{cursor:pointer;padding:18px;font-weight:700;line-height:1.5}
+.ai-history-evidence>.ai-evidence{border:0}
+.ai-assessment-detail :is(a,button,summary):focus-visible{outline:2px solid #63dcff;outline-offset:3px}
+@media(max-width:700px){.ai-risk-overview{grid-template-columns:1fr}.ai-battery-live>header{flex-direction:column}.ai-battery-live dd{overflow-wrap:anywhere}}
 .ai-context-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 .ai-context-heading h2{margin:0 0 6px;font-size:26px;line-height:1.15}.ai-context-heading p{margin:0;color:var(--sub)}
 .ai-context-heading>span,.ai-result>header>span{flex:0 0 auto;padding:6px 9px;border:1px solid #31516a;background:#102334;color:#70d9ff;font:8px Consolas,monospace;letter-spacing:1px}

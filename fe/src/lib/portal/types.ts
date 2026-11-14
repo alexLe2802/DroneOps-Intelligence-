@@ -140,6 +140,7 @@ export type LiveMission = {
 };
 
 export type MissionTelemetry = {
+  batteryObservedAt?: string | null;
   staleAfterSeconds?: number;
   offlineAfterSeconds?: number;
   detectionDiagnostics?: string[];
@@ -416,8 +417,11 @@ export type BatteryAssessment = {
   telemetrySourceTimestamp: string | null; estimatedRemainingChargeMah: number | null;
   requiredBatteryPercent: number | null; estimatedRequiredChargeMah: number | null;
   meetsEstimatedRequirement: boolean | null; missingData: string[]; warnings: string[];
+  routeDistanceMeters?: number | null; estimatedFlightMinutes?: number | null;
+  baseBatteryPercent?: number | null; weatherAdjustmentPercent?: number | null;
+  safetyReservePercent?: number | null; reasons?: string[];
 };
-export type AiRisk = { severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
+export type AiRisk = { category?: string; sourceIncidentIds?: string[]; severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
   status: "Pending" | "Available" | "Outdated" | "Failed" | "ProviderUnavailable";

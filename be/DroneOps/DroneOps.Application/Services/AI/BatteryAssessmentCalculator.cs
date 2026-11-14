@@ -35,8 +35,31 @@ public static class BatteryAssessmentCalculator
             }
         }
         catch (JsonException) { /* Missing/invalid optional FC cache uses the declared fallback. */ }
+        // Planning demand is independent of whether the aircraft is connected.
+        var requirement = MissionBatteryRiskCalculator.Calculate(mission, uav, weather);
+        if (requirement.Status == "Available")
+        {
+            result.Status = "EstimateOnly";
+            result.RequiredBatteryPercent = requirement.RequiredBatteryPercent;
+            result.RouteDistanceMeters = requirement.RouteDistanceMeters;
+            result.EstimatedFlightMinutes = requirement.EstimatedFlightMinutes;
+            result.BaseBatteryPercent = requirement.BaseBatteryPercent;
+            result.WeatherAdjustmentPercent = requirement.WeatherAdjustmentPercent;
+            result.SafetyReservePercent = requirement.SafetyReservePercent;
+            result.Reasons.AddRange(requirement.Reasons);
+            if (result.ConfiguredCapacityMah is { } capacity)
+                result.EstimatedRequiredChargeMah = decimal.Round(capacity * requirement.RequiredBatteryPercent / 100m, 1);
+        }
+        else result.MissingData.AddRange(requirement.Warnings);
+        result.Warnings.AddRange(requirement.Warnings);
+        result.Warnings.Add("Planning estimate from route, configured endurance and available weather; not calibrated for actual payload, battery aging or emergency return. It is not a flight authorization.");
+        if (weather is null || weather.Status == "Unavailable")
+            result.Warnings.Add("A current forecast is unavailable; the estimate has no forecast-based adjustment.");
         var fresh = telemetry is { IsValid: true } && telemetry.UAVId == uav.Id && telemetry.MissionId == mission.Id
+            && !string.IsNullOrWhiteSpace(telemetry.SourceId)
             && telemetry.SourceTimestamp >= now.AddSeconds(-15) && telemetry.SourceTimestamp <= now.AddSeconds(5)
+            && (telemetry.BatteryObservedAt ?? telemetry.SourceTimestamp) >= now.AddSeconds(-15)
+            && (telemetry.BatteryObservedAt ?? telemetry.SourceTimestamp) <= now.AddSeconds(5)
             && telemetry.ReceivedAt >= now.AddSeconds(-15) && telemetry.ReceivedAt <= now.AddSeconds(5);
         if (!fresh)
             result.MissingData.Add("Fresh battery telemetry from this mission and UAV is required (maximum age 15 seconds).");
@@ -52,27 +75,13 @@ public static class BatteryAssessmentCalculator
         }
         if (!result.ConfiguredCapacityMah.HasValue)
             result.Warnings.Add("FC capacity is unavailable and no optional UAV capacity is supplied; mAh estimates are unavailable. FC percentage can still be assessed.");
-        if (result.MissingData.Count != 0) return result;
-
-        var requirement = MissionBatteryRiskCalculator.Calculate(mission, uav, weather);
-        if (requirement.Status != "Available")
+        if (fresh && telemetry!.BatteryVoltageVolts is not < 1m && result.CurrentBatteryPercent is { } current && result.ConfiguredCapacityMah is { } capacityMah)
         {
-            result.MissingData.AddRange(requirement.Warnings);
-            return result;
+            result.EstimatedRemainingChargeMah = decimal.Round(capacityMah * current / 100m, 1);
         }
-        result.Status = "EstimateOnly";
-        result.RequiredBatteryPercent = requirement.RequiredBatteryPercent;
-        if (result.ConfiguredCapacityMah is { } capacityMah)
-        {
-            result.EstimatedRequiredChargeMah = decimal.Round(capacityMah * requirement.RequiredBatteryPercent / 100m, 1);
-            result.EstimatedRemainingChargeMah = decimal.Round(capacityMah * result.CurrentBatteryPercent!.Value / 100m, 1);
-        }
-        result.MeetsEstimatedRequirement = result.CurrentBatteryPercent!.Value >= requirement.RequiredBatteryPercent;
-        result.Warnings.AddRange(requirement.Warnings);
+        if (result.MissingData.Count == 0 && result.CurrentBatteryPercent.HasValue && result.RequiredBatteryPercent.HasValue)
+            result.MeetsEstimatedRequirement = result.CurrentBatteryPercent.Value >= result.RequiredBatteryPercent.Value;
         result.Warnings.Add("Charge estimates use the configured pack capacity, not a measured full-charge capacity. Confirm it matches the installed battery.");
-        result.Warnings.Add("This reuses the route/endurance/weather heuristic with its 20% reserve. Hover, climb, payload and battery aging are not calibrated; this is not a flight authorization.");
-        if (weather is null || weather.Status == "Unavailable")
-            result.Warnings.Add("A current forecast is unavailable; the estimate has no forecast-based adjustment.");
         return result;
     }
 }
