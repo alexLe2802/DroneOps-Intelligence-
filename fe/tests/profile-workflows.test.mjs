@@ -47,6 +47,15 @@ test('client preserves duplicate, cooldown, expired code and delivery failures',
 });
 const documentUrl=compile(await readFile(new URL('../src/lib/license-document.ts',import.meta.url),'utf8'));
 const {validateLicenseChange}=await import(compile((await readFile(new URL('../src/lib/license-change.ts',import.meta.url),'utf8')).replace('"./license-document"',JSON.stringify(documentUrl))));
+test('operator profile edits send the shared version and the SRS flight experience text', async () => {
+  const formSource = await readFile(new URL('../src/app/portal/profile/operator-edit.tsx', import.meta.url), 'utf8');
+  const profileSource = await readFile(new URL('../src/app/portal/profile/profile-client.tsx', import.meta.url), 'utf8');
+  assert.match(formSource, /expectedVersion: pilot\.profileVersion/);
+  assert.match(formSource, /name="flightExperienceDescription"/);
+  assert.match(formSource, /Briefly describe your flight experience/);
+  assert.match(formSource, /maxLength=\{500\}/);
+  assert.match(profileSource, /Flight experience summary/);
+});
 test('license validation rejects empty number, nonfuture expiry, invalid issue date and oversized images',()=>{
  const now=new Date(2026,9,31,12); const image={name:'scan.png',type:'image/png',size:5*1024*1024};
  const validate=(number='LIC-02',issued='2026-01-01',expires='2027-01-01',files=[image])=>validateLicenseChange(number,issued,expires,files,now);

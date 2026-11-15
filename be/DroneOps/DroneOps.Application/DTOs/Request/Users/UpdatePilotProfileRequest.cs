@@ -2,12 +2,16 @@
 
 public sealed class UpdatePilotProfileRequest
 {
+    public long ExpectedVersion { get; set; }
+
     // Update trực tiếp vào Pilot
     public string? PhoneNumber { get; set; }
 
     public DateOnly? DateOfBirth { get; set; }
 
     public int? ExperienceYears { get; set; }
+
+    public string? FlightExperienceDescription { get; set; }
 
     // Tạo PilotUpdateRequest Pending
     public string? PilotLicenseNo { get; set; }

@@ -119,11 +119,12 @@ export default function ProfileClient({ account, initialLicenseRequestId }: { ac
       ["Phone", pilot.phoneNumber], ["Date of birth", pilot.dateOfBirth],
       ["License number", pilot.pilotLicenseNo], ["License issued", pilot.licenseIssuedDate],
       ["License expires", pilot.licenseExpiredDate], ["Experience", `${pilot.experienceYears} years`],
+      ["Flight experience summary", pilot.flightExperienceDescription],
       ["Drone type", pilot.droneType], ["Drone model", pilot.droneModel],
     ].map(([label, value]) => <div key={label}><span>{label}</span><b>{value || "Not provided"}</b></div>)}</div>}</section>}
 
     <EmailChange onChanged={async () => { window.location.replace("/login?emailChanged=1"); }} />
-    {account.role === "uav_operator" && pilot && <OperatorEdit key={`${pilot.phoneNumber}-${pilot.dateOfBirth}-${pilot.experienceYears}`} pilot={pilot} onUpdated={async () => setPilot(await getPilotProfile())} />}
+    {account.role === "uav_operator" && pilot && <OperatorEdit key={`${pilot.profileVersion}-${pilot.phoneNumber}-${pilot.dateOfBirth}-${pilot.experienceYears}`} pilot={pilot} onUpdated={async () => setPilot(await getPilotProfile())} />}
     {account.role === "uav_operator" && <LicenseChanges onRefresh={retryPilot} initialRequestId={initialLicenseRequestId} />}
   </>;
 }
