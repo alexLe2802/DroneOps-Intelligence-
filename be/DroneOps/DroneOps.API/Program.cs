@@ -15,8 +15,9 @@ var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCas
     "--migrate-auth", "--bootstrap-manager", "--monitor-only",
     "--migrate-telemetry", "--check-telemetry-schema",
     "--migrate-postflight", "--check-postflight-schema",
-    "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows",
-    "--migrate-uav-images", "--migrate-uav-reviews"
+    "--migrate-mission-workflow", "--check-mission-workflow-schema", "--migrate-drone-connections",
+    "--migrate-account-workflows", "--check-account-workflow-schema",
+    "--migrate-uav-images", "--migrate-uav-reviews", "--check-uav-review-schema"
 };
 var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
@@ -52,11 +53,20 @@ if (args.Contains("--migrate-drone-connections"))
     return;
 }
 
-if(args.Contains("--migrate-account-workflows"))
+if (args.Contains("--migrate-account-workflows") || args.Contains("--check-account-workflow-schema"))
 {
-    await using var source=PostgresDataSourceFactory.Create(connectionString);
-    await AccountWorkflowSchema.ApplyAsync(source);
-    Console.WriteLine("Account workflow schema verified.");return;
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    if (args.Contains("--migrate-account-workflows"))
+    {
+        await AccountWorkflowSchema.ApplyAsync(source);
+    }
+    else
+    {
+        await AccountWorkflowSchema.CheckAsync(source);
+    }
+
+    Console.WriteLine("Account workflow schema verified.");
+    return;
 }
 
 if (args.Contains("--migrate-uav-images"))
@@ -67,18 +77,34 @@ if (args.Contains("--migrate-uav-images"))
     return;
 }
 
-if (args.Contains("--migrate-uav-reviews"))
+if (args.Contains("--migrate-uav-reviews") || args.Contains("--check-uav-review-schema"))
 {
     await using var source = PostgresDataSourceFactory.Create(connectionString);
-    await UavReviewSchema.ApplyAsync(source);
+    if (args.Contains("--migrate-uav-reviews"))
+    {
+        await UavReviewSchema.ApplyAsync(source);
+    }
+    else
+    {
+        await UavReviewSchema.CheckAsync(source);
+    }
+
     Console.WriteLine("UAV review schema verified.");
     return;
 }
 
-if (args.Contains("--migrate-mission-workflow"))
+if (args.Contains("--migrate-mission-workflow") || args.Contains("--check-mission-workflow-schema"))
 {
     await using var source = PostgresDataSourceFactory.Create(connectionString);
-    await MissionWorkflowSchema.ApplyAsync(source);
+    if (args.Contains("--migrate-mission-workflow"))
+    {
+        await MissionWorkflowSchema.ApplyAsync(source);
+    }
+    else
+    {
+        await MissionWorkflowSchema.CheckAsync(source);
+    }
+
     Console.WriteLine("Mission workflow schema verified.");
     return;
 }
@@ -245,7 +271,6 @@ await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlD
 await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await UavImageSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await UavReviewSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

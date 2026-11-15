@@ -34,6 +34,19 @@ public static class MissionWorkflowSchema
                 FROM public."Geofence" LIMIT 0;
                 SELECT "SnapshotJson" FROM public."GeofenceRevision" LIMIT 0;
                 SELECT "ForecastJson" FROM public."MissionWeatherCache" LIMIT 0;
+                SELECT "Id", "CreatedBy", "UAVId", "Name", "Description", "Status",
+                       "AltitudeReference", "AutomaticFlightRequested", "AutomaticFlightLimitsJson",
+                       "StartTime", "EndTime", "AverageSpeedMetersPerSecond",
+                       "MaxSpeedMetersPerSecond", "CreatedAt"
+                FROM public."Mission" LIMIT 0;
+                SELECT "Id", "MissionId", "SequenceOrder", "Latitude", "Longitude",
+                       "Altitude", "NavigationJson", "ActionType", "CreatedAt"
+                FROM public."Waypoint" LIMIT 0;
+                SELECT "Id", "PilotId", "Status" FROM public."UAV" LIMIT 0;
+                SELECT "Id", "UserId", "PilotLicenseNo", "LicenseIssuedDate",
+                       "LicenseExpiredDate"
+                FROM public."Pilot" LIMIT 0;
+                SELECT "Id", "IsActive" FROM public."User" LIMIT 0;
                 """);
         }
         catch (PostgresException e) when (e.SqlState is "42P01" or "42703") { throw new InvalidOperationException("Apply mission workflow migration with --migrate-mission-workflow before starting the API.", e); }
