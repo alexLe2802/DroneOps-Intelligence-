@@ -33,7 +33,7 @@ public static class PostFlightSchema
         // changing business data. Checking only the latest index/table is not
         // sufficient because a manually or partially provisioned database can
         // still be missing one of the lifecycle columns used by EF queries.
-        await using var command = source.CreateCommand("""
+        const string sql = """
             SELECT EXISTS (
                 SELECT 1 FROM pg_indexes
                 WHERE schemaname = current_schema()
@@ -74,8 +74,8 @@ public static class PostFlightSchema
                       AND actual.column_name = required.column_name
                 )
             )
-            """);
-        var exists = (bool)(await command.ExecuteScalarAsync() ?? false);
+            """;
+        var exists = (bool)(await SchemaCommandExecutor.ExecuteScalarAsync(source, sql) ?? false);
         if (!exists)
         {
             throw new InvalidOperationException(
