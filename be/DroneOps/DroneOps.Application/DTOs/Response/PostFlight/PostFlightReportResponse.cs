@@ -8,6 +8,7 @@ namespace DroneOps.Application.DTOs.Response.PostFlight;
 
 public class PostFlightReportResponse
 {
+    public FlightExecutionRouteResponse? ExecutionRoute { get; set; }
     public Guid ReportId { get; set; }
     public Guid MissionId { get; set; }
     public string MissionName { get; set; } = string.Empty;
@@ -46,4 +47,20 @@ public class PostFlightReportResponse
     public string? Summary { get; set; }
     public string? Notes { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class FlightExecutionRouteResponse
+{
+    public string PlanHash { get; set; } = "";
+    public string? AltitudeReference { get; set; }
+    public DateTimeOffset StartedAt { get; set; }
+    public List<FlightRoutePointResponse> Waypoints { get; set; } = [];
+}
+
+public sealed class FlightRoutePointResponse
+{
+    public int SequenceOrder { get; set; }
+    public decimal Latitude { get; set; }
+    public decimal Longitude { get; set; }
+    public decimal? Altitude { get; set; }
 }

@@ -316,6 +316,7 @@ public class TelemetryIngestionService : ITelemetryIngestionService
         response.GroundSpeedMetersPerSecond = latestRecord.Speed;
         response.HeadingDegrees = latestRecord.HeadingDegrees;
         response.BatteryPercent = latestRecord.BatteryLevel;
+        response.BatteryObservedAt = latestRecord.BatteryObservedAt;
         response.BatteryVoltageVolts = latestRecord.BatteryVoltageVolts;
         response.BatteryCurrentAmps = latestRecord.BatteryCurrentAmps;
         response.BatteryTemperatureCelsius = latestRecord.BatteryTemperatureCelsius;

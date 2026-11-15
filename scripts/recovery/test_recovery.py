@@ -54,6 +54,27 @@ class RecoveryToolTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 verify_manifest(root)
 
+    def test_manifest_rejects_path_escape_duplicate_and_wrong_size(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); payload = root / "database.dump"; payload.write_bytes(b"valid")
+            digest = sha256(payload)
+            for files in (
+                [{"path": "../secret", "sha256": digest}],
+                [{"path": "database.dump", "sha256": digest}, {"path": "database.dump", "sha256": digest}],
+                [{"path": "database.dump", "bytes": 99, "sha256": digest}],
+            ):
+                atomic_json(root / "manifest.json", {"formatVersion": 1, "files": files})
+                with self.assertRaises(RuntimeError):
+                    verify_manifest(root)
+
+    def test_deployment_package_inputs_include_recovery_runbook(self):
+        repo = Path(__file__).resolve().parents[2]
+        runbook = repo / "docs" / "deployment-recovery-runbook.md"
+        self.assertTrue(runbook.is_file())
+        text = runbook.read_text(encoding="utf-8")
+        for required in ("RPO", "RTO", "backup.py", "restore.py", "DRONEOPS_RESTORE_ISOLATED"):
+            self.assertIn(required, text)
+
     def test_migration_order_lists_every_sql_once(self):
         repo = Path(__file__).resolve().parents[2]
         migrations = {path.name for path in (repo / "database" / "migrations").glob("*.sql")}

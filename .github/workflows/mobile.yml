@@ -1,0 +1,47 @@
+name: Flutter Operator client
+on:
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/mobile.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: mobile
+      - run: flutter analyze && flutter test
+        working-directory: mobile
+      - run: flutter build apk --debug --dart-define=API_BASE_URL=https://api.droneops.click
+        working-directory: mobile
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droneops-android-debug
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+  ios-unsigned:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+      - run: flutter pub get && flutter build ipa --release --no-codesign --dart-define=API_BASE_URL=https://api.droneops.click
+        working-directory: mobile
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droneops-ios-unsigned-archive
+          path: mobile/build/ios/archive/Runner.xcarchive

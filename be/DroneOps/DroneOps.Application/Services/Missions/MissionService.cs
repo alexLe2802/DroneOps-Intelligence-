@@ -100,7 +100,8 @@ public sealed class MissionService : IMissionService
                 request.ToDate,
                 request.PageNumber,
                 request.PageSize,
-                cancellationToken);
+                cancellationToken,
+                request.CreatedBy);
 
         var results = await MapManyWithValidationAsync(
             missions,

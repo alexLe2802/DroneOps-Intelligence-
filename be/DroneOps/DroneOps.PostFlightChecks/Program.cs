@@ -25,6 +25,8 @@ if (args.Length == 2 && args[0] == "--lifecycle-postgres")
     return;
 }
 
+await OperatorAllocationChecks.RunAsync();
+
 var options = new DbContextOptionsBuilder<AppDbContext>()
     .UseInMemoryDatabase($"post-flight-checks-{Guid.NewGuid()}")
     .Options;
@@ -75,6 +77,14 @@ db.Incidents.AddRange(
         Id = Guid.NewGuid(), MissionId = overdueActiveMissionId, Title = "Route deviation",
         Type = "RouteDeviation", Severity = "Low", Status = "Resolved", CreatedAt = now.AddMinutes(-15)
     });
+db.FlightCompletionEvents.Add(new FlightCompletionEvent
+{
+    Id = Guid.NewGuid(), MissionId = overdueActiveMissionId, UAVId = uavId,
+    SourceId = "trusted-simulator", IdempotencyKey = "overdue-trusted-completion",
+    EventType = "MISSION_COMPLETED", CompletedAt = now.AddMinutes(-11),
+    ReceivedAt = now.AddMinutes(-10), IsTrusted = true,
+    Evidence = "Trusted landed evidence for lifecycle reconciliation."
+});
 await db.SaveChangesAsync();
 
 Check((await db.Missions.FindAsync(missionId))!.Status == "Approved",
@@ -134,6 +144,34 @@ Check(report.GenerationStatus == "Available" && report.Revision == 1, "report be
 Check(report.TotalTelemetryRecords == 2 && report.TotalIncidents == 1, "report consolidates evidence");
 Check(report.TotalFlightDurationMinutes == 10 && report.BatteryConsumedPercentage == 30,
     "report metrics use covered telemetry window");
+Check(report.ExecutionRoute is null, "legacy flight without execution snapshot does not borrow the current mission route");
+var execution = new MissionFlightExecution
+{
+    MissionId=missionId,UavId=uavId,PlanHash="immutable-fixture",StartedAt=now.AddMinutes(-10),CompletedAt=now,
+    ApprovedPlanJson="""{"altitudeReference":"MSL","waypoints":[{"sequenceOrder":2,"latitude":12.1,"longitude":108.1,"altitude":40},{"sequenceOrder":1,"latitude":12,"longitude":108,"altitude":null}]}"""
+};
+db.MissionFlightExecutions.Add(execution);
+var currentWaypoint = new Waypoint {Id=Guid.NewGuid(),MissionId=missionId,SequenceOrder=1,Latitude=20,Longitude=110};
+db.Waypoints.Add(currentWaypoint);
+await db.SaveChangesAsync();
+var route = (await service.GetReportByMissionIdAsync(missionId,pilotId,false)).ExecutionRoute;
+Check(route?.PlanHash=="immutable-fixture"&&route.AltitudeReference=="MSL"&&route.Waypoints[0].Latitude==12&&route.Waypoints[0].Altitude is null,
+    "report reads ordered immutable execution waypoints and missing altitude independently of the current plan");
+db.Waypoints.Remove(currentWaypoint);
+var savedSnapshot = execution.ApprovedPlanJson;
+foreach(var malformed in new[]{"not-json","[]","""{"waypoints":[{"longitude":108}]}""","""{"waypoints":[{"latitude":null,"longitude":108}]}"""})
+{
+    execution.ApprovedPlanJson=malformed;await db.SaveChangesAsync();
+    Check((await service.GetReportByMissionIdAsync(missionId,pilotId,false)).ExecutionRoute is null,
+        "unusable execution snapshot remains unavailable without fabricated coordinates");
+}
+execution.ApprovedPlanJson=savedSnapshot;await db.SaveChangesAsync();
+await ExpectThrowsAsync<UnauthorizedAccessException>(()=>service.GetReportByMissionIdAsync(missionId,Guid.NewGuid(),false),
+    "immutable execution route remains protected by report ownership");
+var scopedHistory = await service.GetFlightHistoryAsync(new GetFlightHistoryRequest {UavId=uavId,MissionId=missionId},pilotId);
+Check(scopedHistory.TotalItems==1&&scopedHistory.Items.Single().MissionId==missionId,"flight history combines exact mission and UAV filters");
+Check((await service.GetFlightHistoryAsync(new GetFlightHistoryRequest {UavId=uavId,MissionId=missionId},Guid.NewGuid())).TotalItems==0,
+    "exact mission filter cannot bypass ownership");
 
 var generatedAt = report.GeneratedAt!.Value;
 var late = Sample(missionId, now.AddMinutes(-5), armed: true, 50m, 5m, 75);
@@ -172,30 +210,35 @@ Check(await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == noTelemetryMi
       await db.PostFlightReports.AnyAsync(x => x.MissionId == noTelemetryMissionId),
     "generation failure retains trusted completion evidence and report state");
 
-Check(await service.SynchronizeOverdueMissionsAsync() == 1,
+Check(await service.SynchronizeOverdueMissionsAsync() == 4,
     "scheduled lifecycle synchronization runs explicitly before analytics");
 var analytics = await service.GetOperationalAnalyticsAsync(new GetOperationalAnalyticsRequest(), pilotId);
-Check(analytics.TotalFlights == 4 && analytics.CompletedFlights == 2 &&
-      analytics.SuccessRatePercentage == 50 && analytics.CompletionRateStatus == "Available",
+Check(analytics.TotalFlights == 4 && analytics.CompletedFlights == 3 &&
+      analytics.SuccessRatePercentage == 75 && analytics.CompletionRateStatus == "Available",
     "completion rate uses completed over all started flights instead of reports or unstarted cancellations");
-Check(analytics.ReportsAvailable == 1 && analytics.ReportsExcluded == 3 &&
-      analytics.ReportCoveragePercentage == 25,
+Check(analytics.ReportsAvailable == 2 && analytics.ReportsExcluded == 2 &&
+      analytics.ReportCoveragePercentage == 50,
     "analytics discloses report coverage and exclusions");
 Check(analytics.TotalIncidentsRecorded == 2 && analytics.IncidentSeverityBreakdown["High"] == 1 &&
-      analytics.IncidentSeverityBreakdown["Low"] == 1 && analytics.CompletionTrend.Count == 1,
-    "analytics includes severity breakdown and daily trend");
-Check((await db.Missions.FindAsync(overdueActiveMissionId))!.Status == "Active" &&
-      (await db.Missions.FindAsync(overdueApprovedMissionId))!.Status == "Approved" &&
-      (await db.Missions.FindAsync(overdueNoTelemetryMissionId))!.Status == "Approved",
-    "elapsed schedule alone never completes active or approved flights");
-Check((await db.Missions.FindAsync(overdueDraftMissionId))!.Status == "Cancelled",
-    "scheduled lifecycle cancels overdue draft missions with a valid terminal status");
-foreach (var unconfirmedMissionId in new[] { overdueActiveMissionId, overdueApprovedMissionId, overdueNoTelemetryMissionId })
-{
-    Check(!await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == unconfirmedMissionId) &&
-          !await db.PostFlightReports.AnyAsync(x => x.MissionId == unconfirmedMissionId),
-        "schedule expiration creates neither completion evidence nor post-flight report");
-}
+      analytics.IncidentSeverityBreakdown["Low"] == 1 && analytics.IncidentTypeBreakdown["LowBattery"] == 1 &&
+      analytics.IncidentTypeBreakdown["RouteDeviation"] == 1 && analytics.CompletionTrend.Count == 1,
+    "analytics includes distinct incident type/severity breakdowns and daily trend");
+Check((await db.Missions.FindAsync(overdueActiveMissionId))!.Status == "Completed",
+    "scheduled lifecycle reconciles an overdue active flight only from trusted completion evidence");
+Check((await db.Missions.FindAsync(overdueApprovedMissionId))!.Status == "Cancelled" &&
+      (await db.Missions.FindAsync(overdueNoTelemetryMissionId))!.Status == "Cancelled" &&
+      (await db.Missions.FindAsync(overdueDraftMissionId))!.Status == "Cancelled",
+    "scheduled lifecycle cancels overdue unstarted missions without fabricating flights");
+var incidentReport = await service.GetReportByMissionIdAsync(overdueActiveMissionId, pilotId, false);
+Check(incidentReport.GenerationStatus == "Available" && incidentReport.TotalIncidents == 1 &&
+      incidentReport.SafetyEvaluation!.Contains("RISK", StringComparison.OrdinalIgnoreCase),
+    "trusted overdue completion report records incidents");
+await ExpectThrowsAsync<KeyNotFoundException>(
+    () => service.GetReportByMissionIdAsync(overdueApprovedMissionId, pilotId, false),
+    "overdue approved mission creates no fabricated post-flight report");
+await ExpectThrowsAsync<KeyNotFoundException>(
+    () => service.GetReportByMissionIdAsync(overdueNoTelemetryMissionId, pilotId, false),
+    "overdue approved mission without telemetry creates no report");
 
 db.Missions.Add(OverdueMission(historySyncMissionId, "History synchronization", "Active"));
 db.TelemetryRecords.AddRange(
@@ -212,7 +255,7 @@ Check(history.Items.Single().Status == "Active" &&
 await service.SynchronizeOverdueMissionsAsync();
 history = await service.GetFlightHistoryAsync(new GetFlightHistoryRequest { Search = "History synchronization" }, pilotId);
 Check(history.Items.Single().Status == "Active" && history.Items.Single().ReportStatus == "NotQueued",
-    "scheduled synchronization preserves history without trusted completion evidence");
+    "scheduled worker does not fabricate completion without trusted terminal evidence");
 
 db.Missions.Add(OverdueMission(
     legacyAvailableReportMissionId, "Legacy active mission with available report", " Active "));
@@ -241,12 +284,12 @@ var legacyHistory = await service.GetFlightHistoryAsync(new GetFlightHistoryRequ
     Search = "Legacy active mission"
 }, pilotId);
 Check(legacyHistory.Items.Single().Status.Trim() == "Active" &&
-      legacyHistory.Items.Single().ReportStatus == "Available",
-    "an imported report does not prove flight completion");
+      legacyHistory.Items.Single().ReportStatus == "Available" &&
+      legacyHistory.Items.Single().TotalIncidents == 2,
+    "legacy report remains readable without fabricating a mission completion transition");
 var legacyReport = await service.GetReportByMissionIdAsync(legacyAvailableReportMissionId, pilotId, false);
-Check(legacyReport.TotalIncidents == 0 &&
-      !await db.FlightCompletionEvents.AnyAsync(x => x.MissionId == legacyAvailableReportMissionId),
-    "schedule synchronization preserves imported report evidence without fabricating a completion");
+Check(legacyReport.TotalIncidents == 0 && legacyReport.SafetyEvaluation == null,
+    "legacy report evidence is not rewritten without trusted completion reconciliation");
 
 var emptyAnalytics = await service.GetOperationalAnalyticsAsync(new GetOperationalAnalyticsRequest
 {
@@ -290,6 +333,13 @@ Check(assessment.Status == "Available" && assessment.Result != null &&
     "assessment persists reproducible Top-5 source and feature evidence");
 Check((await assessmentService.GetByMissionAsync(missionId.ToString(), pilotId, false, CancellationToken.None)).Count == 1,
     "authorized assessment history returns the stored immutable result");
+var changedMission = await db.Missions.FindAsync(missionId);
+changedMission!.Name = "Completed route updated";
+await db.SaveChangesAsync();
+var outdatedAssessment = (await assessmentService.GetByMissionAsync(
+    missionId.ToString(), pilotId, false, CancellationToken.None)).Single();
+Check(outdatedAssessment.IsOutdated && !string.IsNullOrWhiteSpace(outdatedAssessment.OutdatedReason),
+    "assessment history marks captured advice outdated after the mission plan changes");
 await ExpectThrowsAsync<KeyNotFoundException>(
     () => assessmentService.GetByMissionAsync(missionId.ToString(), Guid.NewGuid(), false, CancellationToken.None),
     "out-of-scope assessment history is not disclosed");
@@ -315,8 +365,14 @@ var unknownBattery = Sample(planned.Id, DateTimeOffset.UtcNow.AddSeconds(1), fal
 unknownBattery.BatteryLevel = null;
 db.TelemetryRecords.Add(unknownBattery); await db.SaveChangesAsync();
 var unknownAssessment = await assessmentService.CreateAsync(new CreateAiAssessmentRequest { MissionRef = planned.Id.ToString() }, pilotId, false, default);
-Check(unknownAssessment.Result?.Battery is { Status: "MissingData", CurrentBatteryPercent: null, RequiredBatteryPercent: null },
+Check(unknownAssessment.Result?.Battery is { CurrentBatteryPercent: null, EstimatedRemainingChargeMah: null, MeetsEstimatedRequirement: null } unknown
+      && unknown.TelemetrySourceTimestamp == unknownBattery.SourceTimestamp
+      && unknown.MissingData.Any(message => message.Contains("remaining battery percentage")),
     "newer unknown battery sample cannot fall back to an older plausible percentage");
+Check(unknownAssessment.Result?.Battery is { Status: "EstimateOnly", RequiredBatteryPercent: > 0 } planningEstimate
+      && planningEstimate.RequiredBatteryPercent == withBattery.Result!.Battery!.RequiredBatteryPercent
+      && planningEstimate.EstimatedRequiredChargeMah == withBattery.Result.Battery.EstimatedRequiredChargeMah,
+    "unknown current battery preserves the independent route estimate without establishing available charge");
 
 Console.WriteLine($"{passed} post-flight checks passed.");
 

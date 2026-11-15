@@ -8,11 +8,13 @@ const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
+  const uavReviewPath = request.method === "GET" && /^uavs\/[0-9a-f-]{36}\/reviews$/.test(path);
+  const uavImageRejectionPath = request.method === "POST" && /^admin\/uavs\/[0-9a-f-]{36}\/image\/reject$/.test(path);
   const validationRunPath = /^missions\/[0-9a-f-]{36}\/validation\/runs\/[0-9a-f-]{36}$/;
   const automationPath = /^missions\/[0-9a-f-]{36}\/automation(?:\/(?:presence|confirm|cancel|plan|execution|arm|disarm))?$/.test(path);
   const gatewayForgetPath = /^drone-connections\/aircraft\/[0-9a-f-]{36}\/gateway$/.test(path);
   const automationDuePath = path === "missions/automation/due";
-  if (!allowed.test(path) && !validationRunPath.test(path) && !automationPath && !gatewayForgetPath && !automationDuePath) return NextResponse.json({ message: "Not found." }, { status: 404 });
+  if (!allowed.test(path) && !uavReviewPath && !uavImageRejectionPath && !validationRunPath.test(path) && !automationPath && !gatewayForgetPath && !automationDuePath) return NextResponse.json({ message: "Not found." }, { status: 404 });
   const token = request.cookies.get(accessCookie)?.value;
   if (!["GET", "HEAD"].includes(request.method)) {
     // Next.js may construct nextUrl with localhost while the browser uses

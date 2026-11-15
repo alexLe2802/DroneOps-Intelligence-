@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Options;
+using DroneOps.Application.DTOs.Options;
 using DroneOps.Application.Interfaces;
 using DroneOps.Application.Interfaces.AI;
 using DroneOps.Application.Interfaces.Auth;
@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.Configure<PostFlightOptions>(
             configuration.GetSection(PostFlightOptions.SectionName));
         services.AddMemoryCache();
+        services.AddScoped<UavReviewWorkflow>();
 
         services.AddFluentValidationAutoValidation();
 
@@ -100,13 +101,11 @@ public static class DependencyInjection
                 TimeSpan.FromSeconds(15);
         });
 
-        services.AddHttpClient<
-IAIService,
-OpenAIService>(client =>
-{
-    client.BaseAddress =
-    new Uri("https://api.openai.com/v1/");
-});
+        services.AddHttpClient<IAIService, GeminiAIService>(client =>
+        {
+            client.BaseAddress =
+                new Uri("https://generativelanguage.googleapis.com/");
+        });
         return services;
     }
 }

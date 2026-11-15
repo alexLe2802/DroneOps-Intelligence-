@@ -11,5 +11,6 @@ public interface IAvatarService
     Task<string?> UploadAvatarAsync(
         Guid userId,
         IFormFile file,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? expectedVersion = null);
 }
