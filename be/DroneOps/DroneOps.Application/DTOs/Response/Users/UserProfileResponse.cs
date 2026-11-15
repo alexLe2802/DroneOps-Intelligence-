@@ -18,6 +18,8 @@ public sealed class UserProfileResponse
 
 public class PilotProfileResponse
 {
+    public long ProfileVersion { get; set; }
+
     public Guid UserId { get; set; }
 
     public string FullName { get; set; } = string.Empty;
@@ -39,6 +41,8 @@ public class PilotProfileResponse
     public DateOnly? LicenseExpiredDate { get; set; }
 
     public int ExperienceYears { get; set; }
+
+    public string? FlightExperienceDescription { get; set; }
 
     public string? DroneType { get; set; }
 

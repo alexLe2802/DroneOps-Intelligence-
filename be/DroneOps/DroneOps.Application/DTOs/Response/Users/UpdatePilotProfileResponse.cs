@@ -2,6 +2,8 @@
 
 public sealed class UpdatePilotProfileResponse
 {
+    public long ProfileVersion { get; set; }
+
     public Guid UserId { get; set; }
 
     public Guid PilotId { get; set; }
@@ -15,6 +17,8 @@ public sealed class UpdatePilotProfileResponse
     public DateOnly? DateOfBirth { get; set; }
 
     public int ExperienceYears { get; set; }
+
+    public string? FlightExperienceDescription { get; set; }
 
     // License chính thức hiện tại
     public string PilotLicenseNo { get; set; } = string.Empty;

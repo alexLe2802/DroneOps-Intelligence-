@@ -143,6 +143,7 @@ public sealed class UserService : IUserService
 
         return new PilotProfileResponse
         {
+            ProfileVersion = pilot.User.ProfileVersion,
             UserId = pilot.User.Id,
 
             PilotId = pilot.Id,
@@ -161,7 +162,9 @@ public sealed class UserService : IUserService
 
             LicenseExpiredDate = pilot.LicenseExpiredDate,
 
-            ExperienceYears = pilot.ExperienceYears
+            ExperienceYears = pilot.ExperienceYears,
+
+            FlightExperienceDescription = pilot.FlightExperienceDescription
         };
     }
 
@@ -243,6 +246,11 @@ public sealed class UserService : IUserService
         bool hasLicenseUpdate =
             HasLicenseUpdate(request);
 
+        if (!hasLicenseUpdate && request.ExpectedVersion != pilot.User.ProfileVersion)
+        {
+            throw new DbUpdateConcurrencyException("Profile changed since it was loaded.");
+        }
+
         // Kiểm tra request license đang Pending
         if (hasLicenseUpdate)
         {
@@ -301,6 +309,19 @@ public sealed class UserService : IUserService
                 request.ExperienceYears.Value;
 
             profileChanged = true;
+        }
+
+        if (request.FlightExperienceDescription is not null)
+        {
+            string? description = string.IsNullOrWhiteSpace(request.FlightExperienceDescription)
+                ? null
+                : request.FlightExperienceDescription.Trim();
+
+            if (pilot.FlightExperienceDescription != description)
+            {
+                pilot.FlightExperienceDescription = description;
+                profileChanged = true;
+            }
         }
 
         PilotUpdateRequest? updateRequest = null;
@@ -386,6 +407,10 @@ public sealed class UserService : IUserService
         // hoặc có PilotUpdateRequest mới cần insert
         if (profileChanged || hasLicenseUpdate)
         {
+            if (profileChanged)
+            {
+                pilot.User.ProfileVersion++;
+            }
             try { await _pilotRepository.SaveChangesAsync(cancellationToken); }
             catch(DbUpdateException e) when(e.InnerException is PostgresException {SqlState:PostgresErrorCodes.UniqueViolation})
             { throw new InvalidOperationException("A concurrent license request is already pending.",e); }
@@ -393,6 +418,7 @@ public sealed class UserService : IUserService
 
         return new UpdatePilotProfileResponse
         {
+            ProfileVersion = pilot.User.ProfileVersion,
             UserId = pilot.UserId,
             PilotId = pilot.Id,
 
@@ -402,6 +428,8 @@ public sealed class UserService : IUserService
             PhoneNumber = pilot.PhoneNumber,
             DateOfBirth = pilot.DateOfBirth,
             ExperienceYears = pilot.ExperienceYears,
+
+            FlightExperienceDescription = pilot.FlightExperienceDescription,
 
             
 
@@ -562,6 +590,10 @@ public sealed class UserService : IUserService
 
         pilot.LicenseExpiredDate =
             updateRequest.LicenseExpiredDate;
+
+        // The shared profile version also protects clients that loaded the
+        // previous approved credentials before this decision committed.
+        pilot.User.ProfileVersion++;
 
        
         // Lấy bộ ảnh license hiện tại của Pilot

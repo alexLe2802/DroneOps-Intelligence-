@@ -269,6 +269,13 @@ public sealed class UserController : ControllerBase
                 message = ex.Message
             });
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        {
+            return Conflict(new
+            {
+                message = "Profile changed since it was loaded. Reload and try again."
+            });
+        }
     }
     
 

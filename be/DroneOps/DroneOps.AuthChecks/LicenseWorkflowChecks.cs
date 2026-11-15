@@ -81,12 +81,27 @@ internal static class LicenseWorkflowChecks
 
             await service.UpdatePilotProfileAsync(userId, new UpdatePilotProfileRequest
             {
-                PhoneNumber = "0901234567", DateOfBirth = today.AddYears(-25), ExperienceYears = 4
+                ExpectedVersion = 2, PhoneNumber = "0901234567", DateOfBirth = today.AddYears(-25), ExperienceYears = 4,
+                FlightExperienceDescription = "Four years flying survey missions."
             });
             db.ChangeTracker.Clear();
             var pilot = await db.Pilots.AsNoTracking().SingleAsync(item => item.Id == pilotId);
-            Check(pilot.PhoneNumber == "0901234567" && pilot.ExperienceYears == 4,
+            Check(pilot.PhoneNumber == "0901234567" && pilot.ExperienceYears == 4 &&
+                pilot.FlightExperienceDescription == "Four years flying survey missions.",
                 "pilot profile persisted");
+            var staleProfileRejected = false;
+            try
+            {
+                await service.UpdatePilotProfileAsync(userId, new UpdatePilotProfileRequest
+                {
+                    ExpectedVersion = 2, FlightExperienceDescription = "Stale overwrite"
+                });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                staleProfileRejected = true;
+            }
+            Check(staleProfileRejected, "stale pilot profile update is rejected");
 
             var oldAvatar=$"avatars/{userId:N}/{Guid.NewGuid():N}";
             await db.Users.Where(x=>x.Id==userId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.AvatarPath,oldAvatar));
@@ -140,11 +155,14 @@ internal static class LicenseWorkflowChecks
 
             try{await service.ApprovePilotUpdateRequestAsync(pending.Id,userId);throw new Exception("FAIL: self review accepted");}
             catch(InvalidOperationException){Check(true,"license request author cannot review their own request");}
+            var versionBeforeLicenseApproval = (await db.Users.AsNoTracking().SingleAsync(x => x.Id == userId)).ProfileVersion;
             await service.ApprovePilotUpdateRequestAsync(pending.Id, managerId);
             db.ChangeTracker.Clear();
             var credentials = await credentialsService.GetCredentialsAsync(userId);
             Check(credentials?.PilotLicenseNo == "UPDATED-1B" && credentials.LicenseImageUrls.Count == 1,
                 "approved credentials and evidence are available");
+            Check((await db.Users.AsNoTracking().SingleAsync(x => x.Id == userId)).ProfileVersion == versionBeforeLicenseApproval + 1,
+                "approved credentials advance the shared profile version");
 
             await service.UpdatePilotProfileAsync(userId, LicenseRequest("UPDATED-2"));
             db.ChangeTracker.Clear();
