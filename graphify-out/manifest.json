@@ -246,9 +246,9 @@
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.API/Program.cs": {
-    "mtime": 1794561092.1300945,
-    "seen": 1794716705.6797678,
-    "ast_hash": "cba89a60abe12ab5b6985dc85fd811e5",
+    "mtime": 1794718438.5226872,
+    "seen": 1794718555.8369203,
+    "ast_hash": "cf97f4cb421bad9844d602f540c26ac4",
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.API/Properties/launchSettings.json": {
@@ -1272,9 +1272,9 @@
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.AuthChecks/CiDatabaseChecks.cs": {
-    "mtime": 1794561099.8554926,
-    "seen": 1794716705.6806257,
-    "ast_hash": "a6824c0747fa1ea8a42ff36aaf37c059",
+    "mtime": 1794718438.5246885,
+    "seen": 1794718555.8378346,
+    "ast_hash": "7dce10fefd63db3302a2461af3825f11",
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.AuthChecks/DroneConnectionChecks.cs": {
@@ -1650,9 +1650,9 @@
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/DroneOps.Persistence.csproj": {
-    "mtime": 1794561099.8584938,
-    "seen": 1794716705.6809309,
-    "ast_hash": "696cf36bfa564f25d05a006da25c4a6f",
+    "mtime": 1794718438.5187101,
+    "seen": 1794718555.838161,
+    "ast_hash": "8770ea0481aed51823e51a9afdb3827d",
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/FlightPreparationSchema.cs": {
@@ -3915,6 +3915,24 @@
     "mtime": 1794716734.931482,
     "seen": 1794716948.2239733,
     "ast_hash": "09f501e40955b85f7202513c93c92f0a",
+    "semantic_hash": ""
+  },
+  "be/DroneOps/DroneOps.Persistence/UavReviewSchema.cs": {
+    "mtime": 1794718438.5166893,
+    "seen": 1794718555.8383887,
+    "ast_hash": "850ee6456d6e65d1cabcc0f2940adea7",
+    "semantic_hash": ""
+  },
+  "graphify-out/memory/query_20261115_044103_70d22586_gate_fail__approved_credentials_advance_the_shared.md": {
+    "mtime": 1794717663.193256,
+    "seen": 1794718555.839857,
+    "ast_hash": "874f466e257b54d28d41b714683a9bb1",
+    "semantic_hash": ""
+  },
+  "graphify-out/memory/query_20261115_044946_dca53ca1_why_does_fe_repeatedly_show_service_error_for_get.md": {
+    "mtime": 1794718186.7156274,
+    "seen": 1794718555.8398626,
+    "ast_hash": "943b1913269895267786c3c9e810bf64",
     "semantic_hash": ""
   },
   "fe/package-lock.json": {
