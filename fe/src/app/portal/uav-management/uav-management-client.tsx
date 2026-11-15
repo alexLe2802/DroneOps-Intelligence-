@@ -4,9 +4,10 @@ import { formatVietnamDate } from "@/lib/portal/vietnam-time";
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getManagedUav, getManagedUavs, setManagedUavStatus } from "@/lib/portal/client";
+import { getManagedUav, getManagedUavs, rejectManagedUavImage } from "@/lib/portal/client";
 import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleLoading } from "../module-state";
+import UavReviewPanel from "../uav/uav-review-panel";
 import UavInformation from "../uav/uav-information";
 
 export default function UavManagementClient({ initialImageModerationStatus = "", initialStatus = "" }: { initialImageModerationStatus?: string; initialStatus?: string }) {
@@ -57,27 +58,31 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
     setBusy(true);
     setError(null);
     setMessage("");
-    try { setSelected(await getManagedUav(id)); }
+    try {
+      const updated = await getManagedUav(id);
+      setSelected(updated);
+      setAircraft(current => current?.map(item => item.id === updated.id ? updated : item) ?? null);
+    }
     catch (reason) { setError(reason); }
     finally { setBusy(false); }
   }
 
-  async function changeStatus(action: "approve" | "activate" | "reject" | "deactivate") {
-    if (!selected || mutationPending.current) return;
-    if (action === "reject" && !window.confirm(`Reject UAV ${selected.code}?`)) return;
-    if (action === "deactivate" && !window.confirm(`Deactivate UAV ${selected.code}?`)) return;
+  async function rejectImage() {
+    if (!selected || mutationPending.current || !selected.imageUrl) return;
+    const entered = window.prompt("Why is this UAV image being rejected?");
+    if (entered === null) return;
+    const reason = entered.trim();
+    if (!reason) { setError(new Error("A rejection reason is required.")); return; }
     mutationPending.current = true;
     setBusy(true);
     setError(null);
     setMessage("");
     try {
-      const updated = await setManagedUavStatus(selected.id, action);
-      setMessage(`${updated.code} is now ${updated.status}.`);
-      setSelected(null);
-      if (page > 1) setPage(1);
-      else await load();
-      window.dispatchEvent(new Event("droneops:notifications-refresh"));
-    } catch (reason) { setError(reason); }
+      const updated = await rejectManagedUavImage(selected.id, reason);
+      setSelected(updated);
+      setMessage("UAV image removed and the operator was notified.");
+      await load();
+    } catch (reasonValue) { setError(reasonValue); }
     finally { mutationPending.current = false; setBusy(false); }
   }
 
@@ -99,7 +104,7 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
           <span className={`manager-uav-thumbnail${uav.imageUrl ? " has-image" : ""}`}>{uav.imageUrl ? <Image src={uav.imageUrl} alt="" width={120} height={90} unoptimized /> : uav.code.slice(0, 3)}</span>
           <span><b>{uav.code}</b><small>{uav.name} · {[uav.manufacturer, uav.model].filter(Boolean).join(" ") || "Model not specified"}</small>{uav.imageModerationStatus === "ManualReview" && <small className="uav-manual-review-label">IMAGE: MANUAL REVIEW</small>}</span>
           <span><b>{uav.pilotName || "Unknown pilot"}</b><small>{formatVietnamDate(uav.createdAt)}</small></span>
-          <em>{uav.status}</em>
+          <em>{uav.status}{uav.hasPendingProposal && <small>INFORMATION REVIEW PENDING</small>}</em>
         </button>)}
         <div className="uav-actions" aria-label="Fleet pagination"><button className="module-secondary" disabled={busy || page <= 1} onClick={() => setPage(value => value - 1)}>PREVIOUS</button><span role="status">Page {page} / {Math.max(1, totalPages)} · {totalItems} UAVs</span><button className="module-secondary" disabled={busy || page >= totalPages} onClick={() => setPage(value => value + 1)}>NEXT</button></div>
       </section>
@@ -113,7 +118,10 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
           </section>
           <header><div><p className="module-kicker">UAV RECORD</p><h2>{selected.code}</h2><p>{selected.name}</p></div><span className={`status status-${selected.status.toLowerCase()}`}>{selected.status}</span></header>
           <UavInformation aircraft={selected} />
-          <div className="uav-actions">{["pending", "inactive"].includes(selected.status.toLowerCase()) && <button className="module-primary" disabled={busy} onClick={() => void changeStatus(selected.status.toLowerCase() === "pending" ? "approve" : "activate")}>{selected.status.toLowerCase() === "inactive" ? "REACTIVATE" : "APPROVE & ACTIVATE"}</button>}<button className="module-danger" disabled={busy || selected.status.toLowerCase() !== "pending"} onClick={() => void changeStatus("reject")}>REJECT</button>{selected.status.toLowerCase() === "active" && <button className="module-danger" disabled={busy} onClick={() => void changeStatus("deactivate")}>DEACTIVATE</button>}</div>
+          {selected.imageUrl && <div className="uav-actions" aria-label="Image review actions">
+            <button className="module-danger" disabled={busy} onClick={() => void rejectImage()}>REJECT IMAGE</button>
+          </div>}
+          <UavReviewPanel key={selected.id} uavId={selected.id} manager onDecision={() => void inspect(selected.id)} />
         </>}
       </aside>
     </div>

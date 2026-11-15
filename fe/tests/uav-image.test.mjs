@@ -23,7 +23,8 @@ test("Add and Edit share image preview and upload behavior without retrying UAV 
   const source = await readFile(new URL("../src/app/portal/uav/uav-form.tsx", import.meta.url), "utf8");
   assert.match(source, /createUav, updateAssignedUav, uploadUavImage/);
   assert.match(source, /const result = await createUav\(request\);\s*id = result\.id/);
-  assert.match(source, /try \{ await uploadUavImage\(id, imageFile\); \}\s*catch \{ imageUploadFailed = true; \}/);
+  assert.match(source, /try \{ await uploadUavImage\(id, imageFile\); \}\s*catch \(reason\) \{[\s\S]*imageUploadFailed = true;[\s\S]*imageUploadMessage = reason instanceof Error/);
+  assert.match(source, /detailQuery\.set\("imageUploadMessage", imageUploadMessage\)/);
   assert.match(source, /imagePreview \|\| aircraft\?\.imageUrl/);
   assert.match(source, /disabled=\{saving\}/);
 });

@@ -70,6 +70,7 @@ jobs:
         run: |
           dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --ci-migrations "$GITHUB_WORKSPACE"
           dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --mission-workflow-postgres
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --license-workflow "$GITHUB_WORKSPACE"
       - name: Enable verified TLS for the disposable PostgreSQL service
         if: steps.changes.outputs.backend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
         env:

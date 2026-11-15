@@ -24,6 +24,7 @@ public sealed class OperationalAnalyticsResponse
     public Guid? UavId { get; set; }
     public Guid? MissionId { get; set; }
     public List<AnalyticsTrendPointResponse> CompletionTrend { get; set; } = [];
+    public Dictionary<string, int> IncidentTypeBreakdown { get; set; } = new();
     public Dictionary<string, int> IncidentSeverityBreakdown { get; set; } = new();
     public Dictionary<string, int> ExcludedReportReasons { get; set; } = new();
     public AnalyticsContractResponse Contract { get; set; } = new();

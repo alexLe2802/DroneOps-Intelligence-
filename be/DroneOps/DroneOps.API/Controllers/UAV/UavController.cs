@@ -4,6 +4,7 @@ using DroneOps.Application.Interfaces.UAVs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using DroneOps.Application.Interfaces.Storage;
 
 namespace DroneOps.API.Controllers.UAVs;
 
@@ -13,10 +14,12 @@ namespace DroneOps.API.Controllers.UAVs;
 public class UavController : ControllerBase
 {
     private readonly IUavService _uavService;
+    private readonly IUserMediaStorage _storage;
 
-    public UavController(IUavService uavService)
+    public UavController(IUavService uavService, IUserMediaStorage storage)
     {
         _uavService = uavService;
+        _storage = storage;
     }
 
     /// <summary>
@@ -112,10 +115,11 @@ public class UavController : ControllerBase
                 file.ContentType, file.Length, cancellationToken);
             return Accepted(result);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException) { return Conflict(new { message = "UAV changed concurrently. Reload before modifying its image." }); }
         catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
         catch (UnauthorizedAccessException exception) { return StatusCode(403, new { message = exception.Message }); }
         catch (ArgumentException exception) { return BadRequest(new { message = exception.Message }); }
-        catch (InvalidOperationException exception) { return StatusCode(503, new { message = exception.Message }); }
+        catch (InvalidOperationException) { return StatusCode(503, new { message = "UAV image storage is not configured with a compatible server credential. AI review was not started." }); }
         catch (HttpRequestException) { return StatusCode(502, new { message = "UAV image storage is temporarily unavailable." }); }
     }
 
@@ -129,8 +133,18 @@ public class UavController : ControllerBase
             var image = await _uavService.GetUavImageAsync(id, cancellationToken);
             if (image is null) return NotFound(new { message = "UAV image not found." });
             Response.Headers.CacheControl = "no-store";
+            if (image.Value.Url.StartsWith(
+                    DroneOps.Application.Services.Storage.UserMediaStorage.LocalMediaScheme,
+                    StringComparison.Ordinal))
+            {
+                var path = image.Value.Url[
+                    DroneOps.Application.Services.Storage.UserMediaStorage.LocalMediaScheme.Length..];
+                var bytes = await _storage.DownloadAsync(path, cancellationToken);
+                return File(bytes, image.Value.ContentType);
+            }
             return Redirect(image.Value.Url);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException) { return Conflict(new { message = "UAV changed concurrently. Reload before modifying its image." }); }
         catch (InvalidOperationException exception) { return StatusCode(503, new { message = exception.Message }); }
         catch (HttpRequestException) { return StatusCode(502, new { message = "UAV image storage is temporarily unavailable." }); }
     }
@@ -147,6 +161,7 @@ public class UavController : ControllerBase
                 id, actorUserId, actorRole, cancellationToken);
             return deleted ? NoContent() : NotFound(new { message = "UAV not found." });
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException) { return Conflict(new { message = "UAV changed concurrently. Reload before removing its image." }); }
         catch (UnauthorizedAccessException exception) { return StatusCode(403, new { message = exception.Message }); }
     }
 

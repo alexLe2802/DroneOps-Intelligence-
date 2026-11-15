@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
+using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Request.PostFlight;
 using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.PostFlight;
@@ -52,7 +54,7 @@ public sealed class PostFlightService : IPostFlightService
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var (missions, totalCount) = await _repository.GetFlightHistoryAsync(
             pageNumber, pageSize, request.Search, request.Status, request.UavId,
-            request.FromDate, inclusiveToDate, pilotUserId, cancellationToken);
+            request.FromDate, inclusiveToDate, pilotUserId, cancellationToken, request.MissionId);
 
         var items = new List<FlightHistoryItemResponse>(missions.Count);
         var missionIds = missions.Select(mission => mission.Id).ToArray();
@@ -292,12 +294,9 @@ public sealed class PostFlightService : IPostFlightService
                             x.SourceTimestamp <= coveredThrough)
                 .ToList();
             var incidents = await _repository.GetIncidentsByMissionIdAsync(mission.Id, cancellationToken);
-            if (telemetry.Count == 0 && !scheduledCompletion)
-                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
             if (telemetry.Count == 0)
-                PopulateScheduledReport(report, mission, incidents);
-            else
-                PopulateReport(report, mission, telemetry, incidents);
+                throw new InvalidOperationException("No valid telemetry is available for the completed flight window.");
+            PopulateReport(report, mission, telemetry, incidents);
             report.CoveredTelemetryThrough = coveredThrough;
             report.GenerationStatus = "Available";
             report.GeneratedAt = DateTimeOffset.UtcNow;
@@ -320,7 +319,31 @@ public sealed class PostFlightService : IPostFlightService
         var mission = await GetAuthorizedMissionAsync(missionId, currentUserId, isManager, cancellationToken);
         var report = await _repository.GetReportByMissionIdAsync(missionId, cancellationToken)
             ?? throw new KeyNotFoundException("Post-flight report has not been queued.");
-        return MapToReportResponse(report, mission);
+        var response = MapToReportResponse(report, mission);
+        response.ExecutionRoute = await ReadExecutionRouteAsync(missionId, cancellationToken);
+        return response;
+    }
+
+    private async Task<FlightExecutionRouteResponse?> ReadExecutionRouteAsync(Guid missionId, CancellationToken ct)
+    {
+        var execution = await _repository.GetExecutionAsync(missionId, ct);
+        if (execution is null || string.IsNullOrWhiteSpace(execution.PlanHash)) return null;
+        try
+        {
+            using var raw = JsonDocument.Parse(execution.ApprovedPlanJson);
+            if (raw.RootElement.ValueKind != JsonValueKind.Object || !raw.RootElement.TryGetProperty("waypoints", out var points) || points.ValueKind != JsonValueKind.Array
+                || points.EnumerateArray().Any(p => p.ValueKind != JsonValueKind.Object || !p.TryGetProperty("latitude", out var lat) || lat.ValueKind != JsonValueKind.Number || !lat.TryGetDecimal(out _)
+                    || !p.TryGetProperty("longitude", out var lon) || lon.ValueKind != JsonValueKind.Number || !lon.TryGetDecimal(out _))) return null;
+            var plan = JsonSerializer.Deserialize<CreateMissionRequest>(execution.ApprovedPlanJson, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            if (plan?.Waypoints is not { Count: > 0 } || plan.Waypoints.Any(p => p.Latitude is < -90 or > 90 || p.Longitude is < -180 or > 180)) return null;
+            return new FlightExecutionRouteResponse
+            {
+                PlanHash = execution.PlanHash, StartedAt = execution.StartedAt, AltitudeReference = plan.AltitudeReference,
+                Waypoints = plan.Waypoints.OrderBy(p => p.SequenceOrder).Select(p => new FlightRoutePointResponse
+                { SequenceOrder = p.SequenceOrder, Latitude = p.Latitude, Longitude = p.Longitude, Altitude = p.Altitude }).ToList()
+            };
+        }
+        catch (JsonException) { return null; }
     }
 
     public async Task<List<PostFlightReportResponse>> GetReportRevisionsAsync(
@@ -425,6 +448,9 @@ public sealed class PostFlightService : IPostFlightService
                     CompletedFlights = group.Count(x => x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase)),
                     FailedOrAbortedFlights = group.Count(x => !x.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
                 }).ToList(),
+            IncidentTypeBreakdown = distinctIncidents
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Type) ? "Unknown" : x.Type.Trim())
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
             IncidentSeverityBreakdown = distinctIncidents
                 .GroupBy(x => NormalizeSeverity(x.Severity))
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase),
