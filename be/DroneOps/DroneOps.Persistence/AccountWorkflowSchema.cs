@@ -17,14 +17,13 @@ public static class AccountWorkflowSchema
     {
         try
         {
-            await using var command=source.CreateCommand("""
+            await SchemaCommandExecutor.ExecuteAsync(source, """
                 SELECT u."ProfileVersion",c."CodeHash",a."Result",d."TargetUserId"
                 FROM public."User" u
                 LEFT JOIN droneops."EmailChangeChallenge" c ON false
                 LEFT JOIN droneops."AccountWorkflowAudit" a ON false
                 LEFT JOIN public."PilotUpdateDecisionAudit" d ON false LIMIT 0
                 """);
-            await command.ExecuteNonQueryAsync();
         }
         catch(PostgresException e) when(e.SqlState is "42P01" or "42703")
         {throw new InvalidOperationException("Apply account workflow migration with --migrate-account-workflows before starting the API.",e);}

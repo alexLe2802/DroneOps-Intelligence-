@@ -23,6 +23,7 @@ public class MissionLatestTelemetryResponse
     public decimal? GroundSpeedMetersPerSecond { get; set; }
     public decimal? HeadingDegrees { get; set; }
     public int? BatteryPercent { get; set; }
+    public DateTimeOffset? BatteryObservedAt { get; set; }
     public decimal? BatteryVoltageVolts { get; set; }
     public decimal? BatteryCurrentAmps { get; set; }
     public decimal? BatteryTemperatureCelsius { get; set; }

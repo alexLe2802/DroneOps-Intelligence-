@@ -58,11 +58,14 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
         if (target.AltitudeMeters is null) missing.Add("Target mission has no valid recorded altitude.");
         if (target.DurationMinutes is null) missing.Add("Target mission has no trusted start/end duration.");
         if (similar.Count == 0) missing.Add("No similar completed flights are available in the authorized scope.");
-        var risks = similar.Where(x => x.IncidentIds.Count > 0).Select(x => new AiRiskResponse
+        var similarIds = similar.Select(x => x.MissionId).ToHashSet();
+        var risks = incidents.Where(x => similarIds.Contains(x.MissionId)).GroupBy(x => x.Type).Select(group => new AiRiskResponse
         {
-            Severity = "Moderate", Title = $"Historical incidents on {x.MissionName}",
-            Evidence = $"{x.IncidentIds.Count} linked incident(s); similarity score {x.SimilarityScore:F3}.",
-            Precaution = "Review the linked incident evidence before operational approval."
+            Category = "Historical", Severity = "Moderate", Title = $"Historical pattern: {group.Key}",
+            SourceIncidentIds = group.Select(x => x.Id).Order().ToList(),
+            Evidence = $"{group.Count()} recorded incident(s) across {group.Select(x => x.MissionId).Distinct().Count()} similar flight(s). "
+                + string.Join("; ", group.OrderByDescending(x => x.CreatedAt).Take(3).Select(x => x.Title)),
+            Precaution = "Inspect the linked causes and corrective actions for relevance to this route and UAV. These are historical events, not detections on the current mission."
         }).ToList();
         var now = DateTimeOffset.UtcNow;
         var batteryRecord = telemetry.Where(t => t.MissionId == mission.Id && t.UAVId == mission.UAVId)
@@ -71,17 +74,31 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
         var latestValidation = await db.MissionValidationRuns.AsNoTracking().Where(r => r.MissionId == mission.Id && r.PlanHash == planHash)
             .OrderByDescending(r => r.CheckedAt).FirstOrDefaultAsync(cancellationToken);
         WeatherAdvisory? weather = null;
-        if (latestValidation != null && latestValidation.CheckedAt >= now.AddMinutes(-10))
+        MissionValidationResult? validation = null;
+        if (latestValidation != null && latestValidation.CheckedAt >= now.AddMinutes(-10) && latestValidation.CheckedAt <= now)
         {
             try
             {
                 var snapshot = JsonSerializer.Deserialize<MissionValidationResult>(latestValidation.ResultJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                validation = snapshot;
                 if (snapshot?.Weather is { Available: true } forecast && forecast.ExpiresAt > now && forecast.GeneratedAt <= now)
                     weather = forecast;
             }
             catch (JsonException) { /* Missing evidence is explicit; no synthetic weather. */ }
         }
         var battery = BatteryAssessmentCalculator.Calculate(mission, mission.UAV, batteryRecord, weather, now);
+        if (validation is null || validation.Stale || validation.Incomplete || validation.Error)
+            missing.Add("Current complete route validation is missing. Run mission validation to check airspace, weather and route restrictions.");
+        if (validation is not null)
+            foreach (var issue in validation.Issues)
+                risks.Add(new AiRiskResponse { Severity = "High", Title = "Mission validation finding", Evidence = issue,
+                    Precaution = "Correct the finding and run mission validation again before requesting approval." });
+        if (weather is null)
+            missing.Add("Fresh weather for this plan is missing. Run mission validation to obtain the route forecast.");
+        else if (weather.OverallRisk is "High" or "Critical" || weather.ThunderstormForecast)
+            risks.Add(new AiRiskResponse { Severity = "High", Title = "Adverse route weather",
+                Evidence = $"Forecast risk: {weather.OverallRisk}; wind {weather.MaxWindMetersPerSecond} m/s; gust {weather.MaxGustMetersPerSecond} m/s; thunderstorm forecast: {weather.ThunderstormForecast}. " + string.Join(" ", weather.Warnings),
+                Precaution = "Review the forecast by waypoint; postpone or revise the mission and validate again." });
         var envelopeErrors = AutomaticFlightPolicy.Errors(mission.AutomaticFlightRequested, mission.AltitudeReference,
             mission.AverageSpeedMetersPerSecond ?? 0, mission.MaxSpeedMetersPerSecond ?? 0, mission.AutomaticFlightLimits,
             mission.Waypoints.Select(w => (w.Altitude, w.ActionType)));
@@ -105,7 +122,11 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
                     Precaution = "Postpone or amend the mission and obtain fresh validation and approval." });
         }
         missing.AddRange(battery.MissingData);
-        if (battery.MeetsEstimatedRequirement == false)
+        if (battery.RequiredBatteryPercent > 100)
+            risks.Add(new AiRiskResponse { Severity = "High", Title = "Mission exceeds one full battery",
+                Evidence = $"Estimated requirement including reserve: {battery.RequiredBatteryPercent:0.##}%, exceeding 100% even with a full pack.",
+                Precaution = "Shorten or split the route, review the UAV endurance specification and recalculate. Charging alone cannot satisfy this estimate." });
+        else if (battery.MeetsEstimatedRequirement == false)
             risks.Add(new AiRiskResponse { Severity = "High", Title = "Battery below estimated mission requirement",
                 Evidence = $"Fresh battery: {battery.CurrentBatteryPercent}%; estimated requirement including reserve: {battery.RequiredBatteryPercent:0.##}%.",
                 Precaution = "Charge or replace the battery and regenerate the assessment before departure." });
@@ -114,7 +135,7 @@ public sealed class AiAssessmentService(AppDbContext db) : IAiAssessmentService
             AutomaticFlightLimits = mission.AutomaticFlightLimits, CruiseSpeedMetersPerSecond = mission.AverageSpeedMetersPerSecond, MaxSpeedMetersPerSecond = mission.MaxSpeedMetersPerSecond,
             RecoveryPolicy = mission.AutomaticFlightRequested ? AutomaticFailsafePolicy.Contract(mission.MaxSpeedMetersPerSecond ?? 0) : null,
             Battery = battery,
-            Summary = similar.Count == 0 ? "No eligible historical flight was found; manual review is required." : $"Retrieved {similar.Count} authorized completed flight(s) using recorded normalized features.",
+            Summary = $"{risks.Count(x => x.Category != "Historical")} current-plan risk finding(s), {missing.Count} evidence gap(s), and {risks.Count(x => x.Category == "Historical")} historical pattern(s) to review. This is advisory evidence, not clearance to fly.",
             Risks = risks, MissingData = missing, HistoricalFlights = similar,
             Precautions = risks.Count == 0 ? ["Continue mandatory validation and manual operational review."] : ["Open every linked incident before approval.", "Do not treat similarity as a probability of safety."],
             Disclaimer = "Historical similarity is explainable decision support, not a safety probability and not an approval decision."
