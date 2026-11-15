@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
@@ -8,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-ci-${{ github.event.pull_request.number }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -45,8 +47,8 @@ jobs:
       - name: Select affected suites
         id: changes
         env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           python3 scripts/ci/test_changes.py
           python3 scripts/ci/changes.py
@@ -70,13 +72,14 @@ jobs:
         run: |
           dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --ci-migrations "$GITHUB_WORKSPACE"
           dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --mission-workflow-postgres
+          dotnet run --project be/DroneOps/DroneOps.AuthChecks -c Release --no-build -- --license-workflow "$GITHUB_WORKSPACE"
       - name: Enable verified TLS for the disposable PostgreSQL service
-        if: steps.changes.outputs.backend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        if: steps.changes.outputs.backend == 'true' && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
         env:
           CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: python3 scripts/ci/postgres_tls.py
       - name: Render — validate Blueprint, build image and smoke test
-        if: steps.changes.outputs.backend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        if: steps.changes.outputs.backend == 'true' && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
         env:
           DRONEOPS_CI_KEEP_API: ${{ steps.changes.outputs.frontend }}
         run: |
@@ -100,7 +103,7 @@ jobs:
           npm run typecheck
           npm test
       - name: Cloudflare — optional deployment build
-        if: steps.changes.outputs.frontend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        if: steps.changes.outputs.frontend == 'true' && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
         working-directory: fe
         env:
           DRONEOPS_CI: "true"
@@ -108,7 +111,7 @@ jobs:
           npm run build:vinext
           npx --no-install cf workers versions create --dry-run --prebuilt
       - name: Cloudflare — smoke test local Worker runtime
-        if: steps.changes.outputs.frontend == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        if: steps.changes.outputs.frontend == 'true' && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
         env:
           DRONEOPS_CI_BACKEND_READY: ${{ steps.changes.outputs.backend }}
         run: python3 scripts/ci/cloudflare_smoke.py
@@ -119,7 +122,7 @@ jobs:
           .venv/bin/python -m pip install -r gateway/requirements.txt
           PYTHONPATH=gateway .venv/bin/python -m unittest discover -s gateway -p 'test_*.py'
       - name: ArduCopter — conditional SITL policy read-back
-        if: steps.changes.outputs.sitl == 'true' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+        if: steps.changes.outputs.sitl == 'true' && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
         run: |
           curl --fail --location --retry 2 --max-time 90 \
             https://firmware.ardupilot.org/Copter/stable-4.7.1/SITL_x86_64_linux_gnu/arducopter \

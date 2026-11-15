@@ -259,6 +259,14 @@ public sealed class UserController : ControllerBase
 
             return Ok(result);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (InvalidOperationException ex)
             when (ex.Message.Contains(
                 "pending",
@@ -267,13 +275,6 @@ public sealed class UserController : ControllerBase
             return Conflict(new
             {
                 message = ex.Message
-            });
-        }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
-        {
-            return Conflict(new
-            {
-                message = "Profile changed since it was loaded. Reload and try again."
             });
         }
     }

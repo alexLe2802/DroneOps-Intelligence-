@@ -190,11 +190,12 @@ public sealed class PilotUpdateRequestService
             form.Files.Count != 1)
         {
             throw new ArgumentException(
-                "Attach exactly one PDF or Word license document.");
+                "Attach exactly one license image or PDF/Word document.");
         }
 
         var request = new UpdatePilotProfileRequest
         {
+            ExpectedPendingRequestId = form.ExpectedPendingRequestId,
             PilotLicenseNo = form.PilotLicenseNo.Trim(),
             LicenseIssuedDate = form.LicenseIssuedDate,
             LicenseExpiredDate = form.LicenseExpiredDate,
