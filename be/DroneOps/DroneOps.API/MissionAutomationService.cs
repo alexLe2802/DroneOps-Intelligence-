@@ -89,8 +89,10 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
         var recorded = now < end && online && state?.ConfirmedPlanHash == hash && state.ConfirmedAt >= start.AddMinutes(-5)
             && state.ConfirmedAt < start && connection != null && state.ConnectionId == connection.Id;
         var pendingProposal = await db.MissionUpdateRequests.AsNoTracking().AnyAsync(r => r.MissionId == id && r.Status == "Pending", ct);
-        var confirmed = recorded && freshPreflight && !pendingProposal;
+        var eligibilityBlock = await FlightEligibility.BlockingReasonAsync(db, mission, ct);
+        var confirmed = recorded && freshPreflight && !pendingProposal && eligibilityBlock is null;
         var reasons = new List<string>();
+        if (eligibilityBlock is not null) reasons.Add(eligibilityBlock);
         if (pendingProposal) reasons.Add("A pending mission change must be reviewed before dispatch.");
         if (!windowOpen && !recorded) reasons.Add(now >= start ? "The confirmation window has closed." : "Confirmation opens five minutes before the scheduled start.");
         if (connection == null) reasons.Add("Fresh telemetry from this mission's bound flight controller is required.");
@@ -138,6 +140,9 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Mission\" WHERE \"Id\" = {id} FOR UPDATE", ct);
             var mission = await OwnedMission(id, actor, ct);
+            await FlightEligibility.LockAircraftAsync(db, mission.UAVId, ct);
+            var eligibilityBlock = await FlightEligibility.BlockingReasonAsync(db, mission, ct);
+            if (eligibilityBlock is not null) throw new InvalidOperationException(eligibilityBlock);
             var now = DateTimeOffset.UtcNow;
             var start = new DateTimeOffset(DateTime.SpecifyKind(mission.StartTime!.Value, DateTimeKind.Utc));
             var end = new DateTimeOffset(DateTime.SpecifyKind(mission.EndTime ?? mission.StartTime.Value, DateTimeKind.Utc));

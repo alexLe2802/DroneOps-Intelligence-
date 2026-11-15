@@ -10,6 +10,7 @@ using DroneOps.Persistence.Interfaces;
 using DroneOps.Application.Validators;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 
 namespace DroneOps.Application.Services.UAVs;
 
@@ -21,6 +22,7 @@ public sealed class UavService : IUavService
     private readonly ILogger<UavService> _logger;
     private readonly IUserMediaStorage _storage;
     private readonly IConfiguration _configuration;
+    private readonly UavReviewWorkflow? _reviews;
 
     public UavService(
         IUavRepository uavRepository,
@@ -29,7 +31,8 @@ public sealed class UavService : IUavService
         ILogger<UavService> logger,
         IUserMediaStorage storage,
         IUavImageModerationService imageModeration,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        UavReviewWorkflow? reviews = null)
     {
         _uavRepository = uavRepository;
         _pilotRepository = pilotRepository;
@@ -37,6 +40,7 @@ public sealed class UavService : IUavService
         _logger = logger;
         _storage = storage;
         _configuration = configuration;
+        _reviews = reviews;
         _ = imageModeration; // Resolved here for configuration validation; moderation runs in the durable API worker.
     }
 
@@ -130,8 +134,10 @@ public sealed class UavService : IUavService
             uav,
             cancellationToken);
 
-        await _uavRepository.SaveChangesAsync(
-            cancellationToken);
+        if (_reviews is not null) { uav.HasPendingProposal = true; _reviews.RecordRegistration(uav, userId); }
+
+        try { await _uavRepository.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException) { throw new InvalidOperationException("UAV registration conflicts with an existing code. Reload before retrying."); }
 
         await TryPublishToManagersAsync(
             "NewPendingUav",
@@ -306,53 +312,14 @@ public sealed class UavService : IUavService
             uav.MaxOperatingAltitudeMeters != request.MaxOperatingAltitudeMeters ||
             uav.PurchaseDate != request.PurchaseDate;
 
-        // Basic information
-        uav.Code = newCode;
-        uav.Name = normalizedName;
-        uav.Manufacturer = normalizedManufacturer;
-        uav.Model = normalizedModel;
-        uav.SerialNumber = normalizedSerialNumber;
-
-        // Physical
-        uav.EmptyWeightKg = request.EmptyWeightKg;
-        uav.MaxTakeoffWeightKg = request.MaxTakeoffWeightKg;
-        uav.MaxPayloadKg = request.MaxPayloadKg;
-
-        // Battery
-        uav.BatteryType = normalizedBatteryType;
-        uav.BatteryCapacityMah = request.BatteryCapacityMah;
-        uav.BatteryVoltage = request.BatteryVoltage;
-        uav.BatteryMaxVoltage = request.BatteryMaxVoltage;
-        uav.BatteryCellCount = request.BatteryCellCount;
-
-        // Flight capability
-        uav.MaxFlightTimeMinutes = request.MaxFlightTimeMinutes;
-        uav.MaxRangeKm = request.MaxRangeKm;
-        uav.MaxSpeedKmh = request.MaxSpeedKmh;
-        uav.MaxWindSpeedMps = request.MaxWindSpeedMps;
-        uav.MaxOperatingAltitudeMeters =
-            request.MaxOperatingAltitudeMeters;
-
-        uav.PurchaseDate = request.PurchaseDate;
-
-        // Reapproval is for material registry/specification changes only. The edit
-        // screen also sends this DTO before a separate optional image upload, so an
-        // unchanged DTO must not deactivate an operational aircraft.
-        if (requiresReapproval) uav.Status = "Pending";
-
-        await _uavRepository.SaveChangesAsync(
-            cancellationToken);
-
+        request.Code = newCode; request.Name = normalizedName;
+        request.Manufacturer = normalizedManufacturer; request.Model = normalizedModel;
+        request.SerialNumber = normalizedSerialNumber; request.BatteryType = normalizedBatteryType;
+        if (_reviews is null) throw new InvalidOperationException("Versioned UAV review is unavailable.");
+        await _reviews.StageAsync(uavId, userId, request, cancellationToken);
         if (requiresReapproval)
-        {
-            await TryPublishToManagersAsync(
-                "UavUpdatePending",
-                "UAV Update Pending Approval",
-                $"UAV '{uav.Code} - {uav.Name}' has been updated and requires approval.",
-                userId,
-                uav.Id,
-                cancellationToken);
-        }
+            await TryPublishToManagersAsync("UavUpdatePending", "UAV Update Pending Approval",
+                $"UAV '{uav.Code}' has a separate proposal awaiting review. Approved information is unchanged.", userId, uav.Id, cancellationToken);
 
         return true;
     }
@@ -885,6 +852,9 @@ public sealed class UavService : IUavService
     {
         return new UavResponse
         {
+            HasPendingProposal = uav.HasPendingProposal,
+            RegistryVersion = uav.RegistryVersion,
+            HasApprovedInformation = UavReviewWorkflow.IsApproved(uav),
             Id = uav.Id,
             PilotId = uav.PilotId,
             PilotName = pilotName,

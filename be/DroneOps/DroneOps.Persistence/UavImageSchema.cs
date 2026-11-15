@@ -27,12 +27,11 @@ public static class UavImageSchema
     {
         try
         {
-            await using var command = source.CreateCommand("""
+            await SchemaCommandExecutor.ExecuteAsync(source, """
                 SELECT "ImageStoragePath", "ImageModerationStatus", "ImageModerationAttempts",
                        "ImageModerationNextAttemptAt", "ImageModeratedAt", "ImageModerationReason"
                 FROM public."UAV" LIMIT 0
                 """);
-            await command.ExecuteNonQueryAsync();
         }
         catch (PostgresException exception) when (exception.SqlState is "42P01" or "42703")
         {

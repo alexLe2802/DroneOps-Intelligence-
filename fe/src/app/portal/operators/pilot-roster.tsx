@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/auth/client";
 import styles from "./pilot-roster.module.css";
 import UserAvatar from "../user-avatar";
+import OperatorAllocations from "./operator-allocations";
 import OperatorCredentials from "./operator-credentials";
 import PilotRegistrationRequests from "./pilot-registration-requests";
 
@@ -90,6 +91,7 @@ export default function PilotRoster({ initialRegistrationId }: { initialRegistra
         {selected && !unavailable ? <>
           <div className={styles.profile}><UserAvatar src={selected.avatarUrl} name={selected.fullName} size={48} /><div><h3>{selected.fullName}</h3><span className={styles.pilotBadge}>UAV OPERATOR / PILOT</span></div></div>
           <dl className={styles.fields}><div><dt>Full legal name</dt><dd>{selected.fullName}</dd></div><div><dt>Registered on</dt><dd>{date(selected.createdAt)}</dd></div><div className={styles.wide}><dt>Email address</dt><dd>{selected.email}</dd></div><div className={styles.wide}><dt>Operator ID</dt><dd className={styles.identifier}>{selected.id}</dd></div></dl>
+          <OperatorAllocations key={`allocations-${selected.id}-${revision}`} userId={selected.id} />
           <OperatorCredentials key={`${selected.id}-${revision}`} userId={selected.id} />
         </> : <div className={styles.empty}>{loading ? "Loading operator profile…" : "No operator selected"}</div>}
         <div className={styles.licenseAction}><button type="button" disabled className={styles.revoke} aria-describedby="revoke-license-note"><span aria-hidden="true">⊘</span> Revoke License</button><p id="revoke-license-note">License revocation will be available soon.</p></div>

@@ -13,6 +13,12 @@ public sealed class BatteryAssessmentResponse
     public decimal? RequiredBatteryPercent { get; set; }
     public decimal? EstimatedRequiredChargeMah { get; set; }
     public bool? MeetsEstimatedRequirement { get; set; }
+    public double? RouteDistanceMeters { get; set; }
+    public decimal? EstimatedFlightMinutes { get; set; }
+    public decimal? BaseBatteryPercent { get; set; }
+    public decimal? WeatherAdjustmentPercent { get; set; }
+    public decimal? SafetyReservePercent { get; set; }
+    public List<string> Reasons { get; set; } = [];
     public List<string> MissingData { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
 }
