@@ -11,6 +11,8 @@ public sealed class UpdatePilotProfileRequest
 
     public int? ExperienceYears { get; set; }
 
+    public string? FlightExperienceDescription { get; set; }
+
     // Tạo PilotUpdateRequest Pending
     public string? PilotLicenseNo { get; set; }
 

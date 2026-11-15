@@ -17,7 +17,7 @@ export default function OperatorEdit({ pilot, onUpdated }: { pilot: PilotProfile
     const birth = String(data.get("dateOfBirth") ?? "");
     setBusy(true); setError(""); setMessage("");
     try {
-      await api("/users/pilot-profile", { method: "PUT", body: JSON.stringify({ expectedVersion: pilot.profileVersion, phoneNumber: String(data.get("phoneNumber") ?? "").trim(), dateOfBirth: birth || undefined, experienceYears: Number(data.get("experienceYears")) }) });
+      await api("/users/pilot-profile", { method: "PUT", body: JSON.stringify({ expectedVersion: pilot.profileVersion, phoneNumber: String(data.get("phoneNumber") ?? "").trim(), dateOfBirth: birth || undefined, experienceYears: Number(data.get("experienceYears")), flightExperienceDescription: String(data.get("flightExperienceDescription") ?? "").trim() }) });
       await onUpdated(); setMessage("Operator information updated.");
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) { setStale(true); setError("Your profile changed in another tab. Reload the latest information before saving again."); }
@@ -29,6 +29,7 @@ export default function OperatorEdit({ pilot, onUpdated }: { pilot: PilotProfile
     <label>Phone number<input name="phoneNumber" type="tel" maxLength={20} defaultValue={pilot.phoneNumber ?? ""} disabled={busy} /></label>
     <label>Date of birth<input name="dateOfBirth" type="date" required defaultValue={pilot.dateOfBirth ?? ""} max={vietnamDateYearsAgo(18)} disabled={busy} /></label>
     <label>Flight experience (years)<input name="experienceYears" type="number" min={0} step={1} required defaultValue={pilot.experienceYears} disabled={busy} /></label>
+    <label>Briefly describe your flight experience<textarea name="flightExperienceDescription" rows={4} maxLength={500} defaultValue={pilot.flightExperienceDescription ?? ""} disabled={busy} /></label>
     {error && <p role="alert">{error}</p>}{stale && <button className="module-secondary" type="button" disabled={busy} onClick={() => void onUpdated().then(() => { setStale(false); setError(""); }).catch(() => setError("Unable to reload your profile. Please try again."))}>Reload latest profile</button>}{message && <p className="module-success" role="status">{message}</p>}<button className="module-primary" disabled={busy || stale}>{busy ? "Saving…" : "Save operator information"}</button>
   </form></section>;
 }
