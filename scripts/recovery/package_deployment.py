@@ -52,7 +52,6 @@ def main() -> int:
         shutil.copy2(repo / "database" / "migration-order.txt", staging / "migrations" / "migration-order.txt")
         copy_tree(repo / "scripts" / "recovery", staging / "recovery-tools")
         copy_tree(repo / "deploy", staging / "deploy")
-        shutil.copy2(repo / "docs" / "deployment-recovery-runbook.md", staging / "DEPLOYMENT-RECOVERY-RUNBOOK.md")
         manifest = {"application": "DroneOps", "version": args.version,
                     "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                     "automaticProductionMigration": False, "files": []}

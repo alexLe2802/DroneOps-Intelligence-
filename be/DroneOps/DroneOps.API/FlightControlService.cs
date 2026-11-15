@@ -320,6 +320,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
                 ?? throw new KeyNotFoundException("Mission not found.");
             if (!mission.AutomaticFlightRequested || mission.Status is not ("Approved" or "InProgress" or "Completed" or "Aborted") || mission.StartTime == null)
                 throw new InvalidOperationException("Flight control requires an approved automatic mission.");
+            await FlightEligibility.LockAircraftAsync(db, mission.UAVId, ct);
             var row = await db.MissionAutomationStates.SingleOrDefaultAsync(s => s.MissionId == id && s.OwnerId == actor, ct);
             if (row == null) { row = new() { MissionId = id, OwnerId = actor }; db.Add(row); }
             var state = row.ExecutionJson == null ? new() : JsonSerializer.Deserialize<FlightControlState>(row.ExecutionJson, Json) ?? new();
