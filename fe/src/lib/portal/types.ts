@@ -444,5 +444,6 @@ export type PilotProfile = {
   pilotId: string; phoneNumber: string | null; dateOfBirth: string | null;
   pilotLicenseNo: string; licenseIssuedDate: string | null;
   licenseExpiredDate: string | null; experienceYears: number;
+  flightExperienceDescription: string | null;
   droneType: string | null; droneModel: string | null;
 };
