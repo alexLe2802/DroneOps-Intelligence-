@@ -11,9 +11,7 @@ public sealed class MissionSuggestionService
     : IMissionSuggestionService
 {
     private readonly IAIService _aiService;
-
-    private readonly IMissionSuggestionRepository
-        _repository;
+    private readonly IMissionSuggestionRepository _repository;
 
     private static readonly JsonSerializerOptions JsonOptions =
         new()
@@ -60,25 +58,25 @@ public sealed class MissionSuggestionService
             Prompt = prompt,
 
             MissionName =
-                Normalize(aiData.MissionName),
+          Normalize(aiData.MissionName),
 
             MissionPurpose =
-                Normalize(aiData.MissionPurpose),
+          Normalize(aiData.MissionPurpose),
 
             SuggestedAltitude =
-                aiData.SuggestedAltitude,
+          (decimal)aiData.SuggestedAltitude,
 
             SuggestedWaypointCount =
-                aiData.SuggestedWaypointCount,
+          aiData.SuggestedWaypointCount,
 
             SuggestedFlightDuration =
-                aiData.SuggestedFlightDuration,
+    aiData.SuggestedFlightDuration,
 
             RiskAssessment =
-                Normalize(aiData.RiskAssessment),
+          Normalize(aiData.RiskAssessment),
 
             Recommendations =
-                Normalize(aiData.Recommendations),
+          Normalize(aiData.Recommendations),
 
             AiResponse = rawAiResponse,
 
@@ -175,15 +173,19 @@ public sealed class MissionSuggestionService
 
         try
         {
-            aiData =
-                JsonSerializer.Deserialize<
-                    MissionSuggestionData>(
+            if (!string.IsNullOrWhiteSpace(
+                    suggestion.AiResponse))
+            {
+                aiData =
+                    JsonSerializer.Deserialize<MissionSuggestionData>(
                         suggestion.AiResponse,
                         JsonOptions);
+            }
         }
         catch (JsonException)
         {
-            // Các cột chính vẫn được trả về.
+            // Nếu AI response cũ không deserialize được,
+            // các cột mission chính vẫn được trả về.
         }
 
         return MapToResponse(
@@ -201,7 +203,9 @@ public sealed class MissionSuggestionService
 
             PilotId = suggestion.PilotId,
 
-            Prompt = suggestion.Prompt,
+            Prompt =
+                suggestion.Prompt
+                ?? string.Empty,
 
             MissionName =
                 suggestion.MissionName
@@ -211,17 +215,44 @@ public sealed class MissionSuggestionService
                 suggestion.MissionPurpose
                 ?? string.Empty,
 
+            // Entity = decimal?
+            // Response DTO = double
             SuggestedAltitude =
-                suggestion.SuggestedAltitude
-                ?? 0,
+                suggestion.SuggestedAltitude.HasValue
+                    ? (double)suggestion.SuggestedAltitude.Value
+                    : 0d,
 
             SuggestedWaypointCount =
                 suggestion.SuggestedWaypointCount
                 ?? 0,
 
+            // Entity = decimal?
+            // Response DTO = double
             SuggestedFlightDuration =
-                suggestion.SuggestedFlightDuration
-                ?? 0,
+                suggestion.SuggestedFlightDuration.HasValue
+                    ? (double)suggestion.SuggestedFlightDuration.Value
+                    : 0d,
+
+            // ===== NEW AI DATA =====
+
+            AverageSpeedMetersPerSecond =
+                aiData?.AverageSpeedMetersPerSecond,
+
+            MaxSpeedMetersPerSecond =
+                aiData?.MaxSpeedMetersPerSecond,
+
+            AltitudeReference =
+                aiData?.AltitudeReference
+                ?? string.Empty,
+
+            AutomaticFlightRequested =
+                aiData?.AutomaticFlightRequested,
+
+            Waypoints =
+                aiData?.Waypoints
+                ?? [],
+
+            // =======================
 
             RiskAssessment =
                 suggestion.RiskAssessment
@@ -235,7 +266,8 @@ public sealed class MissionSuggestionService
                 aiData?.Summary
                 ?? string.Empty,
 
-            CreatedAt = suggestion.CreatedAt
+            CreatedAt =
+                suggestion.CreatedAt
         };
     }
 
