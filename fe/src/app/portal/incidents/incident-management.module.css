@@ -184,7 +184,8 @@
   font-size: 8px;
 }
 
-.priorityBanner > button {
+.priorityBanner > button,
+.priorityBanner > .inspectPriority {
   min-height: 34px;
   padding: 0 13px;
   border: 1px solid #ff9da2;
@@ -1554,7 +1555,7 @@
   .headingTools button { justify-content: center; white-space: normal; }
   .priorityBanner { grid-template-columns: auto 1fr; }
   .priorityBanner > .statusBadge { justify-self: start; }
-  .priorityBanner > button:not(.dismissPriority) { grid-column: 2; justify-self: end; }
+  .priorityBanner > .inspectPriority { grid-column: 2; justify-self: end; }
   .summaryGrid { grid-template-columns: 1fr 1fr; }
   .summaryCard { min-height: 106px; padding: 12px; }
   .focusIncidentTitle { align-items: flex-start; flex-direction: column; }
@@ -1593,9 +1594,12 @@
   .headingTools button { grid-column: 1; }
   .priorityBanner { grid-template-columns: 1fr; }
   .prioritySignal,
-  .priorityBanner > button:not(.dismissPriority) { grid-column: 1; width: 100%; }
+  .priorityBanner > .inspectPriority { grid-column: 1; width: 100%; }
   .mapPanel > header,
   .evidencePanel > header { align-items: flex-start; flex-direction: column; }
   .pendingActions { grid-template-columns: 1fr; }
   .evidenceList > div { grid-template-columns: 1fr; }
 }
+
+.inspectPriority { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.inspectPriority:focus-visible { outline: 2px solid var(--color-focus, #71d9f7); outline-offset: 4px; }
