@@ -3947,6 +3947,18 @@
     "ast_hash": "6e9a87723b0feb76fd29bd3ed35d95bf",
     "semantic_hash": ""
   },
+  "scripts/ci/cloudflare_auth.py": {
+    "mtime": 1794818183.1577475,
+    "seen": 1794818209.6687691,
+    "ast_hash": "c0d29ba9de51a8579c2ff43d1ed6fd23",
+    "semantic_hash": ""
+  },
+  "scripts/ci/test_cloudflare_auth.py": {
+    "mtime": 1794818183.1821678,
+    "seen": 1794818209.668774,
+    "ast_hash": "33b2dd54991b93705edca5d08664abcd",
+    "semantic_hash": ""
+  },
   "fe/package-lock.json": {
     "mtime": 1794307155.4166946,
     "seen": 1794814767.4592152,
