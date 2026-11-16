@@ -211,7 +211,7 @@ export default function IncidentManagementClient({ account }: { account: Account
       <div className={styles.prioritySignal}><i /><span>PRIORITY INCIDENT</span></div>
       <div className={styles.priorityMessage}><b>{priorityIncident.title}</b><span>{priorityIncident.uavCode ?? "UNASSIGNED UAV"} / {priorityIncident.missionName || "MISSION UNAVAILABLE"} / {relativeAge(priorityIncident.createdAt).toUpperCase()}</span></div>
       <StatusBadge value={priorityIncident.severity} />
-      <button type="button" onClick={() => setSelectedId(priorityIncident.id)}>INSPECT RECORD</button>
+      <Link className={styles.inspectPriority} href={`/portal/incidents/${encodeURIComponent(priorityIncident.id)}`}>INSPECT RECORD</Link>
       <button type="button" className={styles.dismissPriority} aria-label="Dismiss priority incident alert" title="Dismiss alert" onClick={() => setDismissedPriorityId(priorityIncident.id)}>&times;</button>
     </section>}
 
