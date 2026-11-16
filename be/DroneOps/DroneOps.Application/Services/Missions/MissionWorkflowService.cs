@@ -77,10 +77,10 @@ public sealed class MissionWorkflowService(
         }, cancellationToken);
     }
 
-    public async Task SubmitAsync(Guid id, Guid actor, Guid operationId, CancellationToken cancellationToken = default)
+    public async Task<bool> SubmitAsync(Guid id, Guid actor, Guid operationId, CancellationToken cancellationToken = default)
     {
         if (operationId == Guid.Empty) throw new ArgumentException("Operation identity is required.");
-        await missionRepository.ExecuteSerializableAsync(async ct =>
+        return await missionRepository.ExecuteSerializableAsync(async ct =>
         {
             var mission = await AuthorizedMissionAsync(id, actor, false, ct);
             var replay = await db.MissionUpdateRequests.SingleOrDefaultAsync(x => x.Id == operationId, ct);
@@ -88,7 +88,7 @@ public sealed class MissionWorkflowService(
             {
                 if (replay.MissionId != id || replay.ActorId != actor || !replay.IsInitial)
                     throw new InvalidOperationException("Operation identity belongs to another request.");
-                return true;
+                return false;
             }
             if (mission.Status is not ("Draft" or "Rejected"))
                 throw new InvalidOperationException("Only Draft or Rejected missions can be submitted.");

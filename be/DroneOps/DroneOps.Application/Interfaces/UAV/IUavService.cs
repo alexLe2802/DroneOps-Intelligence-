@@ -42,6 +42,10 @@ public interface IUavService
         Guid uavId,
         CancellationToken cancellationToken = default);
 
+    Task<(string Url, string ContentType)?> GetPendingUavImageAsync(
+        Guid uavId,
+        CancellationToken cancellationToken = default);
+
     Task<bool> DeleteUavImageAsync(
         Guid uavId,
         Guid actorUserId,
@@ -50,6 +54,13 @@ public interface IUavService
 
     Task<UavResponse?> RejectUavImageAsync(
         Guid uavId,
+        Guid managerUserId,
+        string reason,
+        CancellationToken cancellationToken = default);
+
+    Task<UavResponse?> ApproveUavImageAsync(
+        Guid uavId,
+        Guid managerUserId,
         string reason,
         CancellationToken cancellationToken = default);
 

@@ -82,8 +82,9 @@ internal static class MissionWorkflowIntegrityChecks
         try { await workflow.SavePlanAsync(Guid.NewGuid(), plan, draft.Id); throw new Exception("Foreign operator edit accepted"); }
         catch (UnauthorizedAccessException) { Check(true, "another operator cannot edit this mission"); }
         var submitId = Guid.NewGuid();
-        await workflow.SubmitAsync(draft.Id, owner, submitId);
-        await workflow.SubmitAsync(draft.Id, owner, submitId);
+        var submitted = await workflow.SubmitAsync(draft.Id, owner, submitId);
+        var replayed = await workflow.SubmitAsync(draft.Id, owner, submitId);
+        Check(submitted && !replayed, "only the first submission reports a new review transition");
         Check(await db.MissionUpdateRequests.CountAsync() == 1, "submission retry creates one review request");
         var initial = await Pending(draft.Id);
         var evidence = await validator.ReadRunAsync(draft.Id, initial.ValidationRunId!.Value, owner, false);

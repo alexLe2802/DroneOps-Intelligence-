@@ -176,8 +176,8 @@ public sealed class MissionsController : ControllerBase
     public async Task<IActionResult> SubmitMission(Guid id, [FromBody] SubmitMissionRequest request, CancellationToken ct)
     {
         if (!TryGetUserId(out var actor)) return Unauthorized();
-        await _workflow.SubmitAsync(id, actor, request.OperationId, ct);
-        return Ok(await _missionService.GetByIdAsync(id, ct));
+        var mission = await _missionService.SubmitAsync(id, actor, request.OperationId, ct);
+        return mission is null ? NotFound() : Ok(mission);
     }
 
     [HttpPost("validate")]

@@ -9,12 +9,13 @@ const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
   const uavReviewPath = request.method === "GET" && /^uavs\/[0-9a-f-]{36}\/reviews$/.test(path);
-  const uavImageRejectionPath = request.method === "POST" && /^admin\/uavs\/[0-9a-f-]{36}\/image\/reject$/.test(path);
+  const uavImageReviewPath = ((request.method === "POST" && /^admin\/uavs\/[0-9a-f-]{36}\/image\/(?:approve|reject)$/.test(path)) ||
+    (request.method === "GET" && /^admin\/uavs\/[0-9a-f-]{36}\/image\/pending$/.test(path)));
   const validationRunPath = /^missions\/[0-9a-f-]{36}\/validation\/runs\/[0-9a-f-]{36}$/;
   const automationPath = /^missions\/[0-9a-f-]{36}\/automation(?:\/(?:presence|confirm|cancel|plan|execution|arm|disarm))?$/.test(path);
   const gatewayForgetPath = /^drone-connections\/aircraft\/[0-9a-f-]{36}\/gateway$/.test(path);
   const automationDuePath = path === "missions/automation/due";
-  if (!allowed.test(path) && !uavReviewPath && !uavImageRejectionPath && !validationRunPath.test(path) && !automationPath && !gatewayForgetPath && !automationDuePath) return NextResponse.json({ message: "Not found." }, { status: 404 });
+  if (!allowed.test(path) && !uavReviewPath && !uavImageReviewPath && !validationRunPath.test(path) && !automationPath && !gatewayForgetPath && !automationDuePath) return NextResponse.json({ message: "Not found." }, { status: 404 });
   const token = request.cookies.get(accessCookie)?.value;
   if (!["GET", "HEAD"].includes(request.method)) {
     // Next.js may construct nextUrl with localhost while the browser uses
@@ -82,7 +83,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       method: request.method, headers, body,
       cache: "no-store", redirect: "manual", signal: liveStream ? request.signal : AbortSignal.timeout(timeoutMs),
     });
-    if ((path === "users/avatar" || /^users\/[0-9a-f-]{36}\/avatar$/.test(path) || /^uavs\/[0-9a-f-]{36}\/image$/.test(path)) && request.method === "GET" && upstream.status === 302) {
+    if ((path === "users/avatar" || /^users\/[0-9a-f-]{36}\/avatar$/.test(path) || /^uavs\/[0-9a-f-]{36}\/image$/.test(path) || /^admin\/uavs\/[0-9a-f-]{36}\/image\/pending$/.test(path)) && request.method === "GET" && upstream.status === 302) {
       const location = upstream.headers.get("location");
       if (!location || !location.startsWith("https://diaswbzjhvzwxcadlias.supabase.co/storage/v1/")) throw new Error("Invalid media redirect");
       return new NextResponse(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });

@@ -104,29 +104,29 @@ public sealed class NotificationService(
                 notification.IsRead = true;
                 notification.ReadAt ??= now;
                 notification.ReferenceType = "UAVManualReviewQueueClosed";
-                notification.Message = "All UAV images requiring manual review have been resolved.";
+                notification.Message = "All pending UAV image reviews have been resolved.";
                 continue;
             }
 
             var title = count == 1
-                ? "1 UAV Needs Manual Image Review"
-                : $"{count} UAVs Need Manual Image Review";
+                ? "1 UAV Image Awaits Manager Review"
+                : $"{count} UAV Images Await Manager Review";
             var message = count == 1
-                ? "AI could not verify one UAV image. Open the manual-review queue."
-                : $"AI could not verify {count} UAV images. Open the manual-review queue.";
+                ? "A pilot submitted a UAV image. Open the manager-review queue."
+                : $"Pilots submitted {count} UAV images. Open the manager-review queue.";
 
             if (notification is null)
             {
                 await repository.AddAsync(Create(managerId, "UavManualReview", title, message, null,
                     Guid.Empty, "UAVManualReviewQueueActive",
-                    "/uav-management?imageModerationStatus=ManualReview"), cancellationToken);
+                    "/uav-management?imageModerationStatus=Pending"), cancellationToken);
             }
             else
             {
                 // Keep the existing read state: count changes do not ring the bell repeatedly.
                 notification.Title = title;
                 notification.Message = message;
-                notification.ActionUrl = "/uav-management?imageModerationStatus=ManualReview";
+                notification.ActionUrl = "/uav-management?imageModerationStatus=Pending";
             }
         }
 

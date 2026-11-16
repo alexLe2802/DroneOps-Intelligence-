@@ -4,7 +4,7 @@ import { formatVietnamDate } from "@/lib/portal/vietnam-time";
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getManagedUav, getManagedUavs, rejectManagedUavImage } from "@/lib/portal/client";
+import { approveManagedUavImage, getManagedUav, getManagedUavs, rejectManagedUavImage } from "@/lib/portal/client";
 import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleLoading } from "../module-state";
 import UavReviewPanel from "../uav/uav-review-panel";
@@ -45,7 +45,7 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
     setBusy(true);
     try {
       const listRequest = getManagedUavs({ keyword: search, pageNumber: requestedPage, status: requestedStatus, imageModerationStatus: requestedModerationStatus });
-      const countRequest = getManagedUavs({ pageNumber: 1, pageSize: 1, imageModerationStatus: "ManualReview" });
+      const countRequest = getManagedUavs({ pageNumber: 1, pageSize: 1, imageModerationStatus: "Pending" });
       const [result, manualReviewResult] = await Promise.all([listRequest, countRequest]);
       if (currentRequest !== requestId.current) return;
       setAircraft(result.items);
@@ -82,7 +82,7 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
   }
 
   async function rejectImage() {
-    if (!selected || mutationPending.current || !selected.imageUrl) return;
+    if (!selected || mutationPending.current || !selected.pendingImageUrl) return;
     const reason = imageReason.trim();
     if (!reason) { setError(new Error("A rejection reason is required.")); return; }
     mutationPending.current = true;
@@ -92,7 +92,27 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
     try {
       const updated = await rejectManagedUavImage(selected.id, reason);
       setSelected(updated);
-      setMessage("UAV image removed and the operator was notified.");
+      setMessage("Proposed UAV image rejected; the approved image was kept.");
+      await load();
+      setSelected(updated);
+      setRejectingImage(false);
+      setImageReason("");
+    } catch (reasonValue) { setError(reasonValue); }
+    finally { mutationPending.current = false; setBusy(false); }
+  }
+
+  async function approveImage() {
+    if (!selected || mutationPending.current || !selected.pendingImageUrl) return;
+    const reason = imageReason.trim();
+    if (!reason) { setError(new Error("An approval reason is required.")); return; }
+    mutationPending.current = true;
+    setBusy(true);
+    setError(null);
+    setMessage("");
+    try {
+      const updated = await approveManagedUavImage(selected.id, reason);
+      setSelected(updated);
+      setMessage("Proposed UAV image approved and published to the aircraft record.");
       await load();
       setSelected(updated);
       setRejectingImage(false);
@@ -106,8 +126,8 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
   return <div className={styles.page}>
     <header className={styles.heading}>
       <div><p className={styles.eyebrow}>FLEET OPERATIONS</p><h1>UAV Management</h1><p>Review aircraft information and manage your operational fleet.</p></div>
-      <button type="button" className={`${styles.reviewFilter} ${imageModerationStatus === "ManualReview" ? styles.filterActive : ""}`} aria-pressed={imageModerationStatus === "ManualReview"} disabled={busy} onClick={() => { setPage(1); setImageModerationStatus(current => current === "ManualReview" ? "" : "ManualReview"); }}>
-        <ShieldCheck size={22} aria-hidden="true" /><span>Images to review<small>Manual image checks</small></span><strong>{manualReviewCount}</strong>
+      <button type="button" className={`${styles.reviewFilter} ${imageModerationStatus === "Pending" ? styles.filterActive : ""}`} aria-pressed={imageModerationStatus === "Pending"} disabled={busy} onClick={() => { setPage(1); setImageModerationStatus(current => current === "Pending" ? "" : "Pending"); }}>
+        <ShieldCheck size={22} aria-hidden="true" /><span>Images to review<small>Manager approvals</small></span><strong>{manualReviewCount}</strong>
       </button>
     </header>
     {Boolean(error) && <div className={styles.error} role="alert"><p>{error instanceof Error ? error.message : "Unable to load UAVs. Please try again."}</p><button disabled={busy} onClick={() => void load()}>Try again</button></div>}
@@ -120,12 +140,12 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
     <div className={styles.layout}>
       <section className={styles.queue} aria-label="UAV fleet" aria-busy={busy}>
         <header className={styles.sectionHeading}><div><h2>Aircraft fleet</h2><p>{totalItems} aircraft matching your filters</p></div><span className={styles.count}>{totalItems}</span></header>
-        {imageModerationStatus === "ManualReview" && <div className={styles.notice} role="status">Showing images awaiting manual review. <button type="button" disabled={busy} onClick={() => { setPage(1); setImageModerationStatus(""); }}>Clear filter</button></div>}
+        {imageModerationStatus === "Pending" && <div className={styles.notice} role="status">Showing proposed images awaiting manager review. <button type="button" disabled={busy} onClick={() => { setPage(1); setImageModerationStatus(""); }}>Clear filter</button></div>}
         <div className={styles.columns} aria-hidden="true"><span>Aircraft</span><span>Operator / registered</span><span>Status</span></div>
         {busy && !selected ? <ModuleLoading label="Loading UAV fleet" /> : error && !aircraft ? <p className={styles.empty}>Fleet data is unavailable. Please retry.</p> : !aircraft?.length ? <ModuleEmpty title="No UAV found" message="Try a different search or status filter." /> : <div className={styles.rows}>{aircraft.map(uav => <button type="button" className={`${styles.row} ${selected?.id === uav.id ? styles.selected : ""}`} aria-pressed={selected?.id === uav.id} key={uav.id} onClick={() => void inspect(uav.id)} disabled={busy}>
           <span className={styles.aircraftCell}><AircraftImage key={uav.imageUrl} src={uav.imageUrl} name={uav.name} thumbnail /><span><b>{uav.code || "Unnamed UAV"}</b><small>{uav.name || "Name not specified"}</small><small>{[uav.manufacturer, uav.model].filter(Boolean).join(" · ") || "Model not specified"}</small></span></span>
           <span className={styles.owner}><b>{uav.pilotName || "Unknown operator"}</b><small>{formatVietnamDate(uav.createdAt)}</small></span>
-          <span className={styles.rowStatus}><span className={styles.badge} data-status={uav.status.toLowerCase()}>{uav.status}</span>{uav.hasPendingProposal && <small className={styles.pending}>Proposal pending</small>}{uav.imageModerationStatus === "ManualReview" && <small className={styles.pending}>Image review</small>}</span>
+          <span className={styles.rowStatus}><span className={styles.badge} data-status={uav.status.toLowerCase()}>{uav.status}</span>{uav.hasPendingProposal && <small className={styles.pending}>Proposal pending</small>}{uav.imageModerationStatus === "Pending" && <small className={styles.pending}>Image review pending</small>}</span>
         </button>)}</div>}
         <footer className={styles.pagination}><span role="status">Page {page} of {Math.max(1, totalPages)}</span><div><button type="button" aria-label="Previous page" disabled={busy || page <= 1} onClick={() => setPage(value => value - 1)}><ChevronLeft size={18} /></button><button type="button" aria-label="Next page" disabled={busy || page >= totalPages} onClick={() => setPage(value => value + 1)}><ChevronRight size={18} /></button></div></footer>
       </section>
@@ -137,9 +157,10 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
           <details className={styles.disclosure}>
             <summary><span className={styles.summaryLabel}><Camera size={17} aria-hidden="true" />Aircraft image</span>{["Approved", "Rejected"].includes(selected.imageModerationStatus ?? "") && <span className={styles.imageStatus} data-status={selected.imageModerationStatus?.toLowerCase()}><span aria-hidden="true">{selected.imageModerationStatus === "Approved" ? "✓" : "×"}</span> {selected.imageModerationStatus === "Approved" ? "Image approved" : "Rejected by admin"}</span>}</summary>
             <div className={styles.imageSection}>
-              <AircraftImage key={`${selected.id}-${selected.imageUrl}`} src={selected.imageUrl} name={selected.name} />
-              {selected.imageUrl && <div className={styles.imageActions}><p>Rejecting an image removes the photo and notifies the operator. Aircraft approval and operational status are unchanged.</p>
-                {!rejectingImage ? <button type="button" className={styles.dangerOutline} disabled={busy} onClick={() => setRejectingImage(true)}>Reject aircraft image</button> : <form className={styles.imageForm} onSubmit={event => { event.preventDefault(); void rejectImage(); }}><label>Image rejection reason<textarea required maxLength={500} value={imageReason} disabled={busy} onChange={event => setImageReason(event.target.value)} autoFocus /></label><div><button className={styles.danger} disabled={busy || !imageReason.trim()}>Confirm image rejection</button><button type="button" disabled={busy} onClick={() => setRejectingImage(false)}>Cancel</button></div></form>}
+              <p>Current approved image</p><AircraftImage key={`${selected.id}-${selected.imageUrl}`} src={selected.imageUrl} name={selected.name} />
+              {selected.pendingImageUrl && <><p>Proposed image awaiting manager review</p><AircraftImage key={`${selected.id}-${selected.pendingImageUrl}`} src={selected.pendingImageUrl} name={`Proposed ${selected.name}`} /></>}
+              {selected.pendingImageUrl && selected.imageModerationStatus === "Pending" && <div className={styles.imageActions}><p>Approving publishes the proposed image. Rejecting removes only the proposal; the approved image and UAV operational status remain unchanged.</p>
+                {!rejectingImage ? <button type="button" className={styles.dangerOutline} disabled={busy} onClick={() => setRejectingImage(true)}>Review proposed image</button> : <form className={styles.imageForm} onSubmit={event => event.preventDefault()}><label>Manager decision reason<textarea required maxLength={500} value={imageReason} disabled={busy} onChange={event => setImageReason(event.target.value)} autoFocus /></label><div><button type="button" className={styles.primary} disabled={busy || !imageReason.trim()} onClick={() => void approveImage()}>Approve image</button><button type="button" className={styles.danger} disabled={busy || !imageReason.trim()} onClick={() => void rejectImage()}>Reject image</button><button type="button" disabled={busy} onClick={() => setRejectingImage(false)}>Cancel</button></div></form>}
               </div>}
             </div>
           </details>

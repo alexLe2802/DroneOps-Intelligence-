@@ -29,7 +29,7 @@ export default function UavDetailClient({ id }: { id: string }) {
   }, [id]);
   useEffect(() => {
     const pending = aircraft?.imageModerationStatus;
-    if (!pending || !["Pending", "Processing", "RetryScheduled"].includes(pending)) return;
+    if (pending !== "Pending") return;
     const timer = window.setInterval(() => {
       void getAssignedUav(id).then(setAircraft).catch(setError);
     }, 5000);
@@ -73,10 +73,10 @@ export default function UavDetailClient({ id }: { id: string }) {
         <h2>{aircraft.name}</h2><p>{aircraft.model ?? "Model not specified"}</p>
         <dl><div><dt>Code</dt><dd>{aircraft.code}</dd></div><div><dt>Name</dt><dd>{aircraft.name}</dd></div><div><dt>Model</dt><dd>{aircraft.model ?? "Not specified"}</dd></div><div><dt>Status</dt><dd>{aircraft.status}</dd></div><div><dt>Image check</dt><dd>{aircraft.imageModerationStatus ?? "No image"}</dd></div><div><dt>Created at</dt><dd>{aircraft.createdAt.slice(0, 10)}</dd></div><div><dt>Pilot</dt><dd>{aircraft.pilotName || "Current pilot"}</dd></div></dl>
         {submitted && <p className="approval-banner" role="status" aria-live="polite">{submitted === "create" ? "UAV registration submitted. Waiting for manager approval." : "UAV proposal submitted. Current approved information remains unchanged until Manager approval."}</p>}
-        {imageUpload === "success" && <p className="module-success uav-image-feedback" role="status">UAV image uploaded and queued for AI review. This page refreshes the result automatically.</p>}
-        {aircraft.imageModerationStatus === "ManualReview" && <p className="approval-banner" role="status">AI is temporarily unavailable. The image is waiting for manager review and was not rejected.</p>}
-        {aircraft.imageModerationStatus === "Rejected" && <p className="form-error uav-image-feedback" role="alert">AI could not confirm this as a safe UAV image. Replace it or ask a manager to review it.</p>}
-        {imageUpload === "failed" && <p className="form-error uav-image-feedback" role="alert">The UAV was saved, but AI review did not start because the image upload failed. {imageUploadMessage || "The previous image was kept. Contact an administrator or edit the UAV to try again."}</p>}
+        {imageUpload === "success" && <p className="module-success uav-image-feedback" role="status">UAV image uploaded and waiting for manager approval. The current approved image remains unchanged.</p>}
+        {aircraft.imageModerationStatus === "Pending" && <p className="approval-banner" role="status">The proposed image is waiting for manager approval.</p>}
+        {aircraft.imageModerationStatus === "Rejected" && <p className="form-error uav-image-feedback" role="alert">The proposed image was rejected by a manager. Reason: {aircraft.imageModerationReason || "No reason provided."}</p>}
+        {imageUpload === "failed" && <p className="form-error uav-image-feedback" role="alert">The UAV was saved, but the image upload failed. {imageUploadMessage || "The previous approved image was kept. Edit the UAV to try again."}</p>}
         <div className="uav-actions"><UavMutationActions aircraft={aircraft} editLabel="EDIT UAV" /></div>
       </div>
     </section>
