@@ -378,6 +378,7 @@ public class PilotRegistrationService : IPilotRegistrationService
                 LicenseIssuedDate = registration.LicenseIssuedDate,
                 LicenseExpiredDate = registration.LicenseExpiredDate,
                 ExperienceYears = registration.ExperienceYears ?? 0,
+                FlightExperienceDescription = string.IsNullOrWhiteSpace(registration.Description) ? null : registration.Description.Trim(),
                 CreatedAt = DateTime.UtcNow
             };
             await _context.Set<Pilot>().AddAsync(pilot);
@@ -390,6 +391,7 @@ public class PilotRegistrationService : IPilotRegistrationService
             pilot.LicenseIssuedDate = registration.LicenseIssuedDate;
             pilot.LicenseExpiredDate = registration.LicenseExpiredDate;
             pilot.ExperienceYears = registration.ExperienceYears ?? 0;
+            pilot.FlightExperienceDescription = string.IsNullOrWhiteSpace(registration.Description) ? null : registration.Description.Trim();
             _context.Set<Pilot>().Update(pilot);
         }
 

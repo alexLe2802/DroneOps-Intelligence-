@@ -12,11 +12,22 @@ public sealed class MissionSuggestionResponse
 
     public string MissionPurpose { get; set; } = string.Empty;
 
-    public decimal SuggestedAltitude { get; set; }
+    public double SuggestedAltitude { get; set; }
 
     public int SuggestedWaypointCount { get; set; }
 
     public double SuggestedFlightDuration { get; set; }
+
+    public double? AverageSpeedMetersPerSecond { get; set; }
+
+    public double? MaxSpeedMetersPerSecond { get; set; }
+
+    public string AltitudeReference { get; set; } = string.Empty;
+
+    public bool? AutomaticFlightRequested { get; set; }
+
+    public List<MissionSuggestedWaypoint> Waypoints { get; set; } = [];
+
 
     public string RiskAssessment { get; set; } = string.Empty;
 

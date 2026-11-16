@@ -16,7 +16,7 @@ var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCas
     "--migrate-telemetry", "--check-telemetry-schema",
     "--migrate-postflight", "--check-postflight-schema",
     "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows",
-    "--migrate-uav-images"
+    "--migrate-uav-images", "--migrate-uav-reviews"
 };
 var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
@@ -64,6 +64,14 @@ if (args.Contains("--migrate-uav-images"))
     await using var source = PostgresDataSourceFactory.Create(connectionString);
     await UavImageSchema.ApplyAsync(source);
     Console.WriteLine("UAV image moderation schema verified.");
+    return;
+}
+
+if (args.Contains("--migrate-uav-reviews"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await UavReviewSchema.ApplyAsync(source);
+    Console.WriteLine("UAV review schema verified.");
     return;
 }
 
@@ -236,6 +244,7 @@ await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlD
 // Notification DDL is idempotent so existing deployments become ready without a separate flag.
 await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 await UavImageSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+await UavReviewSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
 
 
 // Configure the HTTP request pipeline.

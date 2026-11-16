@@ -17,6 +17,8 @@ public sealed class UpdatePilotProfileResponse
 
     public int ExperienceYears { get; set; }
 
+    public string? FlightExperienceDescription { get; set; }
+
     // License chính thức hiện tại
     public string PilotLicenseNo { get; set; } = string.Empty;
 

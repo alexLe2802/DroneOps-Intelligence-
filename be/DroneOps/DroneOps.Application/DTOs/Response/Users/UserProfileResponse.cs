@@ -41,6 +41,8 @@ public class PilotProfileResponse
 
     public int ExperienceYears { get; set; }
 
+    public string? FlightExperienceDescription { get; set; }
+
     public string? DroneType { get; set; }
 
     public string? DroneModel { get; set; }

@@ -16,30 +16,25 @@ public static class MissionWorkflowSchema
     }
     public static async Task CheckAsync(NpgsqlDataSource source)
     {
-        await using var command = source.CreateCommand("SELECT \"Id\", \"ResultJson\", \"Stage\" FROM public.\"MissionValidationRun\" LIMIT 0");
         try
         {
-            await command.ExecuteNonQueryAsync();
-            await using var audit = source.CreateCommand("SELECT \"ValidationRunId\" FROM public.\"MissionApproval\" LIMIT 0");
-            await audit.ExecuteNonQueryAsync();
-            await using var requestCheck=source.CreateCommand("SELECT \"Id\", \"ProposedPlanJson\" FROM public.\"MissionUpdateRequest\" LIMIT 0");
-            await requestCheck.ExecuteNonQueryAsync();
-            await using var riskCheck = source.CreateCommand("SELECT \"PilotConfirmedBy\", \"PilotConfirmedAt\", \"PilotConfirmedValidationRunId\" FROM public.\"MissionUpdateRequest\" LIMIT 0");
-            await riskCheck.ExecuteNonQueryAsync();
-            foreach (var sql in new[] {
-                "SELECT \"BasePlanJson\", \"ValidationRunId\" FROM public.\"MissionUpdateRequest\" LIMIT 0",
-                "SELECT \"UpdateRequestId\" FROM public.\"MissionValidationRun\" LIMIT 0",
-                "SELECT \"ResultStatus\", \"RestrictionRevision\", \"EvidenceJson\" FROM public.\"MissionValidationRun\" LIMIT 0",
-                "SELECT \"UpdateRequestId\" FROM public.\"MissionApproval\" LIMIT 0",
-                "SELECT \"AltitudeReference\" FROM public.\"Mission\" LIMIT 0",
-                "SELECT \"RestrictionType\", \"VerticalRule\", \"Revision\", \"AltitudeReference\", \"MinAltitudeMeters\", \"MaxAltitudeMeters\" FROM public.\"Geofence\" LIMIT 0",
-                "SELECT \"SnapshotJson\" FROM public.\"GeofenceRevision\" LIMIT 0",
-                "SELECT \"ForecastJson\" FROM public.\"MissionWeatherCache\" LIMIT 0"
-            })
-            {
-                await using var check = source.CreateCommand(sql);
-                await check.ExecuteNonQueryAsync();
-            }
+            // One command keeps startup verification to a single network round-trip.
+            await SchemaCommandExecutor.ExecuteAsync(source, """
+                SELECT "Id", "ResultJson", "Stage", "UpdateRequestId", "ResultStatus",
+                       "RestrictionRevision", "EvidenceJson"
+                FROM public."MissionValidationRun" LIMIT 0;
+                SELECT "ValidationRunId", "UpdateRequestId"
+                FROM public."MissionApproval" LIMIT 0;
+                SELECT "Id", "ProposedPlanJson", "PilotConfirmedBy", "PilotConfirmedAt",
+                       "PilotConfirmedValidationRunId", "BasePlanJson", "ValidationRunId"
+                FROM public."MissionUpdateRequest" LIMIT 0;
+                SELECT "AltitudeReference" FROM public."Mission" LIMIT 0;
+                SELECT "RestrictionType", "VerticalRule", "Revision", "AltitudeReference",
+                       "MinAltitudeMeters", "MaxAltitudeMeters"
+                FROM public."Geofence" LIMIT 0;
+                SELECT "SnapshotJson" FROM public."GeofenceRevision" LIMIT 0;
+                SELECT "ForecastJson" FROM public."MissionWeatherCache" LIMIT 0;
+                """);
         }
         catch (PostgresException e) when (e.SqlState is "42P01" or "42703") { throw new InvalidOperationException("Apply mission workflow migration with --migrate-mission-workflow before starting the API.", e); }
     }

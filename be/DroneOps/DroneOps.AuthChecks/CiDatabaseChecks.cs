@@ -76,6 +76,7 @@ internal static class CiDatabaseChecks
         await DroneConnectionSchema.CheckAsync(source);
         await FlightPreparationSchema.CheckAsync(source);
         await UavImageSchema.CheckAsync(source);
+        await UavReviewSchema.CheckAsync(source);
         await using var check = source.CreateCommand("""
             SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
             WHERE n.nspname='public' AND c.relname IN ('MissionUpdateRequest','MissionValidationRun','MissionFlightExecution')

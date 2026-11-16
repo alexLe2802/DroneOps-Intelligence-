@@ -7,7 +7,7 @@ import { CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
-import type { AssignedUav, Geofence, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
+import type { AssignedUav, Geofence, MissionSuggestion, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 
@@ -22,6 +22,7 @@ import FlightModeFields, { type FlightMode } from "../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
 import MissionFenceFields, { useFenceDrawing } from "../mission-fence-fields";
 import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
+import MissionSuggestionPanel from "./mission-suggestion-panel";
 
 const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
 
@@ -108,6 +109,27 @@ export default function MissionForm() {
       return normalizeWaypointActions(next);
     });
   }
+  function applySuggestion(suggestion: MissionSuggestion) {
+    const hasDraft = Boolean(flightMode || name || description || averageSpeed || maxSpeed || altitudeReference || waypoints.length);
+    if (hasDraft && !window.confirm("Replace the current mission details with this suggestion? Your UAV, schedule and waypoints will be kept.")) return;
+
+    if (suggestion.missionName.trim()) setName(suggestion.missionName.trim());
+    if (suggestion.missionPurpose.trim()) setDescription(suggestion.missionPurpose.trim());
+    if (suggestion.automaticFlightRequested != null) setFlightMode(suggestion.automaticFlightRequested ? "automatic" : "manual");
+    if (["AGL", "MSL", "Relative"].includes(suggestion.altitudeReference)) {
+      setAltitudeReference(suggestion.altitudeReference as "AGL" | "MSL" | "Relative");
+    } else if (suggestion.automaticFlightRequested) {
+      setAltitudeReference("Relative");
+    }
+    if (Number.isFinite(suggestion.averageSpeedMetersPerSecond) && Number(suggestion.averageSpeedMetersPerSecond) > 0) {
+      setAverageSpeed(String(suggestion.averageSpeedMetersPerSecond));
+    }
+    if (Number.isFinite(suggestion.maxSpeedMetersPerSecond) && Number(suggestion.maxSpeedMetersPerSecond) > 0) {
+      setMaxSpeed(String(suggestion.maxSpeedMetersPerSecond));
+    }
+    setError("");
+    window.setTimeout(() => document.getElementById("mission-information")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
   async function submit(event: FormEvent) {
     event.preventDefault(); setError("");
     if (pending.current) return;
@@ -147,6 +169,7 @@ export default function MissionForm() {
   const earliestEnd = startTime || earliestStart;
   return <>
     <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
+    <MissionSuggestionPanel disabled={saving} onApply={applySuggestion} />
     <form className="mission-builder mission-create-builder" onSubmit={submit} onInvalidCapture={event => {
       const field = event.target;
       if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;
@@ -166,7 +189,7 @@ export default function MissionForm() {
         setFlightMode(mode);
         if (mode === "automatic") { setAverageSpeed("11.2"); setMaxSpeed("15"); setAltitudeReference("Relative"); }
       }} />
-      <section className="mission-fields">
+      <section className="mission-fields" id="mission-information">
         <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
         <div className="mission-field-grid">
           <label>ASSIGNED UAV · required<select value={uavId} onChange={event => { setUavId(event.target.value); setError(""); }} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>

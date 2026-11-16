@@ -17,6 +17,24 @@ public sealed class GeminiAIService : IAIService
             PropertyNameCaseInsensitive = true
         };
 
+    private static readonly HashSet<string> AllowedAltitudeReferences =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "MSL",
+            "AGL"
+        };
+
+    private static readonly HashSet<string> AllowedActionTypes =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "TAKEOFF",
+            "TRANSIT",
+            "SURVEY",
+            "HOLD",
+            "RETURN",
+            "LAND"
+        };
+
     public GeminiAIService(
         HttpClient httpClient,
         IConfiguration configuration)
@@ -33,6 +51,16 @@ public sealed class GeminiAIService : IAIService
         var provider = _configuration["Ai:Provider"];
         var apiKey = _configuration["Ai:ApiKey"];
         var model = _configuration["Ai:Model"];
+
+        if (!string.IsNullOrWhiteSpace(provider) &&
+            !provider.Equals(
+                "Gemini",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"AI provider '{provider}' is not supported " +
+                "by GeminiAIService.");
+        }
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
@@ -54,7 +82,8 @@ public sealed class GeminiAIService : IAIService
         }
 
         var endpoint =
-            $"v1beta/models/{Uri.EscapeDataString(model)}:generateContent";
+            $"v1beta/models/" +
+            $"{Uri.EscapeDataString(model)}:generateContent";
 
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -69,20 +98,82 @@ public sealed class GeminiAIService : IAIService
             inside a drone laboratory.
 
             The pilot is the final decision maker.
+
             Do not create, approve, validate or execute the mission.
 
             Analyze the pilot request and recommend:
             - mission name
             - mission purpose
-            - altitude in meters
-            - number of waypoints
-            - flight duration in minutes
-            - potential risks
+            - suggested altitude in meters
+            - suggested number of waypoints
+            - suggested flight duration in minutes
+            - average flight speed in meters per second
+            - maximum flight speed in meters per second
+            - altitude reference
+            - whether automatic flight was requested
+            - a practical list of mission waypoints
+            - navigation settings for each waypoint
+            - potential mission risks
             - safety recommendations
-            - concise summary
+            - a concise summary
 
+            Mission rules:
+            - suggestedAltitude must be zero or greater.
+            - suggestedFlightDuration may contain decimals.
+            - averageSpeedMetersPerSecond must not be greater than
+              maxSpeedMetersPerSecond.
+            - altitudeReference must be either MSL or AGL.
+            - If the pilot explicitly requests manual flight,
+              automaticFlightRequested must be false.
+            - Otherwise, automaticFlightRequested may be true when
+              an automatic waypoint route is appropriate.
+
+            Waypoint rules:
+            - Generate at least one waypoint.
+            - sequenceOrder must start from 1.
+            - sequenceOrder must increase by 1 for each waypoint.
+            - suggestedWaypointCount must exactly match the number
+              of generated waypoints.
+            - Latitude must be between -90 and 90.
+            - Longitude must be between -180 and 180.
+            - Altitude must be zero or greater.
+            - Use only these action types:
+              TAKEOFF, TRANSIT, SURVEY, HOLD, RETURN, LAND.
+            - Navigation speed must be appropriate for the waypoint.
+            - yawDegrees must be between 0 and 360.
+            - emergencyLandingCandidate is only an AI suggestion.
+            - emergencyLandingCandidate does not confirm that a
+              location has been inspected or is safe for landing.
+
+            Location rules:
+            - If the pilot provides a recognizable location, propose
+              reasonable approximate coordinates.
+            - Do not claim that approximate coordinates have been
+              operationally verified.
+            - If the location is unclear, create a conservative route
+              and explain the uncertainty in riskAssessment.
+            - The pilot must review every generated coordinate before
+              using the mission.
+
+            Do not generate or invent:
+            - UAV IDs
+            - operation IDs
+            - pending request IDs
+            - plan hashes
+            - battery specifications
+            - recovery energy profiles
+            - safety policy versions
+            - verified weather measurements
+            - verified geofence information
+            - verified landing-site survey results
+
+            Do not claim that weather validation passed.
             Do not claim that geofence validation passed.
-            Formal validation is performed separately by the system.
+            Do not claim that energy validation passed.
+            Do not claim that mission validation passed.
+
+            Formal mission validation is performed separately
+            by the DroneOps system.
 
             Return data matching the required JSON schema.
             """;
@@ -105,11 +196,12 @@ public sealed class GeminiAIService : IAIService
                 new
                 {
                     role = "user",
+
                     parts = new object[]
                     {
                         new
                         {
-                            text = prompt
+                            text = prompt.Trim()
                         }
                     }
                 }
@@ -146,13 +238,150 @@ public sealed class GeminiAIService : IAIService
                         suggestedWaypointCount = new
                         {
                             type = "integer",
-                            minimum = 0
+                            minimum = 1
                         },
 
                         suggestedFlightDuration = new
                         {
                             type = "number",
                             minimum = 0
+                        },
+
+                        averageSpeedMetersPerSecond = new
+                        {
+                            type = "number",
+                            minimum = 0
+                        },
+
+                        maxSpeedMetersPerSecond = new
+                        {
+                            type = "number",
+                            minimum = 0
+                        },
+
+                        altitudeReference = new
+                        {
+                            type = "string"
+                        },
+
+                        automaticFlightRequested = new
+                        {
+                            type = "boolean"
+                        },
+
+                        waypoints = new
+                        {
+                            type = "array",
+                            minItems = 1,
+
+                            items = new
+                            {
+                                type = "object",
+
+                                properties = new
+                                {
+                                    sequenceOrder = new
+                                    {
+                                        type = "integer",
+                                        minimum = 1
+                                    },
+
+                                    latitude = new
+                                    {
+                                        type = "number",
+                                        minimum = -90,
+                                        maximum = 90
+                                    },
+
+                                    longitude = new
+                                    {
+                                        type = "number",
+                                        minimum = -180,
+                                        maximum = 180
+                                    },
+
+                                    altitude = new
+                                    {
+                                        type = "number",
+                                        minimum = 0
+                                    },
+
+                                    actionType = new
+                                    {
+                                        type = "string"
+                                    },
+
+                                    navigation = new
+                                    {
+                                        type = "object",
+
+                                        properties = new
+                                        {
+                                            speedMetersPerSecond =
+                                                new
+                                                {
+                                                    type = "number",
+                                                    minimum = 0
+                                                },
+
+                                            holdTimeSeconds =
+                                                new
+                                                {
+                                                    type = "number",
+                                                    minimum = 0
+                                                },
+
+                                            acceptanceRadiusMeters =
+                                                new
+                                                {
+                                                    type = "number",
+                                                    minimum = 0
+                                                },
+
+                                            passRadiusMeters =
+                                                new
+                                                {
+                                                    type = "number",
+                                                    minimum = 0
+                                                },
+
+                                            yawDegrees =
+                                                new
+                                                {
+                                                    type = "number",
+                                                    minimum = 0,
+                                                    maximum = 360
+                                                },
+
+                                            emergencyLandingCandidate =
+                                                new
+                                                {
+                                                    type = "boolean"
+                                                }
+                                        },
+
+                                        required = new[]
+                                        {
+                                            "speedMetersPerSecond",
+                                            "holdTimeSeconds",
+                                            "acceptanceRadiusMeters",
+                                            "passRadiusMeters",
+                                            "yawDegrees",
+                                            "emergencyLandingCandidate"
+                                        }
+                                    }
+                                },
+
+                                required = new[]
+                                {
+                                    "sequenceOrder",
+                                    "latitude",
+                                    "longitude",
+                                    "altitude",
+                                    "actionType",
+                                    "navigation"
+                                }
+                            }
                         },
 
                         riskAssessment = new
@@ -178,6 +407,11 @@ public sealed class GeminiAIService : IAIService
                         "suggestedAltitude",
                         "suggestedWaypointCount",
                         "suggestedFlightDuration",
+                        "averageSpeedMetersPerSecond",
+                        "maxSpeedMetersPerSecond",
+                        "altitudeReference",
+                        "automaticFlightRequested",
+                        "waypoints",
                         "riskAssessment",
                         "recommendations",
                         "summary"
@@ -208,10 +442,21 @@ public sealed class GeminiAIService : IAIService
         var aiContent =
             ExtractGeminiContent(responseBody);
 
-        var result =
-            JsonSerializer.Deserialize<MissionSuggestionData>(
-                aiContent,
-                JsonOptions);
+        MissionSuggestionData? result;
+
+        try
+        {
+            result =
+                JsonSerializer.Deserialize<MissionSuggestionData>(
+                    aiContent,
+                    JsonOptions);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException(
+                "Gemini returned malformed mission suggestion JSON.",
+                exception);
+        }
 
         if (result is null)
         {
@@ -263,16 +508,18 @@ public sealed class GeminiAIService : IAIService
 
         foreach (var part in parts.EnumerateArray())
         {
-            if (part.TryGetProperty(
+            if (!part.TryGetProperty(
                     "text",
                     out var textElement))
             {
-                var text = textElement.GetString();
+                continue;
+            }
 
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    return text;
-                }
+            var text = textElement.GetString();
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
             }
         }
 
@@ -303,11 +550,16 @@ public sealed class GeminiAIService : IAIService
     private static void ValidateResult(
         MissionSuggestionData result)
     {
-        if (string.IsNullOrWhiteSpace(
-                result.MissionName))
+        if (string.IsNullOrWhiteSpace(result.MissionName))
         {
             throw new InvalidOperationException(
                 "Gemini response is missing mission name.");
+        }
+
+        if (string.IsNullOrWhiteSpace(result.MissionPurpose))
+        {
+            throw new InvalidOperationException(
+                "Gemini response is missing mission purpose.");
         }
 
         if (result.SuggestedAltitude < 0)
@@ -316,7 +568,7 @@ public sealed class GeminiAIService : IAIService
                 "Gemini returned an invalid altitude.");
         }
 
-        if (result.SuggestedWaypointCount < 0)
+        if (result.SuggestedWaypointCount <= 0)
         {
             throw new InvalidOperationException(
                 "Gemini returned an invalid waypoint count.");
@@ -326,6 +578,143 @@ public sealed class GeminiAIService : IAIService
         {
             throw new InvalidOperationException(
                 "Gemini returned an invalid flight duration.");
+        }
+
+        if (result.AverageSpeedMetersPerSecond < 0 ||
+            result.MaxSpeedMetersPerSecond < 0)
+        {
+            throw new InvalidOperationException(
+                "Gemini returned an invalid flight speed.");
+        }
+
+        if (result.AverageSpeedMetersPerSecond >
+            result.MaxSpeedMetersPerSecond)
+        {
+            throw new InvalidOperationException(
+                "Average speed cannot exceed maximum speed.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                result.AltitudeReference) ||
+            !AllowedAltitudeReferences.Contains(
+                result.AltitudeReference))
+        {
+            throw new InvalidOperationException(
+                "Gemini returned an invalid altitude reference. " +
+                "Allowed values are MSL and AGL.");
+        }
+
+        if (result.Waypoints is null ||
+            result.Waypoints.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Gemini response does not contain waypoints.");
+        }
+
+        if (result.SuggestedWaypointCount !=
+            result.Waypoints.Count)
+        {
+            throw new InvalidOperationException(
+                "Suggested waypoint count does not match " +
+                "the generated waypoint list.");
+        }
+
+        for (var index = 0;
+             index < result.Waypoints.Count;
+             index++)
+        {
+            var waypoint = result.Waypoints[index];
+            var expectedSequence = index + 1;
+
+            if (waypoint.SequenceOrder != expectedSequence)
+            {
+                throw new InvalidOperationException(
+                    "Waypoint sequence must start from 1 " +
+                    "and increase sequentially.");
+            }
+
+            if (waypoint.Latitude is < -90 or > 90)
+            {
+                throw new InvalidOperationException(
+                    $"Waypoint {expectedSequence} has " +
+                    "an invalid latitude.");
+            }
+
+            if (waypoint.Longitude is < -180 or > 180)
+            {
+                throw new InvalidOperationException(
+                    $"Waypoint {expectedSequence} has " +
+                    "an invalid longitude.");
+            }
+
+            if (waypoint.Altitude < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Waypoint {expectedSequence} has " +
+                    "an invalid altitude.");
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    waypoint.ActionType) ||
+                !AllowedActionTypes.Contains(
+                    waypoint.ActionType))
+            {
+                throw new InvalidOperationException(
+                    $"Waypoint {expectedSequence} has " +
+                    "an invalid action type.");
+            }
+
+            if (waypoint.Navigation is null)
+            {
+                throw new InvalidOperationException(
+                    $"Waypoint {expectedSequence} is missing " +
+                    "navigation settings.");
+            }
+
+            if (waypoint.Navigation.SpeedMetersPerSecond < 0 ||
+                waypoint.Navigation.HoldTimeSeconds < 0 ||
+                waypoint.Navigation.AcceptanceRadiusMeters < 0 ||
+                waypoint.Navigation.PassRadiusMeters < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Waypoint {expectedSequence} contains " +
+                    "invalid navigation values.");
+            }
+
+            if (waypoint.Navigation.YawDegrees is < 0 or > 360)
+            {
+                throw new InvalidOperationException(
+                    $"Waypoint {expectedSequence} has " +
+                    "an invalid yaw value.");
+            }
+
+            if (waypoint.Navigation.SpeedMetersPerSecond >
+                result.MaxSpeedMetersPerSecond)
+            {
+                throw new InvalidOperationException(
+                    $"Waypoint {expectedSequence} speed exceeds " +
+                    "the suggested maximum mission speed.");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                result.RiskAssessment))
+        {
+            throw new InvalidOperationException(
+                "Gemini response is missing risk assessment.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                result.Recommendations))
+        {
+            throw new InvalidOperationException(
+                "Gemini response is missing recommendations.");
+        }
+
+        if (string.IsNullOrWhiteSpace(result.Summary))
+        {
+            throw new InvalidOperationException(
+                "Gemini response is missing summary.");
         }
     }
 }
