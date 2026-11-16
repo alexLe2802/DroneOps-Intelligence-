@@ -51,7 +51,7 @@ export default function OperatorAllocations({ userId }: { userId: string }) {
   function changePage(next: number) { setData(null); setError(""); setOpened(null); setPage(next); }
   return <section className={styles.allocations}>
     <h3>Mission allocations & review history</h3>
-    <p>Mission responsibility belongs to this Operator. UAV ownership is unchanged. Drafts and pending requests are not approved allocations.</p>
+
     {error ? <div role="alert"><p>{error}</p><button type="button" onClick={() => { setError(""); setRevision(value => value + 1); }}>Retry allocations</button></div> : !data ? <p>Loading mission allocations…</p> : <>
       {!data.items.length ? <p>No recorded missions for this Operator.</p> : <div className={styles.allocationTable} tabIndex={0} role="region" aria-label="Operator mission allocations"><table>
         <caption>Recorded missions for the selected Operator</caption>

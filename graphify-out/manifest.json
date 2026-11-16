@@ -2484,9 +2484,9 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/profile/license-changes.tsx": {
-    "mtime": 1794649432.6767766,
-    "seen": 1794814767.459054,
-    "ast_hash": "e956bdcad6e7818fcfccb18672a117b3",
+    "mtime": 1794826110.9324114,
+    "seen": 1794826116.466784,
+    "ast_hash": "5a8c171ffa8ab90e4bdfe0d62304e679",
     "semantic_hash": ""
   },
   "fe/src/app/portal/profile/operator-edit.tsx": {
@@ -3846,9 +3846,9 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/operators/operator-allocations.tsx": {
-    "mtime": 1794655874.538123,
-    "seen": 1794814767.459046,
-    "ast_hash": "7070494f64652a5e6f956c13b50c2dbb",
+    "mtime": 1794825945.0680602,
+    "seen": 1794826116.466775,
+    "ast_hash": "7f9c2c5f4fda553dce9c369c54771bb3",
     "semantic_hash": ""
   },
   "scripts/checks/kan28-browser.cjs": {
