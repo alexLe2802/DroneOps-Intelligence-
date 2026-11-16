@@ -1104,9 +1104,9 @@
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Application/Services/Storage/UserMediaStorage.cs": {
-    "mtime": 1794644941.7794616,
-    "seen": 1794814767.4588218,
-    "ast_hash": "abc995484256ac4129dd7154e5747149",
+    "mtime": 1794828979.4682636,
+    "seen": 1794829001.99983,
+    "ast_hash": "c69f837fd86a27f8a4901745c4892107",
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Application/Services/Telemetry/DroneConnectionService.cs": {
@@ -1404,9 +1404,9 @@
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.AuthChecks/UserMediaAccessChecks.cs": {
-    "mtime": 1794644941.7808626,
-    "seen": 1794814767.458865,
-    "ast_hash": "5b71ca7b8c659abc05a59b41e04420e1",
+    "mtime": 1794828979.4685802,
+    "seen": 1794829001.999879,
+    "ast_hash": "6edc2c50e05e93d6bb4803a6da9286c7",
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Domain/CanonicalRoles.cs": {
@@ -2418,9 +2418,9 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/operational-dashboard.tsx": {
-    "mtime": 1794820131.2043967,
-    "seen": 1794820167.44144,
-    "ast_hash": "a72dcada7242265b0b3d2bfccdcf9e40",
+    "mtime": 1794827858.7723365,
+    "seen": 1794827888.913478,
+    "ast_hash": "0992b6aec28bfc7f594474b136328609",
     "semantic_hash": ""
   },
   "fe/src/app/portal/operators/operator-credentials.tsx": {
@@ -2514,9 +2514,9 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav-management/uav-management-client.tsx": {
-    "mtime": 1794827718.636103,
-    "seen": 1794827788.544079,
-    "ast_hash": "67bd83d379779b57c8ff1f5b1387457b",
+    "mtime": 1794828123.2252517,
+    "seen": 1794828136.66419,
+    "ast_hash": "6a8a45bb775e6e673658a92609913fc2",
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/[id]/edit/page.tsx": {
@@ -3126,9 +3126,9 @@
     "semantic_hash": ""
   },
   "render.yaml": {
-    "mtime": 1794311597.1914523,
-    "seen": 1794814767.4591749,
-    "ast_hash": "ef11c4028cc095c90edb6d5a8d732d2c",
+    "mtime": 1794828757.4835844,
+    "seen": 1794829002.000203,
+    "ast_hash": "0b5a924c5093bac8cd9b2a898924b2c1",
     "semantic_hash": ""
   },
   "scripts/ci/changes.py": {

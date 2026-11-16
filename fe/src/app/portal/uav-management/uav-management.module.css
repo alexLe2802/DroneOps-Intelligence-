@@ -76,9 +76,7 @@
 .imageSection { padding: 0 16px 16px; }
 .image { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; aspect-ratio: 2 / 1; background: #172a3b; border-radius: 8px; color: #a8c9dc; font-size: 12px; }
 .image img { display: block; inline-size: 100%; block-size: 100%; min-block-size: 0; object-fit: contain; border-radius: 8px; }
-.imageEvidence { padding-block: 16px; font-size: 12px; }
-.imageEvidence p, .imageActions p { color: #a9bbcd; font-size: 12px; line-height: 1.7; margin: 8px 0; }
-.imageEvidence small { color: #9bafc4; }
+.imageActions p { color: #a9bbcd; font-size: 12px; line-height: 1.7; margin: 8px 0; }
 .imageActions { border-block-start: 1px solid #2b4056; padding-block-start: 10px; }
 .page .dangerOutline { border: 1px solid #c36f7d; background: #35242f; color: #ffc3cc; padding: 10px 14px; border-radius: 7px; font-size: 12px; margin-block-start: 8px; }
 .imageForm { display: grid; gap: 12px; margin-block-start: 14px; }
@@ -103,3 +101,6 @@
   .detailHeading h2 { font-size: 22px; }
 }
 @container aircraft (max-width: 340px) { .detail :global(.uav-info-groups dl) { grid-template-columns: minmax(0, 1fr); } }
+
+.disclosure > summary > .imageStatus { color: #a4f2cd; font-size: 11px; font-weight: 400; margin-block-start: 6px; }
+.disclosure > summary > .imageStatus[data-status="rejected"] { color: #ffc1c5; }

@@ -140,3 +140,20 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Let the map determine the desktop row height; long insights scroll inside it. */
+@media (min-width: 1101px) {
+  .operations-grid > .insight-column {
+    contain: size;
+    grid-auto-rows: max-content;
+    align-self: stretch;
+    min-block-size: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+.insight-column:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
