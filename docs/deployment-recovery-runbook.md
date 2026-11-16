@@ -32,6 +32,26 @@ DRONEOPS_RESTORE_STORAGE_SERVICE_KEY
 DRONEOPS_RESTORE_ISOLATED=YES
 ```
 
+## Media storage provider
+
+Production media uses the private Supabase `user-media` bucket. Set
+`UserMediaStorage__Provider=Supabase`, `SupabaseStorage__Url` to the project origin,
+and `SupabaseStorage__ServiceKey` in the backend secret store. New `sb_secret_`
+keys use the `apikey` header; legacy `service_role` JWTs also use Bearer authorization.
+`SupabaseStorage__AuthorizationToken` is optional for existing JWT overrides.
+See [Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys).
+
+The default provider is Supabase. `Auto`, unknown providers, missing credentials,
+and storage failures never switch to local disk. Remove any existing `Auto`
+override before deploying this version. Local storage requires an explicit
+`UserMediaStorage__Provider=Local`; the Development settings select it for local use.
+
+Switching providers does not copy existing files. References to missing local files
+need their original media uploaded again through the application, or a separately
+approved and verified transfer. Do not clear media references or approval evidence
+to hide missing objects. Verify one upload and subsequent read after a restart on
+an isolated target before production rollout.
+
 ## Create and verify a backup
 
 From the repository root, run:

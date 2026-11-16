@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Never interrupt a production deployment halfway through publishing assets.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CI: true
@@ -40,7 +41,7 @@ jobs:
       DRONEOPS_CI_ISOLATED: "true"
       DRONEOPS_CI_POSTGRES: Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=ci-local-only
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -51,6 +52,7 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           python3 scripts/ci/test_changes.py
+          python3 -m unittest discover -s scripts/ci -p 'test_cloudflare_auth.py'
           python3 scripts/ci/changes.py
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         if: steps.changes.outputs.backend == 'true'
@@ -133,7 +135,7 @@ jobs:
       - name: Clean up isolated API container
         if: always() && steps.changes.outputs.backend == 'true'
         run: docker rm --force droneops-ci-api >/dev/null 2>&1 || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: pr-ci-runtime-logs
@@ -148,4 +150,82 @@ jobs:
           RESULT: ${{ job.status }}
         run: |
           echo "### PR Quality Gate: $RESULT" >> "$GITHUB_STEP_SUMMARY"
-          echo 'Standard: affected offline suites and disposable PostgreSQL migration/workflow checks. Add full-ci label for Render Docker/TLS smoke, Cloudflare build/runtime and relevant SITL. Omitted checks are not reported as passed. No hosted Supabase writes, production deployment or real flight.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Quality gate: affected offline suites and disposable PostgreSQL migration/workflow checks. Add full-ci label for Render Docker/TLS smoke, Cloudflare build/runtime and relevant SITL. Omitted checks are not reported as passed. This job makes no hosted Supabase writes, production deployment or real flight. Main pushes deploy Cloudflare in the separate production job after this gate succeeds.' >> "$GITHUB_STEP_SUMMARY"
+
+  cloudflare-production:
+    name: Deploy Cloudflare production
+    needs: quality-gate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: cloudflare-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: fe
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: fe/package-lock.json
+      - name: Verify Cloudflare token and Worker account access
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 ../scripts/ci/cloudflare_auth.py
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build with production domains and backend
+        env:
+          # The quality gate uses a separate build with localhost bindings.
+          DRONEOPS_CI: "false"
+        run: npm run build:vinext
+      - name: Skip superseded commits
+        id: latest
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          main_sha=$(curl --fail --silent --show-error --retry 3 --max-time 30 \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["object"]["sha"])')
+          if [ "$main_sha" = "$RELEASE_SHA" ]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo "Skipped superseded commit $RELEASE_SHA; main is now $main_sha." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Deploy Worker and custom domains
+        if: steps.latest.outputs.deploy == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DRONEOPS_CI: "false"
+          RELEASE_SHA: ${{ github.sha }}
+        run: npx --no-install cf deploy --prebuilt --tag "$RELEASE_SHA" --message "GitHub Actions main $RELEASE_SHA"
+      - name: Verify production pages
+        if: steps.latest.outputs.deploy == 'true'
+        run: |
+          for origin in https://droneops.click https://www.droneops.click; do
+            for path in / /login; do
+              status=$(curl --silent --show-error --location --retry 3 --retry-all-errors --retry-delay 5 --max-time 30 --output /dev/null --write-out '%{http_code}' "$origin$path")
+              if [ "$status" != 200 ]; then
+                echo "::error::Production verification failed: $origin$path returned HTTP $status"
+                exit 1
+              fi
+            done
+          done
+      - name: Record deployed commit
+        if: steps.latest.outputs.deploy == 'true'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          echo "Deployed main commit: $RELEASE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Worker: droneops-web; domains: https://droneops.click and https://www.droneops.click. Public landing/login checks passed; authenticated user flows were not exercised.' >> "$GITHUB_STEP_SUMMARY"

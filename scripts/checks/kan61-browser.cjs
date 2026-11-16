@@ -57,6 +57,7 @@ let ui,browser;
  pending=true;version++;await open();await page.getByRole('button',{name:'Review approval',exact:true}).click();
  await page.getByLabel('Decision reason').fill('Capacity verified');await page.getByRole('button',{name:'Confirm approve',exact:true}).click();
  await page.getByText('No pending information proposal.',{exact:true}).waitFor();assert.equal(current.batteryCapacityMah,7000);
+ await page.getByText('Review & status history',{exact:false}).click();
  await page.getByText('Reviewed: Fixture reviewer',{exact:false}).first().waitFor();
  console.log('PASS: approve submits exact proposal/version and renders saved audit');
  pending=true;version++;await open();await page.setViewportSize({width:390,height:844});

@@ -31,3 +31,18 @@ test("provider retry preserves already loaded assessment history", () => {
   assert.doesNotMatch(generateCatch, /setItems\(\[\]\)/);
   assert.match(source, /Previously loaded evidence remains available below/);
 });
+
+test("assessment request is blocked for incomplete plans and pending proposals are not silently assessed", () => {
+  assert.match(source, /assessmentReadiness/);
+  assert.match(source, /!readiness\.ready/);
+  assert.match(source, /Pending proposal/);
+  assert.match(source, /will not silently send it as the current mission/);
+  assert.match(source, /updateRequestId/);
+});
+
+test("feature provenance states the current API limitation without inventing used inputs", () => {
+  assert.match(source, /usedFeatures/);
+  assert.match(source, /missingFeatures/);
+  assert.match(source, /per-match used features are not reported/);
+  assert.match(source, /does not infer which available values affected the score/);
+});

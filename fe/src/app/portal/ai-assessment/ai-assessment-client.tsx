@@ -12,6 +12,7 @@ import {
   type ValidationMissionOption,
 } from "@/lib/portal/client";
 import type { AiAssessment, MissionDetail } from "@/lib/portal/types";
+import { assessmentReadiness } from "@/lib/portal/assessment-readiness";
 import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
 import LiveBattery from "./live-battery";
@@ -55,6 +56,7 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
   const [busy, setBusy] = useState(false);
   const generating = useRef(false);
   const selectedMission = missions?.find(item => item.id === missionId);
+  const readiness = assessmentReadiness(context?.id === missionId ? context : null);
 
   const loadMissions = useCallback(async () => {
     setError(null);
@@ -113,7 +115,7 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
   }, [missionId, reloadToken]);
 
   async function generate() {
-    if (!selectedMission || generating.current) return;
+    if (!selectedMission || !readiness.ready || generating.current) return;
     generating.current = true;
     setBusy(true);
     setError(null);
@@ -138,6 +140,8 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
   const result = activeAssessment?.result;
   const battery = result?.battery;
   const historicalFlights = result?.historicalFlights ?? [];
+  const usedFeatures = result?.retrieval?.usedFeatures ?? [];
+  const missingFeatures = result?.retrieval?.missingFeatures ?? [];
   const isHistorical = (risk: NonNullable<AiAssessment["result"]>["risks"][number]) => risk.category === "Historical" || risk.title.startsWith("Historical");
   const severityOrder = { Critical: 0, High: 1, Moderate: 2, Low: 3 };
   const currentRisks = (result?.risks ?? []).filter(risk => !isHistorical(risk)).sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
@@ -150,7 +154,7 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
   return <div className={styles.page}>
     <header className={styles.heading}>
       <div><p className={styles.eyebrow}>OPERATIONS <span>/</span> DECISION SUPPORT</p><h1>AI Risk Assessment</h1><p>Understand the risks. Check the energy. Know what to do next.</p></div>
-      <button className={styles.primaryButton} disabled={busy || !selectedMission || context?.id !== missionId} onClick={() => void generate()}><RefreshCw size={16} aria-hidden="true" className={busy ? styles.spinning : ""} />{busy ? "Assessing mission…" : items?.length ? "Run new assessment" : "Run assessment"}</button>
+      <button className={styles.primaryButton} disabled={busy || !selectedMission || context?.id !== missionId || !readiness.ready} aria-describedby={!readiness.ready && context?.id === missionId ? "assessment-readiness" : undefined} onClick={() => void generate()}><RefreshCw size={16} aria-hidden="true" className={busy ? styles.spinning : ""} />{busy ? "Assessing mission…" : items?.length ? "Run new assessment" : "Run assessment"}</button>
     </header>
 
     {missions.length === 0 ? <ModuleEmpty title="No mission available" message="Create a mission before requesting an assessment." /> :
@@ -160,6 +164,16 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
         <div className={styles.missionMeta}><span>{selectedMission?.status}</span><span>{context?.waypoints.length ?? "—"} waypoints</span><span>{context?.uavCode ?? "No UAV assigned"}</span></div>
         {selectedMission && <Link className={styles.textLink} href={`/portal/missions/${encodeURIComponent(missionId)}`}>View mission <ArrowUpRight size={15} aria-hidden="true" /></Link>}
       </section>}
+
+    {context?.id === missionId && <section className={styles.contextPanel} aria-labelledby="assessment-context-title">
+      <header><div><p className={styles.eyebrow}>ASSESSMENT CONTEXT</p><h2 id="assessment-context-title">Saved mission record</h2></div><span className={`${styles.badge} ${readiness.ready ? styles.low : styles.moderate}`}>{readiness.ready ? "Ready to request" : `${readiness.blockers.length} blocking item${readiness.blockers.length === 1 ? "" : "s"}`}</span></header>
+      <div className={styles.contextGrid}>
+        <article className={styles.activeContext}><b>Current saved mission</b><p>The current API assesses this saved mission record.</p><span>Selected context</span></article>
+        {context.pendingUpdate && <article><b>Pending proposal</b><p>{context.pendingUpdate.proposedPlan.name} · {context.pendingUpdate.proposedPlan.waypoints.length} waypoints</p><span>Assessment API support required</span></article>}
+      </div>
+      {!readiness.ready && <div className={styles.readiness} id="assessment-readiness" role="status"><b>Complete the mission before assessment</b><ul>{readiness.blockers.map(item => <li key={item}>{item}</li>)}</ul><Link className={styles.textLink} href={`/portal/missions/${encodeURIComponent(missionId)}/edit`}>Edit mission <ArrowUpRight size={14} aria-hidden="true" /></Link></div>}
+      {context.pendingUpdate && <p className={styles.contextNote}><Info size={14} aria-hidden="true" />The proposal is shown for awareness only. FE will not silently send it as the current mission; assessment requires an `updateRequestId` contract from the backend.</p>}
+    </section>}
 
     {Boolean(error) && missions && <section className={styles.error} role="alert"><div><b>{failureKind === "generate" ? "ASSESSMENT UNAVAILABLE" : "EVIDENCE LOAD FAILED"}</b><p>{error instanceof Error ? error.message : "Request failed."}</p><small>{items?.length ? "Previously loaded evidence remains available below." : "Manual review is still available."}</small></div><button className={styles.secondaryButton} disabled={busy} onClick={() => failureKind === "generate" ? void generate() : setReloadToken(value => value + 1)}>{failureKind === "generate" ? "RETRY ASSESSMENT" : "RETRY LOAD"}</button></section>}
     {selectedMission && !items && !error && <ModuleLoading label="Loading assessment history" />}
@@ -209,10 +223,10 @@ export default function AiAssessmentClient({ role }: { role: AccountRole }) {
         <header className={styles.panelHeader}><div><p className={styles.eyebrow}>03 / RECORDED HISTORICAL EVIDENCE</p><h2>Learn from similar flights</h2><p>Past incidents provide context. They are not detections on this mission.</p></div><span className={styles.badge}>{historicalFlights.length} matches</span></header>
         {historicalRisks.length > 0 && <div className={styles.patternList}>{historicalRisks.map((risk, i) => <article key={`${risk.title}-${i}`}><span className={`${styles.badge} ${styles.moderate}`}>Historical pattern</span><h3>{risk.title}</h3><p>{risk.evidence}</p><p><b>Review:</b> {risk.precaution}</p>{risk.sourceIncidentIds?.map((id, index) => <Link className={styles.textLink} key={id} href={`/portal/incidents/${encodeURIComponent(id)}`}>Incident {index + 1} <ArrowUpRight size={13} aria-hidden="true" /></Link>)}</article>)}</div>}
         {historicalFlights.length === 0 ? <div className={styles.empty}><Database size={28} aria-hidden="true" /><h3>No historical evidence</h3><p>No authorized matching flight was returned. This does not mean zero risk; continue manual review.</p></div> : <div className={styles.flightList}>{historicalFlights.map(flight => <details className={styles.flight} key={flight.missionId}><summary><span className={styles.flightIcon}><Route size={17} aria-hidden="true" /></span><span className={styles.flightName}>{flight.missionName}<small>{flight.incidentIds.length} linked incident{flight.incidentIds.length === 1 ? "" : "s"}</small></span><span className={styles.match}>{(flight.similarityScore * 100).toFixed(1)}%<small>similarity</small></span><ChevronRight size={16} aria-hidden="true" /></summary><div className={styles.flightDetail}><dl className={styles.flightFeatures}>{Object.entries(flight.features).map(([key, value]) => <div key={key}><dt>{featureLabels[key]?.label ?? key}</dt><dd>{featureValue(key, value)}</dd></div>)}</dl><div className={styles.links}><Link className={styles.textLink} href={`/portal/flight-history/${encodeURIComponent(flight.missionId)}`}>View flight evidence <ArrowUpRight size={14} aria-hidden="true" /></Link>{flight.incidentIds.map((incidentId, index) => <Link className={styles.textLink} key={incidentId} aria-label={`Open linked incident ${index + 1}`} href={`/portal/incidents/${encodeURIComponent(incidentId)}`}>Incident {String(index + 1).padStart(2, "0")} <ArrowUpRight size={14} aria-hidden="true" /></Link>)}</div></div></details>)}</div>}
-        <footer className={styles.explainer}><Info size={16} aria-hidden="true" /><p>Similarity compares recorded flight features. <b>An 80% match does not mean 80% safe.</b> Missing features reduce the evidence available for comparison.</p></footer>
+        <footer className={styles.explainer}><Info size={16} aria-hidden="true" /><div><p>Similarity compares recorded flight features. <b>An 80% match does not mean 80% safe.</b> Missing features reduce the evidence available for comparison.</p>{usedFeatures.length > 0 ? <p><b>Features reported as used:</b> {usedFeatures.map(key => featureLabels[key]?.label ?? readableIdentifier(key)).join(", ")}.</p> : <p><b>Current API limitation:</b> per-match used features are not reported, so this UI does not infer which available values affected the score.</p>}{missingFeatures.length > 0 && <p><b>Features excluded as missing:</b> {missingFeatures.map(key => featureLabels[key]?.label ?? readableIdentifier(key)).join(", ")}.</p>}</div></footer>
       </section>}
 
-      {activeAssessment && <details className={styles.reportDetails}><summary>Report provenance & methodology <ChevronRight size={15} aria-hidden="true" /></summary><dl className={styles.factList}><div><dt>Provider</dt><dd>{readableIdentifier(activeAssessment.provider)}</dd></div><div><dt>Method</dt><dd>{readableIdentifier(activeAssessment.model)}</dd></div><div><dt>Retrieval</dt><dd>{result?.retrieval?.method ?? "Unavailable"}</dd></div><div><dt>Feature schema</dt><dd>{result?.retrieval?.featureSchema ?? "Unavailable"}</dd></div><div><dt>Mission version</dt><dd>{activeAssessment.missionVersion}</dd></div><div><dt>Captured at</dt><dd>{formatVietnamDateTime(activeAssessment.completedAt ?? activeAssessment.createdAt)}</dd></div></dl><p>{result?.summary ?? activeAssessment.errorCode ?? "The selected assessment has no result payload."}</p><p>{result?.disclaimer ?? "AI assessment is advisory and cannot approve a mission."}</p></details>}
+      {activeAssessment && <details className={styles.reportDetails}><summary>Report provenance & methodology <ChevronRight size={15} aria-hidden="true" /></summary><dl className={styles.factList}><div><dt>Assessed context</dt><dd>{activeAssessment.contextType === "PendingProposal" ? "Pending proposal" : "Saved mission"}</dd></div>{activeAssessment.updateRequestId && <div><dt>Proposal reference</dt><dd>{activeAssessment.updateRequestId}</dd></div>}<div><dt>Provider</dt><dd>{readableIdentifier(activeAssessment.provider)}</dd></div><div><dt>Method</dt><dd>{readableIdentifier(activeAssessment.model)}</dd></div><div><dt>Retrieval</dt><dd>{result?.retrieval?.method ?? "Unavailable"}</dd></div><div><dt>Feature schema</dt><dd>{result?.retrieval?.featureSchema ?? "Unavailable"}</dd></div><div><dt>Mission version</dt><dd>{activeAssessment.missionVersion}</dd></div><div><dt>Captured at</dt><dd>{formatVietnamDateTime(activeAssessment.completedAt ?? activeAssessment.createdAt)}</dd></div></dl><p>{result?.summary ?? activeAssessment.errorCode ?? "The selected assessment has no result payload."}</p><p>{result?.disclaimer ?? "AI assessment is advisory and cannot approve a mission."}</p></details>}
       <footer className={styles.pageFooter}><ShieldAlert size={14} aria-hidden="true" /><span>Assessments use the saved mission. Pending proposals, operational approval and live flight evidence remain separate.</span></footer>
     </>}
   </div>;

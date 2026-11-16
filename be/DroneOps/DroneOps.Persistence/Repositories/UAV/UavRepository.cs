@@ -35,6 +35,10 @@ public sealed class UavRepository
                 return false;
             }
 
+            if (uav.HasPendingProposal || uav.Status is "Pending" or "Pending Review" ||
+                await DbContext.UavReviewRequests.AnyAsync(x => x.UavId == uavId && x.Status == "Pending", cancellationToken))
+                throw new InvalidOperationException("This UAV is awaiting Manager review. Wait for a decision before deleting it.");
+
             if (await DbContext.DroneHardwareIdentities.AnyAsync(
                     x => x.UavId == uavId, cancellationToken))
             {

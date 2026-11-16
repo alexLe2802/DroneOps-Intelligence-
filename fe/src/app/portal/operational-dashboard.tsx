@@ -24,6 +24,7 @@ import type {
 import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 import DashboardMap from "./dashboard-map";
 import DashboardRouteWeather from "./dashboard-route-weather";
+import { incidentDescription } from "@/lib/portal/incident-display";
 import { ModuleError, ModuleLoading } from "./module-state";
 import PortalShell from "./portal-shell";
 
@@ -74,13 +75,13 @@ export default function OperationalDashboard({ account }: { account: Account }) 
       }));
 
     const incidentRequest: Promise<IncidentSummary> = Promise.all([
-      getIncidents({ pageNumber: 1, pageSize: 4, status: "Open" }),
-      getIncidents({ pageNumber: 1, pageSize: 4, status: "Acknowledged" }),
+      getIncidents({ pageNumber: 1, pageSize: 3, status: "Open" }),
+      getIncidents({ pageNumber: 1, pageSize: 3, status: "Acknowledged" }),
     ]).then(([open, acknowledged]) => ({
       total: open.totalCount + acknowledged.totalCount,
       items: [...open.items, ...acknowledged.items]
         .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
-        .slice(0, 4),
+        .slice(0, 3),
     }));
 
     const [summary, history, geofences, fleetResult, liveResult, incidentResult] = await Promise.allSettled([
@@ -195,14 +196,14 @@ export default function OperationalDashboard({ account }: { account: Account }) 
         <footer><span>Layers: <b>Geofences + live mission telemetry</b></span><span><Link href="/portal/geofences">AIRSPACE REGISTRY</Link> · <Link href="/portal/live-monitoring">LIVE MONITORING →</Link></span></footer>
       </section>
 
-      <aside className="insight-column">
+      <aside className="insight-column" tabIndex={0} aria-label="AI decision engine and latest incidents">
         <section className="ai-panel">
           <header><span className="dash-icon" aria-hidden="true">◎</span><div><h2>AI Decision Engine</h2></div><b>AI</b></header>
           <article><div className="insight-mission-heading"><h3>{latestMission ? latestMission.missionName : "No mission context"}</h3><span className="insight-mission-status" data-status={latestMission ? statusKey(latestMission.status) : "idle"}>{latestMission?.status ?? "Idle"}</span></div><p>{latestMission ? `Latest mission record for ${latestMission.uavCode || "an unassigned UAV"}.` : "Create a mission before requesting an assessment."}</p><div className="insight-mission-actions"><span>{latestMission ? `${latestMission.totalIncidents} recorded incidents` : "No mission selected"}</span><Link className="module-link" href="/portal/ai-assessment">Open assessment</Link></div></article>
         </section>
         <section className="incident-panel">
-          <header><div><h2>Unresolved Incidents</h2></div><Link href="/portal/incidents">View all</Link></header>
-          {incidents?.items.length ? incidents.items.map(item => <article key={item.id}><div className="insight-event-meta"><b className="warn">{item.severity} · {item.status}</b><time>{formatDate(item.createdAt)}</time></div><h3><Link href={`/portal/incidents/${encodeURIComponent(item.id)}`}>{item.title}</Link></h3><p>{item.description || item.type}</p><div className="insight-event-footer"><span>{item.uavCode || "Unassigned UAV"}</span><span>{item.missionName}</span></div></article>) : <article><b className={incidents ? "ok" : "warn"}>{incidents ? "No unresolved incidents" : "Incident feed unavailable"}</b><h3>{incidents ? "Operations are clear" : "Unable to load the incident registry"}</h3><p>{incidents ? "The incident API returned no open or acknowledged records." : "Use Incident Management to retry the registry directly."}</p></article>}
+          <header><div><h2>Latest unresolved incidents</h2></div><Link href="/portal/incidents">View all</Link></header>
+          {incidents?.items.length ? incidents.items.map(item => <article key={item.id}><div className="insight-event-meta"><b className="warn">{item.severity} · {item.status}</b><time>{formatDate(item.createdAt)}</time></div><h3><Link href={`/portal/incidents/${encodeURIComponent(item.id)}`}>{item.title}</Link></h3><p className="dashboard-incident-preview">{incidentDescription(item.description) || item.type}</p><div className="insight-event-footer"><span>{item.uavCode || "Unassigned UAV"}</span><span>{item.missionName}</span></div></article>) : <article><b className={incidents ? "ok" : "warn"}>{incidents ? "No unresolved incidents" : "Incident feed unavailable"}</b><h3>{incidents ? "Operations are clear" : "Unable to load the incident registry"}</h3><p>{incidents ? "The incident API returned no open or acknowledged records." : "Use Incident Management to retry the registry directly."}</p></article>}
         </section>
       </aside>
     </div>

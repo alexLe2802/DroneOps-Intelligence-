@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -28,7 +28,7 @@ jobs:
         working-directory: mobile
       - run: flutter build apk --debug --dart-define=API_BASE_URL=https://api.droneops.click
         working-directory: mobile
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: droneops-android-debug
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
@@ -36,7 +36,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.1'
@@ -44,7 +44,7 @@ jobs:
           cache: true
       - run: flutter pub get && flutter build ipa --release --no-codesign --dart-define=API_BASE_URL=https://api.droneops.click
         working-directory: mobile
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: droneops-ios-unsigned-archive
           path: mobile/build/ios/archive/Runner.xcarchive

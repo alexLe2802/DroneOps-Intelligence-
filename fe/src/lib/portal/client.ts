@@ -1,6 +1,6 @@
 import { api, ApiError } from "@/lib/auth/client";
 import type { AccountRole } from "@/lib/auth/types";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
+import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionSuggestion, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable"> & { uavCode?: string | null };
 
@@ -37,7 +37,11 @@ export async function getManagerMissions(): Promise<ManagerMission[]> {
     getManagedUavs({ pageNumber: 1, pageSize: 100 }).catch(() => null),
   ]);
   const aircraft = new Map((fleet?.items ?? []).map(item => [item.id, item]));
-  return (Array.isArray(missions) ? missions as Array<MissionApiRecord & { createdBy: string }> : missions.items).map(record => {
+  const records = Array.isArray(missions) ? missions : missions?.items;
+  if (!Array.isArray(records)) {
+    throw new ApiError("The mission service returned an invalid list. Please retry after the service is updated.", 502);
+  }
+  return (records as Array<MissionApiRecord & { createdBy: string }>).map(record => {
     const assigned = record.uavId ? aircraft.get(record.uavId) : undefined;
     return {
       ...normalizeMission(record, assigned?.code ?? null),
@@ -454,6 +458,14 @@ export function createAiAssessment(request: AiAssessmentRequest): Promise<AiAsse
 
 export function getAiAssessments(missionRef: string): Promise<AiAssessment[]> {
   return api<AiAssessment[]>(`/ai/assessments/mission/${encodeURIComponent(missionRef)}`);
+}
+
+export function generateMissionSuggestion(prompt: string): Promise<MissionSuggestion> {
+  return api<MissionSuggestion>("/mission-suggestions", { method: "POST", body: JSON.stringify({ prompt: prompt.trim() }) });
+}
+
+export function getMyMissionSuggestions(): Promise<MissionSuggestion[]> {
+  return api<MissionSuggestion[]>("/mission-suggestions/mine");
 }
 
 export function getGeofence(id: string): Promise<Geofence> {

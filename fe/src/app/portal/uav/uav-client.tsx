@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAssignedUavs } from "@/lib/portal/client";
 import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
-import DeleteUavButton from "./delete-uav-button";
+import UavMutationActions from "./uav-mutation-actions";
 
 function approvalLabel(status: string) {
   const value = status.toLowerCase();
@@ -38,15 +38,15 @@ export default function UavClient() {
   ) ?? [], [aircraft, query]);
 
   if (error) return <ModuleError error={error} retry={load} />;
-  if (!aircraft) return <ModuleLoading label="Loading assigned aircraft" />;
+  if (!aircraft) return <ModuleLoading label="Loading your UAVs" />;
 
   return <>
-    <header className="module-heading"><div><p className="module-kicker">PILOT / UAV REGISTRY</p><h1>Manage UAV</h1><p>View aircraft registered to your pilot account and submit a new UAV for admin approval.</p></div><Link className="module-primary module-link" href="/portal/uav/new">+ ADD UAV</Link></header>
+    <header className="module-heading"><div><p className="module-kicker">PILOT / UAV REGISTRY</p><h1>My UAVs</h1><p>Manage your registered aircraft and submit UAV information for Manager approval.</p></div><Link className="module-primary module-link" href="/portal/uav/new">+ ADD UAV</Link></header>
     <Link className="module-secondary module-link" href="/portal/drone-connection">CONNECT A DRONE →</Link>
     {message && <p className="module-success" role="status">{message}</p>}
     <section className="module-toolbar"><label>SEARCH UAV<input value={query} onChange={event => setQuery(event.target.value)} placeholder="Code, name, manufacturer, model or status" /></label><span>{filtered.length} / {aircraft.length} AIRCRAFT</span></section>
     {filtered.length === 0
-      ? <ModuleEmpty title="No UAV found" message={aircraft.length ? "Try a different search term." : "No UAV is assigned to your account."} />
+      ? <ModuleEmpty title="No UAV found" message={aircraft.length ? "Try a different search term." : "You have not registered any UAVs yet."} />
       : <section className="uav-grid">{filtered.map(uav => <article className="uav-card" key={uav.id}>
         <div className={`uav-visual${uav.imageUrl ? " has-image" : ""}`}>
           {uav.imageUrl ? <Image src={uav.imageUrl} alt={`${uav.name} UAV`} width={640} height={420} unoptimized /> : <><span>UAV</span><b>{uav.code}</b></>}
@@ -54,7 +54,7 @@ export default function UavClient() {
         <div><header><span className={`status status-${uav.status.toLowerCase()}`}>{uav.status}</span><small className={uav.status.toLowerCase() === "active" ? "approval-approved" : "approval-pending"}>{approvalLabel(uav.status)}</small></header>
           <h2>{uav.name}</h2><p>{[uav.manufacturer, uav.model].filter(Boolean).join(" · ") || "Model not specified"}</p>
           <div className="uav-metrics"><div><span>PILOT</span><strong>{uav.pilotName || "Current pilot"}</strong></div><div><span>CREATED</span><strong>{uav.createdAt.slice(0, 10)}</strong></div><div><span>STATE</span><strong>{uav.status.toUpperCase()}</strong></div></div>
-          <div className="uav-actions"><Link className="module-secondary module-link" href={`/portal/uav/${uav.id}`}>VIEW DETAILS →</Link><Link className="module-secondary module-link" href={`/portal/uav/${uav.id}/edit`}>EDIT</Link><DeleteUavButton id={uav.id} code={uav.code} onDeleted={() => { setAircraft(current => current?.filter(item => item.id !== uav.id) ?? []); setMessage(`${uav.code} deleted successfully.`); }} /></div>
+          <div className="uav-actions"><Link className="module-secondary module-link" href={`/portal/uav/${uav.id}`}>VIEW DETAILS →</Link><UavMutationActions aircraft={uav} onDeleted={() => { setAircraft(current => current?.filter(item => item.id !== uav.id) ?? []); setMessage(`${uav.code} deleted successfully.`); }} /></div>
         </div>
       </article>)}</section>}
   </>;
