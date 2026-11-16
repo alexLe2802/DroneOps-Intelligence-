@@ -325,3 +325,22 @@ test("Draft submission sends a stable operation identity without resaving the pl
     assert.deepEqual(calls, Array(2).fill(["/api/missions/mission/submit", "PUT", { operationId: "operation" }]));
   } finally { mock.mock.restore(); }
 });
+
+
+test("manager mission registry accepts legacy arrays and rejects malformed pages instead of reporting an empty fleet", async () => {
+  let response = [{ id: "mission-id", createdBy: "pilot-id", name: "Survey", status: "Draft", uavId: null, waypoints: [] }];
+  const mock = test.mock.method(globalThis, "fetch", async url => {
+    if (String(url) === "/api/missions?pageSize=100") return Response.json(response);
+    if (String(url).startsWith("/api/admin/uavs?")) return Response.json({ items: [] });
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  try {
+    assert.equal((await client.getManagerMissions())[0].id, "mission-id");
+    for (const invalid of [{}, { items: null }, { items: {} }, null]) {
+      response = invalid;
+      await assert.rejects(client.getManagerMissions(), error => error.status === 502 && /invalid list/.test(error.message));
+    }
+    response = { items: [] };
+    assert.deepEqual(await client.getManagerMissions(), []);
+  } finally { mock.mock.restore(); }
+});
