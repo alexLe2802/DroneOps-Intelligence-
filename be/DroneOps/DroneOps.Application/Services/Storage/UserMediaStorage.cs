@@ -36,11 +36,19 @@ public sealed class UserMediaStorage : IUserMediaStorage
         {
             var provider = _configuration["UserMediaStorage:Provider"] ?? "Auto";
             if (string.Equals(provider, "Local", StringComparison.OrdinalIgnoreCase)) return true;
-            if (!string.Equals(provider, "Auto", StringComparison.OrdinalIgnoreCase)) return false;
+            if (string.Equals(provider, "Supabase", StringComparison.OrdinalIgnoreCase)) return false;
+            if (!string.Equals(provider, "Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "UserMediaStorage:Provider must be Auto, Local or Supabase.");
+            }
 
             var key = _configuration["SupabaseStorage:ServiceKey"];
             var authorizationToken = _configuration["SupabaseStorage:AuthorizationToken"];
-            return key?.StartsWith("sb_secret_", StringComparison.Ordinal) == true
+            // Auto may choose local only when no cloud credential was supplied.
+            // A partial Supabase configuration must fail closed instead of silently
+            // storing production-looking media on the backend machine.
+            return string.IsNullOrWhiteSpace(key)
                 && string.IsNullOrWhiteSpace(authorizationToken);
         }
     }

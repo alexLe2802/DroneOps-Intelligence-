@@ -20,6 +20,11 @@ public interface IMissionService
     Task<List<MissionResponse>> GetMyAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+    Task<MissionResponse?> SubmitAsync(
+        Guid missionId,
+        Guid userId,
+        Guid operationId,
+        CancellationToken cancellationToken = default);
     Task<MissionResponse?> UpdateAsync(
     Guid missionId,
     Guid userId,

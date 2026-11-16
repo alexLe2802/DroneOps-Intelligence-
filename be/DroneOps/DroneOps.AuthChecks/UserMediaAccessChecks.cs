@@ -13,9 +13,8 @@ internal static class UserMediaAccessChecks
             var localConfiguration = new ConfigurationBuilder().AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["UserMediaStorage:Provider"] = "Auto",
+                    ["UserMediaStorage:Provider"] = "Local",
                     ["UserMediaStorage:LocalRoot"] = localRoot,
-                    ["SupabaseStorage:ServiceKey"] = "sb_secret_fixture"
                 }).Build();
             var localStorage = new UserMediaStorage(new HttpClient(), localConfiguration);
             var localPath = $"uavs/{Guid.NewGuid():N}/{Guid.NewGuid():N}.jpg";
@@ -26,7 +25,7 @@ internal static class UserMediaAccessChecks
             var roundTrip = await localStorage.DownloadAsync(localPath);
             Check(localUrl == UserMediaStorage.LocalMediaScheme + localPath
                 && roundTrip.SequenceEqual(fixture),
-                "opaque Supabase secret falls back to local private media round-trip");
+                "explicit local provider supports a private media round-trip");
             await localStorage.DeleteAsync([localPath]);
             Check(!Directory.EnumerateFiles(localRoot, "*", SearchOption.AllDirectories).Any(),
                 "local private media deletion removes the stored object");
@@ -51,7 +50,7 @@ internal static class UserMediaAccessChecks
         }
 
         var incompleteConfiguration=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>
-        { ["UserMediaStorage:Provider"]="Supabase",["SupabaseStorage:Url"]="https://storage.invalid",["SupabaseStorage:ServiceKey"]="sb_secret_fixture" }).Build();
+        { ["UserMediaStorage:Provider"]="Auto",["SupabaseStorage:Url"]="https://storage.invalid",["SupabaseStorage:ServiceKey"]="sb_secret_fixture" }).Build();
         try
         {
             await new UserMediaStorage(new HttpClient(new CaptureHandler()),incompleteConfiguration)
@@ -60,7 +59,7 @@ internal static class UserMediaAccessChecks
         }
         catch(InvalidOperationException)
         {
-            Check(true,"opaque Supabase secret cannot silently reach Storage without JWT authorization");
+            Check(true,"partial Supabase configuration cannot silently fall back to local storage");
         }
         var handler=new CaptureHandler();
         var configuration=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>
