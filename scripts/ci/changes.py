@@ -18,12 +18,30 @@ def select(paths):
                 sitl=any(p in flight_runtime for p in paths))
 
 
+def affected_suites(base, head, *, cwd=None):
+    def exists(revision):
+        return subprocess.run(
+            ['git', 'rev-parse', '--verify', '--end-of-options', f'{revision}^{{commit}}'],
+            cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ).returncode == 0
+
+    if not exists(head):
+        raise RuntimeError('CI head commit is unavailable; checkout must contain PR_HEAD_SHA.')
+    # Force-push/history cleanup (or a new branch's zero SHA) can remove the
+    # event's previous commit from the checkout. Do not infer an empty diff.
+    if not base or not exists(base):
+        print('::warning::Base commit is unavailable after history change; running all suites.')
+        return dict(backend=True, frontend=True, gateway=True, sitl=True)
+    changed = subprocess.check_output(
+        ['git', 'diff', '--name-only', '-z', base, head], cwd=cwd,
+    ).decode().split('\0')
+    return select([p for p in changed if p])
+
+
 if __name__ == '__main__':
     base = os.environ['PR_BASE_SHA']
     head = os.environ['PR_HEAD_SHA']
-    # Arguments, never shell interpolation of branch names or PR text.
-    changed = subprocess.check_output(['git', 'diff', '--name-only', '-z', base, head]).decode().split('\0')
-    result = select([p for p in changed if p])
+    result = affected_suites(base, head)
     with Path(os.environ['GITHUB_OUTPUT']).open('a') as out:
         for key, value in result.items():
             out.write(f'{key}={str(value).lower()}\n')
