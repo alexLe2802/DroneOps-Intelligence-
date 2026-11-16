@@ -11,7 +11,7 @@ test("mission suggestion belongs to pilot mission authoring and not risk assessm
   assert.doesNotMatch(assessmentSource, /MissionSuggestionPanel/);
   assert.match(suggestionSource, /generateMissionSuggestion/);
   assert.match(suggestionSource, /getMyMissionSuggestions/);
-  assert.match(suggestionSource, /assistant suggests mission details only/);
+  assert.match(suggestionSource, /AI drafts details only/);
 });
 
 test("new mission does not display a previous proposal until the pilot generates or selects one", () => {
@@ -29,11 +29,10 @@ test("applying a suggestion fills mission details but keeps UAV, schedule and ro
   assert.doesNotMatch(formSource.slice(formSource.indexOf("function applySuggestion"), formSource.indexOf("async function submit")), /setWaypoints/);
   assert.match(formSource, /Your UAV, schedule and waypoints will be kept/);
   assert.match(suggestionSource, /APPLY MISSION DETAILS/);
-  assert.match(suggestionSource, /Waypoint coordinates are never applied/);
 });
 
 test("mission suggestion UI does not treat AI output as route evidence", () => {
-  assert.match(suggestionSource, /pilot still selects the UAV, schedule and every waypoint/);
+  assert.match(suggestionSource, /You choose the UAV, schedule and route/);
   assert.doesNotMatch(suggestionSource, /selected\.waypoints/);
   assert.doesNotMatch(formSource.slice(formSource.indexOf("function applySuggestion"), formSource.indexOf("async function submit")), /latitude|longitude|actionType/);
 });

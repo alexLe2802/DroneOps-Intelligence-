@@ -79,14 +79,14 @@ export default function MissionSuggestionPanel({ disabled = false, onApply }: Mi
 
   return <section className={styles.panel} aria-labelledby="mission-suggestion-title">
     <header className={styles.header}>
-      <div><p className={styles.eyebrow}>PILOT / MISSION DRAFT ASSISTANT</p><h2 id="mission-suggestion-title">Describe a mission, then review the proposed guidance</h2><p>Provide the objective, location, timing and constraints. The assistant suggests mission details only; the pilot still selects the UAV, schedule and every waypoint.</p></div>
+      <div><p className={styles.eyebrow}>MISSION DRAFT ASSISTANT</p><h2 id="mission-suggestion-title">Describe your mission</h2><p>AI drafts details only. You choose the UAV, schedule and route.</p></div>
       <span className={styles.icon}><Sparkles size={22} aria-hidden="true" /></span>
     </header>
 
     <form className={styles.form} onSubmit={generate}>
-      <label htmlFor="mission-suggestion-prompt">WHAT DO YOU NEED THE UAV TO DO?</label>
+      <label htmlFor="mission-suggestion-prompt">MISSION REQUEST</label>
       <textarea id="mission-suggestion-prompt" value={prompt} minLength={minimumPromptLength} maxLength={maximumPromptLength} disabled={busy || disabled} aria-invalid={Boolean(promptError)} aria-describedby={promptError ? "mission-suggestion-hint mission-suggestion-error" : "mission-suggestion-hint"} placeholder="Example: Inspect the eastern solar array before 10:00, avoid the residential boundary and prioritize stable image coverage." onChange={event => setPrompt(event.target.value)} />
-      <div className={styles.formFooter}><small id="mission-suggestion-hint">Include location, purpose, timing and known constraints · {prompt.length}/{maximumPromptLength}</small><button className="module-primary" type="submit" disabled={busy || disabled || !trimmedPrompt || Boolean(promptError)}><Sparkles size={15} aria-hidden="true" />{busy ? "GENERATING…" : "GENERATE DRAFT"}</button></div>
+      <div className={styles.formFooter}><small id="mission-suggestion-hint">Purpose · location · time · {prompt.length}/{maximumPromptLength}</small><button className="module-primary" type="submit" disabled={busy || disabled || !trimmedPrompt || Boolean(promptError)}><Sparkles size={15} aria-hidden="true" />{busy ? "GENERATING…" : "GENERATE DRAFT"}</button></div>
       {promptError && <p className={styles.inlineError} id="mission-suggestion-error" role="alert">{promptError}</p>}
       {error && <div className={styles.error} role="alert"><p>{error}</p><button type="button" className="module-secondary" disabled={busy || disabled} onClick={loadHistory}>RETRY HISTORY</button></div>}
     </form>
@@ -100,8 +100,8 @@ export default function MissionSuggestionPanel({ disabled = false, onApply }: Mi
         <div><dt>Cruise speed</dt><dd>{selected.averageSpeedMetersPerSecond ?? "—"} m/s</dd></div>
         <div><dt>Speed ceiling</dt><dd>{selected.maxSpeedMetersPerSecond ?? "—"} m/s</dd></div>
       </dl>
-      <div className={styles.advice}><section><h4><Route size={15} aria-hidden="true" />Mission purpose</h4><p>{selected.missionPurpose || "No purpose was returned."}</p></section><section><h4><Lightbulb size={15} aria-hidden="true" />Planning cautions</h4><p>{selected.riskAssessment || "No planning caution was returned. Mandatory validation is still required."}</p></section><section><h4><Sparkles size={15} aria-hidden="true" />Recommendations</h4><p>{selected.recommendations || "No recommendation was returned."}</p></section></div>
-      <footer><span>Waypoint coordinates are never applied. Place and verify the route manually on the map.</span><button className="module-primary" type="button" disabled={disabled} onClick={applySelected}>{appliedId === selected.id ? "DETAILS APPLIED" : "APPLY MISSION DETAILS"}</button></footer>
+      <div className={styles.advice}><section className={styles.purpose}><h4><Route size={18} aria-hidden="true" />Mission purpose</h4><p>{selected.missionPurpose || "No purpose was returned."}</p></section><section className={styles.caution}><h4><Lightbulb size={18} aria-hidden="true" />Planning cautions</h4><p>{selected.riskAssessment || "No planning caution was returned. Mandatory validation is still required."}</p></section><section className={styles.recommendation}><h4><Sparkles size={18} aria-hidden="true" />Recommendations</h4><p>{selected.recommendations || "No recommendation was returned."}</p></section></div>
+      <footer><button className="module-primary" type="button" disabled={disabled} onClick={applySelected}>{appliedId === selected.id ? "DETAILS APPLIED" : "APPLY MISSION DETAILS"}</button></footer>
     </article>}
 
     {items && items.length > 0 && <details className={styles.history}>
