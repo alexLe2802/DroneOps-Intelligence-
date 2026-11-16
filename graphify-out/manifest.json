@@ -2514,9 +2514,9 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav-management/uav-management-client.tsx": {
-    "mtime": 1794664670.8910487,
-    "seen": 1794814767.459059,
-    "ast_hash": "8ff6e2c27c8be3f92204a3586854476c",
+    "mtime": 1794827718.636103,
+    "seen": 1794827788.544079,
+    "ast_hash": "67bd83d379779b57c8ff1f5b1387457b",
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/[id]/edit/page.tsx": {
@@ -3894,15 +3894,15 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/uav-review-panel.tsx": {
-    "mtime": 1794664465.1238506,
-    "seen": 1794814767.4590678,
-    "ast_hash": "1bc32f904ef50896f97b8ac05f510c77",
+    "mtime": 1794827464.9343517,
+    "seen": 1794827560.898087,
+    "ast_hash": "e32c77cb1d06800893d6f9936037d796",
     "semantic_hash": ""
   },
   "scripts/checks/kan61-browser.cjs": {
-    "mtime": 1794664165.934387,
-    "seen": 1794814767.459177,
-    "ast_hash": "26167207b2c99f46dc736aec125551e2",
+    "mtime": 1794827510.8726594,
+    "seen": 1794827560.898197,
+    "ast_hash": "8e575ad94bae4e897757b9fde3e50b82",
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/SchemaCommandExecutor.cs": {

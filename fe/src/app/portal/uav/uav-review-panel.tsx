@@ -46,12 +46,12 @@ export default function UavReviewPanel({ uavId, manager = false, onDecision }: {
   }
   const reviewable = Boolean(state?.pending || state?.status === "Pending" || state?.status === "Pending Review");
   return <section className={styles.panel}>
-    <header><h3>UAV information review</h3><button type="button" disabled={busy} onClick={reload}>Reload review</button></header>
+    <header><div><span className={styles.eyebrow}>APPROVAL & OPERATIONS</span><h3>UAV information review</h3></div><button type="button" disabled={busy} onClick={reload}>Reload review</button></header>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert">{error} Reload before trying another decision.</p>}
     {!state ? <p>Review evidence {error ? "unavailable" : "loading…"}</p> : <>
-      <p>Operational status: <strong>{state.status}</strong> · Registry version {state.registryVersion}</p>
-      <p>{state.hasApprovedInformation ? "Current information is the retained approved record. A pending proposal does not replace it." : "This registration has not yet been approved. Current information is submitted evidence."}</p>
+      <p className={styles.status}>Operational status: <strong>{state.status}</strong></p>
+      <p>{state.hasApprovedInformation ? "Approved information stays in use until a new proposal is approved." : "This registration has not yet been approved. Current information is submitted evidence."}</p>
       {state.pending ? <>
         <p>Pending {state.pending.kind} · Submitted by {display(state.pending.submittedBy)} · {date(state.pending.submittedAt)}</p>
         <div className={styles.table} tabIndex={0} role="region" aria-label="Current and proposed UAV information"><table>
@@ -59,27 +59,29 @@ export default function UavReviewPanel({ uavId, manager = false, onDecision }: {
           <thead><tr><th scope="col">Field</th><th scope="col">{state.hasApprovedInformation ? "Approved current" : "Current registration"}</th><th scope="col">Proposed</th></tr></thead>
           <tbody>{fields.map(([key, label]) => <tr key={key}><th scope="row">{label}</th><td>{display(state.current[key])}</td><td>{display(state.pending!.proposed[key])}{state.current[key] !== state.pending!.proposed[key] && <strong className={styles.changed}>Changed</strong>}</td></tr>)}</tbody>
         </table></div>
-      </> : <p>No pending information proposal.</p>}
-      <p>Image moderation is independent from Manager approval of UAV information. Bound FC identity changes require the verified replacement process. Changes are blocked during active flight.</p>
+      </> : <p className={styles.empty}>No pending information proposal.</p>}
+      <p className={styles.hint}>Changes are blocked during active flight.</p>
       {manager && <>
         <div className={styles.actions}>
-          {reviewable && <><button type="button" disabled={busy || stale} onClick={() => setAction("approve")}>Review approval</button><button type="button" disabled={busy || stale} onClick={() => setAction("reject")}>Review rejection</button></>}
-          {state.status === "Active" && <button type="button" disabled={busy || stale} onClick={() => setAction("deactivate")}>Deactivate UAV</button>}
-          {state.status === "Inactive" && state.hasApprovedInformation && <button type="button" disabled={busy || stale} onClick={() => setAction("activate")}>Reactivate UAV</button>}
+          {reviewable && <><button type="button" className={styles.primary} disabled={busy || stale} onClick={() => setAction("approve")}>Review approval</button><button type="button" className={styles.danger} disabled={busy || stale} onClick={() => setAction("reject")}>Review rejection</button></>}
+          {state.status === "Active" && <button type="button" className={styles.danger} disabled={busy || stale} onClick={() => setAction("deactivate")}>Deactivate UAV</button>}
+          {state.status === "Inactive" && state.hasApprovedInformation && <button type="button" className={styles.primary} disabled={busy || stale} onClick={() => setAction("activate")}>Reactivate UAV</button>}
         </div>
         {action && <form onSubmit={decide} className={styles.confirm}>
           <h4>Confirm {action}</h4><p>{action === "reject" && state.hasApprovedInformation ? "Reject only this proposal; retain the approved UAV information and operational status." : "Confirm the action using the record and proposal shown above."}</p>
           <label>Decision reason<textarea required maxLength={500} value={reason} disabled={busy || stale} onChange={event => setReason(event.target.value)} /></label>
-          <button type="submit" disabled={busy || stale || !reason.trim()}>{busy ? "Saving…" : `Confirm ${action}`}</button><button type="button" disabled={busy} onClick={() => setAction(null)}>Cancel decision</button>
+          <button type="submit" className={action === "deactivate" || action === "reject" ? styles.danger : styles.primary} disabled={busy || stale || !reason.trim()}>{busy ? "Saving…" : `Confirm ${action}`}</button><button type="button" disabled={busy} onClick={() => setAction(null)}>Cancel decision</button>
         </form>}
       </>}
-      <h4>Review & status history</h4>
+      <details className={styles.history}><summary>Review & status history <span>{state.history.length} recorded</span></summary>
+      <p className={styles.hint}>Record version {state.registryVersion}. Aircraft image checks are separate from information approval.</p>
       {state.legacyHistoryUnavailable && <p>Earlier submission/reviewer evidence is unavailable. Historical approval dates are not reconstructed.</p>}
       {state.history.length ? <ol>{state.history.map(row => <li key={row.id}>
         <strong>{row.kind} · {row.status}</strong><p>Submitted: {display(row.submittedBy)} · {date(row.submittedAt)}</p>
         <p>Reviewed: {display(row.reviewedBy)} · {date(row.reviewedAt)} · Reason: {display(row.reason)}</p>
         <details><summary>Information captured in this request</summary><dl>{fields.filter(([key]) => row.currentAtSubmission[key] !== row.proposed[key]).map(([key,label]) => <div key={key}><dt>{label}</dt><dd>{display(row.currentAtSubmission[key])} → {display(row.proposed[key])}</dd></div>)}</dl></details>
       </li>)}</ol> : <p>No recorded decisions.</p>}
+      </details>
     </>}
   </section>;
 }
