@@ -82,24 +82,22 @@
 .dashboard-map-toolbar .dashboard-location-error { position: absolute; bottom: 44px; left: 0; width: min(300px, calc(100vw - 90px)); margin: 0; padding: 10px 12px; border: 1px solid var(--color-error); border-radius: 5px; background: var(--color-paper-2); color: var(--color-error); font: 12px/1.5 var(--font-body); pointer-events: auto; }
 .dashboard-route-weather { min-width: 0; }
 .dashboard-mission-weather-list { display: grid; gap: 8px; margin: 8px 0; padding: 0; list-style: none; }
-.dashboard-mission-weather-list > li { min-width: 0; padding: 9px 11px; background: var(--color-paper-2); border: 1px solid var(--color-rule); border-radius: 5px; }
+.dashboard-mission-weather-list > li { display: block; min-width: 0; padding: 9px 11px; background: var(--color-paper-2); border: 1px solid var(--color-rule); border-radius: 5px; }
 .dashboard-mission-weather-title { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: center; }
 .dashboard-mission-weather-title > a { min-width: 0; overflow: hidden; color: var(--color-focus); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-mission-weather-title > span { color: var(--color-muted); font-size: 10px; }
 .dashboard-mission-weather-title > b { grid-column: 2; grid-row: 1 / span 2; color: var(--color-success); font: 9px var(--font-data); }
-.dashboard-mission-weather-values { display: grid; grid-template-columns: minmax(130px,1.4fr) minmax(58px,.55fr) minmax(100px,1fr) minmax(100px,1fr) minmax(100px,1fr); align-items: center; gap: 8px 12px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-rule); color: var(--color-muted); font-size: 10px; }
-.dashboard-mission-weather-values > span:first-child { display: grid; gap: 3px; color: var(--color-ink-2); }
-.dashboard-mission-weather-values small { color: var(--color-muted); font-size: 9px; white-space: nowrap; }
-.dashboard-mission-weather-values > strong { color: var(--color-ink); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Weather metadata and measurements wrap as content-sized groups, so timestamps cannot collide with temperature. */
+.dashboard-mission-weather-values { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-rule); color: var(--color-muted); font-size: 10px; }
+.dashboard-mission-weather-values > * { min-inline-size: 0; }
+.dashboard-mission-weather-values > span { flex: 1 1 100px; overflow-wrap: anywhere; }
+.dashboard-mission-weather-values > span:first-child { display: grid; flex: 2 1 220px; gap: 3px; color: var(--color-ink-2); }
+.dashboard-mission-weather-values small { color: var(--color-muted); font-size: 9px; white-space: normal; overflow-wrap: anywhere; }
+.dashboard-mission-weather-values > strong { flex: 0 0 auto; color: var(--color-ink); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dashboard-mission-weather-values > span:nth-child(3) { color: var(--color-success); }
 .dashboard-mission-weather-values b { color: var(--color-ink-2); font-variant-numeric: tabular-nums; }
 .dashboard-mission-weather-empty { margin: 8px 0 0; color: var(--color-muted); font-size: 10px; line-height: 1.45; }
-@media(max-width:900px) {
-  .dashboard-mission-weather-values { grid-template-columns: minmax(110px,1fr) auto minmax(95px,1fr); gap: 7px 10px; }
-  .dashboard-mission-weather-values > span:nth-child(3) { grid-column: 1; }
-  .dashboard-mission-weather-values > span:nth-child(4) { grid-column: 2; }
-  .dashboard-mission-weather-values > span:nth-child(5) { grid-column: 3; }
-}
+
 .dashboard-route-weather footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .dashboard-route-weather footer button { border: 1px solid var(--color-rule); border-radius: 4px; padding: 6px 9px; color: var(--color-focus); background: var(--color-paper-2); }
 .dashboard-route-weather footer button:hover:not(:disabled) { border-color: var(--color-accent); }

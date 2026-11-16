@@ -2722,9 +2722,9 @@
     "semantic_hash": "e54053c929c14ae7a34313a2cb78025c"
   },
   "fe/src/lib/portal/client.ts": {
-    "mtime": 1794657382.0005744,
-    "seen": 1794664778.4882371,
-    "ast_hash": "23ad6d49131584a56810c05b6ad4699b",
+    "mtime": 1794814491.1775956,
+    "seen": 1794814512.7517152,
+    "ast_hash": "279b4b5de20d878dbb8a62f0b9a9dd71",
     "semantic_hash": ""
   },
   "fe/src/lib/portal/drone-connections.ts": {
@@ -2902,10 +2902,10 @@
     "semantic_hash": "a2056abd2755b5fac816d40d20416ab9"
   },
   "fe/tests/planning-api.test.mjs": {
-    "mtime": 1794375293.6580002,
-    "seen": 1794648892.5394702,
-    "ast_hash": "784a8c8cab10973da77cbfd39db080d9",
-    "semantic_hash": "784a8c8cab10973da77cbfd39db080d9"
+    "mtime": 1794814491.1778047,
+    "seen": 1794814512.751745,
+    "ast_hash": "28668a544bd0ea88943cb8ebb2da4428",
+    "semantic_hash": ""
   },
   "fe/tests/planning-validation.test.mjs": {
     "mtime": 1794311597.1904263,
