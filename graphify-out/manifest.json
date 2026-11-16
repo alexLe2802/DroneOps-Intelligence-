@@ -2178,9 +2178,9 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/incidents/[id]/incident-detail-client.tsx": {
-    "mtime": 1794652957.3156402,
-    "seen": 1794814767.4589922,
-    "ast_hash": "9ed2c6487cb61e99dc933e8f34976e3f",
+    "mtime": 1794818560.8658695,
+    "seen": 1794818603.706317,
+    "ast_hash": "8029876a8dac74403a9494cc04e21ff3",
     "semantic_hash": ""
   },
   "fe/src/app/portal/incidents/[id]/page.tsx": {
@@ -2418,9 +2418,9 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/operational-dashboard.tsx": {
-    "mtime": 1794652012.2198029,
-    "seen": 1794814767.4590452,
-    "ast_hash": "b34a1ffadf095ebad94693eba24c787a",
+    "mtime": 1794818560.8423214,
+    "seen": 1794818603.706351,
+    "ast_hash": "ec0cda5e2e5578504cdb388f26f574bb",
     "semantic_hash": ""
   },
   "fe/src/app/portal/operators/operator-credentials.tsx": {
@@ -2730,9 +2730,9 @@
     "semantic_hash": ""
   },
   "fe/src/lib/portal/incident-display.ts": {
-    "mtime": 1793379669.0835388,
-    "seen": 1794814767.459095,
-    "ast_hash": "fdb7140ce35c719739aed88f08f96294",
+    "mtime": 1794818610.878836,
+    "seen": 1794818625.8602839,
+    "ast_hash": "b8cc4207ac6a39244046099164529136",
     "semantic_hash": ""
   },
   "fe/src/lib/portal/map-link-state.ts": {
@@ -3957,6 +3957,18 @@
     "mtime": 1794818183.1821678,
     "seen": 1794818209.668774,
     "ast_hash": "33b2dd54991b93705edca5d08664abcd",
+    "semantic_hash": ""
+  },
+  "fe/src/app/portal/incident-description.tsx": {
+    "mtime": 1794818560.7948885,
+    "seen": 1794818603.706316,
+    "ast_hash": "c1bfa14bacf3b1171206be57d69b461e",
+    "semantic_hash": ""
+  },
+  "fe/tests/incident-display.test.mjs": {
+    "mtime": 1794818560.8907683,
+    "seen": 1794818603.7064269,
+    "ast_hash": "caaba12ea8be57a3ca73dc02455be988",
     "semantic_hash": ""
   },
   "fe/package-lock.json": {
