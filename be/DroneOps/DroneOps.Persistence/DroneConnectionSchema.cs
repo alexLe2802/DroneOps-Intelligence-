@@ -15,12 +15,14 @@ public static class DroneConnectionSchema
     }
     public static async Task CheckAsync(NpgsqlDataSource source)
     {
-        await using var command=source.CreateCommand("SELECT \"TokenHash\", \"LastSampleAt\" FROM public.\"DroneConnection\" LIMIT 0");
         try
         {
-            await command.ExecuteNonQueryAsync();
-            await using var binding=source.CreateCommand("SELECT h.\"Identity\", c.\"HardwareIdentity\" FROM public.\"DroneHardwareIdentity\" h CROSS JOIN public.\"DroneConnection\" c LIMIT 0");
-            await binding.ExecuteNonQueryAsync();
+            await SchemaCommandExecutor.ExecuteAsync(source, """
+                SELECT "TokenHash", "LastSampleAt" FROM public."DroneConnection" LIMIT 0;
+                SELECT h."Identity", c."HardwareIdentity"
+                FROM public."DroneHardwareIdentity" h
+                CROSS JOIN public."DroneConnection" c LIMIT 0;
+                """);
         }
         catch(PostgresException e) when(e.SqlState is "42P01" or "42703")
         { throw new InvalidOperationException("Run --migrate-drone-connections before starting this API version.",e); }

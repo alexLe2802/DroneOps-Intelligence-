@@ -415,6 +415,24 @@ export type UserProfile = {
 export type UpdateProfileRequest = { fullName: string; expectedVersion: number };
 
 export type AiAssessmentRequest = { missionRef: string; missionVersion: number };
+export type MissionSuggestion = {
+  id: string;
+  pilotId: string;
+  prompt: string;
+  missionName: string;
+  missionPurpose: string;
+  suggestedAltitude: number;
+  suggestedWaypointCount: number;
+  suggestedFlightDuration: number;
+  averageSpeedMetersPerSecond: number | null;
+  maxSpeedMetersPerSecond: number | null;
+  altitudeReference: string;
+  automaticFlightRequested: boolean | null;
+  riskAssessment: string;
+  recommendations: string;
+  summary: string;
+  createdAt: string;
+};
 export type BatteryAssessment = {
   status: "MissingData" | "EstimateOnly"; model: string; capacitySource: string;
   configuredCapacityMah: number | null; currentBatteryPercent: number | null; consumedMah: number | null;
@@ -428,10 +446,12 @@ export type BatteryAssessment = {
 export type AiRisk = { category?: string; sourceIncidentIds?: string[]; severity: "Low" | "Moderate" | "High" | "Critical"; title: string; evidence: string; precaution: string };
 export type AiAssessment = {
   id: string; missionRef: string; missionVersion: number; provider: string; model: string;
+  contextType?: "CurrentMission" | "PendingProposal";
+  updateRequestId?: string | null;
   status: "Pending" | "Available" | "Outdated" | "Failed" | "ProviderUnavailable";
   contextHash: string; isOutdated: boolean; outdatedReason: string | null;
   result: { automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
-    retrieval?: { method: string; featureSchema: string; maximumResults: number };
+    retrieval?: { method: string; featureSchema: string; maximumResults: number; usedFeatures?: string[]; missingFeatures?: string[]; targetFeatures?: Record<string, number | null> };
     historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; incidentIds: string[] }> } | null;
   errorCode: string | null; createdAt: string; completedAt: string | null;
 };
@@ -444,5 +464,6 @@ export type PilotProfile = {
   pilotId: string; phoneNumber: string | null; dateOfBirth: string | null;
   pilotLicenseNo: string; licenseIssuedDate: string | null;
   licenseExpiredDate: string | null; experienceYears: number;
+  flightExperienceDescription: string | null;
   droneType: string | null; droneModel: string | null;
 };

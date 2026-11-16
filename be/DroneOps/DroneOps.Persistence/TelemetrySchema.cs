@@ -17,7 +17,7 @@ public static class TelemetrySchema
     public static async Task CheckAsync(NpgsqlDataSource source)
     {
         // LIMIT 0 checks the new telemetry columns without reading flight data.
-        await using var command = source.CreateCommand("""
+        const string sql = """
             SELECT t."BatteryObservedAt", t."AltitudeObservedAt", t."SpeedObservedAt", t."SourceBootId", t."SourceEventId", t."AltitudeMslMeters", t."HeadingDegrees", t."BatteryVoltageVolts", t."BoardTemperatureCelsius",
                    t."BatteryCurrentAmps", t."BatteryTemperatureCelsius", t."BatteryConsumedMah", t."BatteryCellVoltagesVolts",
                    transition."EventType", alert."ReadAt", incident."RecoveredAt", incident."Revision"
@@ -28,10 +28,10 @@ public static class TelemetrySchema
             LIMIT 0;
             SELECT "StartedAt" FROM "MissionFlightExecution" LIMIT 0;
             SELECT "SettingsJson" FROM "MonitoringRuleRevision" LIMIT 0
-            """);
+            """;
         try
         {
-            await using var reader = await command.ExecuteReaderAsync();
+            await SchemaCommandExecutor.ExecuteAsync(source, sql);
         }
         catch (PostgresException ex) when (ex.SqlState is "42703" or "42P01")
         {

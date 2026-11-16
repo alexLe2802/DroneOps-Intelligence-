@@ -32,6 +32,25 @@ test("mission creation preserves UTC schedule and ordered waypoints in a single 
   finally { mock.mock.restore(); }
 });
 
+test("pilot mission suggestions use the owned generation and history contracts", async () => {
+  const suggestion = { id: "suggestion-id", pilotId: "pilot-id", prompt: "Inspect the solar array", missionName: "Solar inspection", missionPurpose: "Inspect panels", suggestedAltitude: 30, suggestedWaypointCount: 2, suggestedFlightDuration: 18, averageSpeedMetersPerSecond: 8, maxSpeedMetersPerSecond: 12, altitudeReference: "Relative", automaticFlightRequested: true, riskAssessment: "Review wind", recommendations: "Validate the route", summary: "Inspection guidance", createdAt: "2026-11-15T06:00:00Z" };
+  const calls = [];
+  const mock = test.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    calls.push([url, options.method ?? "GET", options.body ?? null]);
+    return Response.json(options.method === "POST" ? suggestion : [suggestion], { status: options.method === "POST" ? 201 : 200 });
+  });
+  try {
+    assert.equal((await client.generateMissionSuggestion("  Inspect the solar array  ")).missionName, suggestion.missionName);
+    const history = await client.getMyMissionSuggestions();
+    assert.equal(history[0].id, suggestion.id);
+    assert.equal(history[0].suggestedWaypointCount, 2);
+    assert.deepEqual(calls, [
+      ["/api/mission-suggestions", "POST", JSON.stringify({ prompt: "Inspect the solar array" })],
+      ["/api/mission-suggestions/mine", "GET", null],
+    ]);
+  } finally { mock.mock.restore(); }
+});
+
 test("mission update sends the complete draft to the mission PUT endpoint", async () => {
   const input = { name: "Updated survey", uavId: "uav-id", description: "Revised route", averageSpeedMetersPerSecond: 11, maxSpeedMetersPerSecond: 16, startTime: "2026-10-17T01:00:00.000Z", endTime: "2026-10-17T02:00:00.000Z", waypoints: [1, 2].map(i => ({ sequenceOrder: i, latitude: 10 + i, longitude: 106, altitude: 50, actionType: "FlyThrough" })) };
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {

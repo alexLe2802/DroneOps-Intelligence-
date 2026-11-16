@@ -16,6 +16,10 @@ public sealed class UpdatePilotProfileValidator
             .WithMessage(
                 "Experience years cannot be negative.");
 
+        RuleFor(x => x.FlightExperienceDescription)
+            .MaximumLength(500)
+            .WithMessage("Flight experience description cannot exceed 500 characters.");
+
         RuleFor(x => x.DateOfBirth)
             .Must(BeAtLeast18YearsOld)
             .When(x => x.DateOfBirth.HasValue)

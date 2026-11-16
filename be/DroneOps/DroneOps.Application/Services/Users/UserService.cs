@@ -161,7 +161,9 @@ public sealed class UserService : IUserService
 
             LicenseExpiredDate = pilot.LicenseExpiredDate,
 
-            ExperienceYears = pilot.ExperienceYears
+            ExperienceYears = pilot.ExperienceYears,
+
+            FlightExperienceDescription = pilot.FlightExperienceDescription
         };
     }
 
@@ -258,7 +260,11 @@ public sealed class UserService : IUserService
 
         bool hasLicenseUpdate =
             HasLicenseUpdate(request);
-        var editsProfile = !hasLicenseUpdate || request.PhoneNumber is not null || request.DateOfBirth.HasValue || request.ExperienceYears.HasValue;
+        var editsProfile = !hasLicenseUpdate ||
+            request.PhoneNumber is not null ||
+            request.DateOfBirth.HasValue ||
+            request.ExperienceYears.HasValue ||
+            request.FlightExperienceDescription is not null;
         if (editsProfile) ProfileConcurrency.Require(pilot.User, request.ExpectedVersion);
 
         // Kiểm tra request license đang Pending
@@ -321,6 +327,19 @@ public sealed class UserService : IUserService
                 request.ExperienceYears.Value;
 
             profileChanged = true;
+        }
+
+        if (request.FlightExperienceDescription is not null)
+        {
+            string? description = string.IsNullOrWhiteSpace(request.FlightExperienceDescription)
+                ? null
+                : request.FlightExperienceDescription.Trim();
+
+            if (pilot.FlightExperienceDescription != description)
+            {
+                pilot.FlightExperienceDescription = description;
+                profileChanged = true;
+            }
         }
 
         PilotUpdateRequest? updateRequest = null;
@@ -406,7 +425,10 @@ public sealed class UserService : IUserService
         // hoặc có PilotUpdateRequest mới cần insert
         if (profileChanged || hasLicenseUpdate)
         {
-            if (profileChanged) pilot.User.ProfileVersion++;
+            if (profileChanged)
+            {
+                pilot.User.ProfileVersion++;
+            }
             try { await _pilotRepository.SaveChangesAsync(cancellationToken); }
             catch(DbUpdateException e) when(e.InnerException is PostgresException {SqlState:PostgresErrorCodes.UniqueViolation})
             { throw new InvalidOperationException("A concurrent license request is already pending.",e); }
@@ -424,6 +446,8 @@ public sealed class UserService : IUserService
             PhoneNumber = pilot.PhoneNumber,
             DateOfBirth = pilot.DateOfBirth,
             ExperienceYears = pilot.ExperienceYears,
+
+            FlightExperienceDescription = pilot.FlightExperienceDescription,
 
             
 
@@ -574,17 +598,7 @@ public sealed class UserService : IUserService
 
         Pilot pilot =
             updateRequest.Pilot;
-        pilot.User.ProfileVersion++;
-
-        // Chính thức cập nhật thông tin giấy phép vào Pilot
-        pilot.PilotLicenseNo =
-            updateRequest.PilotLicenseNo;
-
-        pilot.LicenseIssuedDate =
-            updateRequest.LicenseIssuedDate;
-
-        pilot.LicenseExpiredDate =
-            updateRequest.LicenseExpiredDate;
+        ApplyApprovedCredentials(pilot, updateRequest);
 
        
         // Lấy bộ ảnh license hiện tại của Pilot
@@ -629,6 +643,20 @@ public sealed class UserService : IUserService
         return MapPilotUpdateRequestResponse(
             updateRequest);
     }
+
+    private static void ApplyApprovedCredentials(
+        Pilot pilot,
+        PilotUpdateRequest updateRequest)
+    {
+        pilot.PilotLicenseNo = updateRequest.PilotLicenseNo;
+        pilot.LicenseIssuedDate = updateRequest.LicenseIssuedDate;
+        pilot.LicenseExpiredDate = updateRequest.LicenseExpiredDate;
+
+        // A Manager decision is one aggregate change. Advance the shared
+        // version exactly once so every profile client invalidates stale data.
+        pilot.User.ProfileVersion++;
+    }
+
     public async Task<PilotUpdateRequestResponse?>RejectPilotUpdateRequestAsync(
         Guid requestId,
         Guid reviewerId,
