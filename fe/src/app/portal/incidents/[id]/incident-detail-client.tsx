@@ -1,7 +1,7 @@
 "use client";
 
 import { apiInstant } from "@/lib/portal/vietnam-time";
-import { incidentDescription } from "@/lib/portal/incident-display";
+import IncidentDescription from "../../incident-description";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -208,7 +208,7 @@ export default function IncidentDetailClient({ id, account }: { id: string; acco
       <div>
         <div className={styles.breadcrumb}><Link className={styles.backButton} href="/portal/incidents" aria-label="Back to incident list"><span aria-hidden="true">&larr;</span> INCIDENTS</Link><span>/</span><b>{incident.id.toUpperCase()}</b></div>
         <h1>{incident.title}</h1>
-        <p>{incidentDescription(incident.description) || "Immutable telemetry evidence and operational handling record."}</p>
+        <IncidentDescription value={incident.description} fallback="Immutable telemetry evidence and operational handling record." />
       </div>
       <div className={styles.identityChips}>
         <span><i aria-hidden="true">MS</i>MISSION <b>{incident.missionName || incident.missionId}</b></span>
