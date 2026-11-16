@@ -31,7 +31,11 @@ Các job deploy được tuần tự hóa, không hủy giữa chừng. Backend 
 ## Khi có lỗi
 
 - **Thiếu token:** thêm repository secret rồi chạy lại job.
+- **Token verification thất bại:** GitHub đang giữ giá trị không được Cloudflare chấp nhận. Kiểm tra đã cập nhật secret sau khi tạo token mới; chỉ dán giá trị token, không dán tên/ID, lệnh curl, dấu nháy hoặc tiền tố Bearer. Kiểm tra hạn dùng và IP filtering.
+- **Token active nhưng không đọc được Worker:** đối chiếu Account resources với accountId trong `fe/cloudflare.config.ts` và quyền Workers Scripts/Edit. Quyền DNS/Edit đơn lẻ không cho phép deploy Workers.
 - **Cloudflare 403:** kiểm tra account/zone scope và quyền Workers/Workers Routes của token.
 - **Quality Gate thất bại:** sửa CI trước; job deploy sẽ không chạy.
 - **Run bị thay thế:** xem run của commit mới nhất trên `main`.
 - **Deploy lỗi hoặc public smoke check lỗi:** xem log và deployment đang phục vụ trong Cloudflare. Nếu cần khôi phục, chọn deployment trước đó trong Cloudflare; workflow không tự rollback về phiên bản cũ khi có commit mới hơn.
+
+Bước `Verify Cloudflare token and Worker account access` chỉ gọi API đọc: xác minh token và truy cập Worker đúng account. Nó không in token/response body và không chứng minh token có đủ quyền ghi. Chạy lại job của commit cũ sẽ dùng workflow cũ, chưa có bước chẩn đoán này.
