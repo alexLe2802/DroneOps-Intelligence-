@@ -64,7 +64,7 @@ public sealed class MissionSuggestionService
           Normalize(aiData.MissionPurpose),
 
             SuggestedAltitude =
-          (decimal)aiData.SuggestedAltitude,
+          (decimal?)aiData.SuggestedAltitude,
 
             SuggestedWaypointCount =
           aiData.SuggestedWaypointCount,
