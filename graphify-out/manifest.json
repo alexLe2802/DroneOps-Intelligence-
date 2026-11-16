@@ -2466,9 +2466,9 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/portal-shell.tsx": {
-    "mtime": 1794652957.2324195,
-    "seen": 1794814767.459052,
-    "ast_hash": "c2739b2f1c9556015644425697a7d3d5",
+    "mtime": 1794815366.7847166,
+    "seen": 1794815378.785377,
+    "ast_hash": "adc764c60cab34c2b56699fd2546b858",
     "semantic_hash": ""
   },
   "fe/src/app/portal/profile/active-sessions.tsx": {

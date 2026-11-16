@@ -48,10 +48,9 @@ export default function PortalShell({ account, children, dashboard = false, acti
         const active = href === "/portal" ? pathname === href && (!activeNav || activeNav === label || activeNav === "Dashboard") : href && pathname.startsWith(href);
         return href ? <Link key={label} aria-label={label} href={href} className={active ? "active" : ""} onClick={() => { if (label === "Dashboard" || label === "My Dashboard") onNavigate?.(label); }}>{content}</Link> : <button key={label} aria-label={label} type="button" className={activeNav === label ? "active" : ""} disabled={!onNavigate} onClick={() => onNavigate?.(label)}>{content}</button>;
       })}</nav>
-      <div className="sidebar-status"><div><span>TELEMETRY LINK</span><b>ENCRYPTED (AES-256)</b></div><i /><div><span>BANDWIDTH</span><b>48.2 Mbps</b></div></div>
     </aside>
     <div className="ops-main">
-      <header className="ops-topbar"><div className="sys-status"><i /> SYS STATUS: NOMINAL <span>(MAVLINK GATEWAY CONNECTED)</span></div><div className="latency">LATENCY <b>18ms</b></div><time>◷ {now ? formatVietnamTime(now) : "--:--:--"} GMT+7</time><div className="account-role">{manager ? "OPERATIONS MANAGER" : "UAV OPERATOR"}</div><NotificationCenter /><AccountMenu account={account} /></header>
+      <header className="ops-topbar"><time>◷ {now ? formatVietnamTime(now) : "--:--:--"} GMT+7</time><div className="account-role">{manager ? "OPERATIONS MANAGER" : "UAV OPERATOR"}</div><NotificationCenter /><AccountMenu account={account} /></header>
       {!manager && <FlightPreparationPresence />}
       <main className={`ops-content${dashboard ? "" : " module-content"}`}>{children}</main>
     </div>
