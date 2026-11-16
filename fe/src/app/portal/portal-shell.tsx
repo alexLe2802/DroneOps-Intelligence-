@@ -42,7 +42,7 @@ export default function PortalShell({ account, children, dashboard = false, acti
           label === "Fleet & Restrictions" ? "/portal/geofences" :
           !manager && label === "My Missions" ? "/portal/missions" :
           !manager && label === "Connect Drone" ? "/portal/drone-connection" :
-          !manager && label === "Assigned UAV" ? "/portal/uav" :
+          !manager && label === "My UAVs" ? "/portal/uav" :
           null;
         const content = <><span className="dash-icon" aria-hidden="true">{icon}</span><span>{label}</span><small className={badge.includes("ALERT") ? "red-badge" : badge.includes("PENDING") ? "green-badge" : badge === "EVAL" ? "purple-badge" : ""}>{badge}</small></>;
         const active = href === "/portal" ? pathname === href && (!activeNav || activeNav === label || activeNav === "Dashboard") : href && pathname.startsWith(href);

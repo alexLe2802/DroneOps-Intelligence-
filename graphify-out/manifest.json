@@ -1872,9 +1872,9 @@
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/Repositories/UAV/UavRepository.cs": {
-    "mtime": 1794664207.8104181,
-    "seen": 1794814767.458925,
-    "ast_hash": "d5cad3599dc343cdb91838aefcc5a7a5",
+    "mtime": 1794830510.8562562,
+    "seen": 1794830538.5115001,
+    "ast_hash": "ea1cdf17064aaf611d57cfaf09fcccbd",
     "semantic_hash": ""
   },
   "be/DroneOps/DroneOps.Persistence/Repositories/UserRepository.cs": {
@@ -2460,15 +2460,15 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/portal-navigation.ts": {
-    "mtime": 1792757942.5405889,
-    "seen": 1794814767.459051,
-    "ast_hash": "4e433f02038bf02f7f8286142d28e709",
+    "mtime": 1794830476.363998,
+    "seen": 1794830538.51162,
+    "ast_hash": "6cfba65b2d7076e822b972c10dc0741a",
     "semantic_hash": ""
   },
   "fe/src/app/portal/portal-shell.tsx": {
-    "mtime": 1794815366.7847166,
-    "seen": 1794815378.785377,
-    "ast_hash": "adc764c60cab34c2b56699fd2546b858",
+    "mtime": 1794830476.364236,
+    "seen": 1794830538.51162,
+    "ast_hash": "e5a6a5d372cca86b289e2f9a45dd4121",
     "semantic_hash": ""
   },
   "fe/src/app/portal/profile/active-sessions.tsx": {
@@ -2538,15 +2538,15 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/[id]/uav-detail-client.tsx": {
-    "mtime": 1794657539.687974,
-    "seen": 1794814767.459062,
-    "ast_hash": "b22b8ce38bb6eb1706f200aaa9d32083",
+    "mtime": 1794830476.3647366,
+    "seen": 1794830538.511631,
+    "ast_hash": "53b34e0c47f481a5d1ae6f665748fb98",
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/delete-uav-button.tsx": {
-    "mtime": 1792509332.3490007,
-    "seen": 1794814767.459063,
-    "ast_hash": "45267c9152511b0820cf25e71485830c",
+    "mtime": 1794830476.365381,
+    "seen": 1794830538.511632,
+    "ast_hash": "48cb6626f6434afa8c5b25f601496978",
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/new/page.tsx": {
@@ -2556,15 +2556,15 @@
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/page.tsx": {
-    "mtime": 1792239492.8739367,
-    "seen": 1794814767.4590652,
-    "ast_hash": "03912c8fe0e28a635b823d8c0df6338f",
+    "mtime": 1794830476.3650522,
+    "seen": 1794830538.5116339,
+    "ast_hash": "7b7da665f2f730974ba31a1b667af37b",
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/uav-client.tsx": {
-    "mtime": 1793780670.7968256,
-    "seen": 1794814767.4590652,
-    "ast_hash": "a17cf18f6eb87133f6a50d3df11db3ab",
+    "mtime": 1794830476.364487,
+    "seen": 1794830538.5116348,
+    "ast_hash": "1e5bf7754a21e912a354cf35b3f7a209",
     "semantic_hash": ""
   },
   "fe/src/app/portal/uav/uav-form.tsx": {
@@ -3969,6 +3969,12 @@
     "mtime": 1794818560.8907683,
     "seen": 1794818603.7064269,
     "ast_hash": "caaba12ea8be57a3ca73dc02455be988",
+    "semantic_hash": ""
+  },
+  "fe/src/app/portal/uav/uav-mutation-actions.tsx": {
+    "mtime": 1794830476.3651743,
+    "seen": 1794830538.511638,
+    "ast_hash": "e81cc4bdd838e19d61ef0f41fc591e06",
     "semantic_hash": ""
   },
   "fe/package-lock.json": {

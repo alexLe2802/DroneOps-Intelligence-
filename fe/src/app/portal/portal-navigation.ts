@@ -11,6 +11,6 @@ export const operatorNavItems = [
   ["▦", "My Dashboard", "LIVE"], ["⌁", "My Missions", "ROUTE"],
   ["◈", "Validation Results", "GIS"], ["⌁", "Live Monitoring", "API"],
   ["△", "My Incidents", "LOG"], ["⌁", "Flight History", "POST"],
-  ["◎", "AI Risk Assessment", "EVAL"], ["⌘", "Assigned UAV", "FLEET"],
+  ["◎", "AI Risk Assessment", "EVAL"], ["⌘", "My UAVs", "FLEET"],
   ["⌁", "Connect Drone", "LINK"],
 ];
