@@ -69,6 +69,8 @@ public sealed class UavResponse
     public string? ImageModerationStatus { get; set; }
     public DateTimeOffset? ImageModeratedAt { get; set; }
     public string? ImageModerationReason { get; set; }
+    public string? PendingImageUrl { get; set; }
+    public DateTimeOffset? PendingImageSubmittedAt { get; set; }
 
     // Audit
     public DateTimeOffset CreatedAt { get; set; }

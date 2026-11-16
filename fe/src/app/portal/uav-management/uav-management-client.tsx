@@ -4,7 +4,7 @@ import { formatVietnamDate } from "@/lib/portal/vietnam-time";
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getManagedUav, getManagedUavs, rejectManagedUavImage } from "@/lib/portal/client";
+import { approveManagedUavImage, getManagedUav, getManagedUavs, rejectManagedUavImage } from "@/lib/portal/client";
 import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleEmpty, ModuleLoading } from "../module-state";
 import UavReviewPanel from "../uav/uav-review-panel";
@@ -33,7 +33,7 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
     setBusy(true);
     try {
       const listRequest = getManagedUavs({ keyword: search, pageNumber: requestedPage, status: requestedStatus, imageModerationStatus: requestedModerationStatus });
-      const countRequest = getManagedUavs({ pageNumber: 1, pageSize: 1, imageModerationStatus: "ManualReview" });
+      const countRequest = getManagedUavs({ pageNumber: 1, pageSize: 1, imageModerationStatus: "Pending" });
       const [result, manualReviewResult] = await Promise.all([listRequest, countRequest]);
       if (currentRequest !== requestId.current) return;
       setAircraft(result.items);
@@ -68,7 +68,7 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
   }
 
   async function rejectImage() {
-    if (!selected || mutationPending.current || !selected.imageUrl) return;
+    if (!selected || mutationPending.current || !selected.pendingImageUrl) return;
     const entered = window.prompt("Why is this UAV image being rejected?");
     if (entered === null) return;
     const reason = entered.trim();
@@ -80,7 +80,22 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
     try {
       const updated = await rejectManagedUavImage(selected.id, reason);
       setSelected(updated);
-      setMessage("UAV image removed and the operator was notified.");
+      setMessage("Proposed UAV image rejected; the approved image was kept.");
+      await load();
+    } catch (reasonValue) { setError(reasonValue); }
+    finally { mutationPending.current = false; setBusy(false); }
+  }
+
+  async function approveImage() {
+    if (!selected || mutationPending.current || !selected.pendingImageUrl) return;
+    const entered = window.prompt("Why is this UAV image being approved?");
+    if (entered === null) return;
+    const reason = entered.trim();
+    if (!reason) { setError(new Error("An approval reason is required.")); return; }
+    mutationPending.current = true; setBusy(true); setError(null); setMessage("");
+    try {
+      const updated = await approveManagedUavImage(selected.id, reason);
+      setSelected(updated); setMessage("Proposed UAV image approved and published to the aircraft record.");
       await load();
     } catch (reasonValue) { setError(reasonValue); }
     finally { mutationPending.current = false; setBusy(false); }
@@ -89,7 +104,7 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
   if (!aircraft && !error) return <ModuleLoading label="Loading UAV fleet" />;
 
   return <>
-    <header className="module-heading"><div><p className="module-kicker">OPERATIONS MANAGER / UAV REVIEW</p><h1>UAV Management</h1><p>Browse the UAV fleet, review registrations, and manage aircraft status.</p></div><button type="button" className={`uav-manual-review-filter${imageModerationStatus === "ManualReview" ? " active" : ""}`} aria-pressed={imageModerationStatus === "ManualReview"} disabled={busy} onClick={() => { setPage(1); setImageModerationStatus(current => current === "ManualReview" ? "" : "ManualReview"); }}><span>MANUAL REVIEW</span><strong>{manualReviewCount}</strong><small>AI image checks</small></button></header>
+    <header className="module-heading"><div><p className="module-kicker">OPERATIONS MANAGER / UAV REVIEW</p><h1>UAV Management</h1><p>Browse the UAV fleet, review registrations, and manage aircraft status.</p></div><button type="button" className={`uav-manual-review-filter${imageModerationStatus === "Pending" ? " active" : ""}`} aria-pressed={imageModerationStatus === "Pending"} disabled={busy} onClick={() => { setPage(1); setImageModerationStatus(current => current === "Pending" ? "" : "Pending"); }}><span>IMAGE REVIEW</span><strong>{manualReviewCount}</strong><small>Manager approvals</small></button></header>
     {error && <div className="form-error" role="alert"><p>{error instanceof Error ? error.message : "Unable to load UAVs. Please try again."}</p><button className="module-secondary" disabled={busy} onClick={() => void load()}>TRY AGAIN</button></div>}
     {message && <p className="approval-banner" role="status">{message}</p>}
     <form className="module-toolbar" onSubmit={event => { event.preventDefault(); if (page === 1 && appliedKeyword === keyword.trim()) void load(); else { setPage(1); setAppliedKeyword(keyword.trim()); } }}>
@@ -99,10 +114,10 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
     </form>
     <div className="manager-uav-layout">
       <section className="manager-uav-queue">
-        {imageModerationStatus === "ManualReview" && <div className="uav-moderation-filter-banner" role="status"><span>IMAGE MODERATION QUEUE</span><strong>Manual Review ({totalItems})</strong><small>Only UAVs that exhausted AI moderation retries are shown.</small></div>}
+        {imageModerationStatus === "Pending" && <div className="uav-moderation-filter-banner" role="status"><span>IMAGE REVIEW QUEUE</span><strong>Pending Manager Review ({totalItems})</strong><small>Only UAV images submitted by pilots and waiting for a decision are shown.</small></div>}
         {busy && !selected ? <ModuleLoading label="Loading UAV fleet" /> : error && !aircraft ? <p>Fleet data is unavailable. Please retry.</p> : !aircraft?.length ? <ModuleEmpty title="No UAV found" message="No aircraft matches your search and status filter." /> : aircraft.map(uav => <button type="button" className={`manager-uav-row${selected?.id === uav.id ? " selected" : ""}`} key={uav.id} onClick={() => void inspect(uav.id)} disabled={busy}>
           <span className={`manager-uav-thumbnail${uav.imageUrl ? " has-image" : ""}`}>{uav.imageUrl ? <Image src={uav.imageUrl} alt="" width={120} height={90} unoptimized /> : uav.code.slice(0, 3)}</span>
-          <span><b>{uav.code}</b><small>{uav.name} · {[uav.manufacturer, uav.model].filter(Boolean).join(" ") || "Model not specified"}</small>{uav.imageModerationStatus === "ManualReview" && <small className="uav-manual-review-label">IMAGE: MANUAL REVIEW</small>}</span>
+          <span><b>{uav.code}</b><small>{uav.name} · {[uav.manufacturer, uav.model].filter(Boolean).join(" ") || "Model not specified"}</small>{uav.imageModerationStatus === "Pending" && <small className="uav-manual-review-label">IMAGE: PENDING MANAGER REVIEW</small>}</span>
           <span><b>{uav.pilotName || "Unknown pilot"}</b><small>{formatVietnamDate(uav.createdAt)}</small></span>
           <em>{uav.status}{uav.hasPendingProposal && <small>INFORMATION REVIEW PENDING</small>}</em>
         </button>)}
@@ -111,14 +126,16 @@ export default function UavManagementClient({ initialImageModerationStatus = "",
       <aside className="manager-uav-detail">
         {!selected ? <div className="manager-uav-placeholder"><span>UAV</span><h2>Select a UAV</h2><p>Select an aircraft from the list to view its complete record.</p></div> : <>
           <div className={`manager-uav-image${selected.imageUrl ? " has-image" : ""}`}>{selected.imageUrl ? <Image src={selected.imageUrl} alt={`${selected.name} UAV`} width={900} height={500} unoptimized /> : <><span>UAV</span><small>No aircraft image</small></>}</div>
-          <section className={`uav-moderation-evidence status-${selected.imageModerationStatus?.toLowerCase() ?? "unknown"}`} aria-label="UAV image moderation result">
-            <header><span>IMAGE MODERATION STATUS</span><strong>{selected.imageModerationStatus ?? "Not submitted"}</strong></header>
-            <p>{selected.imageModerationReason || "No moderation reason was returned for this UAV image."}</p>
-            {selected.imageModeratedAt && <small>Last checked {formatVietnamDate(selected.imageModeratedAt)}</small>}
+          {selected.pendingImageUrl && <div className="manager-uav-image has-image"><Image src={selected.pendingImageUrl} alt={`Proposed image for ${selected.name}`} width={900} height={500} unoptimized /></div>}
+          <section className={`uav-moderation-evidence status-${selected.imageModerationStatus?.toLowerCase() ?? "unknown"}`} aria-label="UAV image review result">
+            <header><span>IMAGE REVIEW STATUS</span><strong>{selected.imageModerationStatus ?? "Not submitted"}</strong></header>
+            <p>{selected.imageModerationStatus === "Pending" ? "Pilot proposal waiting for a manager decision. The approved image remains unchanged." : selected.imageModerationReason || "No image review has been recorded."}</p>
+            {selected.imageModeratedAt && <small>Reviewed {formatVietnamDate(selected.imageModeratedAt)}</small>}
           </section>
           <header><div><p className="module-kicker">UAV RECORD</p><h2>{selected.code}</h2><p>{selected.name}</p></div><span className={`status status-${selected.status.toLowerCase()}`}>{selected.status}</span></header>
           <UavInformation aircraft={selected} />
-          {selected.imageUrl && <div className="uav-actions" aria-label="Image review actions">
+          {selected.pendingImageUrl && selected.imageModerationStatus === "Pending" && <div className="uav-actions" aria-label="Image review actions">
+            <button className="module-primary" disabled={busy} onClick={() => void approveImage()}>APPROVE IMAGE</button>
             <button className="module-danger" disabled={busy} onClick={() => void rejectImage()}>REJECT IMAGE</button>
           </div>}
           <UavReviewPanel key={selected.id} uavId={selected.id} manager onDecision={() => void inspect(selected.id)} />

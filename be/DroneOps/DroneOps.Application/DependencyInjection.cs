@@ -68,12 +68,6 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IPilotRegistrationService, PilotRegistrationService>();
         services.AddScoped<IUavService, UavService>();
-        services.AddHttpClient<IUavImageModerationService, UavImageModerationService>(client =>
-        {
-            client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/v1beta/");
-            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(
-                configuration.GetValue("UavImageModeration:RequestTimeoutSeconds", 30), 10, 120));
-        });
         services.AddScoped<IGeofenceService, GeofenceService>();
         services.AddScoped<IMissionService, MissionService>();
         services.AddScoped<IMissionSuggestionService,MissionSuggestionService>();

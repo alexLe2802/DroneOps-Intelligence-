@@ -9,7 +9,8 @@ public static class UavImageSchema
         foreach (var resource in new[]
         {
             "DroneOps.Persistence.Migrations.20261026000100_uav_images.sql",
-            "DroneOps.Persistence.Migrations.20261105000100_uav_image_moderation_queue.sql"
+            "DroneOps.Persistence.Migrations.20261105000100_uav_image_moderation_queue.sql",
+            "DroneOps.Persistence.Migrations.20261116000100_manual_uav_image_review.sql"
         })
         {
             using var stream = typeof(UavImageSchema).Assembly.GetManifestResourceStream(resource)
@@ -29,7 +30,9 @@ public static class UavImageSchema
         {
             await SchemaCommandExecutor.ExecuteAsync(source, """
                 SELECT "ImageStoragePath", "ImageModerationStatus", "ImageModerationAttempts",
-                       "ImageModerationNextAttemptAt", "ImageModeratedAt", "ImageModerationReason"
+                       "ImageModerationNextAttemptAt", "ImageModeratedAt", "ImageModerationReason",
+                       "PendingImageStoragePath", "PendingImageContentType", "PendingImageSubmittedAt",
+                       "PendingImageSubmittedBy", "ImageReviewedBy"
                 FROM public."UAV" LIMIT 0
                 """);
         }

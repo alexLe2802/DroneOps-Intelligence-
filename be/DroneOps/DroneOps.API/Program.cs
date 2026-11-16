@@ -184,7 +184,6 @@ builder.Services.AddPersistenceServices(builder.Configuration);
 if (monitoringEnabled)
 {
     // The dedicated monitor owns background work; API replicas must not poll for it.
-    builder.Services.AddHostedService<UavImageModerationMonitor>();
     builder.Services.AddHostedService<CommunicationLossMonitor>();
     builder.Services.AddHostedService<ScheduledFlightMonitor>();
     builder.Services.AddHostedService<PostFlightCompletionMonitor>();
