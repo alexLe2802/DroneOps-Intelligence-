@@ -34,14 +34,12 @@ public sealed class UserMediaStorage : IUserMediaStorage
     {
         get
         {
-            var provider = _configuration["UserMediaStorage:Provider"] ?? "Auto";
+            var provider = _configuration["UserMediaStorage:Provider"] ?? "Supabase";
+            if (string.Equals(provider, "Supabase", StringComparison.OrdinalIgnoreCase)) return false;
             if (string.Equals(provider, "Local", StringComparison.OrdinalIgnoreCase)) return true;
-            if (!string.Equals(provider, "Auto", StringComparison.OrdinalIgnoreCase)) return false;
-
-            var key = _configuration["SupabaseStorage:ServiceKey"];
-            var authorizationToken = _configuration["SupabaseStorage:AuthorizationToken"];
-            return key?.StartsWith("sb_secret_", StringComparison.Ordinal) == true
-                && string.IsNullOrWhiteSpace(authorizationToken);
+            throw new InvalidOperationException(
+                "UserMediaStorage__Provider must be Supabase or Local. " +
+                "Automatic storage fallback is not supported.");
         }
     }
 
@@ -102,29 +100,22 @@ public sealed class UserMediaStorage : IUserMediaStorage
                 "or service_role key, not a publishable key.");
         }
 
-        var request = new HttpRequestMessage(
-            method,
-            BaseUrl + path);
+        var secretKey = key.StartsWith("sb_secret_", StringComparison.Ordinal);
+        var legacyKey = key.StartsWith("eyJ", StringComparison.Ordinal);
+        if (!secretKey && !legacyKey)
+            throw new InvalidOperationException("Configure a Supabase server secret key or legacy service_role key.");
 
-        request.Headers.Add("apikey", key);
-
-        // Supabase Storage currently requires a JWT in Authorization even when
-        // the API gateway is authenticated with a new sb_secret key.
-        var authorizationToken = key.StartsWith("eyJ", StringComparison.Ordinal)
-            ? key
-            : _configuration["SupabaseStorage:AuthorizationToken"];
-        if (string.IsNullOrWhiteSpace(authorizationToken) ||
+        // New secret keys authenticate through apikey; they are not JWTs.
+        // Retain an optional legacy JWT override for existing server configurations.
+        var authorizationToken = legacyKey ? key : _configuration["SupabaseStorage:AuthorizationToken"];
+        if (!string.IsNullOrWhiteSpace(authorizationToken) &&
             !authorizationToken.StartsWith("eyJ", StringComparison.Ordinal))
-        {
-            request.Dispose();
-            throw new InvalidOperationException(
-                "Supabase Storage authorization is incomplete. Configure " +
-                "SupabaseStorage__AuthorizationToken with the legacy service_role JWT, " +
-                "or use that JWT as SupabaseStorage__ServiceKey.");
-        }
+            throw new InvalidOperationException("SupabaseStorage__AuthorizationToken must be a legacy service_role JWT when configured.");
 
-        request.Headers.Authorization =
-            new AuthenticationHeaderValue("Bearer", authorizationToken);
+        var request = new HttpRequestMessage(method, BaseUrl + path);
+        request.Headers.Add("apikey", key);
+        if (!string.IsNullOrWhiteSpace(authorizationToken))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
 
         return request;
     }
@@ -301,7 +292,7 @@ public sealed class UserMediaStorage : IUserMediaStorage
             var localPath = ResolveLocalPath(path);
             if (!File.Exists(localPath))
             {
-                throw new FileNotFoundException("Stored media was not found.");
+                throw new HttpRequestException("Stored media was not found.", null, System.Net.HttpStatusCode.NotFound);
             }
 
             return LocalMediaScheme + path;

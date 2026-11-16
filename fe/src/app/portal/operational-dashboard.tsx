@@ -196,7 +196,7 @@ export default function OperationalDashboard({ account }: { account: Account }) 
         <footer><span>Layers: <b>Geofences + live mission telemetry</b></span><span><Link href="/portal/geofences">AIRSPACE REGISTRY</Link> · <Link href="/portal/live-monitoring">LIVE MONITORING →</Link></span></footer>
       </section>
 
-      <aside className="insight-column">
+      <aside className="insight-column" tabIndex={0} aria-label="AI decision engine and latest incidents">
         <section className="ai-panel">
           <header><span className="dash-icon" aria-hidden="true">◎</span><div><h2>AI Decision Engine</h2></div><b>AI</b></header>
           <article><div className="insight-mission-heading"><h3>{latestMission ? latestMission.missionName : "No mission context"}</h3><span className="insight-mission-status" data-status={latestMission ? statusKey(latestMission.status) : "idle"}>{latestMission?.status ?? "Idle"}</span></div><p>{latestMission ? `Latest mission record for ${latestMission.uavCode || "an unassigned UAV"}.` : "Create a mission before requesting an assessment."}</p><div className="insight-mission-actions"><span>{latestMission ? `${latestMission.totalIncidents} recorded incidents` : "No mission selected"}</span><Link className="module-link" href="/portal/ai-assessment">Open assessment</Link></div></article>

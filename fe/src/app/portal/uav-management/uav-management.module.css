@@ -1,0 +1,106 @@
+.page { container: fleet / inline-size; color: #e6edf5; padding-block-end: 24px; }
+.page *, .page *::before, .page *::after { box-sizing: border-box; }
+.heading, .sectionHeading, .detailHeading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.heading { flex-wrap: wrap; margin-block-end: 24px; }
+.eyebrow { margin: 0 0 8px; color: #73d7e9; font-size: 11px; font-weight: 700; letter-spacing: 1.6px; }
+.heading h1 { margin: 0; font-size: clamp(26px, 2rem, 34px); letter-spacing: -.7px; }
+.heading p:last-child { margin: 10px 0 0; color: #a8b8ca; font-size: 14px; line-height: 1.6; }
+.page button { cursor: pointer; font: inherit; }
+.page button:disabled { cursor: not-allowed; opacity: .5; }
+.page :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid #79e2f4; outline-offset: 4px; }
+.reviewFilter { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border: 1px solid #33485e; border-radius: 12px; background: #122130; color: #c7e8ef; text-align: start; }
+.reviewFilter span { font-size: 13px; font-weight: 600; }
+.reviewFilter small { display: block; color: #a8b8ca; font-size: 11px; font-weight: 400; margin-block-start: 4px; }
+.reviewFilter strong { padding: 6px 10px; border-radius: 8px; background: #263b4e; font-size: 20px; }
+.reviewFilter:hover, .filterActive { border-color: #5fd5e8; background: #183440; }
+.toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 18px; margin-block-end: 20px; border: 1px solid #293b50; border-radius: 12px; background: #101d2b; }
+.toolbar label, .imageForm label { display: grid; gap: 8px; color: #b9c7d6; font-size: 12px; font-weight: 600; }
+.toolbar label { flex: 1 1 160px; min-inline-size: 0; }
+.toolbar .search { flex: 3 1 260px; }
+.search > span { display: flex; align-items: center; gap: 10px; padding-inline: 12px; border: 1px solid #3b4e62; border-radius: 7px; background: #0b1521; }
+.toolbar input, .toolbar select { inline-size: 100%; min-inline-size: 0; min-block-size: 42px; padding: 10px 12px; border: 1px solid #3b4e62; border-radius: 7px; background: #0b1521; color: #e6edf5; font: inherit; font-size: 13px; }
+.search input { border: 0; padding-inline: 0; background: transparent; }
+.toolbar input::placeholder { color: #8ea2b7; }
+.page button.primary { min-block-size: 42px; padding: 10px 22px; border: 1px solid #63d9ec; border-radius: 7px; background: #6cdeed; color: #09212d; font-size: 13px; font-weight: 700; }
+.layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; gap: 20px; }
+.queue, .detail { min-inline-size: 0; border: 1px solid #2b3e53; border-radius: 12px; background: #0f1b29; }
+.queue { overflow-wrap: anywhere; }
+.sectionHeading { padding: 20px; align-items: center; }
+.sectionHeading h2 { margin: 0; font-size: 17px; }
+.sectionHeading p { margin: 6px 0 0; color: #9dafc3; font-size: 12px; }
+.count { background: #22364a; padding: 5px 10px; border-radius: 7px; color: #c5e7f0; font-size: 13px; font-weight: 700; }
+.columns, .row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 112px; gap: 16px; align-items: center; }
+.columns { padding: 12px 20px; border-block: 1px solid #293c50; background: #132232; color: #9eb2c7; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; }
+.row { inline-size: 100%; border: 0; border-block-end: 1px solid #243448; border-inline-start: 3px solid transparent; background: transparent; color: #dce6f1; padding: 18px 17px; text-align: start; }
+.row:hover { background: #172a3c; }
+.row.selected { border-inline-start-color: #68ddec; background: #193245; }
+.row > span, .aircraftCell > span { min-inline-size: 0; overflow-wrap: anywhere; }
+.aircraftCell { display: flex; align-items: center; gap: 12px; }
+.row b { font-size: 13px; font-weight: 650; line-height: 1.5; }
+.row small { display: block; color: #a6b8cb; font-size: 11px; line-height: 1.6; margin-block-start: 4px; }
+.thumbnail { flex: 0 0 44px; inline-size: 44px; block-size: 44px; display: grid; place-content: center; background: #203649; color: #82c6da; border-radius: 9px; }
+.thumbnail img { display: block; inline-size: 44px; block-size: 44px; object-fit: cover; border-radius: 9px; }
+.rowStatus { display: grid; justify-items: start; gap: 5px; }
+.badge { display: inline-flex; align-items: center; padding: 5px 9px; border: 1px solid #465569; border-radius: 6px; background: #263446; color: #d7e1ed; font-size: 11px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
+.badge[data-status="active"] { color: #a4f2cd; background: #153c33; border-color: #2b6551; }
+.badge[data-status="pending"], .badge[data-status="pending review"] { color: #ffe0a1; background: #3d321d; border-color: #76603b; }
+.badge[data-status="rejected"] { color: #ffc1c5; background: #43262e; border-color: #78434c; }
+.row .pending { color: #f4d28d; font-size: 10px; line-height: 1.5; }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; color: #aabcce; font-size: 12px; }
+.pagination > div { display: flex; gap: 8px; }
+.pagination button { display: grid; place-items: center; inline-size: 36px; block-size: 36px; color: #c8d8e8; background: #1b2c3e; border: 1px solid #3b5066; border-radius: 6px; }
+.detail { padding: 22px; container: aircraft / inline-size; }
+.detailHeading { margin-block-end: 22px; }
+.detailHeading > div { min-inline-size: 0; overflow-wrap: anywhere; }
+.detailHeading h2 { margin: 0; font-size: 25px; letter-spacing: -.5px; }
+.detailHeading p:last-child { color: #b3c4d6; font-size: 14px; margin: 7px 0 0; }
+.detailHeading .badge { flex-shrink: 0; }
+.placeholder { min-block-size: 440px; padding: 40px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.placeholder svg { color: #76d3e5; padding: 16px; box-sizing: content-box; border-radius: 18px; background: #193044; }
+.placeholder h2 { font-size: 20px; margin: 24px 0 10px; }
+.placeholder p { max-inline-size: 300px; color: #a2b5c9; font-size: 13px; line-height: 1.7; }
+.disclosure { margin-block-start: 20px; border: 1px solid #2d4257; border-radius: 10px; }
+.disclosure > summary { padding: 16px; cursor: pointer; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.disclosure > summary > span:last-child { display: block; color: #9db1c7; font-size: 11px; font-weight: 400; margin-block-start: 6px; }
+.disclosure > summary .summaryLabel { display: inline-flex; align-items: center; gap: 8px; }
+.detail :global(.uav-information) { max-inline-size: none; margin: 0; border: 0; background: transparent; padding: 0 14px 14px; }
+.detail :global(.uav-information > header) { display: none; }
+.detail :global(.uav-info-groups) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.detail :global(.uav-info-groups article) { min-inline-size: 0; padding: 14px; border: 1px solid #293e53; border-radius: 7px; background: #101f2e; }
+.detail :global(.uav-info-groups article:last-child) { grid-column: auto; }
+.detail :global(.uav-info-groups h3) { color: #84c9dc; font-family: inherit; font-size: 11px; font-weight: 600; line-height: 1.5; letter-spacing: .6px; margin: 0 0 10px; }
+.detail :global(.uav-info-groups dl) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 0; background: transparent; }
+.detail :global(.uav-info-groups dl div) { display: block; min-inline-size: 0; padding: 0; background: transparent; }
+.detail :global(.uav-info-groups dt) { color: #9aafc5; font-size: 10px; line-height: 1.6; letter-spacing: .3px; overflow-wrap: anywhere; }
+.detail :global(.uav-info-groups dd) { margin: 4px 0 0; text-align: start; color: #e3edf7; font-size: 13px; font-weight: 550; line-height: 1.6; overflow-wrap: anywhere; }
+.imageSection { padding: 0 16px 16px; }
+.image { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; aspect-ratio: 2 / 1; background: #172a3b; border-radius: 8px; color: #a8c9dc; font-size: 12px; }
+.image img { display: block; inline-size: 100%; block-size: 100%; min-block-size: 0; object-fit: contain; border-radius: 8px; }
+.imageActions p { color: #a9bbcd; font-size: 12px; line-height: 1.7; margin: 8px 0; }
+.imageActions { border-block-start: 1px solid #2b4056; padding-block-start: 10px; }
+.page .dangerOutline { border: 1px solid #c36f7d; background: #35242f; color: #ffc3cc; padding: 10px 14px; border-radius: 7px; font-size: 12px; margin-block-start: 8px; }
+.imageForm { display: grid; gap: 12px; margin-block-start: 14px; }
+.imageForm textarea { inline-size: 100%; min-block-size: 90px; resize: vertical; padding: 10px; color: #edf4fa; background: #0b1521; border: 1px solid #536b83; border-radius: 7px; font: inherit; }
+.imageForm > div { display: flex; flex-wrap: wrap; gap: 10px; }
+.imageForm button, .error button, .notice button { padding: 9px 13px; border: 1px solid #526b83; border-radius: 6px; color: #e2edf6; background: #1b3043; font-size: 12px; }
+.imageForm .danger { border-color: #d76478; background: #ad354e; color: #fff; }
+.error, .notice { padding: 14px 16px; border: 1px solid #315969; border-radius: 8px; background: #132e3b; font-size: 13px; line-height: 1.6; margin-block-end: 16px; }
+.error { border-color: #94505f; background: #37212b; }
+.error p { margin: 0 0 10px; }
+.empty { padding: 20px; }
+@container fleet (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+@container fleet (max-width: 560px) {
+  .heading h1 { font-size: 26px; }
+  .toolbar { padding: 14px; }
+  .toolbar > button { flex: 1 1 100%; }
+  .columns { display: none; }
+  .row { grid-template-columns: minmax(0, 1fr) 100px; gap: 12px; padding: 16px 12px; }
+  .owner { grid-column: 1; padding-inline-start: 56px; }
+  .rowStatus { grid-column: 2; grid-row: 1 / span 2; }
+  .detail { padding: 16px; }
+  .detailHeading h2 { font-size: 22px; }
+}
+@container aircraft (max-width: 340px) { .detail :global(.uav-info-groups dl) { grid-template-columns: minmax(0, 1fr); } }
+
+.disclosure > summary > .imageStatus { color: #a4f2cd; font-size: 11px; font-weight: 400; margin-block-start: 6px; }
+.disclosure > summary > .imageStatus[data-status="rejected"] { color: #ffc1c5; }
