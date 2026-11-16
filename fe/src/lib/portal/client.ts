@@ -37,7 +37,11 @@ export async function getManagerMissions(): Promise<ManagerMission[]> {
     getManagedUavs({ pageNumber: 1, pageSize: 100 }).catch(() => null),
   ]);
   const aircraft = new Map((fleet?.items ?? []).map(item => [item.id, item]));
-  return (Array.isArray(missions) ? missions as Array<MissionApiRecord & { createdBy: string }> : missions.items).map(record => {
+  const records = Array.isArray(missions) ? missions : missions?.items;
+  if (!Array.isArray(records)) {
+    throw new ApiError("The mission service returned an invalid list. Please retry after the service is updated.", 502);
+  }
+  return (records as Array<MissionApiRecord & { createdBy: string }>).map(record => {
     const assigned = record.uavId ? aircraft.get(record.uavId) : undefined;
     return {
       ...normalizeMission(record, assigned?.code ?? null),
