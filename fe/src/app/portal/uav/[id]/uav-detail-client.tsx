@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getAssignedUav } from "@/lib/portal/client";
 import type { AssignedUav } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
-import DeleteUavButton from "../delete-uav-button";
+import UavMutationActions from "../uav-mutation-actions";
 import UavReviewPanel from "../uav-review-panel";
 import UavInformation from "../uav-information";
 
@@ -77,7 +77,7 @@ export default function UavDetailClient({ id }: { id: string }) {
         {aircraft.imageModerationStatus === "ManualReview" && <p className="approval-banner" role="status">AI is temporarily unavailable. The image is waiting for manager review and was not rejected.</p>}
         {aircraft.imageModerationStatus === "Rejected" && <p className="form-error uav-image-feedback" role="alert">AI could not confirm this as a safe UAV image. Replace it or ask a manager to review it.</p>}
         {imageUpload === "failed" && <p className="form-error uav-image-feedback" role="alert">The UAV was saved, but AI review did not start because the image upload failed. {imageUploadMessage || "The previous image was kept. Contact an administrator or edit the UAV to try again."}</p>}
-        <div className="uav-actions"><Link className="module-secondary module-link" href={`/portal/uav/${aircraft.id}/edit`}>EDIT UAV</Link><DeleteUavButton id={aircraft.id} code={aircraft.code} /></div>
+        <div className="uav-actions"><UavMutationActions aircraft={aircraft} editLabel="EDIT UAV" /></div>
       </div>
     </section>
     <UavInformation aircraft={aircraft} />
