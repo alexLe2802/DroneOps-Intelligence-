@@ -157,3 +157,6 @@
   outline: 2px solid var(--color-focus);
   outline-offset: 3px;
 }
+
+.uav-actions > .uav-review-lock { flex-basis: 100%; margin: 4px 0 0; color: var(--color-warning); font-size: 12px; line-height: 1.6; }
+.uav-actions > button:disabled { cursor: not-allowed; opacity: .5; }

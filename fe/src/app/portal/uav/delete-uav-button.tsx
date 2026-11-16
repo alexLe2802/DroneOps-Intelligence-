@@ -4,13 +4,13 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteAssignedUav } from "@/lib/portal/client";
 
-export default function DeleteUavButton({ id, code, onDeleted }: { id: string; code: string; onDeleted?: () => void }) {
+export default function DeleteUavButton({ id, code, onDeleted, disabled = false, describedBy }: { id: string; code: string; onDeleted?: () => void; disabled?: boolean; describedBy?: string }) {
   const router = useRouter();
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function remove() {
-    if (pending.current || !window.confirm(`Delete UAV ${code}? This permanently removes your aircraft record.`)) return;
+    if (disabled || pending.current || !window.confirm(`Delete UAV ${code}? This permanently removes your aircraft record.`)) return;
     pending.current = true; setBusy(true); setError("");
     try {
       await deleteAssignedUav(id);
@@ -20,5 +20,5 @@ export default function DeleteUavButton({ id, code, onDeleted }: { id: string; c
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to delete this UAV."); }
     finally { pending.current = false; setBusy(false); }
   }
-  return <><button className="module-danger" type="button" disabled={busy} aria-label={`Delete UAV ${code}`} onClick={() => void remove()}>{busy ? "DELETING…" : "DELETE UAV"}</button>{error && <p className="form-error" role="alert">{error}</p>}</>;
+  return <><button className="module-danger" type="button" disabled={busy || disabled} aria-describedby={describedBy} aria-label={`Delete UAV ${code}`} onClick={() => void remove()}>{busy ? "DELETING…" : "DELETE UAV"}</button>{error && <p className="form-error" role="alert">{error}</p>}</>;
 }
