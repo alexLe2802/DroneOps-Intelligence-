@@ -26,11 +26,19 @@
 .stats dt { color: var(--sub); font-size: 10px; }
 .stats dd { margin: 4px 0 0; color: var(--ink); font-size: 16px; font-weight: 600; }
 .advice { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; padding: 16px 20px; }
-.advice section { padding: 13px; border: 1px solid var(--line); border-radius: 5px; background: #111a25; }
-.advice h4 { display: flex; align-items: center; gap: 7px; margin: 0 0 7px; color: var(--ink); font-size: 11px; }
-.advice h4 svg { color: #68dcff; }
-.advice p { margin: 0; color: var(--sub); font-size: 11px; line-height: 1.55; white-space: pre-wrap; }
-.result > footer { align-items: center; padding: 12px 20px; border-block-start: 1px solid var(--line); color: var(--sub); font-size: 10px; }
+.advice section { padding: 16px; border: 1px solid var(--line); border-radius: 5px; background: #111a25; }
+.advice h4 { display: flex; align-items: center; gap: 9px; margin: 0 0 10px; font-size: 14px; line-height: 1.25; }
+.advice p { margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.purpose { border-color: #285c78!important; background: linear-gradient(135deg,#102331,#111a25 70%)!important; }
+.purpose h4,.purpose h4 svg { color: #6ed8ff; }
+.purpose p { color: #bdeaff; }
+.caution { border-color: #6f3842!important; background: linear-gradient(135deg,#2b1820,#111a25 70%)!important; }
+.caution h4,.caution h4 svg { color: #ff7f8a; }
+.caution p { color: #ffc0c5; }
+.recommendation { border-color: #286653!important; background: linear-gradient(135deg,#102a23,#111a25 70%)!important; }
+.recommendation h4,.recommendation h4 svg { color: #61e0b5; }
+.recommendation p { color: #b8f2df; }
+.result > footer { align-items: center; justify-content: flex-end; padding: 12px 20px; border-block-start: 1px solid var(--line); color: var(--sub); font-size: 10px; }
 .history { border-block-start: 1px solid var(--line); padding-block-start: 13px; }
 .history > summary { color: var(--ink); list-style: none; font-size: 11px; cursor: pointer; }
 .history > summary::-webkit-details-marker { display: none; }
