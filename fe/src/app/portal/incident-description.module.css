@@ -1,0 +1,23 @@
+.description {
+  min-inline-size: 0;
+  max-inline-size: 68ch;
+  overflow-wrap: anywhere;
+}
+
+.description > p { margin-block: 0 8px; }
+.description summary {
+  cursor: pointer;
+  color: var(--color-accent, #75d9ff);
+  font: 600 12px/1.5 var(--font-body, Arial, sans-serif);
+}
+.description summary:focus-visible {
+  outline: 2px solid var(--color-focus, #75d9ff);
+  outline-offset: 3px;
+}
+.description ul {
+  margin-block: 8px 0;
+  padding-inline-start: 20px;
+  color: var(--color-muted, #9dabb9);
+  font: 13px/1.5 var(--font-body, Arial, sans-serif);
+}
+.description li + li { margin-block-start: 6px; }
