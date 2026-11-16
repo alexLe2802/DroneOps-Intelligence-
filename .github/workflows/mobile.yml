@@ -28,7 +28,7 @@ jobs:
         working-directory: mobile
       - run: flutter build apk --debug --dart-define=API_BASE_URL=https://api.droneops.click
         working-directory: mobile
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: droneops-android-debug
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
@@ -44,7 +44,7 @@ jobs:
           cache: true
       - run: flutter pub get && flutter build ipa --release --no-codesign --dart-define=API_BASE_URL=https://api.droneops.click
         working-directory: mobile
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: droneops-ios-unsigned-archive
           path: mobile/build/ios/archive/Runner.xcarchive
