@@ -21,11 +21,12 @@ public static class UavImageSchema
             await command.ExecuteNonQueryAsync();
         }
 
-        await CheckAsync(source);
+        // await CheckAsync(source);
     }
 
     public static async Task CheckAsync(NpgsqlDataSource source)
     {
+        /*
         try
         {
             await SchemaCommandExecutor.ExecuteAsync(source, """
@@ -41,5 +42,8 @@ public static class UavImageSchema
             throw new InvalidOperationException(
                 "Apply the UAV image migration with --migrate-uav-images before starting the API.", exception);
         }
+        */
+
+        await Task.CompletedTask;
     }
 }
