@@ -317,3 +317,52 @@
 .manager-uav-detail .uav-actions,.manager-uav-queue>.uav-actions{flex-wrap:wrap}
 @media(max-width:1100px){.manager-uav-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:700px){.manager-uav-row{grid-template-columns:52px minmax(0,1fr)}.manager-uav-row>em{grid-column:2}.manager-uav-queue>.uav-actions>*{max-inline-size:100%}}
+
+
+/* ====================================================================
+   3D Map components — MapLibre GL JS
+   Added by feat/3d-map-mission-planning
+   ==================================================================== */
+
+/* --- MapLibre overrides for mission map --- */
+.mission-map .maplibregl-canvas-container{cursor:crosshair}
+.mission-map .maplibregl-ctrl-bottom-left{margin:0 0 8px 8px}
+.mission-map .maplibregl-ctrl-bottom-right{margin:0 8px 8px 0}
+.mission-map .maplibregl-ctrl-attrib{max-width:280px;padding:2px 5px;background:#081018d9;color:#aab7c5;font:8px/1.25 Consolas,monospace;white-space:nowrap}
+.mission-map .maplibregl-ctrl-attrib a{color:#79d9ff;font:inherit}
+.mission-map .maplibregl-ctrl button{background:#111a24;border-color:#334454}
+.mission-map .maplibregl-ctrl button span{filter:invert(.9)}
+.mission-map .maplibregl-popup-content{background:#101820;color:#dbe7ef;border:1px solid #516577;border-radius:2px;padding:8px 10px;font:10px/1.4 Consolas,monospace;box-shadow:0 4px 16px #0006}
+.mission-map .maplibregl-popup-tip{border-top-color:#101820}
+.mission-map .maplibregl-popup-close-button{color:#aab7c5;font-size:14px;padding:2px 6px}
+
+/* --- 3D Map wrapper --- */
+.mission-map-3d-wrap{position:relative;display:grid;gap:0}
+.mission-map-3d-wrap:fullscreen{background:#0a111b}
+.mission-map-3d-wrap:fullscreen .mission-map{height:100vh!important}
+
+/* --- Toolbar --- */
+.map-toolbar-3d{position:absolute;z-index:800;top:12px;left:12px;display:flex;gap:4px;padding:3px;background:#0a1929e6;border:1px solid #284858;border-radius:6px}
+.map-mode-toggle{display:flex;border-radius:4px;overflow:hidden}
+.map-mode-toggle button{padding:6px 10px;border:0;background:#152233;color:#8bb8d0;font:700 10px Consolas,monospace;cursor:pointer;transition:background .15s,color .15s}
+.map-mode-toggle button[aria-pressed=true]{background:#1d5574;color:#7ddcff}
+.map-mode-toggle button:hover:not([aria-pressed=true]):not(:disabled){background:#1a3a52}
+.map-toolbar-btn{padding:6px 8px;border:0;background:#152233;color:#8bb8d0;font:13px/1 sans-serif;cursor:pointer;border-radius:3px;transition:background .15s}
+.map-toolbar-btn:hover:not(:disabled){background:#1a3a52;color:#b4e1f5}
+.map-toolbar-btn:disabled,.map-mode-toggle button:disabled{opacity:.4;cursor:default}
+
+/* --- Terrain disclaimer --- */
+.terrain-disclaimer{position:absolute;z-index:800;top:12px;right:12px;max-width:260px;padding:7px 10px;background:#322a1ae8;border:1px solid #5e4a24;border-radius:4px;color:#e7c77e;font:8px/1.5 Consolas,monospace;pointer-events:none}
+
+/* --- Fence drag handles --- */
+.fence-handle{display:block;width:16px;height:16px;border:3px solid #fff;border-radius:50%;background:#14785e;box-shadow:0 1px 6px #0008;cursor:grab}
+.fence-handle:active{cursor:grabbing}
+
+/* --- Elevation profile --- */
+.elevation-profile{border-top:1px solid #2a3a4d;background:#0c1520;padding:0}
+.elevation-profile-header{display:flex;align-items:center;gap:12px;padding:8px 12px;font:8px Consolas,monospace;letter-spacing:1px;color:#8bb8d0}
+.elevation-ref{color:#6b8299}
+.elevation-clearance{color:#6be3b6}
+.elevation-clearance.warning{color:#ff9b9b}
+.elevation-svg{display:block;width:100%;height:160px}
+.elevation-no-terrain{padding:4px 12px 10px;margin:0;color:#5a7a94;font:9px/1.5 Consolas,monospace}

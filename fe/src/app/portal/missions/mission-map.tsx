@@ -1,167 +1,429 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type * as Leaflet from "leaflet";
-import { describeGeofence } from "@/lib/maps/geofences";
+/**
+ * MissionMap — interactive map for mission planning and review.
+ *
+ * Uses MapLibre GL JS instead of Leaflet. Supports both 2D (default, top-down)
+ * and 3D (terrain + extruded buildings) modes via a toolbar toggle.
+ *
+ * The map instance is created once on mount and kept stable — prop changes
+ * update layers and markers without re-creating the map or its WebGL context.
+ *
+ * IMPORTANT: 3D terrain and building extrusions are visual aids only.
+ * Building heights are estimates from OpenStreetMap data. Terrain does not
+ * include obstacles like power lines, furniture, or recent constructions.
+ * Always verify against on-site surveys before flight.
+ */
+
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { Geofence, MissionWaypoint, MissionValidationResult, PlannedHome, MissionFence, GeofenceCoordinate } from "@/lib/portal/types";
+import { droneOpsMapStyle, MAP_CENTER, MAP_ZOOM } from "@/lib/maps/style";
+import { enableTerrain, disableTerrain, sampleRouteElevations, type TerrainSample } from "@/lib/maps/terrain";
+import {
+  setGeofences, setRoute, setFindings, setMissionFences as setMissionFenceLayers,
+  setDraftFence, add3DBuildings, remove3DBuildings, removeAllLayers, GEOFENCE_FILL_LAYER,
+} from "@/lib/maps/map-layers";
+import MapToolbar, { type MapMode } from "@/lib/maps/map-toolbar";
+import ElevationProfile from "@/lib/maps/elevation-profile";
 
-const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
+// MapLibre types — imported for type annotations only. The runtime library
+// is loaded dynamically to avoid SSR issues and to code-split WebGL.
+import type {
+  Map as MaplibreMap,
+  Marker as MaplibreMarker,
+  Popup as MaplibrePopup,
+  MapMouseEvent,
+} from "maplibre-gl";
 
-export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false, missionFences = waypoints[0]?.navigation?.missionFences ?? [], draftFence = [], drawingFence = null, onFenceUpdate }: {
-  missionFences?: MissionFence[]; draftFence?: GeofenceCoordinate[]; drawingFence?: "Polygon" | "Circle" | null; onFenceUpdate?: (fence: MissionFence) => void;
-  plannedHome?: PlannedHome | null; pickingHome?: boolean;
-  waypoints: MissionWaypoint[]; geofences: Geofence[];
+export default function MissionMap({
+  waypoints,
+  geofences,
+  onAdd,
+  onUpdate,
+  readOnly = false,
+  findings,
+  plannedHome = waypoints[0]?.navigation?.plannedHome ?? null,
+  pickingHome = false,
+  missionFences = waypoints[0]?.navigation?.missionFences ?? [],
+  draftFence = [],
+  drawingFence = null,
+  onFenceUpdate,
+}: {
+  missionFences?: MissionFence[];
+  draftFence?: GeofenceCoordinate[];
+  drawingFence?: "Polygon" | "Circle" | null;
+  onFenceUpdate?: (fence: MissionFence) => void;
+  plannedHome?: PlannedHome | null;
+  pickingHome?: boolean;
+  waypoints: MissionWaypoint[];
+  geofences: Geofence[];
   onAdd?: (longitude: number, latitude: number) => void;
   onUpdate?: (index: number, patch: Partial<MissionWaypoint>) => void;
   readOnly?: boolean;
   findings?: MissionValidationResult["findings"];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<Leaflet.Map | null>(null);
-  const highlightRef = useRef<Leaflet.Polyline[]>([]);
-  const routeRef = useRef<Leaflet.Polyline | null>(null);
-  const markersRef = useRef<Leaflet.Marker[]>([]);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MaplibreMap | null>(null);
+  const markersRef = useRef<MaplibreMarker[]>([]);
+  const fenceHandlesRef = useRef<MaplibreMarker[]>([]);
+  const popupRef = useRef<MaplibrePopup | null>(null);
+
+  const [mode, setMode] = useState<MapMode>("2d");
+  const [mapReady, setMapReady] = useState(false);
+  const [error, setError] = useState("");
+  const [terrainSamples, setTerrainSamples] = useState<TerrainSample[]>([]);
+
+  // Stable refs for callbacks to avoid re-creating the map
   const readOnlyRef = useRef(readOnly);
-  const fenceUpdateRef = useRef(onFenceUpdate);
-  useEffect(() => { fenceUpdateRef.current = onFenceUpdate; }, [onFenceUpdate]);
   const onAddRef = useRef(onAdd);
   const onUpdateRef = useRef(onUpdate);
-  const [error, setError] = useState("");
-  const [mapReady, setMapReady] = useState<Leaflet.Map | null>(null);
+  const fenceUpdateRef = useRef(onFenceUpdate);
+
   useEffect(() => { readOnlyRef.current = readOnly; }, [readOnly]);
   useEffect(() => { onAddRef.current = onAdd; }, [onAdd]);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+  useEffect(() => { fenceUpdateRef.current = onFenceUpdate; }, [onFenceUpdate]);
 
+  // ---- Mount / teardown ----
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
-    let resizeFrame: number | undefined;
-    void import("leaflet").then(({ default: L }) => {
+
+    void import("maplibre-gl").then(({ Map, NavigationControl, ScaleControl }) => {
       if (cancelled || !containerRef.current) return;
-      // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
-      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, wheelPxPerZoomLevel: 240, wheelDebounceTime: 80, zoomSnap: 0.25, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
+
+      const map = new Map({
+        container: containerRef.current,
+        style: droneOpsMapStyle(),
+        center: MAP_CENTER,
+        zoom: MAP_ZOOM,
+        pitch: 0,
+        bearing: 0,
+        attributionControl: { compact: true },
+      });
+
       mapRef.current = map;
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
-        attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
-      }).on("tileerror", () => setError("Basemap tile could not be loaded.")).addTo(map);
-      geofences.forEach(zone => {
-        const coordinates = zone.coordinates.filter(point => valid(point.latitude, point.longitude));
-        if (coordinates.length < 3) return;
-        const info = describeGeofence(zone);
-        const polygon = L.polygon(coordinates.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple), {
-          color: info.color, fillColor: info.color, weight: 1.2,
-          fillOpacity: info.category === "prohibited" ? .34 : .25, bubblingMouseEvents: false,
+
+      map.addControl(new NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }), "bottom-left");
+      map.addControl(new ScaleControl({ maxWidth: 150, unit: "metric" }), "bottom-right");
+
+      map.on("load", () => {
+        if (cancelled) return;
+        setMapReady(true);
+        setError("");
+      });
+
+      map.on("click", (event: MapMouseEvent) => {
+        if (readOnlyRef.current) return;
+        // Avoid firing when clicking a marker or fence handle
+        const target = event.originalEvent.target as HTMLElement;
+        if (target.closest(".waypoint-marker-shell") || target.closest(".fence-handle")) return;
+        onAddRef.current?.(event.lngLat.lng, event.lngLat.lat);
+      });
+
+      // Geofence popup on click
+      map.on("click", GEOFENCE_FILL_LAYER, (event) => {
+        const props = event.features?.[0]?.properties;
+        if (!props) return;
+        popupRef.current?.remove();
+        void import("maplibre-gl").then(({ Popup }) => {
+          const popup = new Popup({ closeButton: true, maxWidth: "240px" })
+            .setLngLat(event.lngLat)
+            .setHTML(`<div class="airspace-popup"><strong>${String(props.name ?? "")}</strong><span>${String(props.categoryLabel ?? "")}</span><span>${String(props.limitLabel ?? "")}</span></div>`)
+            .addTo(map);
+          popupRef.current = popup;
         });
-        const popup = document.createElement("div"); popup.className = "airspace-popup";
-        const title = document.createElement("strong"); title.textContent = zone.name;
-        const category = document.createElement("span"); category.textContent = info.label;
-        const limits = document.createElement("span"); limits.textContent = info.limitLabel;
-        popup.append(title, category, limits);
-        polygon.bindPopup(popup).addTo(map);
       });
-      map.on("click", event => { if (!readOnlyRef.current) onAddRef.current?.(event.latlng.lng, event.latlng.lat); });
-      resizeFrame = requestAnimationFrame(() => {
-        if (!cancelled) map.invalidateSize({ animate: false, pan: false });
-      });
-      setMapReady(map);
-      setError("");
-    }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Map could not be loaded."); });
+
+      map.on("mouseenter", GEOFENCE_FILL_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", GEOFENCE_FILL_LAYER, () => { map.getCanvas().style.cursor = ""; });
+
+    }).catch((reason: unknown) => {
+      if (!cancelled) setError(reason instanceof Error ? reason.message : "Map could not be loaded.");
+    });
+
     return () => {
       cancelled = true;
-      if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
-      highlightRef.current.forEach(line => line.remove()); highlightRef.current = [];
-      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
-      routeRef.current = null;
-      mapRef.current?.stop();
-      mapRef.current?.remove();
+      fenceHandlesRef.current.forEach(m => m.remove());
+      fenceHandlesRef.current = [];
+      popupRef.current?.remove();
+      popupRef.current = null;
+      if (mapRef.current) {
+        try { removeAllLayers(mapRef.current as unknown as Parameters<typeof removeAllLayers>[0]); } catch { /* teardown */ }
+        mapRef.current.remove();
+      }
       mapRef.current = null;
+      setMapReady(false);
     };
-  }, [geofences]);
+  }, []);
 
+  // ---- Update geofences ----
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || mapReady !== map) return;
+    if (!map || !mapReady) return;
+    setGeofences(map as unknown as Parameters<typeof setGeofences>[0], geofences);
+  }, [geofences, mapReady]);
+
+  // ---- Update route, waypoint markers, findings ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
     let cancelled = false;
-    void import("leaflet").then(({ default: L }) => {
+
+    void import("maplibre-gl").then(({ Marker, Popup }) => {
       if (cancelled || mapRef.current !== map) return;
-      highlightRef.current.forEach(line => line.remove()); highlightRef.current = [];
-      markersRef.current.forEach(marker => marker.remove());
+
+      // Clear old markers
+      markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
-      if (routeRef.current && map.hasLayer(routeRef.current)) routeRef.current.remove();
-      routeRef.current = null;
-      if (waypoints.some(point => !Number.isFinite(point.latitude) || Math.abs(point.latitude) > 90 || !Number.isFinite(point.longitude) || Math.abs(point.longitude) > 180)) return;
-      markersRef.current = waypoints.map((point, index) => {
-        const marker = L.marker([point.latitude, point.longitude], {
+
+      // Validate coordinates
+      if (waypoints.some(p => !Number.isFinite(p.latitude) || Math.abs(p.latitude) > 90 || !Number.isFinite(p.longitude) || Math.abs(p.longitude) > 180)) return;
+
+      // Waypoint markers
+      waypoints.forEach((point, index) => {
+        const hasIssue = findings?.some(f => f.waypointSequence === point.sequenceOrder);
+        const el = document.createElement("div");
+        el.className = "waypoint-marker-shell";
+        el.innerHTML = `<span class="waypoint-marker"${hasIssue ? ' style="background:#ef3340;border-color:#ef3340"' : ""}><b>${index + 1}</b></span>`;
+
+        const marker = new Marker({
+          element: el,
           draggable: !readOnly,
-          icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker" ${findings?.some(f => f.waypointSequence === point.sequenceOrder) ? 'style="background:#ef3340;border-color:#ef3340"' : ""}><b>${index + 1}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }),
-        }).bindTooltip(point.actionType === "TakeOff" ? "Takeoff/Home" : point.actionType === "Return" ? "Return/RTL · visit this point, then return to FC Home" : point.actionType).addTo(map);
-        if (!readOnly) marker.on("dragend", () => { if (readOnlyRef.current) return; const value = marker.getLatLng(); onUpdateRef.current?.(index, { latitude: Number(value.lat.toFixed(6)), longitude: Number(value.lng.toFixed(6)) }); });
-        return marker;
+          anchor: "bottom",
+        })
+          .setLngLat([point.longitude, point.latitude])
+          .addTo(map);
+
+        const tooltipText = point.actionType === "TakeOff"
+          ? "Takeoff/Home"
+          : point.actionType === "Return"
+            ? "Return/RTL · visit this point, then return to FC Home"
+            : point.actionType;
+
+        const popup = new Popup({ offset: 24, closeButton: false }).setText(tooltipText);
+        marker.setPopup(popup);
+
+        if (!readOnly) {
+          marker.on("dragend", () => {
+            if (readOnlyRef.current) return;
+            const lngLat = marker.getLngLat();
+            onUpdateRef.current?.(index, {
+              latitude: Number(lngLat.lat.toFixed(6)),
+              longitude: Number(lngLat.lng.toFixed(6)),
+            });
+          });
+        }
+
+        markersRef.current.push(marker);
       });
+
+      // Planned home marker
       if (plannedHome && Number.isFinite(plannedHome.latitude) && Number.isFinite(plannedHome.longitude)) {
-        const homeMarker = L.marker([plannedHome.latitude, plannedHome.longitude], {
-          icon: L.divIcon({ className: "waypoint-marker-shell", html: '<span class="waypoint-marker" style="background:#ffc857;color:#101a27;border-color:#fff"><b>H</b></span>', iconSize: [30, 30], iconAnchor: [15, 30] }),
-        }).bindTooltip("Planned Home").addTo(map);
+        const homeEl = document.createElement("div");
+        homeEl.className = "waypoint-marker-shell";
+        homeEl.innerHTML = '<span class="waypoint-marker" style="background:#ffc857;color:#101a27;border-color:#fff"><b>H</b></span>';
+
+        const homeMarker = new Marker({ element: homeEl, anchor: "bottom" })
+          .setLngLat([plannedHome.longitude, plannedHome.latitude])
+          .addTo(map);
+
+        const homePopup = new Popup({ offset: 24, closeButton: false }).setText("Planned Home");
+        homeMarker.setPopup(homePopup);
         markersRef.current.push(homeMarker);
       }
-      if (waypoints.length > 1) {
-        const positions: Leaflet.LatLngTuple[] = waypoints.map(point => [point.latitude, point.longitude]);
-        if (waypoints.at(-1)?.actionType === "Return") positions.push([waypoints[0].latitude, waypoints[0].longitude]);
-        routeRef.current = L.polyline(positions, { color: "#25d6ff", weight: 4, opacity: .95 }).addTo(map);
-      }
-      for (const finding of findings ?? []) {
-        if (finding.segmentFrom == null || finding.segmentTo == null) continue;
-        const first = waypoints.find(point => point.sequenceOrder === finding.segmentFrom), last = waypoints.find(point => point.sequenceOrder === finding.segmentTo);
-        if (first && last) { const note = document.createElement("span"); note.textContent = finding.reason; highlightRef.current.push(L.polyline([[first.latitude, first.longitude], [last.latitude, last.longitude]], { color: "#ef3340", weight: 6 }).bindTooltip(note).addTo(map)); }
-      }
+
+      // Route line
+      setRoute(map as unknown as Parameters<typeof setRoute>[0], waypoints);
+
+      // Findings (red segments)
+      setFindings(map as unknown as Parameters<typeof setFindings>[0], waypoints, findings);
+
+      // Fit bounds
       if (waypoints.length > 0) {
-        const bounds = L.latLngBounds(waypoints.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple));
-        map.fitBounds(bounds, { padding: [44, 44], maxZoom: 16, animate: false });
+        const lngs = waypoints.map(p => p.longitude);
+        const lats = waypoints.map(p => p.latitude);
+        map.fitBounds(
+          [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+          { padding: 44, maxZoom: 16, animate: false },
+        );
       }
     });
+
     return () => { cancelled = true; };
   }, [waypoints, mapReady, readOnly, findings, plannedHome]);
 
+  // ---- Update mission fences and draft fence ----
   useEffect(() => {
-    if (!mapReady) return;
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
     let cancelled = false;
-    let layer: Leaflet.LayerGroup | null = null;
-    void import("leaflet").then(({ default: L }) => {
-      if (cancelled || mapRef.current !== mapReady) return;
-      layer = L.layerGroup().addTo(mapReady);
-      const color = "#58e6b0";
-      const handle = () => L.divIcon({className:"",html:'<span style="display:block;width:16px;height:16px;border:3px solid #fff;border-radius:50%;background:#14785e;box-shadow:0 1px 6px #0008"></span>',iconSize:[16,16],iconAnchor:[8,8]});
-      const latlng = (p: GeofenceCoordinate): Leaflet.LatLngTuple => [p.latitude, p.longitude];
-      for (const fence of missionFences) {
-        if (fence.shape === "Circle" && fence.center && Number.isFinite(fence.center.latitude) && Number.isFinite(fence.center.longitude) && Number.isFinite(fence.radiusMeters) && fence.radiusMeters! > 0) {
-          L.circle(latlng(fence.center), {radius: fence.radiusMeters!,color,fillOpacity:.1,weight:2}).bindTooltip("Permitted circle").addTo(layer);
-          if(!readOnly) L.marker(latlng(fence.center),{draggable:true,icon:handle()}).bindTooltip("Drag fence center").on("dragend",event=>{
-            if(readOnlyRef.current) return;
-            const p=(event.target as Leaflet.Marker).getLatLng();
-            fenceUpdateRef.current?.({...fence,center:{latitude:p.lat,longitude:p.lng}});
-          }).addTo(layer);
-        } else if(fence.shape === "Polygon" && fence.vertices?.length && fence.vertices.every(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))) {
-          L.polygon(fence.vertices.map(latlng),{color,fillOpacity:.1,weight:2}).bindTooltip("Permitted polygon").addTo(layer);
-          if(!readOnly) fence.vertices.forEach((p,i)=> L.marker(latlng(p),{draggable:true,icon:handle()}).bindTooltip(`Fence vertex ${i+1}`).on("dragend",event=>{
-            if(readOnlyRef.current) return;
-            const location=(event.target as Leaflet.Marker).getLatLng();
-            fenceUpdateRef.current?.({...fence,vertices:fence.vertices!.map((v,j)=>j===i?{latitude:location.lat,longitude:location.lng}:v)});
-          }).addTo(layer!));
+
+    void import("maplibre-gl").then(({ Marker }) => {
+      if (cancelled || mapRef.current !== map) return;
+
+      // Clear fence handles
+      fenceHandlesRef.current.forEach(m => m.remove());
+      fenceHandlesRef.current = [];
+
+      const castMap = map as unknown as Parameters<typeof setMissionFenceLayers>[0];
+
+      // Set mission fence layers
+      setMissionFenceLayers(castMap, missionFences);
+
+      // Add draggable handles for fence editing (non read-only)
+      if (!readOnly) {
+        for (const fence of missionFences) {
+          if (fence.shape === "Circle" && fence.center && Number.isFinite(fence.center.latitude) && Number.isFinite(fence.center.longitude)) {
+            const handleEl = document.createElement("span");
+            handleEl.className = "fence-handle";
+            handleEl.title = "Drag fence center";
+            const handle = new Marker({ element: handleEl, draggable: true })
+              .setLngLat([fence.center.longitude, fence.center.latitude])
+              .addTo(map);
+            handle.on("dragend", () => {
+              if (readOnlyRef.current) return;
+              const p = handle.getLngLat();
+              fenceUpdateRef.current?.({ ...fence, center: { latitude: p.lat, longitude: p.lng } });
+            });
+            fenceHandlesRef.current.push(handle);
+          } else if (fence.shape === "Polygon" && fence.vertices?.length) {
+            fence.vertices.forEach((v, vi) => {
+              const handleEl = document.createElement("span");
+              handleEl.className = "fence-handle";
+              handleEl.title = `Fence vertex ${vi + 1}`;
+              const handle = new Marker({ element: handleEl, draggable: true })
+                .setLngLat([v.longitude, v.latitude])
+                .addTo(map);
+              handle.on("dragend", () => {
+                if (readOnlyRef.current) return;
+                const p = handle.getLngLat();
+                fenceUpdateRef.current?.({
+                  ...fence,
+                  vertices: fence.vertices!.map((vert, j) =>
+                    j === vi ? { latitude: p.lat, longitude: p.lng } : vert
+                  ),
+                });
+              });
+              fenceHandlesRef.current.push(handle);
+            });
+          }
         }
       }
-      if(draftFence.length) {
-        L.polyline(draftFence.map(latlng),{color:"#ffc857",dashArray:"6 4"}).addTo(layer);
-        draftFence.forEach(p=>L.circleMarker(latlng(p),{radius:5,color:"#ffc857"}).addTo(layer!));
-      }
+
+      // Draft fence
+      setDraftFence(castMap, draftFence);
     });
-    return ()=>{cancelled=true;layer?.remove();};
+
+    return () => { cancelled = true; };
   }, [mapReady, missionFences, draftFence, readOnly]);
 
-  return <div className="mission-map-wrap">
-    <div ref={containerRef} className="mission-map" />
-    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : drawingFence ? `DRAW ${drawingFence.toUpperCase()} FENCE` : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS</div>
-    <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
-    {error && <div className="mission-map-error" role="alert">{error}</div>}
-  </div>;
+  // ---- 2D / 3D mode switch ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    if (mode === "3d") {
+      enableTerrain(map as unknown as Parameters<typeof enableTerrain>[0]);
+      add3DBuildings(map as unknown as Parameters<typeof add3DBuildings>[0]);
+      map.easeTo({ pitch: 60, duration: 500 });
+    } else {
+      disableTerrain(map as unknown as Parameters<typeof disableTerrain>[0]);
+      remove3DBuildings(map as unknown as Parameters<typeof remove3DBuildings>[0]);
+      map.easeTo({ pitch: 0, bearing: 0, duration: 500 });
+    }
+  }, [mode, mapReady]);
+
+  // ---- Sample terrain for elevation profile after mode switch ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || mode !== "3d" || waypoints.length < 2) {
+      setTerrainSamples([]);
+      return;
+    }
+    // Wait for terrain tiles to render, then sample
+    const timer = setTimeout(() => {
+      if (mapRef.current !== map) return;
+      const samples = sampleRouteElevations(map, waypoints);
+      setTerrainSamples(samples);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [mode, mapReady, waypoints]);
+
+  // ---- Toolbar handlers ----
+  const handleResetNorth = useCallback(() => {
+    mapRef.current?.easeTo({ bearing: 0, pitch: mode === "3d" ? 60 : 0, duration: 400 });
+  }, [mode]);
+
+  const handleFitRoute = useCallback(() => {
+    if (!mapRef.current || waypoints.length === 0) return;
+    const lngs = waypoints.map(p => p.longitude);
+    const lats = waypoints.map(p => p.latitude);
+    mapRef.current.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 44, maxZoom: 16, animate: true },
+    );
+  }, [waypoints]);
+
+  const handleFullscreen = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    if (document.fullscreenElement === el) {
+      void document.exitFullscreen();
+    } else {
+      void el.requestFullscreen();
+    }
+  }, []);
+
+  return (
+    <div className="mission-map-wrap mission-map-3d-wrap" ref={wrapRef}>
+      <div ref={containerRef} className="mission-map" />
+
+      <MapToolbar
+        mode={mode}
+        onModeChange={setMode}
+        onResetNorth={handleResetNorth}
+        onFitRoute={handleFitRoute}
+        onFullscreen={handleFullscreen}
+        disabled={!mapReady}
+      />
+
+      <div className="map-hint">
+        {readOnly
+          ? "ROUTE PREVIEW"
+          : drawingFence
+            ? `DRAW ${drawingFence.toUpperCase()} FENCE`
+            : pickingHome
+              ? "CLICK TO SET PLANNED HOME"
+              : "CLICK TO ADD · DRAG TO ADJUST"}{" "}
+        · {waypoints.length} WAYPOINTS
+        {mode === "3d" && " · 3D TERRAIN"}
+      </div>
+
+      <div className="airspace-map-legend">
+        <span className="prohibited">Vùng cấm bay</span>
+        <span className="restricted">Vùng giới hạn bay</span>
+      </div>
+
+      {mode === "3d" && (
+        <div className="terrain-disclaimer">
+          ⚠ Building heights are estimates. Terrain does not detect obstacles.
+          Verify against site survey.
+        </div>
+      )}
+
+      {error && <div className="mission-map-error" role="alert">{error}</div>}
+
+      {waypoints.length >= 2 && (
+        <ElevationProfile
+          waypoints={waypoints}
+          terrainSamples={terrainSamples}
+          altitudeReference={waypoints[0]?.navigation?.plannedHome ? "Planned Home" : ""}
+        />
+      )}
+    </div>
+  );
 }
