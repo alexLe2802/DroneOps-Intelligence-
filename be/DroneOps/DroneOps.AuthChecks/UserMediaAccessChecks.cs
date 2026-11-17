@@ -50,7 +50,7 @@ internal static class UserMediaAccessChecks
             if (Directory.Exists(localRoot)) Directory.Delete(localRoot, true);
         }
 
-        // Every network operation must use Supabase even with an opaque secret key.
+        // Local storage is explicit; missing media must remain a recoverable error.
         foreach (var missingPath in new[] { $"licenses/{Guid.NewGuid():N}/{Guid.NewGuid():N}.pdf", $"avatars/{Guid.NewGuid():N}/{Guid.NewGuid():N}", $"uavs/{Guid.NewGuid():N}/{Guid.NewGuid():N}.jpg" })
         {
             var missingConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
@@ -63,13 +63,15 @@ internal static class UserMediaAccessChecks
         foreach (var provider in new string?[] { null, "Supabase" })
         foreach (var key in new[] { "sb_secret_fixture", "eyJ.fixture" })
         {
-            var handler = new CaptureHandler(key, key.StartsWith("eyJ") ? key : null);
+            var bearer = key.StartsWith("eyJ") ? key : "eyJ.fixture-authorization";
+            var handler = new CaptureHandler(key, bearer);
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["UserMediaStorage:Provider"] = provider,
                 ["UserMediaStorage:LocalRoot"] = localRoot,
                 ["SupabaseStorage:Url"] = "https://storage.invalid",
-                ["SupabaseStorage:ServiceKey"] = key
+                ["SupabaseStorage:ServiceKey"] = key,
+                ["SupabaseStorage:AuthorizationToken"] = key.StartsWith("eyJ") ? null : bearer
             }).Build();
             var storage = new UserMediaStorage(new HttpClient(handler), configuration);
             await storage.UploadAsync(path, new MemoryStream([0xFF, 0xD8, 0xFF]), "image/jpeg");
@@ -106,15 +108,20 @@ internal static class UserMediaAccessChecks
             try { await new UserMediaStorage(new HttpClient(handler), configuration).SignAsync(checkPath); throw new Exception("invalid server credential accepted"); }
             catch (InvalidOperationException) { Check(handler.Requests == 0, "missing or public credentials fail before contacting storage"); }
         }
+        var secretWithoutJwtHandler = new CaptureHandler("sb_secret_fixture", null);
+        var secretWithoutJwtConfiguration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["SupabaseStorage:ServiceKey"] = "sb_secret_fixture" }).Build();
+        try { await new UserMediaStorage(new HttpClient(secretWithoutJwtHandler), secretWithoutJwtConfiguration).SignAsync(checkPath); throw new Exception("incomplete server credential accepted"); }
+        catch (InvalidOperationException) { Check(secretWithoutJwtHandler.Requests == 0, "sb_secret credential without authorization JWT fails before contacting storage"); }
         var overrideHandler = new CaptureHandler("sb_secret_fixture", "eyJ.override");
         var overrideConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         { ["SupabaseStorage:Url"] = "https://storage.invalid", ["SupabaseStorage:ServiceKey"] = "sb_secret_fixture", ["SupabaseStorage:AuthorizationToken"] = "eyJ.override" }).Build();
         await new UserMediaStorage(new HttpClient(overrideHandler), overrideConfiguration).SignAsync(checkPath);
         Check(overrideHandler.Requests == 1, "explicit legacy authorization override remains supported");
 
-        var failingHandler = new CaptureHandler("sb_secret_fixture", null) { Fail = true };
+        var failingHandler = new CaptureHandler("eyJ.fixture", "eyJ.fixture") { Fail = true };
         var failingConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        { ["SupabaseStorage:ServiceKey"] = "sb_secret_fixture", ["UserMediaStorage:LocalRoot"] = localRoot }).Build();
+        { ["SupabaseStorage:ServiceKey"] = "eyJ.fixture", ["UserMediaStorage:LocalRoot"] = localRoot }).Build();
         try { await new UserMediaStorage(new HttpClient(failingHandler), failingConfiguration).UploadAsync(checkPath, new MemoryStream([1]), "image/jpeg"); throw new Exception("storage failure swallowed"); }
         catch (HttpRequestException) { Check(!Directory.Exists(localRoot), "Supabase failure never writes to local storage"); }
         Console.WriteLine("Private media access checks passed.");

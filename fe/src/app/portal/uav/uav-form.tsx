@@ -118,11 +118,37 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
     setError("");
     try {
       let id: string;
-      let submitted: "create" | "update";
+      let submitted: "create" | "update" | null;
       if (aircraft) {
-        await updateAssignedUav(aircraft.id, { ...request, expectedVersion: aircraft.registryVersion });
         id = aircraft.id;
-        submitted = "update";
+        const approvedRequest: CreateUavRequest = {
+          code: aircraft.code.trim().toUpperCase(),
+          name: aircraft.name.trim(),
+          manufacturer: aircraft.manufacturer?.trim() || null,
+          model: aircraft.model?.trim() || null,
+          serialNumber: aircraft.serialNumber?.trim() || null,
+          emptyWeightKg: aircraft.emptyWeightKg,
+          maxTakeoffWeightKg: aircraft.maxTakeoffWeightKg,
+          maxPayloadKg: aircraft.maxPayloadKg,
+          batteryType: aircraft.batteryType?.trim() || null,
+          batteryCapacityMah: aircraft.batteryCapacityMah,
+          batteryVoltage: aircraft.batteryVoltage,
+          batteryMaxVoltage: aircraft.batteryMaxVoltage,
+          batteryCellCount: aircraft.batteryCellCount,
+          maxFlightTimeMinutes: aircraft.maxFlightTimeMinutes,
+          maxRangeKm: aircraft.maxRangeKm,
+          maxSpeedKmh: aircraft.maxSpeedKmh,
+          maxWindSpeedMps: aircraft.maxWindSpeedMps,
+          maxOperatingAltitudeMeters: aircraft.maxOperatingAltitudeMeters,
+          purchaseDate: aircraft.purchaseDate ?? null,
+        };
+        const registryChanged = JSON.stringify(request) !== JSON.stringify(approvedRequest);
+        if (registryChanged) {
+          await updateAssignedUav(aircraft.id, { ...request, expectedVersion: aircraft.registryVersion });
+          submitted = "update";
+        } else {
+          submitted = null;
+        }
       } else {
         const result = await createUav(request);
         id = result.id;
@@ -137,7 +163,8 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
           imageUploadMessage = reason instanceof Error ? reason.message : "The image upload failed before manager review could start.";
         }
       }
-      const detailQuery = new URLSearchParams({ submitted });
+      const detailQuery = new URLSearchParams();
+      if (submitted) detailQuery.set("submitted", submitted);
       if (imageUploadFailed) {
         detailQuery.set("imageUpload", "failed");
         detailQuery.set("imageUploadMessage", imageUploadMessage);

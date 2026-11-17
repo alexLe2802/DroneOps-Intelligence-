@@ -428,19 +428,18 @@ public sealed class UavService : IUavService
                 cancellationToken);
         }
 
-        var oldPendingPath = uav.PendingImageStoragePath;
+        var oldPath = uav.ImageStoragePath;
 
-        // Keep the currently approved image unchanged until a manager decides.
-        uav.PendingImageStoragePath = newPath;
-        uav.PendingImageContentType = normalizedContentType;
-        uav.PendingImageSubmittedAt = DateTimeOffset.UtcNow;
-        uav.PendingImageSubmittedBy = actorUserId;
-        uav.ImageModerationStatus = "Pending";
+        // UAV images are optional media and are published immediately. Managers may
+        // remove inappropriate content later without changing operational approval.
+        uav.ImageStoragePath = newPath;
+        uav.ImageContentType = normalizedContentType;
+        uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
+        uav.ImageModerationStatus = null;
         uav.ImageModerationAttempts = 0;
         uav.ImageModerationNextAttemptAt = null;
         uav.ImageModeratedAt = null;
-        uav.ImageReviewedBy = null;
-        uav.ImageModerationReason = "Waiting for manager review.";
+        uav.ImageModerationReason = null;
 
         // Image moderation is independent from operational approval. Replacing an
         // optional image must not deactivate the UAV or disrupt assigned missions.
@@ -457,17 +456,15 @@ public sealed class UavService : IUavService
             throw;
         }
 
-        // A superseded proposal can be deleted only after the new proposal is durable.
-        if (!string.IsNullOrWhiteSpace(oldPendingPath) &&
+        // Delete the replaced object only after the new image path is durable.
+        if (!string.IsNullOrWhiteSpace(oldPath) &&
             !string.Equals(
-                oldPendingPath,
+                oldPath,
                 newPath,
                 StringComparison.Ordinal))
         {
-            await CleanupImageAsync(oldPendingPath);
+            await CleanupImageAsync(oldPath);
         }
-
-        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(
             uav,
@@ -482,16 +479,6 @@ public sealed class UavService : IUavService
         if (uav is null || string.IsNullOrWhiteSpace(uav.ImageStoragePath)) return null;
         return (await _storage.SignAsync(uav.ImageStoragePath, cancellationToken),
             uav.ImageContentType ?? "application/octet-stream");
-    }
-
-    public async Task<(string Url, string ContentType)?> GetPendingUavImageAsync(
-        Guid uavId,
-        CancellationToken cancellationToken = default)
-    {
-        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
-        if (uav is null || string.IsNullOrWhiteSpace(uav.PendingImageStoragePath)) return null;
-        return (await _storage.SignAsync(uav.PendingImageStoragePath, cancellationToken),
-            uav.PendingImageContentType ?? "application/octet-stream");
     }
 
     public async Task<bool> DeleteUavImageAsync(
@@ -515,7 +502,7 @@ public sealed class UavService : IUavService
             actorUserId,
             actorRole);
 
-        var oldPaths = new[] { uav.ImageStoragePath, uav.PendingImageStoragePath }
+        var oldPaths = new[] { uav.ImageStoragePath }
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Cast<string>()
             .Distinct(StringComparer.Ordinal)
@@ -531,15 +518,10 @@ public sealed class UavService : IUavService
         uav.ImageStoragePath = null;
         uav.ImageContentType = null;
         uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
-        uav.PendingImageStoragePath = null;
-        uav.PendingImageContentType = null;
-        uav.PendingImageSubmittedAt = null;
-        uav.PendingImageSubmittedBy = null;
         uav.ImageModerationStatus = null;
         uav.ImageModerationAttempts = 0;
         uav.ImageModerationNextAttemptAt = null;
         uav.ImageModeratedAt = null;
-        uav.ImageReviewedBy = null;
         uav.ImageModerationReason = null;
 
         // Removing an optional image does not change operational approval.
@@ -550,8 +532,6 @@ public sealed class UavService : IUavService
 
         // DB thành công rồi mới xóa file trên storage
         foreach (var path in oldPaths) await CleanupImageAsync(path);
-
-        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return true;
     }
@@ -570,24 +550,20 @@ public sealed class UavService : IUavService
 
         var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
         if (uav is null) return null;
-        if (string.IsNullOrWhiteSpace(uav.PendingImageStoragePath) ||
-            !string.Equals(uav.ImageModerationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("This UAV has no pending image to reject.");
+        if (string.IsNullOrWhiteSpace(uav.ImageStoragePath))
+            throw new InvalidOperationException("This UAV has no image to remove.");
 
-        var rejectedPath = uav.PendingImageStoragePath;
-        uav.PendingImageStoragePath = null;
-        uav.PendingImageContentType = null;
-        uav.PendingImageSubmittedAt = null;
-        uav.PendingImageSubmittedBy = null;
+        var rejectedPath = uav.ImageStoragePath;
+        uav.ImageStoragePath = null;
+        uav.ImageContentType = null;
+        uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
         uav.ImageModerationStatus = "Rejected";
         uav.ImageModerationAttempts = 0;
         uav.ImageModerationNextAttemptAt = null;
         uav.ImageModeratedAt = DateTimeOffset.UtcNow;
-        uav.ImageReviewedBy = managerUserId;
         uav.ImageModerationReason = normalizedReason;
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await CleanupImageAsync(rejectedPath);
-        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         try
         {
@@ -595,7 +571,7 @@ public sealed class UavService : IUavService
                 uav.Pilot.UserId,
                 "UavImageRejected",
                 "UAV Image Rejected",
-                $"The proposed image for UAV '{uav.Code} - {uav.Name}' was rejected. The approved image was kept. Reason: {normalizedReason}",
+                $"The image for UAV '{uav.Code} - {uav.Name}' was removed by a manager. Reason: {normalizedReason}",
                 managerUserId,
                 uav.Id,
                 "UAV",
@@ -605,60 +581,6 @@ public sealed class UavService : IUavService
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(exception, "Could not publish image rejection for UAV {UavId}.", uav.Id);
-        }
-
-        return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
-    }
-
-    public async Task<UavResponse?> ApproveUavImageAsync(
-        Guid uavId,
-        Guid managerUserId,
-        string reason,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedReason = reason?.Trim();
-        if (string.IsNullOrWhiteSpace(normalizedReason))
-            throw new ArgumentException("An approval reason is required.");
-        if (normalizedReason.Length > 500)
-            throw new ArgumentException("The approval reason must be 500 characters or fewer.");
-
-        var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
-        if (uav is null) return null;
-        if (string.IsNullOrWhiteSpace(uav.PendingImageStoragePath) ||
-            !string.Equals(uav.ImageModerationStatus, "Pending", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("This UAV has no pending image to approve.");
-
-        var oldApprovedPath = uav.ImageStoragePath;
-        uav.ImageStoragePath = uav.PendingImageStoragePath;
-        uav.ImageContentType = uav.PendingImageContentType;
-        uav.ImageUpdatedAt = DateTimeOffset.UtcNow;
-        uav.PendingImageStoragePath = null;
-        uav.PendingImageContentType = null;
-        uav.PendingImageSubmittedAt = null;
-        uav.PendingImageSubmittedBy = null;
-        uav.ImageModerationStatus = "Approved";
-        uav.ImageModerationAttempts = 0;
-        uav.ImageModerationNextAttemptAt = null;
-        uav.ImageModeratedAt = DateTimeOffset.UtcNow;
-        uav.ImageReviewedBy = managerUserId;
-        uav.ImageModerationReason = normalizedReason;
-        await _uavRepository.SaveChangesAsync(cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(oldApprovedPath) &&
-            !string.Equals(oldApprovedPath, uav.ImageStoragePath, StringComparison.Ordinal))
-            await CleanupImageAsync(oldApprovedPath);
-
-        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
-        try
-        {
-            await _notificationService.PublishToUserAsync(
-                uav.Pilot.UserId, "UavImageApproved", "UAV Image Approved",
-                $"The proposed image for UAV '{uav.Code} - {uav.Name}' was approved.",
-                managerUserId, uav.Id, "UAV", $"/portal/uav/{uav.Id}", cancellationToken);
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogWarning(exception, "Could not publish image approval for UAV {UavId}.", uav.Id);
         }
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
@@ -725,7 +647,6 @@ public sealed class UavService : IUavService
         }
 
         EnsureStatus(uav, "Pending", "approve");
-        EnsureImageModerationAllowsApproval(uav);
         uav.Status = "Active";
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
@@ -762,7 +683,6 @@ public sealed class UavService : IUavService
                 $"Cannot activate UAV with status '{uav.Status}'. Only Pending or Inactive UAVs can be activated.");
         }
 
-        EnsureImageModerationAllowsApproval(uav);
 
         if (!currentStatus.Equals("Active", StringComparison.OrdinalIgnoreCase))
         {
@@ -837,26 +757,6 @@ public sealed class UavService : IUavService
             throw new InvalidOperationException(
                 $"Cannot {action} UAV with status '{uav.Status}'. Only {expectedStatus} UAVs can be {action}d.");
         }
-    }
-
-    private static void EnsureImageModerationAllowsApproval(UAV uav)
-    {
-        if (string.IsNullOrWhiteSpace(uav.ImageStoragePath)) return;
-
-        var status = uav.ImageModerationStatus?.Trim();
-        if (string.Equals(status, "Approved", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        if (string.Equals(status, "Rejected", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                "The proposed UAV image was rejected by a manager. Replace it before approving the UAV.");
-        }
-
-        throw new InvalidOperationException(
-            "The proposed UAV image is waiting for manager review.");
     }
 
     private static void EnsureImagePermission(UAV uav, Guid actorUserId, string actorRole)
@@ -968,11 +868,6 @@ public sealed class UavService : IUavService
             ImageModerationStatus = uav.ImageModerationStatus,
             ImageModeratedAt = uav.ImageModeratedAt,
             ImageModerationReason = uav.ImageModerationReason,
-            PendingImageUrl = string.IsNullOrWhiteSpace(uav.PendingImageStoragePath)
-                ? null
-                : $"/api/admin/uavs/{uav.Id}/image/pending?v={Uri.EscapeDataString(uav.PendingImageStoragePath)}",
-            PendingImageSubmittedAt = uav.PendingImageSubmittedAt,
-
             CreatedAt = uav.CreatedAt
         };
     }

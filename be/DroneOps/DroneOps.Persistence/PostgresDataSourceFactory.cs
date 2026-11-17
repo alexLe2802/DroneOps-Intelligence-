@@ -9,10 +9,16 @@ public static class PostgresDataSourceFactory
     {
         var settings = new NpgsqlConnectionStringBuilder(connectionString);
 
-        // Supabase's transaction pooler on 6543 intermittently stalls even for
-        // SELECT 1 in this environment. Its session pooler uses the same TLS host
-        // and credentials and keeps application authentication requests reliable.
-        if (settings.Port == 6543) settings.Port = 5432;
+        // Respect the configured Supabase endpoint. Port 5432 is the session pooler
+        // and 6543 is the transaction pooler; silently rewriting one to the other
+        // makes connection incidents impossible to diagnose or work around.
+        var configuredPort = Environment.GetEnvironmentVariable("DRONEOPS_DB_PORT");
+        if (!string.IsNullOrWhiteSpace(configuredPort))
+        {
+            if (!int.TryParse(configuredPort, out var port) || port is < 1 or > 65535)
+                throw new InvalidOperationException("DRONEOPS_DB_PORT must be a valid TCP port.");
+            settings.Port = port;
+        }
 
         // Local configs may point at the original developer's machine. Resolve
         // relative CA paths from the repository root when that path is absent.
@@ -33,6 +39,10 @@ public static class PostgresDataSourceFactory
 
         // Keep automatic prepared statements disabled so either pooler mode is safe.
         settings.MaxAutoPrepare = 0;
+        // Supabase transaction mode owns the server session. Npgsql must not issue
+        // DISCARD ALL when a logical connection closes because Supavisor may still
+        // be inside its transaction wrapper (PostgreSQL 25001).
+        settings.NoResetOnClose = settings.Port == 6543;
         settings.Pooling = true;
         // A Free Plan database has a small connection budget. Npgsql defaults to
         // 100 pooled connections per process, which can overwhelm Supavisor's
@@ -42,7 +52,11 @@ public static class PostgresDataSourceFactory
         settings.MaxPoolSize = Math.Min(settings.MaxPoolSize, 8);
         settings.ConnectionIdleLifetime = Math.Min(settings.ConnectionIdleLifetime, 60);
         settings.ConnectionPruningInterval = Math.Min(settings.ConnectionPruningInterval, 10);
-        settings.Timeout = Math.Min(settings.Timeout, 8);
+        // Remote TLS and SCRAM negotiation can legitimately exceed eight seconds
+        // during a pooler recovery. Keep startup bounded without causing false
+        // connection failures on a healthy but briefly busy endpoint.
+        settings.Timeout = Math.Clamp(settings.Timeout, 15, 30);
+        settings.CommandTimeout = Math.Clamp(settings.CommandTimeout, 15, 30);
         settings.ApplicationName = "DroneOps.API";
         settings.IncludeErrorDetail = false;
         settings.LogParameters = false;

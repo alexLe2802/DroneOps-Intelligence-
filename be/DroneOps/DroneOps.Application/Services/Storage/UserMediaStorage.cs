@@ -105,9 +105,15 @@ public sealed class UserMediaStorage : IUserMediaStorage
         if (!secretKey && !legacyKey)
             throw new InvalidOperationException("Configure a Supabase server secret key or legacy service_role key.");
 
-        // New secret keys authenticate through apikey; they are not JWTs.
-        // Retain an optional legacy JWT override for existing server configurations.
+        // Supabase Storage still requires an Authorization JWT for object and
+        // bucket endpoints. New sb_secret_* keys are valid apikey values, but
+        // they are not compact JWTs and cannot be used as Bearer tokens.
         var authorizationToken = legacyKey ? key : _configuration["SupabaseStorage:AuthorizationToken"];
+        if (secretKey && string.IsNullOrWhiteSpace(authorizationToken))
+            throw new InvalidOperationException(
+                "Supabase Storage requires SupabaseStorage__AuthorizationToken " +
+                "to contain the legacy service_role JWT when ServiceKey uses sb_secret_*. " +
+                "Use the Local provider for development or configure both server credentials.");
         if (!string.IsNullOrWhiteSpace(authorizationToken) &&
             !authorizationToken.StartsWith("eyJ", StringComparison.Ordinal))
             throw new InvalidOperationException("SupabaseStorage__AuthorizationToken must be a legacy service_role JWT when configured.");
@@ -194,7 +200,9 @@ public sealed class UserMediaStorage : IUserMediaStorage
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                "Unable to upload file to Supabase Storage.");
+                "Unable to upload file to Supabase Storage.",
+                null,
+                response.StatusCode);
         }
     }
 
@@ -266,7 +274,10 @@ public sealed class UserMediaStorage : IUserMediaStorage
         using HttpResponseMessage response = await _client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException("Unable to upload file to Supabase Storage.");
+            throw new HttpRequestException(
+                "Unable to upload file to Supabase Storage.",
+                null,
+                response.StatusCode);
         }
     }
 

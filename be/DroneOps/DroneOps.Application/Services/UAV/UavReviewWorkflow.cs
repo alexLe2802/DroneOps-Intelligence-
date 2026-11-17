@@ -108,8 +108,6 @@ public sealed class UavReviewWorkflow(AppDbContext db, INotificationService? not
                 if (action == "approve")
                 {
                     if (pending.SubmittedBy == actor) throw new InvalidOperationException("A Manager cannot approve their own UAV submission.");
-                    if (uav.ImageStoragePath is not null && uav.ImageModerationStatus != "Approved")
-                        throw new InvalidOperationException("Image moderation must pass before UAV approval. It is not Manager approval.");
                     var value = JsonSerializer.Deserialize<UpdateUavRequest>(pending.ProposedInformationJson, Json)!;
                     if (await db.UAVs.AnyAsync(x => x.Id != id && x.Code.ToLower() == value.Code.ToLower(), ct))
                         throw new InvalidOperationException("Proposed UAV code is already in use.");

@@ -295,8 +295,6 @@ function normalizeUav(record: UavApiRecord): AssignedUav {
     imageModerationStatus: record.imageModerationStatus ?? null,
     imageModeratedAt: record.imageModeratedAt ?? null,
     imageModerationReason: record.imageModerationReason ?? null,
-    pendingImageUrl: record.pendingImageUrl ?? null,
-    pendingImageSubmittedAt: record.pendingImageSubmittedAt ?? null,
     createdAt: record.createdAt ?? "",
   };
 }
@@ -372,13 +370,6 @@ export async function setManagedUavStatus(id: string, action: "approve" | "activ
 
 export async function rejectManagedUavImage(id: string, reason: string): Promise<AssignedUav> {
   return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/image/reject`, {
-    method: "POST",
-    body: JSON.stringify({ reason }),
-  }));
-}
-
-export async function approveManagedUavImage(id: string, reason: string): Promise<AssignedUav> {
-  return normalizeUav(await api<UavApiRecord>(`/admin/uavs/${encodeURIComponent(id)}/image/approve`, {
     method: "POST",
     body: JSON.stringify({ reason }),
   }));

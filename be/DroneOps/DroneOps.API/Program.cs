@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using DroneOps.Application.DTOs.Options;
+using DroneOps.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
 
 var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
@@ -17,7 +19,8 @@ var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCas
     "--migrate-postflight", "--check-postflight-schema",
     "--migrate-mission-workflow", "--check-mission-workflow-schema", "--migrate-drone-connections",
     "--migrate-account-workflows", "--check-account-workflow-schema",
-    "--migrate-uav-images", "--migrate-uav-reviews", "--check-uav-review-schema"
+    "--migrate-uav-images", "--migrate-uav-reviews", "--check-uav-review-schema",
+    "--migrate-notifications", "--check-database-schema"
 };
 var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
@@ -124,6 +127,24 @@ if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-s
     if (args.Contains("--migrate-postflight")) await PostFlightSchema.MigrateAsync(source);
     else await PostFlightSchema.CheckAsync(source);
     Console.WriteLine("Post-flight schema verified.");
+    return;
+}
+
+if (args.Contains("--migrate-notifications"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await NotificationSchema.ApplyAsync(source);
+    Console.WriteLine("Notification schema migrated and verified.");
+    return;
+}
+
+if (args.Contains("--check-database-schema"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await using var db = new AppDbContext(
+        new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(source).Options);
+    await DatabaseSchemaVerifier.VerifyAsync(source, db);
+    Console.WriteLine("Complete database schema verification passed.");
     return;
 }
 
@@ -258,18 +279,21 @@ builder.Services.AddRateLimiter(options =>
 #endregion
 
 var app = builder.Build();
-await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await AccountWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await FlightPreparationSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-
-// Detect a missing deployment migration before background monitoring starts.
-await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-// Notification DDL is idempotent so existing deployments become ready without a separate flag.
-await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await UavImageSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await UavReviewSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
+var verifySchemaOnStartup = builder.Configuration.GetValue<bool?>("Database:VerifySchemaOnStartup")
+    ?? !app.Environment.IsDevelopment();
+if (verifySchemaOnStartup)
+{
+    await using var schemaScope = app.Services.CreateAsyncScope();
+    await DatabaseSchemaVerifier.VerifyAsync(
+        schemaScope.ServiceProvider.GetRequiredService<Npgsql.NpgsqlDataSource>(),
+        schemaScope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        app.Logger);
+}
+else
+{
+    app.Logger.LogInformation(
+        "Full database schema verification is skipped for fast Development startup. Run with --check-database-schema after schema changes.");
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

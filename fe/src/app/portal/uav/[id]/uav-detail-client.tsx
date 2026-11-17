@@ -15,6 +15,7 @@ export default function UavDetailClient({ id }: { id: string }) {
   const searchParams = useSearchParams();
   const [aircraft, setAircraft] = useState<AssignedUav | null | undefined>();
   const [error, setError] = useState<unknown>(null);
+  const [unavailableImageUrl, setUnavailableImageUrl] = useState<string | null>(null);
   const load = useCallback(() => {
     setAircraft(undefined);
     setError(null);
@@ -27,15 +28,6 @@ export default function UavDetailClient({ id }: { id: string }) {
       .catch(reason => { if (active) setError(reason); });
     return () => { active = false; };
   }, [id]);
-  useEffect(() => {
-    const pending = aircraft?.imageModerationStatus;
-    if (pending !== "Pending") return;
-    const timer = window.setInterval(() => {
-      void getAssignedUav(id).then(setAircraft).catch(setError);
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [aircraft?.imageModerationStatus, id]);
-
   if (error) return <ModuleError error={error} retry={load} />;
   if (aircraft === undefined) return <ModuleLoading label="Loading UAV details" />;
   if (aircraft === null) return <section className="module-state error">
@@ -47,6 +39,7 @@ export default function UavDetailClient({ id }: { id: string }) {
   const submitted = searchParams.get("submitted");
   const imageUpload = searchParams.get("imageUpload");
   const imageUploadMessage = searchParams.get("imageUploadMessage");
+  const imageUnavailable = Boolean(aircraft.imageUrl && aircraft.imageUrl === unavailableImageUrl);
   const normalizedStatus = aircraft.status.toLowerCase();
   const approvalLabel = normalizedStatus === "active"
     ? "ADMIN APPROVED"
@@ -63,20 +56,20 @@ export default function UavDetailClient({ id }: { id: string }) {
     </header>
 
     <section className="uav-detail">
-      <div className={`uav-visual${aircraft.imageUrl ? " has-image" : ""}`}>
-        {aircraft.imageUrl
-          ? <Image src={aircraft.imageUrl} alt={`${aircraft.name} UAV`} width={720} height={720} unoptimized />
+      <div className={`uav-visual${aircraft.imageUrl && !imageUnavailable ? " has-image" : ""}`}>
+        {aircraft.imageUrl && !imageUnavailable
+          ? <Image src={aircraft.imageUrl} alt={`${aircraft.name} UAV`} width={720} height={720} unoptimized onError={() => setUnavailableImageUrl(aircraft.imageUrl)} />
           : <><span>UAV</span><b>{aircraft.code}</b></>}
       </div>
       <div className="uav-detail-info">
         <header><span className={`status status-${normalizedStatus}`}>{aircraft.status}</span><small className={normalizedStatus === "active" ? "approval-approved" : "approval-pending"}>{approvalLabel}</small></header>
         <h2>{aircraft.name}</h2><p>{aircraft.model ?? "Model not specified"}</p>
-        <dl><div><dt>Code</dt><dd>{aircraft.code}</dd></div><div><dt>Name</dt><dd>{aircraft.name}</dd></div><div><dt>Model</dt><dd>{aircraft.model ?? "Not specified"}</dd></div><div><dt>Status</dt><dd>{aircraft.status}</dd></div><div><dt>Image check</dt><dd>{aircraft.imageModerationStatus ?? "No image"}</dd></div><div><dt>Created at</dt><dd>{aircraft.createdAt.slice(0, 10)}</dd></div><div><dt>Pilot</dt><dd>{aircraft.pilotName || "Current pilot"}</dd></div></dl>
+        <dl><div><dt>Code</dt><dd>{aircraft.code}</dd></div><div><dt>Name</dt><dd>{aircraft.name}</dd></div><div><dt>Model</dt><dd>{aircraft.model ?? "Not specified"}</dd></div><div><dt>Status</dt><dd>{aircraft.status}</dd></div><div><dt>Image</dt><dd>{imageUnavailable ? "Unavailable" : aircraft.imageUrl ? "Published" : "No image"}</dd></div><div><dt>Created at</dt><dd>{aircraft.createdAt.slice(0, 10)}</dd></div><div><dt>Pilot</dt><dd>{aircraft.pilotName || "Current pilot"}</dd></div></dl>
         {submitted && <p className="approval-banner" role="status" aria-live="polite">{submitted === "create" ? "UAV registration submitted. Waiting for manager approval." : "UAV proposal submitted. Current approved information remains unchanged until Manager approval."}</p>}
-        {imageUpload === "success" && <p className="module-success uav-image-feedback" role="status">UAV image uploaded and waiting for manager approval. The current approved image remains unchanged.</p>}
-        {aircraft.imageModerationStatus === "Pending" && <p className="approval-banner" role="status">The proposed image is waiting for manager approval.</p>}
-        {aircraft.imageModerationStatus === "Rejected" && <p className="form-error uav-image-feedback" role="alert">The proposed image was rejected by a manager. Reason: {aircraft.imageModerationReason || "No reason provided."}</p>}
-        {imageUpload === "failed" && <p className="form-error uav-image-feedback" role="alert">The UAV was saved, but the image upload failed. {imageUploadMessage || "The previous approved image was kept. Edit the UAV to try again."}</p>}
+        {imageUpload === "success" && <p className="module-success uav-image-feedback" role="status">UAV image uploaded and published.</p>}
+        {aircraft.imageModerationStatus === "Rejected" && <p className="form-error uav-image-feedback" role="alert">The image was removed by a manager. Reason: {aircraft.imageModerationReason || "No reason provided."}</p>}
+        {imageUpload === "failed" && <p className="form-error uav-image-feedback" role="alert">The UAV was saved, but the image upload failed. {imageUploadMessage || "The previous image was kept. Edit the UAV to try again."}</p>}
+        {imageUnavailable && imageUpload !== "failed" && <p className="form-error uav-image-feedback" role="alert">The stored UAV image could not be loaded. Upload the image again or contact the system administrator.</p>}
         <div className="uav-actions"><UavMutationActions aircraft={aircraft} editLabel="EDIT UAV" /></div>
       </div>
     </section>
