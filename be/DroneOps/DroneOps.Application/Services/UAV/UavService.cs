@@ -477,8 +477,16 @@ public sealed class UavService : IUavService
     {
         var uav = await _uavRepository.GetDetailAsync(uavId, cancellationToken);
         if (uav is null || string.IsNullOrWhiteSpace(uav.ImageStoragePath)) return null;
-        return (await _storage.SignAsync(uav.ImageStoragePath, cancellationToken),
-            uav.ImageContentType ?? "application/octet-stream");
+        try
+        {
+            return (await _storage.SignAsync(uav.ImageStoragePath, cancellationToken),
+                uav.ImageContentType ?? "application/octet-stream");
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning("UAV image for {UavId} at path {Path} not found in storage.", uavId, uav.ImageStoragePath);
+            return null;
+        }
     }
 
     public async Task<bool> DeleteUavImageAsync(
@@ -764,7 +772,7 @@ public sealed class UavService : IUavService
         var normalizedRole = actorRole.Trim().ToLowerInvariant();
         var isManager = normalizedRole is "operation_manager" or "operations_manager" or
             "operationsmanager" or "admin" or "systemadmin";
-        if (!isManager && uav.Pilot.UserId != actorUserId)
+        if (!isManager && uav.Pilot?.UserId != actorUserId)
         {
             throw new UnauthorizedAccessException("You may only manage the image of your own UAV.");
         }

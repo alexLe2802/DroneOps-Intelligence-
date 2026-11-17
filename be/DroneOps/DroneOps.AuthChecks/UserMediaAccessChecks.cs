@@ -119,6 +119,16 @@ internal static class UserMediaAccessChecks
         await new UserMediaStorage(new HttpClient(overrideHandler), overrideConfiguration).SignAsync(checkPath);
         Check(overrideHandler.Requests == 1, "explicit legacy authorization override remains supported");
 
+        var missingObjectHandler = new CaptureHandler("eyJ.fixture", "eyJ.fixture") { MissingObject = true };
+        var missingObjectConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        { ["SupabaseStorage:ServiceKey"] = "eyJ.fixture" }).Build();
+        try { await new UserMediaStorage(new HttpClient(missingObjectHandler), missingObjectConfiguration).SignAsync(checkPath); throw new Exception("missing remote object accepted"); }
+        catch (HttpRequestException exception)
+        {
+            Check(exception.StatusCode == HttpStatusCode.NotFound,
+                "Supabase NoSuchKey signing response is reported as a missing object");
+        }
+
         var failingHandler = new CaptureHandler("eyJ.fixture", "eyJ.fixture") { Fail = true };
         var failingConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         { ["SupabaseStorage:ServiceKey"] = "eyJ.fixture", ["UserMediaStorage:LocalRoot"] = localRoot }).Build();
@@ -132,6 +142,7 @@ internal static class UserMediaAccessChecks
         public int ExpiresIn { get; private set; }
         public int Requests { get; private set; }
         public bool Fail { get; init; }
+        public bool MissingObject { get; init; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Requests++;
@@ -142,6 +153,13 @@ internal static class UserMediaAccessChecks
             {
                 using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
                 ExpiresIn = json.RootElement.GetProperty("expiresIn").GetInt32();
+                if (MissingObject)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest)
+                    {
+                        Content = new StringContent("{\"statusCode\":\"404\",\"code\":\"NoSuchKey\"}")
+                    };
+                }
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"signedURL\":\"/object/sign/user-media/fixture?token=fixture\"}") };
             }
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([0xFF, 0xD8, 0xFF]) };

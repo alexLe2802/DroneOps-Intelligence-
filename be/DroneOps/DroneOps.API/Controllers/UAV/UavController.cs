@@ -15,11 +15,13 @@ public class UavController : ControllerBase
 {
     private readonly IUavService _uavService;
     private readonly IUserMediaStorage _storage;
+    private readonly ILogger<UavController> _logger;
 
-    public UavController(IUavService uavService, IUserMediaStorage storage)
+    public UavController(IUavService uavService, IUserMediaStorage storage, ILogger<UavController> logger)
     {
         _uavService = uavService;
         _storage = storage;
+        _logger = logger;
     }
 
     /// <summary>
@@ -102,11 +104,13 @@ public class UavController : ControllerBase
     [RequestSizeLimit(6 * 1024 * 1024)]
     public async Task<IActionResult> UploadOrReplaceImage(
         Guid id,
-        IFormFile file,
+        IFormFile? file,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actorUserId, out var actorRole))
             return Unauthorized(new { message = "Invalid authenticated user." });
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "Choose a valid image file." });
         try
         {
             await using var stream = file.OpenReadStream();
@@ -119,8 +123,21 @@ public class UavController : ControllerBase
         catch (KeyNotFoundException exception) { return NotFound(new { message = exception.Message }); }
         catch (UnauthorizedAccessException exception) { return StatusCode(403, new { message = exception.Message }); }
         catch (ArgumentException exception) { return BadRequest(new { message = exception.Message }); }
-        catch (InvalidOperationException) { return StatusCode(503, new { message = "UAV image storage is not configured with a compatible server credential. AI review was not started." }); }
-        catch (HttpRequestException) { return StatusCode(502, new { message = "UAV image storage is temporarily unavailable." }); }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "UAV image storage misconfigured: {Message}", exception.Message);
+            return StatusCode(503, new { message = "UAV image storage is not configured with a compatible server credential. AI review was not started." });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "UAV image storage provider error: {Message}", exception.Message);
+            return StatusCode(502, new { message = "UAV image storage is temporarily unavailable." });
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Unhandled error during image upload for UAV {UavId}.", id);
+            return StatusCode(500, new { message = "An error occurred while uploading the UAV image." });
+        }
     }
 
     /// <summary>Mở ảnh hiện tại của UAV qua signed URL ngắn hạn.</summary>
@@ -145,8 +162,25 @@ public class UavController : ControllerBase
             return Redirect(image.Value.Url);
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException) { return Conflict(new { message = "UAV changed concurrently. Reload before modifying its image." }); }
-        catch (InvalidOperationException exception) { return StatusCode(503, new { message = exception.Message }); }
-        catch (HttpRequestException) { return StatusCode(502, new { message = "UAV image storage is temporarily unavailable." }); }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "UAV image storage misconfigured: {Message}", exception.Message);
+            return StatusCode(503, new { message = exception.Message });
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return NotFound(new { message = "The stored UAV image no longer exists. Upload a replacement image." });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "UAV image storage provider error: {Message}", exception.Message);
+            return StatusCode(502, new { message = "UAV image storage is temporarily unavailable." });
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Unhandled error fetching image for UAV {UavId}.", id);
+            return StatusCode(500, new { message = "Unable to fetch UAV image." });
+        }
     }
 
     /// <summary>Xóa ảnh hiện tại nhưng giữ nguyên UAV.</summary>
@@ -163,6 +197,11 @@ public class UavController : ControllerBase
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException) { return Conflict(new { message = "UAV changed concurrently. Reload before removing its image." }); }
         catch (UnauthorizedAccessException exception) { return StatusCode(403, new { message = exception.Message }); }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Unhandled error deleting image for UAV {UavId}.", id);
+            return StatusCode(500, new { message = "An error occurred while removing the UAV image." });
+        }
     }
 
     /// <summary>

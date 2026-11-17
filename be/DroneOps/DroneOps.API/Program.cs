@@ -27,10 +27,12 @@ var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
 
-// Các thiết lập bảo mật local được nạp khi chạy môi trường Development
-if (builder.Environment.IsDevelopment())
+// Các thiết lập cấu hình cục bộ được nạp ưu tiên nếu tồn tại
+foreach (var localName in new[] { "appsettings.local.json", "appsettings.Local.json" })
 {
-    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+    builder.Configuration.AddJsonFile(localName, optional: true, reloadOnChange: false);
+    builder.Configuration.AddJsonFile(Path.Combine(AppContext.BaseDirectory, localName), optional: true, reloadOnChange: false);
+    builder.Configuration.AddJsonFile(Path.Combine(builder.Environment.ContentRootPath, localName), optional: true, reloadOnChange: false);
 }
 builder.Configuration.AddEnvironmentVariables();
 builder.Configuration.AddCommandLine(configurationArgs);
@@ -155,7 +157,6 @@ builder.Services.AddControllers(options => options.Filters.Add<MissionValidation
 builder.Services.Configure<MissionWeatherOptions>(
     builder.Configuration.GetSection("MissionWeather"));
 if (monitoringEnabled) builder.Services.AddHostedService<MissionPreflightMonitor>();
-builder.Services.AddHttpClient<DroneOps.Application.Services.Storage.UserMediaStorage>();
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 106 * 1024 * 1024);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 106 * 1024 * 1024);
 builder.Services.AddEndpointsApiExplorer();
