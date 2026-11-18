@@ -314,9 +314,7 @@ export type AssignedUav = {
   totalFlightHours: number;
   totalFlights: number;
   imageUrl: string | null;
-  imageModerationStatus?: "Pending" | "Approved" | "Rejected" | null;
-  pendingImageUrl?: string | null;
-  pendingImageSubmittedAt?: string | null;
+  imageModerationStatus?: "Rejected" | null;
   imageModeratedAt?: string | null;
   imageModerationReason?: string | null;
   createdAt: string;

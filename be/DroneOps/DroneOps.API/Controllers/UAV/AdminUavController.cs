@@ -141,26 +141,4 @@ public class AdminUavController : ControllerBase
         }
     }
 
-    [HttpPost("{id:guid}/image/approve")]
-    public async Task<IActionResult> ApproveImage(Guid id, [FromBody] ReviewUavImageRequest request,
-        CancellationToken cancellationToken)
-    {
-        var actorValue = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
-        if (!Guid.TryParse(actorValue, out var actor)) return Unauthorized();
-        try
-        {
-            var result = await _uavService.ApproveUavImageAsync(id, actor, request.Reason, cancellationToken);
-            return result is null ? NotFound() : Ok(result);
-        }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException) { return Conflict(new { message = "UAV changed concurrently. Reload before reviewing its image." }); }
-        catch (ArgumentException exception) { return BadRequest(new { message = exception.Message }); }
-        catch (InvalidOperationException exception) { return Conflict(new { message = exception.Message }); }
-    }
-
-    //[HttpGet("{id:guid}/image/pending")]
-    //public async Task<IActionResult> GetPendingImage(Guid id, CancellationToken cancellationToken)
-    //{
-    //    var image = await _uavService.GetPendingUavImageAsync(id, cancellationToken);
-    //    return image is null ? NotFound() : Redirect(image.Value.Url);
-    //}
 }

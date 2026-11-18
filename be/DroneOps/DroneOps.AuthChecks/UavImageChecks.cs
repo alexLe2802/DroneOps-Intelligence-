@@ -1,6 +1,7 @@
+using System.Security.Claims;
+using DroneOps.API.Controllers.UAVs;
 using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Interfaces.Storage;
-using DroneOps.Application.Interfaces.UAVs;
 using DroneOps.Application.Services.Notifications;
 using DroneOps.Application.Services.Storage;
 using DroneOps.Application.Services.UAVs;
@@ -10,636 +11,179 @@ using DroneOps.Persistence.Repositories;
 using DroneOps.Persistence.Repositories.Missions;
 using DroneOps.Persistence.Repositories.Notifications;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Net;
-using System.Text;
-using System.Text.Json;
 
 internal static class UavImageChecks
 {
-    private static readonly byte[] PngFixture =
-    [
-        0x89, 0x50, 0x4E, 0x47,
-        0x0D, 0x0A, 0x1A, 0x0A,
-        0x01, 0x02, 0x03, 0x04
-    ];
-
     public static async Task<int> RunAsync()
     {
         var passed = 0;
-
         void Check(bool condition, string name)
         {
-            if (!condition)
-            {
-                throw new InvalidOperationException("FAIL: " + name);
-            }
-
+            if (!condition) throw new InvalidOperationException("FAIL: " + name);
             Console.WriteLine("PASS: " + name);
             passed++;
         }
 
-        await RunValidationChecksAsync(Check);
-        await RunGeminiChecksAsync(Check);
-        await RunStorageWorkflowChecksAsync(Check);
-
-        return passed;
-    }
-
-    // ============================================================
-    // 1. IMAGE VALIDATION
-    // ============================================================
-
-    private static async Task RunValidationChecksAsync(
-        Action<bool, string> check)
-    {
         var validator = new UserMediaStorage(
-            new HttpClient(),
-            new ConfigurationBuilder()
-                .AddInMemoryCollection()
-                .Build());
-
-        await using (var valid = new MemoryStream(PngFixture))
-        {
-            var bytes = await validator.ReadValidatedUavImageAsync(
-                valid,
-                "drone.png",
-                "image/png",
-                PngFixture.Length);
-
-            check(
-                bytes.Length == PngFixture.Length,
+            new HttpClient(), new ConfigurationBuilder().AddInMemoryCollection().Build());
+        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4 };
+        await using (var valid = new MemoryStream(png))
+            Check((await validator.ReadValidatedUavImageAsync(valid, "drone.png", "image/png", png.Length)).Length == png.Length,
                 "UAV image validation accepts matching PNG MIME, extension and magic bytes");
-        }
-
         try
         {
-            await using var disguised =
-                new MemoryStream("not-an-image"u8.ToArray());
-
-            await validator.ReadValidatedUavImageAsync(
-                disguised,
-                "drone.jpg",
-                "image/jpeg",
-                disguised.Length);
-
-            throw new InvalidOperationException(
-                "Disguised text payload was accepted as an image.");
+            await using var disguised = new MemoryStream("not-an-image"u8.ToArray());
+            await validator.ReadValidatedUavImageAsync(disguised, "drone.jpg", "image/jpeg", disguised.Length);
+            throw new Exception("Disguised executable/text payload was accepted as an image.");
         }
-        catch (ArgumentException)
-        {
-            check(
-                true,
-                "UAV image validation rejects spoofed image content");
-        }
-    }
+        catch (ArgumentException) { Check(true, "UAV image validation rejects spoofed image content"); }
 
-    // ============================================================
-    // 2. GEMINI IMAGE MODERATION
-    // ============================================================
-
-    private static async Task RunGeminiChecksAsync(
-        Action<bool, string> check)
-    {
-        // --------------------------------------------------------
-        // Missing configuration
-        // --------------------------------------------------------
-
-        var emptyConfiguration = new ConfigurationBuilder()
-            .AddInMemoryCollection()
-            .Build();
-
-        var missingGemini = CreateModerationService(
-            HttpStatusCode.OK,
-            string.Empty,
-            emptyConfiguration);
-
-        var missingResult = await missingGemini.ModerateAsync(
-            PngFixture,
-            "image/png");
-
-        check(
-            missingResult.Decision ==
-            UavImageModerationDecision.Unavailable,
-            "missing Gemini configuration reports moderation as unavailable");
-
-        // --------------------------------------------------------
-        // Configured Gemini
-        // --------------------------------------------------------
-
-        var geminiConfiguration = new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["UavImageModeration:ApiKey"] = "fixture-key",
-                    ["UavImageModeration:Model"] =
-                        "gemini-3.5-flash-lite"
-                })
-            .Build();
-
-        // --------------------------------------------------------
-        // Safe UAV image
-        // --------------------------------------------------------
-
-        var allowedGemini = CreateModerationService(
-            HttpStatusCode.OK,
-            """
-            {
-                "isDrone": true,
-                "containsInappropriateContent": false
-            }
-            """,
-            geminiConfiguration);
-
-        var allowedResult = await allowedGemini.ModerateAsync(
-            PngFixture,
-            "image/png");
-
-        check(
-            allowedResult.Decision ==
-            UavImageModerationDecision.Approved,
-            "Gemini accepts a genuine safe UAV image");
-
-        // --------------------------------------------------------
-        // Unsafe / invalid image
-        // --------------------------------------------------------
-
-        var unsafeGemini = CreateModerationService(
-            HttpStatusCode.OK,
-            """
-            {
-                "isDrone": false,
-                "containsInappropriateContent": true
-            }
-            """,
-            geminiConfiguration);
-
-        var unsafeResult = await unsafeGemini.ModerateAsync(
-            PngFixture,
-            "image/png");
-
-        check(
-            unsafeResult.Decision ==
-            UavImageModerationDecision.Rejected,
-            "Gemini rejects non-UAV or inappropriate content");
-
-        // --------------------------------------------------------
-        // Provider unavailable
-        // --------------------------------------------------------
-
-        var unavailableGemini = CreateModerationService(
-            HttpStatusCode.TooManyRequests,
-            string.Empty,
-            geminiConfiguration);
-
-        var unavailableResult =
-            await unavailableGemini.ModerateAsync(
-                PngFixture,
-                "image/png");
-
-        check(
-            unavailableResult.Decision ==
-            UavImageModerationDecision.Unavailable,
-            "Gemini service failure is distinguished from an unsafe image decision");
-    }
-
-    private static UavImageModerationService CreateModerationService(
-        HttpStatusCode statusCode,
-        string resultJson,
-        IConfiguration configuration)
-    {
-        var client = new HttpClient(
-            new GeminiHandler(
-                statusCode,
-                resultJson))
-        {
-            BaseAddress =
-                new Uri("https://fixture.invalid/")
-        };
-
-        return new UavImageModerationService(
-            client,
-            configuration,
-            NullLogger<UavImageModerationService>.Instance);
-    }
-
-    // ============================================================
-    // 3. UAV IMAGE STORAGE / REPLACEMENT / PERMISSION
-    // ============================================================
-
-    private static async Task RunStorageWorkflowChecksAsync(
-        Action<bool, string> check)
-    {
-        var options =
-            new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(
-                    "uav-image-check-" + Guid.NewGuid())
-                .Options;
-
-        await using var db =
-            new AppDbContext(options);
-
-        // --------------------------------------------------------
-        // Test data IDs
-        // --------------------------------------------------------
-
-        var operatorRoleId = Guid.NewGuid();
-
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase("uav-image-check-" + Guid.NewGuid()).Options;
+        await using var db = new AppDbContext(options);
+        var roleId = Guid.NewGuid();
+        var managerRoleId = Guid.NewGuid();
+        var managerId = Guid.NewGuid();
         var ownerId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
-
+        var otherId = Guid.NewGuid();
         var pilotId = Guid.NewGuid();
         var uavId = Guid.NewGuid();
-
-        // --------------------------------------------------------
-        // Role
-        // --------------------------------------------------------
-
-        db.Roles.Add(
-            new Role
-            {
-                Id = operatorRoleId,
-                Name = "uav_operator"
-            });
-
-        // --------------------------------------------------------
-        // Users
-        // --------------------------------------------------------
-
+        db.Roles.AddRange(
+            new Role { Id = roleId, Name = "uav_operator" },
+            new Role { Id = managerRoleId, Name = "operation_manager" });
         db.Users.AddRange(
-            new User
-            {
-                Id = ownerId,
-                RoleId = operatorRoleId,
-                FullName = "Owner",
-                Email = "owner@fixture.test"
-            },
-            new User
-            {
-                Id = otherUserId,
-                RoleId = operatorRoleId,
-                FullName = "Other",
-                Email = "other@fixture.test"
-            });
-
-        // --------------------------------------------------------
-        // Pilot
-        // --------------------------------------------------------
-
-        db.Pilots.Add(
-            new Pilot
-            {
-                Id = pilotId,
-                UserId = ownerId,
-                PilotLicenseNo = "FIXTURE"
-            });
-
-        // --------------------------------------------------------
-        // UAV
-        // --------------------------------------------------------
-
-        db.UAVs.Add(
-            new UAV
-            {
-                Id = uavId,
-                PilotId = pilotId,
-                Code = "IMG-1",
-                Name = "Image fixture",
-                Status = "Active"
-            });
-
+            new User { Id = ownerId, RoleId = roleId, FullName = "Owner", Email = "owner@fixture.test" },
+            new User { Id = otherId, RoleId = roleId, FullName = "Other", Email = "other@fixture.test" },
+            new User { Id = managerId, RoleId = managerRoleId, FullName = "Manager", Email = "manager@fixture.test" });
+        db.Pilots.Add(new Pilot { Id = pilotId, UserId = ownerId, PilotLicenseNo = "FIXTURE" });
+        db.UAVs.Add(new UAV { Id = uavId, PilotId = pilotId, Code = "IMG-1", Name = "Image fixture", Status = "Active" });
         await db.SaveChangesAsync();
 
-        // --------------------------------------------------------
-        // Dependencies
-        // --------------------------------------------------------
-
         var storage = new TrackingStorage();
+        INotificationService notifications = new NotificationService(
+            new NotificationRepository(db), new MissionRepository(db));
+        var service = new UavService(
+            new UavRepository(db), new PilotRepository(db), notifications,
+            NullLogger<UavService>.Instance, storage, new UavReviewWorkflow(db));
 
-        INotificationService notifications =
-            new NotificationService(
-                new NotificationRepository(db),
-                new MissionRepository(db));
-
-        var service =
-            new UavService(
-                new UavRepository(db),
-                new PilotRepository(db),
-                notifications,
-                NullLogger<UavService>.Instance,
-                storage,
-                new UavReviewWorkflow(db));
-
-        // ========================================================
-        // UPDATE WITHOUT CHANGING OPERATIONAL STATUS
-        // ========================================================
-
-        await service.UpdateAsync(
-            ownerId,
-            uavId,
+        await service.UpdateAsync(ownerId, uavId,
             new DroneOps.Application.DTOs.Request.UAVs.UpdateUavRequest
             {
                 ExpectedVersion = 0,
                 Code = "IMG-1",
                 Name = "Image fixture"
             });
+        Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).Status == "Active",
+            "unchanged edit DTO before image upload preserves the UAV operational status");
 
-        var unchangedUav =
-            await GetUavAsync(
-                db,
-                uavId);
-
-        check(
-            unchangedUav.Status == "Active",
-            "unchanged edit preserves the UAV operational status");
-
-        // ========================================================
-        // FIRST IMAGE UPLOAD
-        // ========================================================
-
-        await using (
-            var firstImage =
-                new MemoryStream(PngFixture))
-        {
+        await using (var first = new MemoryStream(png))
             await service.UploadOrReplaceUavImageAsync(
-                uavId,
-                ownerId,
-                "uav_operator",
-                firstImage,
-                "first.png",
-                "image/png",
-                PngFixture.Length);
-        }
-
-        var firstUpload =
-            await GetUavAsync(
-                db,
-                uavId);
-
-        var firstPath =
-            firstUpload.ImageStoragePath;
-
-        check(
-            firstPath is not null &&
-            storage.Paths.SetEquals([firstPath]),
-            "first UAV image is stored and referenced by ImageStoragePath");
-
-        check(
-            firstUpload.Status == "Active",
+                uavId, ownerId, "uav_operator", first, "first.png", "image/png", png.Length);
+        var firstPath = (await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageStoragePath;
+        Check(firstPath is not null && storage.Paths.SetEquals([firstPath]), "first UAV image is stored and referenced");
+        Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageModerationStatus is null,
+            "UAV image upload is published without a manager approval state");
+        Check((await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).Status == "Active",
             "optional image upload preserves the UAV operational status");
 
-        // ========================================================
-        // REPLACE IMAGE
-        // ========================================================
-
-        await using (
-            var secondImage =
-                new MemoryStream(PngFixture))
-        {
+        await using (var second = new MemoryStream(png))
             await service.UploadOrReplaceUavImageAsync(
-                uavId,
-                ownerId,
-                "uav_operator",
-                secondImage,
-                "second.png",
-                "image/png",
-                PngFixture.Length);
-        }
-
-        var secondUpload =
-            await GetUavAsync(
-                db,
-                uavId);
-
-        var secondPath =
-            secondUpload.ImageStoragePath;
-
-        check(
-            secondPath is not null &&
-            secondPath != firstPath &&
-            storage.Paths.SetEquals([secondPath]) &&
-            storage.Deleted.Contains(firstPath!),
-            "second UAV image replaces the first and removes the old storage object");
-
-        check(
-            secondUpload.Status == "Active",
-            "replacing UAV image does not modify operational status");
-
-        // ========================================================
-        // ANOTHER PILOT CANNOT REPLACE IMAGE
-        // ========================================================
+                uavId, ownerId, "uav_operator", second, "second.png", "image/png", png.Length);
+        var secondPath = (await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId)).ImageStoragePath;
+        Check(secondPath is not null && secondPath != firstPath && storage.Paths.SetEquals([secondPath]) && storage.Deleted.Contains(firstPath!),
+            "second UAV image replaces the first and removes the old bucket object");
 
         try
         {
-            await using var unauthorizedImage =
-                new MemoryStream(PngFixture);
-
+            await using var unauthorized = new MemoryStream(png);
             await service.UploadOrReplaceUavImageAsync(
-                uavId,
-                otherUserId,
-                "uav_operator",
-                unauthorizedImage,
-                "other.png",
-                "image/png",
-                PngFixture.Length);
-
-            throw new InvalidOperationException(
-                "Another pilot replaced an owned UAV image.");
+                uavId, otherId, "uav_operator", unauthorized, "other.png", "image/png", png.Length);
+            throw new Exception("Another pilot replaced the UAV image.");
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException) { Check(true, "another pilot cannot replace an owned UAV image"); }
+
+        Check(await service.DeleteUavImageAsync(uavId, ownerId, "uav_operator"),
+            "owner can delete their published UAV image");
+        var afterDelete = await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId);
+        Check(afterDelete.ImageStoragePath is null && afterDelete.ImageModerationStatus is null &&
+                afterDelete.Status == "Active" && storage.Deleted.Contains(secondPath!),
+            "deleting UAV image clears storage reference and preserves operational status");
+
+        await using (var third = new MemoryStream(png))
+            await service.UploadOrReplaceUavImageAsync(
+                uavId, ownerId, "uav_operator", third, "third.png", "image/png", png.Length);
+
+        await service.RejectUavImageAsync(uavId, managerId, "Inappropriate image content.");
+        var manuallyRejected = await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId);
+        Check(manuallyRejected.ImageStoragePath == null &&
+                manuallyRejected.ImageModerationStatus == "Rejected" &&
+                manuallyRejected.Status == "Active" &&
+                manuallyRejected.ImageModerationReason == "Inappropriate image content.",
+            "manager removes the published image without changing UAV operations");
+        Check(await db.Notifications.AnyAsync(x => x.RecipientUserId == ownerId &&
+                x.Type == "UavImageRejected" && x.Message.Contains("Inappropriate image content")),
+            "manager image rejection notifies the owner with the reason");
+
+        var misconfiguredService = new UavService(
+            new UavRepository(db), new PilotRepository(db), notifications,
+            NullLogger<UavService>.Instance, validator, new UavReviewWorkflow(db));
+        var controller = new UavController(misconfiguredService, validator, NullLogger<UavController>.Instance)
         {
-            check(
-                true,
-                "another pilot cannot replace an owned UAV image");
-        }
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [
+                        new Claim(ClaimTypes.NameIdentifier, ownerId.ToString()),
+                        new Claim(ClaimTypes.Role, "uav_operator")
+                    ], "TestAuth"))
+                }
+            }
+        };
+        var formFile = new FormFile(new MemoryStream(png), 0, png.Length, "file", "drone.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+        var misconfiguredResult = await controller.UploadOrReplaceImage(uavId, formFile, CancellationToken.None) as ObjectResult;
+        var misconfiguredMessage = misconfiguredResult?.Value?.GetType().GetProperty("message")?.GetValue(misconfiguredResult.Value)?.ToString() ?? string.Empty;
+        Check(misconfiguredResult?.StatusCode == 503 &&
+                misconfiguredMessage.Contains("server credential", StringComparison.OrdinalIgnoreCase) &&
+                !misconfiguredMessage.Contains("AI review", StringComparison.OrdinalIgnoreCase),
+            "storage misconfiguration returns HTTP 503 without obsolete AI review messaging");
 
-        // ========================================================
-        // DELETE IMAGE
-        // ========================================================
-
-        var deleted =
-            await service.DeleteUavImageAsync(
-                uavId,
-                ownerId,
-                "uav_operator");
-
-        var afterDelete =
-            await GetUavAsync(
-                db,
-                uavId);
-
-        check(
-            deleted &&
-            afterDelete.ImageStoragePath is null &&
-            afterDelete.Status == "Active",
-            "optional image deletion clears the image and preserves UAV operation");
-
-        check(
-            secondPath is not null &&
-            storage.Deleted.Contains(secondPath),
-            "image deletion removes the current storage object");
+        return passed;
     }
 
-    // ============================================================
-    // HELPERS
-    // ============================================================
-
-    private static Task<UAV> GetUavAsync(
-        AppDbContext db,
-        Guid uavId)
-    {
-        return db.UAVs
-            .AsNoTracking()
-            .SingleAsync(
-                x => x.Id == uavId);
-    }
-
-    // ============================================================
-    // STORAGE FIXTURE
-    // ============================================================
-
-    private sealed class TrackingStorage :
-        IUserMediaStorage
+    private sealed class TrackingStorage : IUserMediaStorage
     {
         public HashSet<string> Paths { get; } = [];
-
         public HashSet<string> Deleted { get; } = [];
-
-        public Task ValidateAsync(
-            IFormFile file,
-            bool avatar,
-            CancellationToken cancellationToken = default)
+        public Task ValidateAsync(IFormFile file, bool avatar, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task UploadAsync(string path, IFormFile file, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public async Task<byte[]> ReadValidatedUavImageAsync(Stream stream, string fileName, string contentType, long fileSize, CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
-        }
-
-        public Task UploadAsync(
-            string path,
-            IFormFile file,
-            CancellationToken cancellationToken = default)
-        {
-            Paths.Add(path);
-
-            return Task.CompletedTask;
-        }
-
-        public async Task<byte[]>
-            ReadValidatedUavImageAsync(
-                Stream stream,
-                string fileName,
-                string contentType,
-                long fileSize,
-                CancellationToken cancellationToken = default)
-        {
-            using var buffer =
-                new MemoryStream();
-
-            await stream.CopyToAsync(
-                buffer,
-                cancellationToken);
-
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, cancellationToken);
             return buffer.ToArray();
         }
-
-        public Task UploadAsync(
-            string path,
-            Stream stream,
-            string contentType,
-            CancellationToken cancellationToken = default)
+        public Task UploadAsync(string path, Stream stream, string contentType, CancellationToken cancellationToken = default)
         {
             Paths.Add(path);
-
             return Task.CompletedTask;
         }
-
-        public Task<string> SignAsync(
-            string path,
-            CancellationToken cancellationToken = default)
+        public Task<string> SignAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult("https://fixture.invalid/" + path);
+        public Task<byte[]> DownloadAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(pngFixture);
+        private static readonly byte[] pngFixture = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        public Task DeleteAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(
-                "https://fixture.invalid/" + path);
-        }
-
-        public Task<byte[]> DownloadAsync(
-            string path,
-            CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(
-                PngFixture);
-        }
-
-        public Task DeleteAsync(
-            IEnumerable<string> paths,
-            CancellationToken cancellationToken = default)
-        {
-            foreach (var path in paths)
-            {
-                Paths.Remove(path);
-
-                Deleted.Add(path);
-            }
-
+            foreach (var path in paths) { Paths.Remove(path); Deleted.Add(path); }
             return Task.CompletedTask;
-        }
-    }
-
-    // ============================================================
-    // GEMINI HTTP FIXTURE
-    // ============================================================
-
-    private sealed class GeminiHandler(
-        HttpStatusCode statusCode,
-        string resultJson)
-        : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage>
-            SendAsync(
-                HttpRequestMessage request,
-                CancellationToken cancellationToken)
-        {
-            var responseBody =
-                string.IsNullOrWhiteSpace(resultJson)
-                    ? "{}"
-                    : JsonSerializer.Serialize(
-                        new
-                        {
-                            candidates =
-                                new[]
-                                {
-                                    new
-                                    {
-                                        content =
-                                            new
-                                            {
-                                                parts =
-                                                    new[]
-                                                    {
-                                                        new
-                                                        {
-                                                            text =
-                                                                resultJson
-                                                        }
-                                                    }
-                                            }
-                                    }
-                                }
-                        });
-
-            var response =
-                new HttpResponseMessage(
-                    statusCode)
-                {
-                    Content =
-                        new StringContent(
-                            responseBody,
-                            Encoding.UTF8,
-                            "application/json")
-                };
-
-            return Task.FromResult(
-                response);
         }
     }
 }

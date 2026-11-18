@@ -24,7 +24,7 @@
 	<ItemGroup>
 		<Content Remove="secrets/**" />
 		<None Remove="secrets/**" />
-		<Content Update="appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+		<Content Update="appsettings.Local.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" />
 	</ItemGroup>
 
 	<ItemGroup>

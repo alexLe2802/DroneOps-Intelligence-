@@ -105,9 +105,15 @@ public sealed class UserMediaStorage : IUserMediaStorage
         if (!secretKey && !legacyKey)
             throw new InvalidOperationException("Configure a Supabase server secret key or legacy service_role key.");
 
-        // New secret keys authenticate through apikey; they are not JWTs.
-        // Retain an optional legacy JWT override for existing server configurations.
+        // Supabase Storage still requires an Authorization JWT for object and
+        // bucket endpoints. New sb_secret_* keys are valid apikey values, but
+        // they are not compact JWTs and cannot be used as Bearer tokens.
         var authorizationToken = legacyKey ? key : _configuration["SupabaseStorage:AuthorizationToken"];
+        if (secretKey && string.IsNullOrWhiteSpace(authorizationToken))
+            throw new InvalidOperationException(
+                "Supabase Storage requires SupabaseStorage__AuthorizationToken " +
+                "to contain the legacy service_role JWT when ServiceKey uses sb_secret_*. " +
+                "Use the Local provider for development or configure both server credentials.");
         if (!string.IsNullOrWhiteSpace(authorizationToken) &&
             !authorizationToken.StartsWith("eyJ", StringComparison.Ordinal))
             throw new InvalidOperationException("SupabaseStorage__AuthorizationToken must be a legacy service_role JWT when configured.");
@@ -186,6 +192,8 @@ public sealed class UserMediaStorage : IUserMediaStorage
             new MediaTypeHeaderValue(
                 file.ContentType);
 
+        request.Headers.TryAddWithoutValidation("x-upsert", "true");
+
         using HttpResponseMessage response =
             await _client.SendAsync(
                 request,
@@ -193,8 +201,11 @@ public sealed class UserMediaStorage : IUserMediaStorage
 
         if (!response.IsSuccessStatusCode)
         {
+            var details = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new HttpRequestException(
-                "Unable to upload file to Supabase Storage.");
+                $"Unable to upload file to Supabase Storage: {details}",
+                null,
+                response.StatusCode);
         }
     }
 
@@ -263,10 +274,15 @@ public sealed class UserMediaStorage : IUserMediaStorage
         using HttpRequestMessage request = CreateRequest(HttpMethod.Post, $"/object/{Bucket}/{path}");
         request.Content = new StreamContent(stream);
         request.Content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        request.Headers.TryAddWithoutValidation("x-upsert", "true");
         using HttpResponseMessage response = await _client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException("Unable to upload file to Supabase Storage.");
+            var details = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"Unable to upload file to Supabase Storage: {details}",
+                null,
+                response.StatusCode);
         }
     }
 
@@ -316,8 +332,9 @@ public sealed class UserMediaStorage : IUserMediaStorage
 
         if (!response.IsSuccessStatusCode)
         {
+            var statusCode = await GetFailureStatusCodeAsync(response, cancellationToken);
             throw new HttpRequestException(
-                "Unable to open stored file.");
+                "Unable to open stored file.", null, statusCode);
         }
 
         JsonElement json =
@@ -336,6 +353,43 @@ public sealed class UserMediaStorage : IUserMediaStorage
         }
 
         return BaseUrl + signedUrl;
+    }
+
+    private static async Task<System.Net.HttpStatusCode> GetFailureStatusCodeAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        // Supabase reports a deleted/missing object as HTTP 400 with a JSON
+        // statusCode 404 / NoSuchKey payload. Preserve the real semantic status
+        // so callers can render a missing image without treating it as an outage.
+        if (response.StatusCode != System.Net.HttpStatusCode.BadRequest)
+            return response.StatusCode;
+
+        try
+        {
+            using var document = JsonDocument.Parse(
+                await response.Content.ReadAsStreamAsync(cancellationToken));
+            var root = document.RootElement;
+            if (root.TryGetProperty("statusCode", out var statusElement))
+            {
+                var statusText = statusElement.ValueKind == JsonValueKind.String
+                    ? statusElement.GetString()
+                    : statusElement.GetRawText();
+                if (int.TryParse(statusText, out var status) &&
+                    Enum.IsDefined(typeof(System.Net.HttpStatusCode), status))
+                    return (System.Net.HttpStatusCode)status;
+            }
+
+            if (root.TryGetProperty("code", out var codeElement) &&
+                string.Equals(codeElement.GetString(), "NoSuchKey", StringComparison.Ordinal))
+                return System.Net.HttpStatusCode.NotFound;
+        }
+        catch (JsonException)
+        {
+            // Keep the actual HTTP status when the provider response is not JSON.
+        }
+
+        return response.StatusCode;
     }
 
     public async Task<byte[]> DownloadAsync(
