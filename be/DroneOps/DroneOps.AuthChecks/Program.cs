@@ -10,6 +10,12 @@ using DroneOps.Application.Validators.Users;
 using DroneOps.Domain;
 using Microsoft.AspNetCore.Authorization;
 
+if (args.Length == 1 && args[0] == "--gemini-fallback")
+{
+    await GeminiFallbackChecks.RunAsync();
+    return;
+}
+
 if (args.Length == 1 && args[0] == "--uav-review-postgres")
 {
     Console.WriteLine($"{await UavReviewChecks.RunAsync(true)} isolated PostgreSQL UAV review checks passed.");
