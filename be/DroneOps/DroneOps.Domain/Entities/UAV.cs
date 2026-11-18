@@ -59,11 +59,11 @@ public class UAV
     public DateTimeOffset? ImageModerationNextAttemptAt { get; set; }
     public DateTimeOffset? ImageModeratedAt { get; set; }
     public string? ImageModerationReason { get; set; }
-    public string? PendingImageStoragePath { get; set; }
-    public string? PendingImageContentType { get; set; }
+    //public string? PendingImageStoragePath { get; set; }
+    //public string? PendingImageContentType { get; set; }
     public DateTimeOffset? PendingImageSubmittedAt { get; set; }
     public Guid? PendingImageSubmittedBy { get; set; }
-    public Guid? ImageReviewedBy { get; set; }
+    //public Guid? ImageReviewedBy { get; set; }
 
     // Audit
     public DateTimeOffset CreatedAt { get; set; }

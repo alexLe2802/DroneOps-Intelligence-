@@ -157,10 +157,10 @@ public class AdminUavController : ControllerBase
         catch (InvalidOperationException exception) { return Conflict(new { message = exception.Message }); }
     }
 
-    [HttpGet("{id:guid}/image/pending")]
-    public async Task<IActionResult> GetPendingImage(Guid id, CancellationToken cancellationToken)
-    {
-        var image = await _uavService.GetPendingUavImageAsync(id, cancellationToken);
-        return image is null ? NotFound() : Redirect(image.Value.Url);
-    }
+    //[HttpGet("{id:guid}/image/pending")]
+    //public async Task<IActionResult> GetPendingImage(Guid id, CancellationToken cancellationToken)
+    //{
+    //    var image = await _uavService.GetPendingUavImageAsync(id, cancellationToken);
+    //    return image is null ? NotFound() : Redirect(image.Value.Url);
+    //}
 }

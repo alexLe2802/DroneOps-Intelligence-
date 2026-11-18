@@ -42,9 +42,9 @@ public interface IUavService
         Guid uavId,
         CancellationToken cancellationToken = default);
 
-    Task<(string Url, string ContentType)?> GetPendingUavImageAsync(
-        Guid uavId,
-        CancellationToken cancellationToken = default);
+    //Task<(string Url, string ContentType)?> GetPendingUavImageAsync(
+    //    Guid uavId,
+    //    CancellationToken cancellationToken = default);
 
     Task<bool> DeleteUavImageAsync(
         Guid uavId,
