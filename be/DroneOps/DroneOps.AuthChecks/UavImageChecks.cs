@@ -106,6 +106,17 @@ internal static class UavImageChecks
         }
         catch (UnauthorizedAccessException) { Check(true, "another pilot cannot replace an owned UAV image"); }
 
+        Check(await service.DeleteUavImageAsync(uavId, ownerId, "uav_operator"),
+            "owner can delete their published UAV image");
+        var afterDelete = await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId);
+        Check(afterDelete.ImageStoragePath is null && afterDelete.ImageModerationStatus is null &&
+                afterDelete.Status == "Active" && storage.Deleted.Contains(secondPath!),
+            "deleting UAV image clears storage reference and preserves operational status");
+
+        await using (var third = new MemoryStream(png))
+            await service.UploadOrReplaceUavImageAsync(
+                uavId, ownerId, "uav_operator", third, "third.png", "image/png", png.Length);
+
         await service.RejectUavImageAsync(uavId, managerId, "Inappropriate image content.");
         var manuallyRejected = await db.UAVs.AsNoTracking().SingleAsync(x => x.Id == uavId);
         Check(manuallyRejected.ImageStoragePath == null &&
