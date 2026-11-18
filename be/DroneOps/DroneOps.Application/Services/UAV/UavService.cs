@@ -613,7 +613,6 @@ public sealed class UavService : IUavService
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await TryPublishDecisionAsync(uav, false, cancellationToken);
-        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -659,7 +658,6 @@ public sealed class UavService : IUavService
 
         await _uavRepository.SaveChangesAsync(cancellationToken);
         await TryPublishDecisionAsync(uav, true, cancellationToken);
-        await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);
     }
@@ -701,7 +699,6 @@ public sealed class UavService : IUavService
             {
                 await TryPublishDecisionAsync(uav, true, cancellationToken);
             }
-            await _notificationService.RefreshUavManualReviewAsync(cancellationToken);
         }
 
         return MapToResponse(uav, uav.Pilot?.User?.FullName ?? string.Empty);

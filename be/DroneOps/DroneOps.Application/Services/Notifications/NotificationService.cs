@@ -89,50 +89,6 @@ public sealed class NotificationService(
             mission.Id, "Mission", $"/mission-planning?missionId={mission.Id}", cancellationToken);
     }
 
-    public async Task RefreshUavManualReviewAsync(CancellationToken cancellationToken = default)
-    {
-        var count = await repository.GetPendingUavManualReviewCountAsync(cancellationToken);
-        var managers = await repository.GetActiveOperationManagerIdsAsync(cancellationToken);
-        var now = DateTimeOffset.UtcNow;
-
-        foreach (var managerId in managers)
-        {
-            var notification = await repository.GetActiveUavManualReviewAsync(managerId, cancellationToken);
-            if (count == 0)
-            {
-                if (notification is null) continue;
-                notification.IsRead = true;
-                notification.ReadAt ??= now;
-                notification.ReferenceType = "UAVManualReviewQueueClosed";
-                notification.Message = "All pending UAV image reviews have been resolved.";
-                continue;
-            }
-
-            var title = count == 1
-                ? "1 UAV Image Awaits Manager Review"
-                : $"{count} UAV Images Await Manager Review";
-            var message = count == 1
-                ? "A pilot submitted a UAV image. Open the manager-review queue."
-                : $"Pilots submitted {count} UAV images. Open the manager-review queue.";
-
-            if (notification is null)
-            {
-                await repository.AddAsync(Create(managerId, "UavManualReview", title, message, null,
-                    Guid.Empty, "UAVManualReviewQueueActive",
-                    "/uav-management?imageModerationStatus=Pending"), cancellationToken);
-            }
-            else
-            {
-                // Keep the existing read state: count changes do not ring the bell repeatedly.
-                notification.Title = title;
-                notification.Message = message;
-                notification.ActionUrl = "/uav-management?imageModerationStatus=Pending";
-            }
-        }
-
-        await repository.SaveChangesAsync(cancellationToken);
-    }
-
     private async Task AddForRecipientsAsync(
         IEnumerable<Guid> recipients, string type, string title, string message, Guid? actorUserId,
         Guid referenceId, string referenceType, string actionUrl, CancellationToken cancellationToken)

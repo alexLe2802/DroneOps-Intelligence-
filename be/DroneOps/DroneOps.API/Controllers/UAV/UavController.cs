@@ -125,8 +125,12 @@ public class UavController : ControllerBase
         catch (ArgumentException exception) { return BadRequest(new { message = exception.Message }); }
         catch (InvalidOperationException exception)
         {
-            _logger.LogWarning(exception, "UAV image storage misconfigured: {Message}", exception.Message);
-            return StatusCode(503, new { message = "UAV image storage is not configured with a compatible server credential. AI review was not started." });
+            _logger.LogWarning(
+                exception,
+                "UAV image storage misconfigured for UAV {UavId}: {Message}",
+                id,
+                exception.Message);
+            return StatusCode(503, new { message = "UAV image storage is not configured with a compatible server credential." });
         }
         catch (HttpRequestException exception)
         {

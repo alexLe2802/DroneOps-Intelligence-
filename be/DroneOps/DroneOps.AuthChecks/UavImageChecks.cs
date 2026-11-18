@@ -1,9 +1,7 @@
-using System.Net;
-using System.Text;
-using System.Text.Json;
+using System.Security.Claims;
+using DroneOps.API.Controllers.UAVs;
 using DroneOps.Application.Interfaces.Notifications;
 using DroneOps.Application.Interfaces.Storage;
-using DroneOps.Application.Interfaces.UAVs;
 using DroneOps.Application.Services.Notifications;
 using DroneOps.Application.Services.Storage;
 using DroneOps.Application.Services.UAVs;
@@ -13,6 +11,7 @@ using DroneOps.Persistence.Repositories;
 using DroneOps.Persistence.Repositories.Missions;
 using DroneOps.Persistence.Repositories.Notifications;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -42,39 +41,6 @@ internal static class UavImageChecks
             throw new Exception("Disguised executable/text payload was accepted as an image.");
         }
         catch (ArgumentException) { Check(true, "UAV image validation rejects spoofed image content"); }
-
-        var missingGemini = new UavImageModerationService(
-            new HttpClient(new GeminiHandler(HttpStatusCode.OK, "")) { BaseAddress = new Uri("https://fixture.invalid/") },
-            new ConfigurationBuilder().AddInMemoryCollection().Build(),
-            NullLogger<UavImageModerationService>.Instance);
-        Check((await missingGemini.ModerateAsync(png, "image/png")).Decision == UavImageModerationDecision.Unavailable,
-            "missing Gemini configuration defers moderation instead of falsely rejecting the UAV image");
-
-        var geminiConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["UavImageModeration:ApiKey"] = "fixture-key",
-            ["UavImageModeration:Model"] = "gemini-3.5-flash-lite"
-        }).Build();
-        var allowedGemini = new UavImageModerationService(
-            new HttpClient(new GeminiHandler(HttpStatusCode.OK, "{\"isDrone\":true,\"containsInappropriateContent\":false}")) { BaseAddress = new Uri("https://fixture.invalid/") },
-            geminiConfiguration,
-            NullLogger<UavImageModerationService>.Instance);
-        Check((await allowedGemini.ModerateAsync(png, "image/png")).Decision == UavImageModerationDecision.Approved,
-            "Gemini accepts a genuine safe UAV image");
-
-        var unsafeGemini = new UavImageModerationService(
-            new HttpClient(new GeminiHandler(HttpStatusCode.OK, "{\"isDrone\":false,\"containsInappropriateContent\":true}")) { BaseAddress = new Uri("https://fixture.invalid/") },
-            geminiConfiguration,
-            NullLogger<UavImageModerationService>.Instance);
-        Check((await unsafeGemini.ModerateAsync(png, "image/png")).Decision == UavImageModerationDecision.Rejected,
-            "Gemini rejects non-UAV or inappropriate content");
-
-        var unavailableGemini = new UavImageModerationService(
-            new HttpClient(new GeminiHandler(HttpStatusCode.TooManyRequests, "")) { BaseAddress = new Uri("https://fixture.invalid/") },
-            geminiConfiguration,
-            NullLogger<UavImageModerationService>.Instance);
-        Check((await unavailableGemini.ModerateAsync(png, "image/png")).Decision == UavImageModerationDecision.Unavailable,
-            "Gemini service failure is distinguished from an unsafe image decision");
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase("uav-image-check-" + Guid.NewGuid()).Options;
@@ -151,19 +117,36 @@ internal static class UavImageChecks
                 x.Type == "UavImageRejected" && x.Message.Contains("Inappropriate image content")),
             "manager image rejection notifies the owner with the reason");
 
+        var misconfiguredService = new UavService(
+            new UavRepository(db), new PilotRepository(db), notifications,
+            NullLogger<UavService>.Instance, validator, new UavReviewWorkflow(db));
+        var controller = new UavController(misconfiguredService, validator, NullLogger<UavController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [
+                        new Claim(ClaimTypes.NameIdentifier, ownerId.ToString()),
+                        new Claim(ClaimTypes.Role, "uav_operator")
+                    ], "TestAuth"))
+                }
+            }
+        };
+        var formFile = new FormFile(new MemoryStream(png), 0, png.Length, "file", "drone.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+        var misconfiguredResult = await controller.UploadOrReplaceImage(uavId, formFile, CancellationToken.None) as ObjectResult;
+        var misconfiguredMessage = misconfiguredResult?.Value?.GetType().GetProperty("message")?.GetValue(misconfiguredResult.Value)?.ToString() ?? string.Empty;
+        Check(misconfiguredResult?.StatusCode == 503 &&
+                misconfiguredMessage.Contains("server credential", StringComparison.OrdinalIgnoreCase) &&
+                !misconfiguredMessage.Contains("AI review", StringComparison.OrdinalIgnoreCase),
+            "storage misconfiguration returns HTTP 503 without obsolete AI review messaging");
+
         return passed;
-    }
-
-    private sealed class AllowModeration : IUavImageModerationService
-    {
-        public Task<UavImageModerationResult> ModerateAsync(byte[] imageBytes, string contentType, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new UavImageModerationResult(UavImageModerationDecision.Approved, "fixture"));
-    }
-
-    private sealed class UnavailableModeration : IUavImageModerationService
-    {
-        public Task<UavImageModerationResult> ModerateAsync(byte[] imageBytes, string contentType, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new UavImageModerationResult(UavImageModerationDecision.Unavailable, "fixture outage"));
     }
 
     private sealed class TrackingStorage : IUserMediaStorage
@@ -190,23 +173,6 @@ internal static class UavImageChecks
         {
             foreach (var path in paths) { Paths.Remove(path); Deleted.Add(path); }
             return Task.CompletedTask;
-        }
-    }
-
-    private sealed class GeminiHandler(HttpStatusCode statusCode, string resultJson) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var responseBody = string.IsNullOrWhiteSpace(resultJson)
-                ? "{}"
-                : JsonSerializer.Serialize(new
-                {
-                    candidates = new[] { new { content = new { parts = new[] { new { text = resultJson } } } } }
-                });
-            return Task.FromResult(new HttpResponseMessage(statusCode)
-            {
-                Content = new StringContent(responseBody, Encoding.UTF8, "application/json")
-            });
         }
     }
 }

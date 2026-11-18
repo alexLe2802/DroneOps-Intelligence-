@@ -28,5 +28,27 @@ BEGIN
     END IF;
 END $$;
 
+UPDATE public."UAV"
+SET "ImageModerationStatus" = NULL,
+    "ImageModerationAttempts" = 0,
+    "ImageModerationNextAttemptAt" = NULL,
+    "ImageModeratedAt" = NULL,
+    "ImageModerationReason" = NULL
+WHERE "ImageStoragePath" IS NOT NULL
+  AND "ImageModerationStatus" IN ('Pending', 'Processing', 'RetryScheduled', 'ManualReview');
+
+DO $$
+BEGIN
+    IF to_regclass('public."Notification"') IS NOT NULL THEN
+        UPDATE public."Notification"
+        SET "IsRead" = TRUE,
+            "ReadAt" = COALESCE("ReadAt", NOW()),
+            "ReferenceType" = 'UAVManualReviewQueueClosed',
+            "Message" = 'All pending UAV image reviews have been resolved.'
+        WHERE "Type" = 'UavManualReview'
+          AND "ReferenceType" = 'UAVManualReviewQueueActive';
+    END IF;
+END $$;
+
 COMMENT ON COLUMN public."UAV"."ImageModerationStatus" IS
     'Null for a published image; Rejected after a manager removes inappropriate content.';

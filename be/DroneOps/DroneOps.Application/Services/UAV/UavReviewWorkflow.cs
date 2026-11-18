@@ -149,7 +149,6 @@ public sealed class UavReviewWorkflow(AppDbContext db, INotificationService? not
                 var owner = await db.UAVs.AsNoTracking().Where(x => x.Id == id).Select(x => x.Pilot.UserId).SingleAsync(ct);
                 await notifications.PublishToUserAsync(owner, "UavReviewDecision", "UAV review decision",
                     $"UAV action '{action}' saved. Reason: {decision.Reason.Trim()}", actor, id, "UAV", $"/portal/uav/{id}", ct);
-                await notifications.RefreshUavManualReviewAsync(ct);
             }
             catch (Exception exception) when (!ct.IsCancellationRequested)
             { logger?.LogWarning(exception, "UAV decision saved but notification failed for {UavId}", id); }

@@ -160,7 +160,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
         try { await uploadUavImage(id, imageFile); }
         catch (reason) {
           imageUploadFailed = true;
-          imageUploadMessage = reason instanceof Error ? reason.message : "The image upload failed before manager review could start.";
+          imageUploadMessage = reason instanceof Error ? reason.message : "The UAV image upload failed. The previous image was kept.";
         }
       }
       const detailQuery = new URLSearchParams();
