@@ -36,6 +36,7 @@ public class AppDbContext : DbContext
     public DbSet<FlightCompletionEvent> FlightCompletionEvents { get; set; }
     public DbSet<PilotUpdateRequest> PilotUpdateRequests { get; set; }
     public DbSet<PilotUpdateDecisionAudit> PilotUpdateDecisionAudits { get; set; }
+    public DbSet<PilotLicenseAudit> PilotLicenseAudits { get; set; }
     public DbSet<EmailChangeChallenge> EmailChangeChallenges { get; set; }
     public DbSet<AccountWorkflowAudit> AccountWorkflowAudits { get; set; }
     public DbSet<Notification> Notifications { get; set; }
@@ -52,6 +53,12 @@ public class AppDbContext : DbContext
         foreach (var entry in ChangeTracker.Entries<UAV>().Where(x => x.State == EntityState.Modified))
         {
             var version = entry.Property(x => x.RegistryVersion);
+            if (version.CurrentValue == version.OriginalValue)
+                version.CurrentValue = checked(version.OriginalValue + 1);
+        }
+        foreach (var entry in ChangeTracker.Entries<Pilot>().Where(x => x.State == EntityState.Modified))
+        {
+            var version = entry.Property(x => x.LicenseVersion);
             if (version.CurrentValue == version.OriginalValue)
                 version.CurrentValue = checked(version.OriginalValue + 1);
         }
@@ -85,6 +92,9 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<MissionFlightExecution>().HasIndex(e => e.UavId).IsUnique().HasFilter("\"CompletedAt\" IS NULL");
         modelBuilder.Entity<User>().Property(x=>x.ProfileVersion).IsConcurrencyToken();
         modelBuilder.Entity<PilotUpdateRequest>().Property(x => x.Status).IsConcurrencyToken();
+        modelBuilder.Entity<Pilot>().Property(x => x.LicenseVersion).IsConcurrencyToken();
+        modelBuilder.Entity<PilotLicenseAudit>().HasOne(x => x.Pilot).WithMany()
+            .HasForeignKey(x => x.PilotId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<AccountWorkflowAudit>().Property(x=>x.Id).ValueGeneratedOnAdd();
         modelBuilder.Entity<MissionWeatherCache>().HasKey(x => x.Key);
         modelBuilder.Entity<DroneHardwareIdentity>().HasOne(h=>h.Uav).WithOne()

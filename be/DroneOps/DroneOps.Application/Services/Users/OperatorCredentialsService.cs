@@ -123,6 +123,7 @@ public sealed class OperatorCredentialsService
 
         return new OperatorCredentialsResponse
         {
+            PilotId = pilot.Id,
             PhoneNumber = pilot.PhoneNumber,
             DateOfBirth = pilot.DateOfBirth,
             ExperienceYears = pilot.ExperienceYears,
@@ -130,7 +131,9 @@ public sealed class OperatorCredentialsService
             LicenseIssuedDate = pilot.LicenseIssuedDate,
             LicenseExpiredDate = pilot.LicenseExpiredDate,
             LicenseImageUrls = urls,
-            DocumentsAvailable = documentsAvailable
+            DocumentsAvailable = documentsAvailable,
+            LicenseStatus = pilot.LicenseStatus,
+            LicenseVersion = pilot.LicenseVersion
         };
     }
 }

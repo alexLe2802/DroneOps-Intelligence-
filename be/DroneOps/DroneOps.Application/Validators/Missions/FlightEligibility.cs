@@ -23,6 +23,8 @@ public static class FlightEligibility
         var pilot = await db.Pilots.AsNoTracking().Include(x => x.User).SingleOrDefaultAsync(x => x.Id == uav.PilotId, ct);
         if (pilot?.User is null || pilot.UserId != mission.CreatedBy || !pilot.User.IsActive)
             return "The allocated Operator must be active and own this UAV.";
+        if (pilot.LicenseStatus != PilotLicenseStatus.Active)
+            return "The allocated Operator flight license is not active.";
         if (mission.StartTime is null || mission.EndTime is null || string.IsNullOrWhiteSpace(pilot.PilotLicenseNo) ||
             pilot.LicenseIssuedDate is null || pilot.LicenseExpiredDate is null ||
             pilot.LicenseIssuedDate > DateOnly.FromDateTime(mission.StartTime.Value) ||
