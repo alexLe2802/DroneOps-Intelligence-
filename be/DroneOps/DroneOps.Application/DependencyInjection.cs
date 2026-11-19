@@ -81,6 +81,7 @@ public static class DependencyInjection
         services.AddScoped<IMissionApprovalService, MissionApprovalService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IAvatarService, AvatarService>();
+        services.AddScoped<IAIMissionReviewService, AIMissionReviewService>();
         services.AddHttpClient<IUserMediaStorage, UserMediaStorage>(client =>
         {
             // Storage is optional. A stalled remote request must not hold an API
