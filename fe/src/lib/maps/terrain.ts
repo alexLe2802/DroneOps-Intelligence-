@@ -10,6 +10,8 @@
  */
 
 export const TERRAIN_SOURCE_ID = "droneops-terrain-dem";
+export const HILLSHADE_SOURCE_ID = "droneops-hillshade-dem";
+export const HILLSHADE_LAYER_ID = "droneops-hillshade";
 
 export const TERRAIN_SOURCE_CONFIG = {
   type: "raster-dem" as const,
@@ -28,7 +30,7 @@ export const TERRAIN_EXAGGERATION = 1.0;
  * Add the DEM raster source to the map if it does not already exist.
  * Safe to call multiple times.
  */
-export function addTerrainSource(map: { getSource: (id: string) => unknown; addSource: (id: string, source: Record<string, unknown>) => void }): void {
+export function addTerrainSource(map: { getSource: (id: string) => unknown; addSource: (id: string, source: import("maplibre-gl").SourceSpecification) => void }): void {
   if (!map.getSource(TERRAIN_SOURCE_ID)) {
     map.addSource(TERRAIN_SOURCE_ID, TERRAIN_SOURCE_CONFIG);
   }
@@ -40,11 +42,28 @@ export function addTerrainSource(map: { getSource: (id: string) => unknown; addS
  */
 export function enableTerrain(map: {
   getSource: (id: string) => unknown;
-  addSource: (id: string, source: Record<string, unknown>) => void;
+  addSource: (id: string, source: import("maplibre-gl").SourceSpecification) => void;
   setTerrain: (spec: { source: string; exaggeration: number } | null) => void;
+  getLayer: (id: string) => unknown;
+  getStyle: () => { layers?: Array<{ id: string; type: string }> };
+  addLayer: (layer: import("maplibre-gl").LayerSpecification, beforeId?: string) => void;
 }): void {
   addTerrainSource(map);
   map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: TERRAIN_EXAGGERATION });
+  // Separate DEM source for shading, as required by MapLibre when terrain is
+  // also enabled. Shading makes real slopes visible without exaggerating height.
+  if (!map.getSource(HILLSHADE_SOURCE_ID)) {
+    map.addSource(HILLSHADE_SOURCE_ID, TERRAIN_SOURCE_CONFIG);
+  }
+  if (!map.getLayer(HILLSHADE_LAYER_ID)) {
+    const beforeId = map.getStyle().layers?.find(layer => layer.type === "symbol" || layer.id.startsWith("droneops-"))?.id;
+    map.addLayer({
+      id: HILLSHADE_LAYER_ID,
+      type: "hillshade",
+      source: HILLSHADE_SOURCE_ID,
+      paint: { "hillshade-exaggeration": 0.5 },
+    }, beforeId);
+  }
 }
 
 /** Disable terrain rendering — returns to flat 2D view. */

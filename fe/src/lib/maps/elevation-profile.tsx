@@ -11,7 +11,6 @@ import { haversineDistance, type TerrainSample } from "./terrain";
  * Shows:
  *  - Brown fill: terrain elevation (from DEM samples)
  *  - Cyan line: planned flight path (waypoint altitudes)
- *  - Red dashed line: minimum ground clearance
  *  - Waypoint labels along the bottom axis
  *
  * Altitude reference is shown as a label — the chart does not convert
@@ -40,7 +39,7 @@ export default function ElevationProfile({
     // Flight path points
     const flightPoints = waypoints.map((wp, i) => ({
       distance: distances[i],
-      altitude: wp.altitude ?? 0,
+      altitude: typeof wp.altitude === "number" && Number.isFinite(wp.altitude) ? wp.altitude : null,
       label: `WP${i + 1}`,
       actionType: wp.actionType,
     }));
@@ -49,30 +48,19 @@ export default function ElevationProfile({
     const terrainPoints = terrainSamples.filter(s => s.terrainElevation != null) as Array<TerrainSample & { terrainElevation: number }>;
 
     // Determine value ranges
-    const allAltitudes = flightPoints.map(p => p.altitude);
+    const allAltitudes = flightPoints.flatMap(p => p.altitude === null ? [] : [p.altitude]);
     const allTerrain = terrainPoints.map(p => p.terrainElevation);
     const minVal = Math.min(0, ...allAltitudes, ...allTerrain);
     const maxVal = Math.max(100, ...allAltitudes, ...allTerrain) * 1.15;
 
-    // Min ground clearance
-    let minClearance = Infinity;
-    if (terrainPoints.length > 0) {
-      for (const fp of flightPoints) {
-        // Find closest terrain sample
-        const closest = terrainPoints.reduce((best, tp) =>
-          Math.abs(tp.distance - fp.distance) < Math.abs(best.distance - fp.distance) ? tp : best
-        );
-        const clearance = fp.altitude - closest.terrainElevation;
-        if (clearance < minClearance) minClearance = clearance;
-      }
-    }
-
-    return { flightPoints, terrainPoints, totalDistance, minVal, maxVal, minClearance: Number.isFinite(minClearance) ? minClearance : null };
+    // Mission altitudes can be relative to Home or AGL while DEM is MSL.
+    // Without an explicit datum conversion these cannot establish clearance.
+    return { flightPoints, terrainPoints, totalDistance, minVal, maxVal };
   }, [waypoints, terrainSamples]);
 
   if (!profile) return null;
 
-  const { flightPoints, terrainPoints, totalDistance, minVal, maxVal, minClearance } = profile;
+  const { flightPoints, terrainPoints, totalDistance, minVal, maxVal } = profile;
   const W = 720;
   const H = 160;
   const PAD_L = 48;
@@ -96,7 +84,11 @@ export default function ElevationProfile({
   }
 
   // Build flight path
-  const flightPath = flightPoints.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.distance)},${y(p.altitude)}`).join("");
+  const flightPath = flightPoints.map((p, index) => {
+    if (p.altitude === null) return "";
+    const command = index > 0 && flightPoints[index - 1].altitude !== null ? "L" : "M";
+    return `${command}${x(p.distance)},${y(p.altitude)}`;
+  }).join("");
 
   // Y axis grid lines
   const range = maxVal - minVal;
@@ -111,11 +103,6 @@ export default function ElevationProfile({
       <div className="elevation-profile-header">
         <span>ELEVATION PROFILE</span>
         <span className="elevation-ref">{altRef}</span>
-        {minClearance !== null && (
-          <span className={`elevation-clearance${minClearance < 15 ? " warning" : ""}`}>
-            Min clearance: {minClearance.toFixed(0)} m
-          </span>
-        )}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="elevation-svg" preserveAspectRatio="none" aria-label="Elevation cross-section">
         {/* Grid lines */}
@@ -143,12 +130,12 @@ export default function ElevationProfile({
         {/* Waypoint dots and labels */}
         {flightPoints.map((p, i) => (
           <g key={i}>
-            <circle cx={x(p.distance)} cy={y(p.altitude)} r={4} fill="#25d6ff" stroke="#0a1929" strokeWidth={1.5} />
+            {p.altitude !== null && <circle cx={x(p.distance)} cy={y(p.altitude)} r={4} fill="#25d6ff" stroke="#0a1929" strokeWidth={1.5} />}
             <text x={x(p.distance)} y={H - 6} textAnchor="middle" fill="#8bb8d0" fontSize={7} fontFamily="Consolas, monospace">
               {p.label}
             </text>
-            <text x={x(p.distance)} y={y(p.altitude) - 7} textAnchor="middle" fill="#a0d4ee" fontSize={7} fontFamily="Consolas, monospace">
-              {p.altitude.toFixed(0)}m
+            <text x={x(p.distance)} y={p.altitude === null ? PAD_T : y(p.altitude) - 7} textAnchor="middle" fill="#a0d4ee" fontSize={7} fontFamily="Consolas, monospace">
+              {p.altitude === null ? "Unknown" : `${p.altitude.toFixed(0)}m`}
             </text>
           </g>
         ))}
@@ -162,8 +149,9 @@ export default function ElevationProfile({
           {totalDistance >= 1000 ? `${(totalDistance / 1000).toFixed(1)} km` : `${totalDistance.toFixed(0)} m`}
         </text>
       </svg>
+      <p className="elevation-no-terrain">Terrain: MSL. Waypoints: {altRef}. Clearance is not calculated across different altitude references.</p>
       {terrainPoints.length === 0 && (
-        <p className="elevation-no-terrain">Enable 3D mode to load terrain elevation data along the route.</p>
+        <p className="elevation-no-terrain">Terrain elevation along this route is unavailable or still loading.</p>
       )}
     </div>
   );

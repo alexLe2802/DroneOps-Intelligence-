@@ -13,6 +13,7 @@ export default function MapToolbar({
   onFitRoute,
   onFullscreen,
   disabled = false,
+  showModeToggle = true,
 }: {
   mode: MapMode;
   onModeChange: (mode: MapMode) => void;
@@ -20,10 +21,11 @@ export default function MapToolbar({
   onFitRoute: () => void;
   onFullscreen: () => void;
   disabled?: boolean;
+  showModeToggle?: boolean;
 }) {
   return (
-    <div className="map-toolbar-3d" role="toolbar" aria-label="Map controls">
-      <div className="map-mode-toggle" role="group" aria-label="Map view mode">
+    <div className={`map-toolbar-3d${showModeToggle ? "" : " map-toolbar-actions"}`} role="toolbar" aria-label="Map controls">
+      {showModeToggle && <div className="map-mode-toggle" role="group" aria-label="Map view mode">
         <button
           type="button"
           aria-pressed={mode === "2d"}
@@ -40,7 +42,7 @@ export default function MapToolbar({
         >
           3D
         </button>
-      </div>
+      </div>}
       <button
         type="button"
         onClick={onResetNorth}
