@@ -9,6 +9,16 @@
 - Chạy kiểm tra phù hợp với diff và `git diff --check`; báo đúng kết quả và giới hạn.
 - Frontend Next.js: đọc guide tương ứng trong `fe/node_modules/next/dist/docs/` trước khi sửa API/framework.
 
+## Bộ nhớ dự án cục bộ — bắt buộc cho mọi phiên agent
+
+- File tổng hợp duy nhất: `PROJECT_CONTEXT.local.md` tại root repository. File được gitignore nhưng phải giữ trên máy; quy tắc trong `AGENTS.md` này tồn tại độc lập với lịch sử chat. Mọi agent, kể cả subagent, phải đọc file trước khi phân tích hoặc sửa dự án; khi giao việc phải truyền đường dẫn file và yêu cầu tuân thủ mục này.
+- Mỗi thay đổi code ảnh hưởng luồng, nghiệp vụ, trạng thái, quyền/ownership, API/hợp đồng dữ liệu, schema, tích hợp, cấu hình vận hành hoặc cách kiểm thử phải cập nhật các mục liên quan trong file và thêm nhật ký ngay trong cùng tác vụ, trước khi báo hoàn tất hoặc commit. Không chỉ thêm nhật ký mà bỏ nội dung tổng hợp cũ sai. Thay đổi thuần định dạng không ảnh hưởng các nội dung trên không bắt buộc ghi nhật ký.
+- Ghi rõ hành vi trước/sau, file nguồn, tác động liên module, kiểm tra đã chạy/kết quả và giới hạn chưa xác minh. Phân biệt yêu cầu SRS/SDD, code hiện có, kiểm thử cục bộ, deploy và nghiệm thu; không suy đoán trạng thái production. Khi code và đặc tả lệch nhau, giữ cả hai và ghi chênh lệch.
+- Khi làm song song: đăng ký phạm vi/file và hợp đồng dùng chung trong bảng công việc của file trước khi sửa; mỗi agent chỉ cập nhật phần mình phụ trách, đọc lại bản mới nhất trước khi ghi, không ghi đè toàn file bằng bản cũ. Điều phối viên đối chiếu diff tổng hợp và cập nhật tác động chéo trước khi kết thúc. Không xoá mục đang làm của agent khác; chỉ đánh dấu hoàn tất phần của mình. Nếu dùng worktree, xác định đường dẫn file cục bộ dùng chung ở checkout gốc và truyền cho mọi agent, không tự tạo các bản bộ nhớ phân kỳ.
+- Không xoá, truncate, đưa file vào Git hoặc dọn bằng `git clean -x`/công cụ cleanup. Không ghi secrets, token, credentials, dữ liệu backup hay thông tin cá nhân không cần thiết. Không dùng file này để thay thế tài liệu nộp hoặc nới lỏng các quy tắc an toàn phía trên.
+- Nếu file thiếu: khôi phục/tạo lại từ nguồn an toàn và code hiện tại, ghi rõ giới hạn khôi phục; nếu thiếu nguồn cần thiết thì báo rõ phần chưa xác minh trước khi tiếp tục phần phụ thuộc. Không coi việc mất chat là lý do bỏ quy tắc. Bản clone/máy khác không có file ignored thì phải tái tạo trước khi làm việc.
+- Kiểm tra cuối tác vụ: file tồn tại, `git check-ignore PROJECT_CONTEXT.local.md` xác nhận bị ignore, nội dung phản ánh diff liên quan và `git diff --check` đạt. Chỉ báo đã đồng bộ sau khi thực hiện các bước này.
+
 ## graphify
 
 Setup: `uv tool install 'graphifyy[sql]==0.9.107'` (Python 3.10+ and uv).

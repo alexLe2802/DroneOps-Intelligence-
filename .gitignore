@@ -1,4 +1,6 @@
 # Local OS / Office temporary files
+# Persistent machine-local project context; keep on disk, never commit.
+/PROJECT_CONTEXT.local.md
 .DS_Store
 ~$*
 *.tmp
