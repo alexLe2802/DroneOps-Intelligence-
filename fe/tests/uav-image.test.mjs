@@ -25,6 +25,14 @@ test("Add and Edit share image preview and upload behavior without retrying UAV 
   assert.match(source, /const result = await createUav\(request\);\s*id = result\.id/);
   assert.match(source, /try \{ await uploadUavImage\(id, imageFile\); \}\s*catch \(reason\) \{[\s\S]*imageUploadFailed = true;[\s\S]*imageUploadMessage = reason instanceof Error/);
   assert.match(source, /detailQuery\.set\("imageUploadMessage", imageUploadMessage\)/);
+  assert.match(source, /if \(registryChanged\) \{\s*await updateAssignedUav/);
+  assert.match(source, /if \(submitted\) detailQuery\.set\("submitted", submitted\)/);
   assert.match(source, /imagePreview \|\| aircraft\?\.imageUrl/);
   assert.match(source, /disabled=\{saving\}/);
+});
+
+test("UAV detail does not report a broken stored image as published", async () => {
+  const source = await readFile(new URL("../src/app/portal/uav/[id]/uav-detail-client.tsx", import.meta.url), "utf8");
+  assert.match(source, /onError=\{\(\) => setUnavailableImageUrl\(aircraft\.imageUrl\)\}/);
+  assert.match(source, /imageUnavailable \? "Unavailable"/);
 });

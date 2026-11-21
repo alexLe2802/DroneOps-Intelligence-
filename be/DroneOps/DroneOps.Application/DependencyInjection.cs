@@ -81,7 +81,12 @@ public static class DependencyInjection
         services.AddScoped<IMissionApprovalService, MissionApprovalService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IAvatarService, AvatarService>();
-        services.AddScoped<IUserMediaStorage, UserMediaStorage>();
+        services.AddHttpClient<IUserMediaStorage, UserMediaStorage>(client =>
+        {
+            // Storage is optional. A stalled remote request must not hold an API
+            // request or worker iteration indefinitely.
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
         services.AddScoped<IOperatorCredentialsService,OperatorCredentialsService>();
         services.AddScoped<IPilotUpdateRequestService, PilotUpdateRequestService>();
         services.AddScoped<IMissionPreflightService,MissionPreflightService>();

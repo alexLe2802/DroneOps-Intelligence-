@@ -36,15 +36,25 @@ DRONEOPS_RESTORE_ISOLATED=YES
 
 Production media uses the private Supabase `user-media` bucket. Set
 `UserMediaStorage__Provider=Supabase`, `SupabaseStorage__Url` to the project origin,
-and `SupabaseStorage__ServiceKey` in the backend secret store. New `sb_secret_`
-keys use the `apikey` header; legacy `service_role` JWTs also use Bearer authorization.
-`SupabaseStorage__AuthorizationToken` is optional for existing JWT overrides.
+and `SupabaseStorage__ServiceKey` in the backend secret store or local
+`be/DroneOps/DroneOps.API/appsettings.local.json` (template:
+`be/DroneOps/DroneOps.API/appsettings.local.example.json`, never commit secrets):
+
+- Legacy `service_role` JWT (`eyJ...`): set `SupabaseStorage__ServiceKey` only
+  (it is sent in both `apikey` and `Authorization: Bearer`).
+- New secret key (`sb_secret_*`): set `SupabaseStorage__ServiceKey` to the
+  `sb_secret_*` key **and** set `SupabaseStorage__AuthorizationToken` to the legacy
+  `service_role` JWT (`eyJ...`), because Supabase Storage object/sign endpoints still
+  require a compact JWT Bearer token.
+- Offline / local development without Supabase Storage keys: set
+  `UserMediaStorage__Provider=Local` (and optional `UserMediaStorage__LocalRoot`).
+
 See [Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys).
 
 The default provider is Supabase. `Auto`, unknown providers, missing credentials,
 and storage failures never switch to local disk. Remove any existing `Auto`
 override before deploying this version. Local storage requires an explicit
-`UserMediaStorage__Provider=Local`; the Development settings select it for local use.
+`UserMediaStorage__Provider=Local`.
 
 Switching providers does not copy existing files. References to missing local files
 need their original media uploaded again through the application, or a separately
