@@ -36,10 +36,10 @@ export default function MissionApprovalsClient({ account }: { account: Account }
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
 
-  const load = useCallback(async (showLoading = false) => {
+  const load = useCallback(async (showLoading = false, silent = false) => {
     if (showLoading) setItems(null);
-    else setRefreshing(true);
-    setError(null); setConfirmedFor(null);
+    else if (!silent) setRefreshing(true);
+    if (!silent) { setError(null); setConfirmedFor(null); }
     try {
       const result = await getPendingMissionApprovals();
       setItems(result.items);
@@ -68,6 +68,20 @@ export default function MissionApprovalsClient({ account }: { account: Account }
     }).catch(reason => { if (active) setError(reason); });
     return () => { active = false; };
   }, [requestedMissionId]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") void load(false, true);
+    };
+    const timer = window.setInterval(refresh, 10_000);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("droneops:mission-approvals-refresh", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("droneops:mission-approvals-refresh", refresh);
+    };
+  }, [load]);
 
   const filtered = useMemo(() => {
     const value = query.trim().toLowerCase();

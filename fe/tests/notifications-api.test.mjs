@@ -36,7 +36,7 @@ test("notification read mutations use persistent read endpoints", async () => {
 });
 
 test("notification links open the exact manager and pilot workflow without trusting external URLs", () => {
-  assert.equal(routing.notificationDestination({ type: "UavManualReview", referenceId: null, actionUrl: "/uav-management?imageModerationStatus=ManualReview" }), "/portal/uav-management?imageModerationStatus=ManualReview");
+  assert.equal(routing.notificationDestination({ type: "UavManualReview", referenceId: null, actionUrl: "/uav-management?imageModerationStatus=Pending" }), "/portal/uav-management");
   assert.equal(routing.notificationDestination({ type: "NewPendingMission", referenceId: id, actionUrl: null }), `/portal/mission-approvals?missionId=${id}`);
   assert.equal(routing.notificationDestination({ type: "MissionApproved", referenceId: id, actionUrl: null }), `/portal/missions/${id}`);
   assert.equal(routing.notificationDestination({ type: "NewPilotRegistration", referenceId: id, actionUrl: "/operators" }), `/portal/operators?registrationId=${id}`);

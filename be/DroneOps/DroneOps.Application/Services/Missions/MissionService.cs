@@ -136,6 +136,37 @@ public sealed class MissionService : IMissionService
             cancellationToken);
     }
 
+    public async Task<MissionResponse?> SubmitAsync(
+        Guid missionId,
+        Guid userId,
+        Guid operationId,
+        CancellationToken cancellationToken = default)
+    {
+        var submitted = await _workflow.SubmitAsync(
+            missionId,
+            userId,
+            operationId,
+            cancellationToken);
+
+        var mission = await _missionRepository.GetByIdAsync(
+            missionId,
+            cancellationToken);
+        if (mission is null)
+        {
+            return null;
+        }
+
+        if (submitted)
+        {
+            await TryPublishPendingNotificationAsync(
+                mission,
+                userId,
+                cancellationToken);
+        }
+
+        return await MapWithValidationAsync(mission, cancellationToken);
+    }
+
     private async Task<List<MissionResponse>> MapManyWithValidationAsync(
         IReadOnlyCollection<Mission> missions,
         Guid actor,

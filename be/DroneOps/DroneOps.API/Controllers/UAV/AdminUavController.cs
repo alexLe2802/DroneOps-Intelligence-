@@ -68,10 +68,41 @@ public class AdminUavController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPut("{id:guid}/{operation:regex(^(approve|reject|activate|deactivate)$)}")]
-    public async Task<IActionResult> Decide(Guid id, string operation,
+    [HttpPut("{id:guid}/approve")]
+    public Task<IActionResult> Approve(
+        Guid id,
         [FromBody] DroneOps.Application.Services.UAVs.UavReviewDecision request,
         [FromServices] DroneOps.Application.Services.UAVs.UavReviewWorkflow reviews,
+        CancellationToken cancellationToken) =>
+        Decide(id, "approve", request, reviews, cancellationToken);
+
+    [HttpPut("{id:guid}/reject")]
+    public Task<IActionResult> Reject(
+        Guid id,
+        [FromBody] DroneOps.Application.Services.UAVs.UavReviewDecision request,
+        [FromServices] DroneOps.Application.Services.UAVs.UavReviewWorkflow reviews,
+        CancellationToken cancellationToken) =>
+        Decide(id, "reject", request, reviews, cancellationToken);
+
+    [HttpPut("{id:guid}/activate")]
+    public Task<IActionResult> Activate(
+        Guid id,
+        [FromBody] DroneOps.Application.Services.UAVs.UavReviewDecision request,
+        [FromServices] DroneOps.Application.Services.UAVs.UavReviewWorkflow reviews,
+        CancellationToken cancellationToken) =>
+        Decide(id, "activate", request, reviews, cancellationToken);
+
+    [HttpPut("{id:guid}/deactivate")]
+    public Task<IActionResult> Deactivate(
+        Guid id,
+        [FromBody] DroneOps.Application.Services.UAVs.UavReviewDecision request,
+        [FromServices] DroneOps.Application.Services.UAVs.UavReviewWorkflow reviews,
+        CancellationToken cancellationToken) =>
+        Decide(id, "deactivate", request, reviews, cancellationToken);
+
+    private async Task<IActionResult> Decide(Guid id, string operation,
+        DroneOps.Application.Services.UAVs.UavReviewDecision request,
+        DroneOps.Application.Services.UAVs.UavReviewWorkflow reviews,
         CancellationToken cancellationToken)
     {
         var actorValue = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
@@ -92,9 +123,11 @@ public class AdminUavController : ControllerBase
         [FromBody] RejectUavImageRequest request,
         CancellationToken cancellationToken)
     {
+        var actorValue = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(actorValue, out var actor)) return Unauthorized();
         try
         {
-            var result = await _uavService.RejectUavImageAsync(id, request.Reason, cancellationToken);
+            var result = await _uavService.RejectUavImageAsync(id, actor, request.Reason, cancellationToken);
             return result is null ? NotFound() : Ok(result);
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException) { return Conflict(new { message = "UAV changed concurrently. Reload before reviewing its image." }); }
@@ -107,4 +140,5 @@ public class AdminUavController : ControllerBase
             return Conflict(new { message = exception.Message });
         }
     }
+
 }

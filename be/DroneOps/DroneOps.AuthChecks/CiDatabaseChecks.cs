@@ -69,14 +69,7 @@ internal static class CiDatabaseChecks
         await using (var repeat = source.CreateCommand(await File.ReadAllTextAsync(Path.Combine(directory, names[^1]))))
             await repeat.ExecuteNonQueryAsync();
         Console.WriteLine($"PASS: latest release migration is safe to repeat: {names[^1]}");
-        await MissionWorkflowSchema.CheckAsync(source);
-        await TelemetrySchema.CheckAsync(source);
-        await PostFlightSchema.CheckAsync(source);
-        await AccountWorkflowSchema.CheckAsync(source);
-        await DroneConnectionSchema.CheckAsync(source);
-        await FlightPreparationSchema.CheckAsync(source);
-        await UavImageSchema.CheckAsync(source);
-        await UavReviewSchema.CheckAsync(source);
+        await DatabaseSchemaVerifier.VerifyAsync(source, db);
         await using var check = source.CreateCommand("""
             SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
             WHERE n.nspname='public' AND c.relname IN ('MissionUpdateRequest','MissionValidationRun','MissionFlightExecution')

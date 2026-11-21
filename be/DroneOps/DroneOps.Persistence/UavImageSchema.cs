@@ -1,4 +1,6 @@
 using Npgsql;
+using DroneOps.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace DroneOps.Persistence;
 
@@ -9,7 +11,8 @@ public static class UavImageSchema
         foreach (var resource in new[]
         {
             "DroneOps.Persistence.Migrations.20261026000100_uav_images.sql",
-            "DroneOps.Persistence.Migrations.20261105000100_uav_image_moderation_queue.sql"
+            "DroneOps.Persistence.Migrations.20261105000100_uav_image_moderation_queue.sql",
+            "DroneOps.Persistence.Migrations.20261117000100_restore_direct_uav_images.sql"
         })
         {
             using var stream = typeof(UavImageSchema).Assembly.GetManifestResourceStream(resource)
@@ -37,6 +40,24 @@ public static class UavImageSchema
         {
             throw new InvalidOperationException(
                 "Apply the UAV image migration with --migrate-uav-images before starting the API.", exception);
+        }
+    }
+
+    public static async Task CheckMappedEntityAsync(
+        AppDbContext db,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Materializing the entity makes PostgreSQL validate every column mapped
+            // by EF, including fields accidentally added without a migration.
+            await db.UAVs.AsNoTracking().Take(1).ToListAsync(cancellationToken);
+        }
+        catch (PostgresException exception) when (exception.SqlState is "42P01" or "42703")
+        {
+            throw new InvalidOperationException(
+                "The deployed UAV schema does not match the EF model. Apply the reviewed UAV migrations before starting the API.",
+                exception);
         }
     }
 }

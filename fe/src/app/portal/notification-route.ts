@@ -6,7 +6,7 @@ export type NotificationRouteInput = {
 
 export function notificationDestination(notification: NotificationRouteInput): string {
   if (notification.type === "UavManualReview") {
-    return "/portal/uav-management?imageModerationStatus=ManualReview";
+    return "/portal/uav-management";
   }
   if (notification.referenceId && notification.type === "NewPilotRegistration") {
     return `/portal/operators?registrationId=${encodeURIComponent(notification.referenceId)}`;

@@ -50,6 +50,7 @@ public interface IUavService
 
     Task<UavResponse?> RejectUavImageAsync(
         Guid uavId,
+        Guid managerUserId,
         string reason,
         CancellationToken cancellationToken = default);
 

@@ -93,20 +93,17 @@ test("manager approval uses the pending UAV approval endpoint", async () => {
   finally { mock.mock.restore(); }
 });
 
-test("manager manual-review queue sends the moderation filter and preserves AI evidence", async () => {
-  const mock = test.mock.method(globalThis, "fetch", async url => {
-    assert.equal(url, "/api/admin/uavs?PageNumber=1&PageSize=20&imageModerationStatus=ManualReview");
-    return Response.json({
-      items: [{ id, code: "UAV-02", name: "Survey", status: "Pending", imageUrl: "/uav.png", imageModerationStatus: "ManualReview", imageModerationReason: "AI retries exhausted." }],
-      pageNumber: 1, pageSize: 20, totalItems: 12, totalPages: 1,
-    });
+test("manager removes a published UAV image with a required reason", async () => {
+  const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(url, `/api/admin/uavs/${id}/image/reject`);
+    assert.equal(options.method, "POST");
+    assert.deepEqual(JSON.parse(options.body), { reason: "Inappropriate content" });
+    return Response.json({ id, code: "UAV-02", name: "Survey", status: "Active", imageUrl: null, imageModerationStatus: "Rejected" });
   });
   try {
-    const result = await client.getManagedUavs({ imageModerationStatus: "ManualReview" });
-    assert.equal(result.totalItems, 12);
-    assert.equal(result.items[0].imageModerationStatus, "ManualReview");
-    assert.equal(result.items[0].imageModerationReason, "AI retries exhausted.");
-    assert.equal(result.items[0].imageUrl, "/uav.png");
+    const result = await client.rejectManagedUavImage(id, "Inappropriate content");
+    assert.equal(result.imageUrl, null);
+    assert.equal(result.imageModerationStatus, "Rejected");
   } finally { mock.mock.restore(); }
 });
 
@@ -116,4 +113,6 @@ test("proxy permits exact UAV IDs and admin actions, rejecting invented routes",
   const allowed = Function(`${declaration} return allowed;`)();
   for (const path of ["uavs", "uavs/myUAV", `uavs/${id}`, `uavs/${id}/image`, "admin/uavs", `admin/uavs/${id}/approve`, `admin/uavs/${id}/deactivate`]) assert.equal(allowed.test(path), true, path);
   for (const path of ["uavs/not-an-id", `admin/uavs/${id}/delete`, `uavs/${id}/deactivate`, `uavs/${id}/images`]) assert.equal(allowed.test(path), false, path);
+  assert.ok(source.includes("image\\/reject"));
+  assert.ok(!source.includes("image\\/pending"));
 });

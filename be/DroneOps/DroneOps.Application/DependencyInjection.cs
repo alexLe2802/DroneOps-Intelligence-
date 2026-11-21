@@ -68,12 +68,6 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IPilotRegistrationService, PilotRegistrationService>();
         services.AddScoped<IUavService, UavService>();
-        services.AddHttpClient<IUavImageModerationService, UavImageModerationService>(client =>
-        {
-            client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/v1beta/");
-            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(
-                configuration.GetValue("UavImageModeration:RequestTimeoutSeconds", 30), 10, 120));
-        });
         services.AddScoped<IGeofenceService, GeofenceService>();
         services.AddScoped<IMissionService, MissionService>();
         services.AddScoped<IMissionSuggestionService,MissionSuggestionService>();
@@ -87,7 +81,12 @@ public static class DependencyInjection
         services.AddScoped<IMissionApprovalService, MissionApprovalService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IAvatarService, AvatarService>();
-        services.AddScoped<IUserMediaStorage, UserMediaStorage>();
+        services.AddHttpClient<IUserMediaStorage, UserMediaStorage>(client =>
+        {
+            // Storage is optional. A stalled remote request must not hold an API
+            // request or worker iteration indefinitely.
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
         services.AddScoped<IOperatorCredentialsService,OperatorCredentialsService>();
         services.AddScoped<IPilotUpdateRequestService, PilotUpdateRequestService>();
         services.AddScoped<IMissionPreflightService,MissionPreflightService>();

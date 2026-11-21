@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.AI;
@@ -80,18 +80,6 @@ public sealed class GeminiAIService : IAIService
                 "Mission suggestion prompt is required.",
                 nameof(prompt));
         }
-
-        var endpoint =
-            $"v1beta/models/" +
-            $"{Uri.EscapeDataString(model)}:generateContent";
-
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            endpoint);
-
-        request.Headers.Add(
-            "x-goog-api-key",
-            apiKey);
 
         var systemPrompt = """
             You are an AI advisory assistant for UAV mission planning
@@ -420,24 +408,8 @@ public sealed class GeminiAIService : IAIService
             }
         };
 
-        request.Content = JsonContent.Create(requestBody);
-
-        using var response =
-            await _httpClient.SendAsync(
-                request,
-                cancellationToken);
-
-        var responseBody =
-            await response.Content.ReadAsStringAsync(
-                cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException(
-                $"Gemini assessment is unavailable. " +
-                $"Provider status: {(int)response.StatusCode}. " +
-                $"Provider response: {responseBody}");
-        }
+        var responseBody = await SendWithFallbackAsync(
+            requestBody, apiKey, model, cancellationToken);
 
         var aiContent =
             ExtractGeminiContent(responseBody);
@@ -467,6 +439,61 @@ public sealed class GeminiAIService : IAIService
         ValidateResult(result);
 
         return result;
+    }
+
+    private async Task<string> SendWithFallbackAsync(
+        object requestBody,
+        string apiKey,
+        string model,
+        CancellationToken cancellationToken)
+    {
+        var fallbackKey = _configuration["Ai:Fallback:ApiKey"];
+        var fallbackModel = _configuration["Ai:Fallback:Model"];
+        var endpoints = new List<(string ApiKey, string Model)> { (apiKey, model) };
+        if (!string.IsNullOrWhiteSpace(fallbackKey) &&
+            !string.IsNullOrWhiteSpace(fallbackModel))
+        {
+            endpoints.Add((fallbackKey, fallbackModel));
+        }
+
+        for (var index = 0; index < endpoints.Count; index++)
+        {
+            var target = endpoints[index];
+            using var request = new HttpRequestMessage(HttpMethod.Post,
+                $"v1beta/models/{Uri.EscapeDataString(target.Model)}:generateContent");
+            request.Headers.Add("x-goog-api-key", target.ApiKey);
+            request.Content = JsonContent.Create(requestBody);
+            HttpResponseMessage response;
+            try
+            {
+                response = await _httpClient.SendAsync(request, cancellationToken);
+            }
+            catch (HttpRequestException) when (index + 1 < endpoints.Count)
+            {
+                continue;
+            }
+
+            using (response)
+            {
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsStringAsync(cancellationToken);
+                }
+
+                var status = (int)response.StatusCode;
+                if (index + 1 < endpoints.Count &&
+                    (status is 401 or 403 or 404 or 429 || status >= 500))
+                {
+                    continue;
+                }
+
+                // Provider error bodies can contain credentials or prompt details.
+                throw new InvalidOperationException(
+                    $"Gemini assessment is unavailable. Provider status: {status}.");
+            }
+        }
+
+        throw new InvalidOperationException("Gemini assessment is unavailable.");
     }
 
     private static string ExtractGeminiContent(

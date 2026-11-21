@@ -166,3 +166,4 @@ graphify-out/reflections/
 **/logs/
 **/.cloudflare/
 **/.vinext/
+PROJECT_CONTEXT.local.md

@@ -9,24 +9,30 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using DroneOps.Application.DTOs.Options;
+using DroneOps.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
 
 var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
     "--migrate-auth", "--bootstrap-manager", "--monitor-only",
     "--migrate-telemetry", "--check-telemetry-schema",
     "--migrate-postflight", "--check-postflight-schema",
-    "--migrate-mission-workflow", "--migrate-drone-connections", "--migrate-account-workflows",
-    "--migrate-uav-images", "--migrate-uav-reviews"
+    "--migrate-mission-workflow", "--check-mission-workflow-schema", "--migrate-drone-connections",
+    "--migrate-account-workflows", "--check-account-workflow-schema",
+    "--migrate-uav-images", "--migrate-uav-reviews", "--check-uav-review-schema",
+    "--migrate-notifications", "--check-database-schema"
 };
 var configurationArgs = args.Where(argument => !infrastructureCommands.Contains(argument)).ToArray();
 var builder = WebApplication.CreateBuilder(configurationArgs);
 
 #region Services
 
-// Các thiết lập bảo mật local được nạp khi chạy môi trường Development
-if (builder.Environment.IsDevelopment())
+// Các thiết lập cấu hình cục bộ được nạp ưu tiên nếu tồn tại
+foreach (var localName in new[] { "appsettings.local.json", "appsettings.Local.json" })
 {
-    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+    builder.Configuration.AddJsonFile(localName, optional: true, reloadOnChange: false);
+    builder.Configuration.AddJsonFile(Path.Combine(AppContext.BaseDirectory, localName), optional: true, reloadOnChange: false);
+    builder.Configuration.AddJsonFile(Path.Combine(builder.Environment.ContentRootPath, localName), optional: true, reloadOnChange: false);
 }
 builder.Configuration.AddEnvironmentVariables();
 builder.Configuration.AddCommandLine(configurationArgs);
@@ -52,11 +58,20 @@ if (args.Contains("--migrate-drone-connections"))
     return;
 }
 
-if(args.Contains("--migrate-account-workflows"))
+if (args.Contains("--migrate-account-workflows") || args.Contains("--check-account-workflow-schema"))
 {
-    await using var source=PostgresDataSourceFactory.Create(connectionString);
-    await AccountWorkflowSchema.ApplyAsync(source);
-    Console.WriteLine("Account workflow schema verified.");return;
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    if (args.Contains("--migrate-account-workflows"))
+    {
+        await AccountWorkflowSchema.ApplyAsync(source);
+    }
+    else
+    {
+        await AccountWorkflowSchema.CheckAsync(source);
+    }
+
+    Console.WriteLine("Account workflow schema verified.");
+    return;
 }
 
 if (args.Contains("--migrate-uav-images"))
@@ -67,18 +82,34 @@ if (args.Contains("--migrate-uav-images"))
     return;
 }
 
-if (args.Contains("--migrate-uav-reviews"))
+if (args.Contains("--migrate-uav-reviews") || args.Contains("--check-uav-review-schema"))
 {
     await using var source = PostgresDataSourceFactory.Create(connectionString);
-    await UavReviewSchema.ApplyAsync(source);
+    if (args.Contains("--migrate-uav-reviews"))
+    {
+        await UavReviewSchema.ApplyAsync(source);
+    }
+    else
+    {
+        await UavReviewSchema.CheckAsync(source);
+    }
+
     Console.WriteLine("UAV review schema verified.");
     return;
 }
 
-if (args.Contains("--migrate-mission-workflow"))
+if (args.Contains("--migrate-mission-workflow") || args.Contains("--check-mission-workflow-schema"))
 {
     await using var source = PostgresDataSourceFactory.Create(connectionString);
-    await MissionWorkflowSchema.ApplyAsync(source);
+    if (args.Contains("--migrate-mission-workflow"))
+    {
+        await MissionWorkflowSchema.ApplyAsync(source);
+    }
+    else
+    {
+        await MissionWorkflowSchema.CheckAsync(source);
+    }
+
     Console.WriteLine("Mission workflow schema verified.");
     return;
 }
@@ -101,6 +132,24 @@ if (args.Contains("--migrate-postflight") || args.Contains("--check-postflight-s
     return;
 }
 
+if (args.Contains("--migrate-notifications"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await NotificationSchema.ApplyAsync(source);
+    Console.WriteLine("Notification schema migrated and verified.");
+    return;
+}
+
+if (args.Contains("--check-database-schema"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    await using var db = new AppDbContext(
+        new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(source).Options);
+    await DatabaseSchemaVerifier.VerifyAsync(source, db);
+    Console.WriteLine("Complete database schema verification passed.");
+    return;
+}
+
 // Khởi tạo nguồn dữ liệu PostgreSQL dùng chung duy nhất cho toàn ứng dụng
 //builder.Services.AddSingleton(_ => PostgresDataSourceFactory.Create(connectionString));
 builder.Services.AddSingleton<MissionStreamSnapshots>();
@@ -108,7 +157,6 @@ builder.Services.AddControllers(options => options.Filters.Add<MissionValidation
 builder.Services.Configure<MissionWeatherOptions>(
     builder.Configuration.GetSection("MissionWeather"));
 if (monitoringEnabled) builder.Services.AddHostedService<MissionPreflightMonitor>();
-builder.Services.AddHttpClient<DroneOps.Application.Services.Storage.UserMediaStorage>();
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 106 * 1024 * 1024);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 106 * 1024 * 1024);
 builder.Services.AddEndpointsApiExplorer();
@@ -158,7 +206,6 @@ builder.Services.AddPersistenceServices(builder.Configuration);
 if (monitoringEnabled)
 {
     // The dedicated monitor owns background work; API replicas must not poll for it.
-    builder.Services.AddHostedService<UavImageModerationMonitor>();
     builder.Services.AddHostedService<CommunicationLossMonitor>();
     builder.Services.AddHostedService<ScheduledFlightMonitor>();
     builder.Services.AddHostedService<PostFlightCompletionMonitor>();
@@ -233,19 +280,21 @@ builder.Services.AddRateLimiter(options =>
 #endregion
 
 var app = builder.Build();
-await MissionWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await DroneConnectionSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await AccountWorkflowSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await FlightPreparationSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-
-// Detect a missing deployment migration before background monitoring starts.
-await TelemetrySchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await PostFlightSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-// Notification DDL is idempotent so existing deployments become ready without a separate flag.
-await NotificationSchema.ApplyAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await UavImageSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-await UavReviewSchema.CheckAsync(app.Services.GetRequiredService<Npgsql.NpgsqlDataSource>());
-
+var verifySchemaOnStartup = builder.Configuration.GetValue<bool?>("Database:VerifySchemaOnStartup")
+    ?? !app.Environment.IsDevelopment();
+if (verifySchemaOnStartup)
+{
+    await using var schemaScope = app.Services.CreateAsyncScope();
+    await DatabaseSchemaVerifier.VerifyAsync(
+        schemaScope.ServiceProvider.GetRequiredService<Npgsql.NpgsqlDataSource>(),
+        schemaScope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        app.Logger);
+}
+else
+{
+    app.Logger.LogInformation(
+        "Full database schema verification is skipped for fast Development startup. Run with --check-database-schema after schema changes.");
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
