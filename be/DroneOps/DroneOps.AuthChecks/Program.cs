@@ -1,4 +1,5 @@
 using System.Reflection;
+using DroneOps.AuthChecks;
 using DroneOps.API.Controllers;
 using DroneOps.API.Controllers.Users;
 using DroneOps.API.Controllers.Integrations;
@@ -206,4 +207,5 @@ Check(!validator.Validate(request).IsValid, "Short password rejected");
 passed += await UavReviewChecks.RunAsync();
 passed += await UavImageChecks.RunAsync();
 passed += await GeofenceServiceChecks.RunAsync();
+passed += await GoogleLoginChecks.RunAsync();
 Console.WriteLine($"{passed} current auth contract checks passed. Legacy Firebase session checks are archived and were not executed.");

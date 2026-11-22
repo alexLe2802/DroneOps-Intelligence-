@@ -30,3 +30,4 @@
 20261114000100_uav_review_proposals.sql
 20261114000200_pilot_flight_experience_description.sql
 20261117000100_restore_direct_uav_images.sql
+20261119000100_pilot_license_lifecycle.sql

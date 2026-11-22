@@ -24,6 +24,7 @@ public static class DatabaseSchemaVerifier
             ("notifications", () => NotificationSchema.CheckAsync(source, cancellationToken)),
             ("UAV images", () => UavImageSchema.CheckAsync(source)),
             ("UAV reviews", () => UavReviewSchema.CheckAsync(source)),
+            ("pilot license", () => PilotLicenseSchema.CheckAsync(source, cancellationToken)),
             ("EF UAV mapping", () => UavImageSchema.CheckMappedEntityAsync(db, cancellationToken))
         };
 
