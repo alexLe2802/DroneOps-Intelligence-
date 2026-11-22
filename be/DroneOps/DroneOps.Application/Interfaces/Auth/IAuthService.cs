@@ -10,6 +10,11 @@ public interface IAuthService
         LoginRequest request,
         CancellationToken cancellationToken = default);
 
+    // Đăng nhập hệ thống bằng Google ID Token (Login-only)
+    Task<LoginResponse?> GoogleLoginAsync(
+        GoogleLoginRequest request,
+        CancellationToken cancellationToken = default);
+
     // 1. Đăng ký tài khoản Admin (gán Role: Admin)
     Task<string> RegisterAsync(
         RegisterRequest request,

@@ -25,5 +25,9 @@ public class Pilot
 
     public DateTime CreatedAt { get; set; }
 
+    public string LicenseStatus { get; set; } = PilotLicenseStatus.Active;
+
+    public long LicenseVersion { get; set; } = 1;
+
     public User User { get; set; } = null!;
 }

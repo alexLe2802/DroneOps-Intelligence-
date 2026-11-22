@@ -17,6 +17,7 @@ using DroneOps.Application.Services;
 using DroneOps.Application.Services.Auth;
 using DroneOps.Application.Services.AI;
 using DroneOps.Application.Services.Incidents;
+using DroneOps.Application.Services.License;
 using DroneOps.Application.Services.Missions;
 using DroneOps.Application.Services.Notifications;
 using DroneOps.Application.Services.PostFlight;
@@ -48,8 +49,12 @@ public static class DependencyInjection
             configuration.GetSection(TelemetryMonitoringOptions.SectionName));
         services.Configure<PostFlightOptions>(
             configuration.GetSection(PostFlightOptions.SectionName));
+        services.Configure<GoogleAuthSettings>(
+            configuration.GetSection(GoogleAuthSettings.SectionName));
         services.AddMemoryCache();
         services.AddScoped<UavReviewWorkflow>();
+        services.AddScoped<IPilotLicenseWorkflow, PilotLicenseWorkflow>();
+        services.AddScoped<PilotLicenseWorkflow>();
 
         services.AddFluentValidationAutoValidation();
 

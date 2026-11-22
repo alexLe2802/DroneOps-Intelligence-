@@ -1,4 +1,5 @@
 using DroneOps.Domain;
+using Google.Apis.Auth;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -37,19 +38,25 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly IMemoryCache _cache;
     private readonly JwtSettings _jwtSettings;
+    private readonly GoogleAuthSettings _googleAuthSettings;
+    private readonly Func<string, GoogleJsonWebSignature.ValidationSettings, Task<GoogleJsonWebSignature.Payload>> _googleTokenValidator;
 
     public AuthService(
         IUserRepository userRepository,
         AppDbContext context,
         IEmailService emailService,
         IMemoryCache cache,
-        IOptions<JwtSettings> jwtSettings)
+        IOptions<JwtSettings> jwtSettings,
+        IOptions<GoogleAuthSettings>? googleAuthSettings = null,
+        Func<string, GoogleJsonWebSignature.ValidationSettings, Task<GoogleJsonWebSignature.Payload>>? googleTokenValidator = null)
     {
         _userRepository = userRepository;
         _context = context;
         _emailService = emailService;
         _cache = cache;
         _jwtSettings = jwtSettings.Value;
+        _googleAuthSettings = googleAuthSettings?.Value ?? new GoogleAuthSettings();
+        _googleTokenValidator = googleTokenValidator ?? ((token, settings) => GoogleJsonWebSignature.ValidateAsync(token, settings));
     }
 
     // 1. Đăng nhập và sinh Token JWT (CODE GỐC - GIỮ NGUYÊN 100%)
@@ -70,6 +77,84 @@ public class AuthService : IAuthService
         if (!validPassword)
         {
             return null;
+        }
+
+        if (user.RequiresFirstLogin)
+        {
+            return new LoginResponse { RequiresFirstLogin = true };
+        }
+
+        var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes);
+        var token = GenerateToken(user, expiresAt);
+
+        return new LoginResponse
+        {
+            AccessToken = token,
+            ExpiresAt = expiresAt,
+            User = new LoginUserResponse
+            {
+                Id = user.Id,
+                FullName = user.FullName,
+                Email = user.Email,
+                Role = CanonicalRoles.Normalize(user.Role?.Name ?? "User")
+            }
+        };
+    }
+
+    // Đăng nhập hệ thống bằng Google ID Token (Login-only)
+    public async Task<LoginResponse?> GoogleLoginAsync(
+        GoogleLoginRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request?.IdToken))
+        {
+            throw new ArgumentException("IdToken is required.", nameof(request));
+        }
+
+        if (string.IsNullOrWhiteSpace(_googleAuthSettings.ClientId))
+        {
+            throw new InvalidOperationException("Google authentication is not configured.");
+        }
+
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var validationSettings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { _googleAuthSettings.ClientId }
+            };
+            payload = await _googleTokenValidator(request.IdToken, validationSettings);
+        }
+        catch (InvalidJwtException ex)
+        {
+            throw new UnauthorizedAccessException("Invalid or expired Google token.", ex);
+        }
+        catch (Exception ex) when (ex is not UnauthorizedAccessException && ex is not InvalidOperationException)
+        {
+            throw new UnauthorizedAccessException("Failed to validate Google token.", ex);
+        }
+
+        if (!payload.EmailVerified)
+        {
+            throw new UnauthorizedAccessException("Google account email is not verified.");
+        }
+
+        if (string.IsNullOrWhiteSpace(payload.Email))
+        {
+            throw new UnauthorizedAccessException("Google token did not contain a valid email.");
+        }
+
+        var cleanEmail = payload.Email.Trim().ToLowerInvariant();
+
+        var user = await _userRepository.GetByEmailWithRoleAsync(cleanEmail, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        if (!user.IsActive)
+        {
+            throw new UnauthorizedAccessException("Your account has been deactivated.");
         }
 
         if (user.RequiresFirstLogin)
