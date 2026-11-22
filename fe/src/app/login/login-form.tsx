@@ -2,14 +2,17 @@
 
 import { isLicenseDocument } from "@/lib/license-document";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
+import { GoogleAuthProvider, signInWithPopup, signOut, type Auth } from "firebase/auth";
 import { api } from "@/lib/auth/client";
+import { getFirebaseAuth } from "@/lib/auth/firebase";
 import type { AccountRole, AuthSession } from "@/lib/auth/types";
 import { createPilotRegistration } from "@/lib/pilot-registration";
 import LicenseFilePicker from "@/app/license-file-picker";
 
-type Action = "password" | "reset" | "register";
+type Action = "password" | "google" | "reset" | "register";
 type AccessMode = "pilot" | "manager";
 
 
@@ -18,6 +21,14 @@ const roleMismatch: Record<AccessMode, string> = {
   pilot: "This account belongs to Manager Access. Use the Manager panel to sign in.",
   manager: "This account belongs to Pilot Access. Use the Pilot panel to sign in.",
 };
+
+function googleErrorMessage(value: unknown) {
+  const code = value && typeof value === "object" && "code" in value ? String(value.code) : "";
+  if (["auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(code)) return "Google sign-in was cancelled.";
+  if (code === "auth/popup-blocked") return "Your browser blocked the Google sign-in window. Allow pop-ups and try again.";
+  if (code === "auth/network-request-failed") return "Google sign-in could not reach the authentication service. Check your connection and try again.";
+  return value instanceof Error ? value.message : "Unable to sign in with Google.";
+}
 
 export default function LoginForm({ emailChanged = false }: { emailChanged?: boolean }) {
   const router = useRouter();
@@ -65,6 +76,39 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
       if (passwordInput.current) passwordInput.current.value = "";
       setShowPassword(false);
       inProgress.current = false; setBusy(null);
+      if (completed) window.location.replace("/portal");
+    }
+  }
+
+  async function loginWithGoogle() {
+    if (inProgress.current || mode !== "pilot") return;
+    inProgress.current = true;
+    setBusy("google"); setError(""); setNotice("");
+    let firebaseAuth: Auth | null = null;
+    let completed = false;
+    try {
+      firebaseAuth = getFirebaseAuth();
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const result = await signInWithPopup(firebaseAuth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (!credential?.idToken) throw new Error("Google did not return a valid identity token. Please try again.");
+
+      const session = await api<AuthSession>("/auth/google-login", {
+        method: "POST",
+        body: JSON.stringify({ idToken: credential.idToken }),
+      });
+      if (!session.account || session.account.role !== "uav_operator") {
+        await api("/auth/logout", { method: "POST" });
+        throw new Error("Google sign-in is available only for registered pilot accounts.");
+      }
+      completed = true;
+    } catch (value) {
+      setError(googleErrorMessage(value));
+    } finally {
+      if (firebaseAuth) await signOut(firebaseAuth).catch(() => undefined);
+      inProgress.current = false;
+      setBusy(null);
       if (completed) window.location.replace("/portal");
     }
   }
@@ -122,8 +166,8 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
 
   return <div className="login-action">
     <div className="access-tabs" role="tablist" aria-label="Access type">
-      <button type="button" role="tab" aria-selected={mode === "pilot"} className={mode === "pilot" ? "active" : ""} onClick={() => { setMode("pilot"); setError(""); setNotice(""); }}>UAV Operator / Pilot</button>
-      <button type="button" role="tab" aria-selected={mode === "manager"} className={mode === "manager" ? "active" : ""} onClick={() => { setMode("manager"); setError(""); setNotice(""); }}>Operations Manager</button>
+      <button type="button" role="tab" aria-selected={mode === "pilot"} className={mode === "pilot" ? "active" : ""} disabled={busy !== null} onClick={() => { setMode("pilot"); setError(""); setNotice(""); }}>UAV Operator / Pilot</button>
+      <button type="button" role="tab" aria-selected={mode === "manager"} className={mode === "manager" ? "active" : ""} disabled={busy !== null} onClick={() => { setMode("manager"); setError(""); setNotice(""); }}>Operations Manager</button>
     </div>
 
     <form className="email-login-form" onSubmit={submit} aria-busy={busy !== null}>
@@ -133,6 +177,15 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
       <div className="password-field"><input ref={passwordInput} id="login-password" name="password" type={showPassword ? "text" : "password"} required maxLength={4096} autoComplete="current-password" disabled={busy !== null} /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} disabled={busy !== null} onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Hide" : "Show"}</button></div>
       <button type="submit" className="button primary email-login-submit" disabled={busy !== null}>{busy === "password" ? "Authenticating..." : "Authenticate & Enter Portal"}<span aria-hidden="true">→</span></button>
     </form>
+
+    {mode === "pilot" && <div className="google-login-section">
+      <div className="login-divider"><span>OR USE YOUR REGISTERED GMAIL</span></div>
+      <button type="button" className="google-login" aria-label="Sign in with Google" disabled={busy !== null} onClick={() => void loginWithGoogle()}>
+        {busy === "google"
+          ? <span className="google-login-busy">Connecting to Google...</span>
+          : <><span className="google-login-mark" aria-hidden="true"><Image src="/google-signin.png" alt="" width={720} height={160} priority /></span><span>Sign in with Google</span></>}
+      </button>
+    </div>}
 
     {mode === "pilot" && <button type="button" className="pilot-register-link" disabled={busy !== null} onClick={() => { setRegisterOpen(true); setNotice(""); setError(""); }}>Request Pilot Registration</button>}
 
