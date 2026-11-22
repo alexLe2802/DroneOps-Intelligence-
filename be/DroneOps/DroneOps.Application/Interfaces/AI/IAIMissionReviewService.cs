@@ -6,5 +6,6 @@ public interface IAIMissionReviewService
 {
     Task<AIMissionReviewResponse> ReviewMissionAsync(
         Guid missionId,
+        Guid actorId,
         CancellationToken cancellationToken = default);
 }

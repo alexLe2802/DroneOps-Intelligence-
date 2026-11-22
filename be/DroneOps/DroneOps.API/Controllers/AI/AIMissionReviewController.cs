@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using DroneOps.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,53 +8,53 @@ namespace DroneOps.API.Controllers;
 [ApiController]
 [Route("api/ai/mission-review")]
 [Authorize(Roles = "operation_manager")]
-public class AIMissionReviewController : ControllerBase
+public sealed class AIMissionReviewController : ControllerBase
 {
-    private readonly IAIMissionReviewService _aiMissionReviewService;
+    private readonly IAIMissionReviewService _missionReviewService;
 
     public AIMissionReviewController(
-        IAIMissionReviewService aiMissionReviewService)
+        IAIMissionReviewService missionReviewService)
     {
-        _aiMissionReviewService = aiMissionReviewService;
+        _missionReviewService = missionReviewService;
     }
 
-    /// <summary>
-    /// Get AI advice for a mission pending review.
-    /// </summary>
-    
     [HttpPost("{missionId:guid}")]
-    public async Task<IActionResult> ReviewMission(
-        Guid missionId,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> ReviewMissionAsync(
+    Guid missionId,
+    CancellationToken cancellationToken)
     {
         try
         {
-            var result = await _aiMissionReviewService.ReviewMissionAsync(
+            var actorIdText = User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(actorIdText, out var actorId))
+            {
+                return Unauthorized(new
+                {
+                    message = "Invalid operation manager identity."
+                });
+            }
+
+            var result = await _missionReviewService.ReviewMissionAsync(
                 missionId,
+                actorId,
                 cancellationToken);
 
             return Ok(result);
         }
-        catch (KeyNotFoundException ex)
+        catch (KeyNotFoundException exception)
         {
             return NotFound(new
             {
-                message = ex.Message
+                message = exception.Message
             });
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException exception)
         {
             return BadRequest(new
             {
-                message = ex.Message
-            });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new
-            {
-                message = "AI mission review failed.",
-                detail = ex.Message
+                message = exception.Message
             });
         }
     }

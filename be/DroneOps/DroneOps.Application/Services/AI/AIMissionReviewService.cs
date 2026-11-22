@@ -1,7 +1,8 @@
-using System.Text;
+using System.Net.Http.Json;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Response;
 using DroneOps.Application.Interfaces;
+using DroneOps.Application.Interfaces.Validators;
 using DroneOps.Domain.Entities;
 using Microsoft.Extensions.Configuration;
 
@@ -10,170 +11,448 @@ namespace DroneOps.Application.Services;
 public class AIMissionReviewService : IAIMissionReviewService
 {
     private readonly IGenericRepository<Mission> _missionRepository;
+
+    private readonly IGenericRepository<MissionUpdateRequest>
+        _missionUpdateRequestRepository;
+
+    private readonly IMissionValidationService _validationService;
+
     private readonly HttpClient _httpClient;
 
     private readonly string _apiKey;
     private readonly string _model;
+    private static readonly JsonSerializerOptions JsonOptions =
+        new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+    private static readonly HashSet<string> AllowedRiskLevels =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "LOW",
+            "MEDIUM",
+            "HIGH"
+        };
 
     public AIMissionReviewService(
-        IGenericRepository<Mission> missionRepository,
-        HttpClient httpClient,
-        IConfiguration configuration)
+    IGenericRepository<Mission> missionRepository,
+    IGenericRepository<MissionUpdateRequest>
+        missionUpdateRequestRepository,
+    IMissionValidationService validationService,
+    HttpClient httpClient,
+    IConfiguration configuration)
     {
         _missionRepository = missionRepository;
+
+        _missionUpdateRequestRepository =
+            missionUpdateRequestRepository;
+
+        _validationService = validationService;
+
         _httpClient = httpClient;
 
         _apiKey = configuration["Ai:ApiKey"]
-     ?? throw new InvalidOperationException(
-         "Gemini API key is not configured.");
+            ?? throw new InvalidOperationException(
+                "Gemini API key is not configured.");
 
         _model = configuration["Ai:Model"]
             ?? throw new InvalidOperationException(
                 "Gemini model is not configured.");
     }
-
     public async Task<AIMissionReviewResponse> ReviewMissionAsync(
-        Guid missionId,
-        CancellationToken cancellationToken = default)
+     Guid missionId,
+     Guid actorId,
+     CancellationToken cancellationToken = default)
     {
-        // 1. Lấy mission theo ID
+        // 1. Get mission by ID
         var mission = await _missionRepository.GetByIdAsync(
             missionId,
             cancellationToken);
 
-        if (mission == null)
+        if (mission is null)
         {
             throw new KeyNotFoundException(
                 $"Mission with ID '{missionId}' was not found.");
         }
 
-        // 2. Chỉ review mission đang PendingReview
+        // 2. Only Pending Review missions can use AI review
         if (!string.Equals(
-          mission.Status,
-          "Pending Review",
-          StringComparison.OrdinalIgnoreCase))
+                mission.Status,
+                "Pending Review",
+                StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                "AI review is only available for missions with Pending Review status.");
+                "AI review is only available for missions " +
+                "with Pending Review status.");
         }
 
-        // 3. Chỉ lấy những thông tin AI thực sự cần
-        var missionData = new
+        // 3. Get the pending proposal for this mission
+        var pendingRequest =
+            await _missionUpdateRequestRepository.FirstOrDefaultAsync(
+                x =>
+                    x.MissionId == missionId &&
+                    x.Status == "Pending",
+                cancellationToken);
+
+        if (pendingRequest is null)
         {
-            mission.Id,
-            mission.Name,
-            mission.Description,
-            mission.Status,
+            throw new InvalidOperationException(
+                "The mission does not have a pending review request.");
+        }
 
-            mission.UAVId,
+        if (!pendingRequest.ValidationRunId.HasValue)
+        {
+            throw new InvalidOperationException(
+                "The pending request does not contain validation evidence.");
+        }
 
-            mission.StartTime,
-            mission.EndTime,
+        // 4. Read the exact validation run stored during submission
+        var evidence = await _validationService.ReadRunAsync(
+            missionId,
+            pendingRequest.ValidationRunId.Value,
+            actorId,
+            true,
+            cancellationToken);
 
-            mission.AltitudeReference,
+        if (evidence is null)
+        {
+            throw new InvalidOperationException(
+                "Stored mission validation evidence was not found.");
+        }
 
-            mission.AverageSpeedMetersPerSecond,
-            mission.MaxSpeedMetersPerSecond,
+        var weather = evidence.Weather;
 
-            mission.AutomaticFlightRequested,
-            mission.AutomaticFlightLimitsJson,
+        // 5. Prepare stored weather evidence for Gemini
+        object weatherData;
 
-            mission.CreatedAt
+        if (weather is null)
+        {
+            weatherData = new
+            {
+                Available = false,
+                Status = "Unavailable",
+                Message =
+                    "No stored weather evidence was found " +
+                    "for this validation run."
+            };
+        }
+        else
+        {
+            weatherData = new
+            {
+                weather.Available,
+                weather.Status,
+                weather.OverallRisk,
+                weather.OverallRiskScore,
+
+                weather.FlightStartTime,
+                weather.FlightEndTime,
+
+                weather.FetchedAt,
+                weather.ExpiresAt,
+
+                IsExpired =
+                    weather.ExpiresAt <=
+                    DateTimeOffset.UtcNow,
+
+                weather.MaxWindMetersPerSecond,
+                weather.MaxGustMetersPerSecond,
+                weather.MaxCrosswindMetersPerSecond,
+                weather.MaxRainMillimetersPerHour,
+
+                weather.ThunderstormForecast,
+                weather.Warnings,
+
+                RouteWeather = weather.Waypoints.Select(x => new
+                {
+                    x.SequenceOrder,
+                    x.IsRouteSample,
+                    x.SampleOrder,
+                    x.SegmentFrom,
+                    x.SegmentTo,
+
+                    x.Latitude,
+                    x.Longitude,
+                    x.AltitudeMeters,
+
+                    x.EstimatedArrivalTime,
+                    x.ForecastTime,
+
+                    x.TemperatureCelsius,
+                    x.RelativeHumidityPercent,
+
+                    x.WindSpeedMetersPerSecond,
+                    x.WindDirectionDegrees,
+                    x.WindGustMetersPerSecond,
+                    x.CrosswindMetersPerSecond,
+                    x.HeadwindMetersPerSecond,
+
+                    x.PrecipitationProbabilityPercent,
+                    x.PrecipitationMillimeters,
+
+                    x.VisibilityMeters,
+                    x.CloudCoverPercent,
+                    x.WeatherCode,
+
+                    x.Status,
+                    x.RiskLevel,
+                    x.RiskScore,
+                    x.RiskReasons,
+                    x.Warnings
+                }).ToList()
+            };
+        }
+
+        // 6. Mission + saved validation/weather evidence
+        var reviewData = new
+        {
+            Mission = new
+            {
+                mission.Id,
+                mission.Name,
+                mission.Description,
+                mission.Status,
+                mission.UAVId,
+
+                mission.StartTime,
+                mission.EndTime,
+
+                mission.AltitudeReference,
+
+                mission.AverageSpeedMetersPerSecond,
+                mission.MaxSpeedMetersPerSecond,
+
+                mission.AutomaticFlightRequested,
+                mission.AutomaticFlightLimitsJson,
+
+                mission.CreatedAt
+            },
+
+            Validation = new
+            {
+                ValidationRunId =
+                    pendingRequest.ValidationRunId.Value,
+
+                UpdateRequestId =
+                    pendingRequest.Id,
+
+                pendingRequest.IsInitial,
+                pendingRequest.CreatedAt,
+
+                Weather = weatherData
+            }
         };
 
-        var missionJson = JsonSerializer.Serialize(
-            missionData,
+        var reviewJson = JsonSerializer.Serialize(
+            reviewData,
             new JsonSerializerOptions
             {
                 WriteIndented = true
             });
 
-        // 4. Prompt
-        var prompt = $"""
-        You are an AI assistant in a UAV mission management system.
+        // 7. AI instructions
+        var systemPrompt = """
+        You are an AI advisory assistant supporting an
+        Operation Manager in reviewing a UAV mission.
 
-        Your job is to review a mission that has been submitted
-        by a pilot and is currently waiting for manager review.
+        The mission has already been submitted by a pilot
+        and is currently in Pending Review status.
 
-        IMPORTANT:
-        - You only provide advice.
+        IMPORTANT RULES:
+
+        - The Operation Manager is the final decision maker.
         - You do NOT approve or reject the mission.
-        - The Operation Manager makes the final decision.
-        - Analyze only the information provided.
+        - You only provide review advice.
+        - Analyze only the supplied mission and validation data.
         - Do not invent missing information.
-        - Point out missing or suspicious mission information.
-        - Consider mission schedule, flight speed, altitude reference,
-          automatic flight request and automatic flight limits when available.
+        - Do not infer pedestrian density, traffic, terrain,
+          obstacles, permits or regulations from a location name.
+        - The weather data is stored validation evidence captured
+          when the pilot submitted the mission.
+        - Do not claim that weather is safe when the evidence is
+          unavailable, partial, stale or expired.
+        - Treat expired weather evidence as a review concern.
+        - Use the supplied weather risk, warnings and route weather.
+        - Do not claim that geofence validation passed unless
+          geofence evidence is explicitly supplied.
+        - Do not claim that battery validation passed unless
+          battery evidence is explicitly supplied.
+        - Do not claim that the mission is safe to execute.
 
-        Mission data:
+        Review:
 
-        {missionJson}
+        - Mission purpose and description
+        - Mission schedule
+        - Altitude reference
+        - Average and maximum speed
+        - Manual or automatic flight mode
+        - Automatic flight limits
+        - Weather evidence availability and expiration
+        - Overall weather risk and score
+        - Wind, gust and crosswind
+        - Rain and precipitation probability
+        - Visibility
+        - Temperature
+        - Thunderstorm forecast
+        - Weather warnings along the route
 
-        Give the manager a short and useful review.
+        riskLevel must be exactly one of:
 
-        Use this format:
+        LOW
+        MEDIUM
+        HIGH
 
-        Risk Level: LOW / MEDIUM / HIGH
+        advice:
+        Give a concise overall assessment.
+        Maximum 2 sentences.
 
-        Advice:
-        <your assessment>
+        risks:
+        List only important risks supported by the supplied data.
+        Keep every item short and clear.
 
-        Risks:
-        - <risk 1>
-        - <risk 2>
+        recommendation:
+        Give one concise next-step recommendation to the
+        Operation Manager.
 
-        Recommendation:
-        <what the manager should check before making the final decision>
+        Do not repeat the same information across fields.
+        Do not use Markdown.
+        Return only JSON matching the required schema.
         """;
 
-        // 5. Gọi Gemini
-        var advice = await CallGeminiAsync(
-            prompt,
-            cancellationToken);
-
-        // 6. Trả kết quả
-        return new AIMissionReviewResponse
-        {
-            MissionId = mission.Id,
-            MissionName = mission.Name,
-            Advice = advice
-        };
-    }
-
-    private async Task<string> CallGeminiAsync(
-        string prompt,
-        CancellationToken cancellationToken)
-    {
+        // 8. Build Gemini request
         var requestBody = new
         {
-            contents = new[]
+            system_instruction = new
             {
+                parts = new object[]
+                {
                 new
                 {
-                    parts = new[]
+                    text = systemPrompt
+                }
+                }
+            },
+
+            contents = new object[]
+            {
+            new
+            {
+                role = "user",
+
+                parts = new object[]
+                {
+                    new
                     {
-                        new
-                        {
-                            text = prompt
-                        }
+                        text =
+                            "Review the following mission and its " +
+                            "stored weather validation evidence:\n" +
+                            reviewJson
                     }
+                }
+            }
+            },
+
+            generationConfig = new
+            {
+                temperature = 0.2,
+
+                responseMimeType = "application/json",
+
+                responseJsonSchema = new
+                {
+                    type = "object",
+
+                    properties = new
+                    {
+                        advice = new
+                        {
+                            type = "string"
+                        },
+
+                        riskLevel = new
+                        {
+                            type = "string"
+                        },
+
+                        risks = new
+                        {
+                            type = "array",
+
+                            items = new
+                            {
+                                type = "string"
+                            }
+                        },
+
+                        recommendation = new
+                        {
+                            type = "string"
+                        }
+                    },
+
+                    required = new[]
+                    {
+                    "advice",
+                    "riskLevel",
+                    "risks",
+                    "recommendation"
+                }
                 }
             }
         };
 
-        var json = JsonSerializer.Serialize(requestBody);
+        // 9. Call Gemini
+        var aiContent = await CallGeminiAsync(
+            requestBody,
+            cancellationToken);
 
-        using var content = new StringContent(
-            json,
-            Encoding.UTF8,
-            "application/json");
+        AIMissionReviewResponse? result;
 
-        var url =
-            $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent?key={_apiKey}";
+        try
+        {
+            result = JsonSerializer.Deserialize<AIMissionReviewResponse>(
+                aiContent,
+                JsonOptions);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException(
+                "Gemini returned malformed mission review JSON.",
+                exception);
+        }
 
-        using var response = await _httpClient.PostAsync(
-            url,
-            content,
+        if (result is null)
+        {
+            throw new InvalidOperationException(
+                "Gemini returned an invalid mission review response.");
+        }
+
+        ValidateResult(result);
+
+        // Mission identity always comes from database
+        result.MissionId = mission.Id;
+        result.MissionName = mission.Name;
+
+        return result;
+    }
+
+    private async Task<string> CallGeminiAsync(
+        object requestBody,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"v1beta/models/{Uri.EscapeDataString(_model)}:generateContent");
+
+        request.Headers.Add(
+            "x-goog-api-key",
+            _apiKey);
+
+        request.Content = JsonContent.Create(requestBody);
+
+        using var response = await _httpClient.SendAsync(
+            request,
             cancellationToken);
 
         var responseJson = await response.Content.ReadAsStringAsync(
@@ -182,34 +461,85 @@ public class AIMissionReviewService : IAIMissionReviewService
         if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException(
-                $"Gemini review failed. " +
-                $"Status: {(int)response.StatusCode}. " +
-                $"Response: {responseJson}");
+                $"Gemini review is unavailable. " +
+                $"Provider status: {(int)response.StatusCode}.");
         }
 
         using var document = JsonDocument.Parse(responseJson);
 
         var root = document.RootElement;
 
-        if (!root.TryGetProperty("candidates", out var candidates) ||
+        if (!root.TryGetProperty(
+                "candidates",
+                out var candidates) ||
+            candidates.ValueKind != JsonValueKind.Array ||
             candidates.GetArrayLength() == 0)
         {
             throw new InvalidOperationException(
-                "Gemini did not return any review.");
+                "Gemini response does not contain a review result.");
         }
 
-        var advice = candidates[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
+        var firstCandidate = candidates[0];
 
-        if (string.IsNullOrWhiteSpace(advice))
+        if (!firstCandidate.TryGetProperty(
+                "content",
+                out var content) ||
+            !content.TryGetProperty(
+                "parts",
+                out var parts) ||
+            parts.ValueKind != JsonValueKind.Array ||
+            parts.GetArrayLength() == 0)
         {
             throw new InvalidOperationException(
-                "Gemini returned an empty review.");
+                "Gemini response does not contain review content.");
         }
 
-        return advice.Trim();
+        foreach (var part in parts.EnumerateArray())
+        {
+            if (!part.TryGetProperty(
+                    "text",
+                    out var textElement))
+            {
+                continue;
+            }
+
+            var text = textElement.GetString();
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Gemini returned empty review content.");
+    }
+
+    private static void ValidateResult(
+        AIMissionReviewResponse result)
+    {
+        if (string.IsNullOrWhiteSpace(result.RiskLevel) ||
+            !AllowedRiskLevels.Contains(result.RiskLevel))
+        {
+            throw new InvalidOperationException(
+                "Gemini returned an invalid risk level.");
+        }
+
+        result.RiskLevel =
+            result.RiskLevel.Trim().ToUpperInvariant();
+
+        if (string.IsNullOrWhiteSpace(result.Advice))
+        {
+            throw new InvalidOperationException(
+                "Gemini response is missing advice.");
+        }
+
+        result.Risks ??= [];
+
+        if (string.IsNullOrWhiteSpace(result.Recommendation))
+        {
+            throw new InvalidOperationException(
+                "Gemini response is missing recommendation.");
+        }
     }
 }

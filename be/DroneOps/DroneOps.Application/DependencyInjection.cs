@@ -106,6 +106,12 @@ public static class DependencyInjection
             client.BaseAddress =
                 new Uri("https://generativelanguage.googleapis.com/");
         });
+        services.AddHttpClient<IAIMissionReviewService, AIMissionReviewService>(
+      client =>
+      {
+          client.BaseAddress = new Uri(
+              "https://generativelanguage.googleapis.com/");
+      });
         return services;
     }
 }
