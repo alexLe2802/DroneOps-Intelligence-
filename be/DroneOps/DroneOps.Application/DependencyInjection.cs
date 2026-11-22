@@ -49,6 +49,8 @@ public static class DependencyInjection
             configuration.GetSection(TelemetryMonitoringOptions.SectionName));
         services.Configure<PostFlightOptions>(
             configuration.GetSection(PostFlightOptions.SectionName));
+        services.Configure<GoogleAuthSettings>(
+            configuration.GetSection(GoogleAuthSettings.SectionName));
         services.AddMemoryCache();
         services.AddScoped<UavReviewWorkflow>();
         services.AddScoped<IPilotLicenseWorkflow, PilotLicenseWorkflow>();
