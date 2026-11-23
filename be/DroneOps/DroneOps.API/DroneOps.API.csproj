@@ -35,4 +35,9 @@
 		<Content Include="../../../database/migrations/002_ai_assessments.sql" Link="Migrations/002_ai_assessments.sql" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
+	<!-- Tự động dừng tiến trình DroneOps.API đang chạy trước khi build để tránh lỗi khóa file (MSB3027/MSB3021) trên Windows -->
+	<Target Name="KillRunningApiBeforeBuild" BeforeTargets="BeforeBuild;BeforeRebuild" Condition="'$(OS)' == 'Windows_NT'">
+		<Exec Command="taskkill /f /im DroneOps.API.exe 2&gt;nul || exit 0" IgnoreExitCode="true" />
+	</Target>
+
 </Project>
