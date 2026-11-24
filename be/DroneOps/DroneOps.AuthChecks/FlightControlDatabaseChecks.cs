@@ -13,7 +13,7 @@ internal static class FlightControlDatabaseChecks
     public static async Task RunAsync(AppDbContext db, IMissionValidationService validation, Guid id, Guid actor, Guid connection)
     {
         void Check(bool condition, string name) { if (!condition) throw new Exception("FAIL: " + name); Console.WriteLine("PASS: " + name); }
-        var start = DateTimeOffset.UtcNow.AddSeconds(10);
+        var start = DateTimeOffset.UtcNow.AddMinutes(-2);
         var limitsJson = JsonSerializer.Serialize(new AutomaticFlightLimits());
         await db.Missions.Where(m => m.Id == id).ExecuteUpdateAsync(s => s.SetProperty(m => m.StartTime, start.UtcDateTime)
             .SetProperty(m => m.EndTime, start.AddMinutes(10).UtcDateTime).SetProperty(m => m.Status, "Approved")
@@ -34,8 +34,14 @@ internal static class FlightControlDatabaseChecks
         var upload = JsonSerializer.SerializeToElement(await controls.PollAsync(connection, evidence, null, default), Json).GetProperty("command").GetProperty("id").GetGuid();
         evidence = evidence with { UploadedHash = hash };
         await controls.PollAsync(connection, evidence, new(upload, true, hash), default);
-        await preparation.PresenceAsync(id, actor, default); await preparation.ConfirmAsync(id, actor, ready.PlanHash, default);
-        clock.Now = start;
+        await preparation.PresenceAsync(id, actor, default);
+        await controls.PollAsync(connection, evidence with { PreArmReady = false }, null, default);
+        var rejected = false;
+        try { await preparation.ConfirmAsync(id, actor, ready.PlanHash, default); } catch (InvalidOperationException) { rejected = true; }
+        Check(rejected, "late agreement rejects failed FC pre-arm even with a verified upload");
+        await controls.PollAsync(connection, evidence, null, default);
+        await preparation.ConfirmAsync(id, actor, ready.PlanHash, default);
+        clock.Now = DateTimeOffset.UtcNow;
         await controls.ReadAsync(id, actor, true, default); await controls.PollAsync(connection, evidence, null, default);
         var arm = JsonSerializer.SerializeToElement(await controls.PollAsync(connection, evidence, null, default), Json);
         var stored = JsonSerializer.Deserialize<FlightControlState>((await db.MissionAutomationStates.AsNoTracking().SingleAsync(s => s.MissionId == id)).ExecutionJson!, Json)!;
@@ -48,12 +54,25 @@ internal static class FlightControlDatabaseChecks
         evidence = evidence with { LandedState = 2, MissionMode = true, ReachedCommands = stored.WaypointCommands.Take(1).ToArray() };
         await controls.PollAsync(connection, evidence, null, default);
         Check(await db.MissionFlightExecutions.AnyAsync(e => e.MissionId == id && e.CompletedAt == null), "one drone creates one immutable observed execution");
+        var plannedEnd = (await db.Missions.AsNoTracking().SingleAsync(m => m.Id == id)).EndTime;
+        evidence = evidence with { LandedState = 1, LandedObservedAtUtc = clock.Now };
+        await controls.PollAsync(connection, evidence, null, default);
+        clock.Now = clock.Now.AddSeconds(1); evidence = evidence with { LandedObservedAtUtc = clock.Now };
+        await controls.PollAsync(connection, evidence, null, default);
+        Check(!await db.FlightCompletionEvents.AnyAsync(e => e.MissionId == id) && (await db.Missions.AsNoTracking().SingleAsync(m => m.Id == id)).EndTime == plannedEnd,
+            "landing while armed never completes the mission or replaces its end time");
+        clock.Now = clock.Now.AddSeconds(1);
         evidence = evidence with { Armed = false, LandedState = 1, MissionCurrent = stored.WaypointCommands.Last(), LandedObservedAtUtc = clock.Now };
         await controls.PollAsync(connection, evidence, null, default);
         clock.Now = clock.Now.AddSeconds(1); evidence = evidence with { LandedObservedAtUtc = clock.Now };
         await controls.PollAsync(connection, evidence, null, default); await controls.PollAsync(connection, evidence, null, default);
         Check(await db.FlightCompletionEvents.CountAsync(e => e.MissionId == id && e.IsTrusted) == 1, "landing and completion replay create one trusted terminal event");
         Check(await db.PostFlightReports.CountAsync(r => r.MissionId == id) == 1, "one completed route queues one post-flight report");
+        Check((await db.Missions.AsNoTracking().SingleAsync(m => m.Id == id)).EndTime == clock.Now.UtcDateTime, "mission end uses observed landing and disarm time instead of the booked end");
+        Check((await preparation.ReadAsync(id, actor, default)).ActualEndedAt == clock.Now, "preparation API exposes the trusted execution end time");
+        var completedExecution = await db.MissionFlightExecutions.AsNoTracking().SingleAsync(e => e.MissionId == id);
+        Check(JsonDocument.Parse(completedExecution.ApprovedPlanJson).RootElement.GetProperty("endTime").GetDateTime() == plannedEnd,
+            "approved execution snapshot retains the original booked end time");
         Check((await db.Missions.AsNoTracking().SingleAsync(m => m.Id == id)).Status == "Completed", "verified full route and landing complete the mission");
     }
     private sealed class FixtureTime : TimeProvider

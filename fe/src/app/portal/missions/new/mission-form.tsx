@@ -3,7 +3,7 @@
 import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
-import { CalendarClock } from "lucide-react";
+import { AlertCircle, CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
@@ -62,6 +62,10 @@ export default function MissionForm() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) { errorRef.current?.focus({ preventScroll: true }); errorRef.current?.scrollIntoView({ block: "center", behavior: "instant" }); }
+  }, [error]);
   useUnsavedChanges(!saved && Boolean(missionFences.length || fenceDrawing.draft.length || flightMode || name || description || averageSpeed || maxSpeed || uavId || startTime || endTime || waypoints.length));
   function load() {
     setAircraft(null); setLoadError(null);
@@ -183,6 +187,7 @@ export default function MissionForm() {
           : field.validationMessage;
       setError(`${label}: ${message}`);
     }}>
+      {error && <div ref={errorRef} className="mission-error-summary" role="alert" tabIndex={-1}><AlertCircle size={24} aria-hidden="true" /><div><strong>Mission could not be saved</strong><p>{error}</p></div></div>}
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
       <MissionFenceFields fences={missionFences} onChange={setMissionFences} drawing={fenceDrawing.drawing} onDraw={shape => { fenceDrawing.begin(shape); }} vertexCount={fenceDrawing.draft.length} onFinish={fenceDrawing.finish} disabled={saving} />
       <FlightModeFields value={flightMode} onChange={mode => {
@@ -198,7 +203,7 @@ export default function MissionForm() {
           <label>CRUISE SPEED (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-average-speed" type="number" min={automaticFlightRequested ? "0.5" : "0.1"} max={automaticFlightRequested ? 15 : undefined} step="0.01" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — flight default 11.2" : "10.0"} required={!automaticFlightRequested} /><small>{averageSpeed ? `${(Number(averageSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
           <label>SPEED CEILING (M/S) · {automaticFlightRequested ? "optional override" : "required"}<input id="mission-max-speed" type="number" min="0.1" max={automaticFlightRequested ? 15 : undefined} step="0.01" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — speed ceiling 15" : "15.0"} required={!automaticFlightRequested} /><small>{maxSpeed ? `${(Number(maxSpeed) * 3.6).toFixed(2)} km/h` : ""}</small></label>
           <div className="schedule-field"><label htmlFor="mission-start-time">START DATE &amp; TIME · required</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setStartTime(event.target.value); setError(""); }} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">VIETNAM GMT+7 / START MUST BE IN THE FUTURE</small></div>
-          <div className="schedule-field"><label htmlFor="mission-end-time">END DATE &amp; TIME · required</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setEndTime(event.target.value); setError(""); }} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">VIETNAM GMT+7 / MUST BE LATER THAN START</small></div>
+          <div className="schedule-field"><label htmlFor="mission-end-time">PLANNED END DATE &amp; TIME · required</label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setEndTime(event.target.value); setError(""); }} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">VIETNAM GMT+7 / BOOKING LIMIT; ACTUAL END IS RECORDED AFTER LANDING AND DISARM</small></div>
         </div>
         {activeAircraft.length === 0 && <p className="form-warning">No active UAV is ready for mission planning.</p>}
       </section>
@@ -217,7 +222,6 @@ export default function MissionForm() {
       </section>
       </fieldset>
       <label className="mission-altitude-reference">Altitude reference<select value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option disabled={automaticFlightRequested} value="AGL">AGL — above ground</option><option disabled={automaticFlightRequested} value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select></label>
-      {error && <p className="form-error" role="alert" aria-live="assertive">{error}</p>}
       <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS · Save a Draft, then submit it from Mission Details for validation and review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button className="module-primary" disabled={saving || activeAircraft.length === 0 || flightMode === null}>{saving ? "SAVING…" : "SAVE DRAFT MISSION"}</button></div></footer>
     </form>
   </>;

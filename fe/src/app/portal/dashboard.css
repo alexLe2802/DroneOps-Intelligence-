@@ -317,3 +317,5 @@
 .manager-uav-detail .uav-actions,.manager-uav-queue>.uav-actions{flex-wrap:wrap}
 @media(max-width:1100px){.manager-uav-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:700px){.manager-uav-row{grid-template-columns:52px minmax(0,1fr)}.manager-uav-row>em{grid-column:2}.manager-uav-queue>.uav-actions>*{max-inline-size:100%}}
+
+.mission-builder .mission-error-summary{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border:1px solid #ef6b78;border-inline-start:5px solid #ef6b78;border-radius:6px;background:#401f2a;color:#ffe2e6;scroll-margin-block:100px}.mission-error-summary>svg{flex-shrink:0;margin-top:1px}.mission-builder .mission-error-summary strong{font-size:1rem;line-height:1.5}.mission-builder .mission-error-summary p{margin:4px 0 0;color:#ffe2e6;font-size:.9375rem;line-height:1.6}.mission-error-summary:focus-visible{outline:2px solid #fff;outline-offset:3px}

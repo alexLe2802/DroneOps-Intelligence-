@@ -11,7 +11,7 @@ namespace DroneOps.API;
 public sealed record FlightPreparation(Guid MissionId, string PlanHash, DateTimeOffset ServerNow,
     DateTimeOffset ScheduledAt, bool ConfirmationOpen, bool DroneConnected, bool OperatorOnline,
     bool ReadinessConfirmed, bool DispatchEnabled, string[] BlockingReasons,
-    DateTimeOffset EndsAt, bool GatewayConnected, bool PreflightReady, bool ConfirmationRecorded);
+    DateTimeOffset EndsAt, bool GatewayConnected, bool PreflightReady, bool ConfirmationRecorded, bool PreArmReady, DateTimeOffset? ConfirmedAt, DateTimeOffset? ActualEndedAt);
 
 public sealed class MissionAutomationService(AppDbContext db, IMissionValidationService validation, IConfiguration? configuration = null)
 {
@@ -50,7 +50,7 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
     }
 
     public static bool InConfirmationWindow(DateTimeOffset now, DateTimeOffset start, DateTimeOffset end) =>
-        end > start && now >= start.AddMinutes(-5) && now < start;
+        end > start && now >= start.AddMinutes(-5) && now < end;
 
     private async Task<Mission> OwnedMission(Guid id, Guid actor, CancellationToken ct, bool requireApproved = true)
     {
@@ -76,7 +76,7 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
         var now = DateTimeOffset.UtcNow;
         var start = new DateTimeOffset(DateTime.SpecifyKind(mission.StartTime!.Value, DateTimeKind.Utc));
         var end = new DateTimeOffset(DateTime.SpecifyKind(mission.EndTime ?? mission.StartTime.Value, DateTimeKind.Utc));
-        var windowOpen = InConfirmationWindow(now, start, end);
+        var windowOpen = mission.Status == "Approved" && InConfirmationWindow(now, start, end);
         var hash = MissionValidationService.Hash(mission);
         var connection = await Connected(mission, now, ct);
         var gatewayConnected = connection != null || await Connected(mission, now, ct, requireSample: false) != null;
@@ -85,25 +85,35 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
             .OrderByDescending(r => r.CheckedAt).FirstOrDefaultAsync(ct);
         var freshPreflight = preflight is { IsValid: true, ResultStatus: "Pass" } && preflight.PlanHash == hash
             && preflight.CheckedAt >= now.AddMinutes(-1) && preflight.CheckedAt <= now;
-        var online = state?.LastPresenceAt >= now.AddSeconds(-30);
-        var recorded = now < end && online && state?.ConfirmedPlanHash == hash && state.ConfirmedAt >= start.AddMinutes(-5)
-            && state.ConfirmedAt < start && connection != null && state.ConnectionId == connection.Id;
+        var online = state?.LastPresenceAt >= now.AddSeconds(-30) && state.LastPresenceAt <= now;
+        var actualEndedAt = await db.MissionFlightExecutions.AsNoTracking().Where(e => e.MissionId == id)
+            .Select(e => e.CompletedAt).SingleOrDefaultAsync(ct);
+        var execution = state?.ExecutionJson == null ? null : System.Text.Json.JsonSerializer.Deserialize<FlightControlState>(state.ExecutionJson, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        var preArmReady = connection != null && execution != null && execution.ConnectionId == connection.Id && execution.Fresh(now) && execution.OnGround(now)
+            && execution.Evidence is { Armed: false, NavigationReady: true, PreArmReady: true }
+            && execution.UploadVerified && execution.PlanHash == hash && execution.CompiledHash != null
+            && execution.Evidence.UploadedHash == execution.CompiledHash && execution.Evidence.VerifiedEnvelopeHash == execution.CompiledHash
+            && execution.DispatchAttemptedAt == null && execution.Pending == null && execution.Stage is ("Ready" or "Cancelled")
+            && execution.Evidence.Firmware == "ArduPilot" && execution.Options?.FirmwareTarget == "ArduPilot";
+        var recorded = windowOpen && online && state?.ConfirmedPlanHash == hash && state.ConfirmedAt >= start.AddMinutes(-5)
+            && state.ConfirmedAt <= now && state.ConfirmedAt < end
+            && (now < start.AddSeconds(5) || state.ConfirmedAt >= start || execution?.DispatchAttemptedAt != null && now < execution.DispatchDeadline) && connection != null && state.ConnectionId == connection.Id;
         var pendingProposal = await db.MissionUpdateRequests.AsNoTracking().AnyAsync(r => r.MissionId == id && r.Status == "Pending", ct);
         var eligibilityBlock = await FlightEligibility.BlockingReasonAsync(db, mission, ct);
         var confirmed = recorded && freshPreflight && !pendingProposal && eligibilityBlock is null;
         var reasons = new List<string>();
         if (eligibilityBlock is not null) reasons.Add(eligibilityBlock);
         if (pendingProposal) reasons.Add("A pending mission change must be reviewed before dispatch.");
-        if (!windowOpen && !recorded) reasons.Add(now >= start ? "The confirmation window has closed." : "Confirmation opens five minutes before the scheduled start.");
+        if (!windowOpen && !recorded) reasons.Add(now >= end ? "The planned flight window has ended." : "Confirmation opens five minutes before the scheduled start.");
         if (connection == null) reasons.Add("Fresh telemetry from this mission's bound flight controller is required.");
         if (!online) reasons.Add("Keep an authenticated, visible browser tab online.");
         if (!freshPreflight) reasons.Add("A fresh, passing preflight check for this exact plan is required.");
         if (!recorded) reasons.Add("The pilot has not confirmed this exact plan and drone connection.");
         // This endpoint reports preparation consent; execution is a separate,
         // explicitly gated action in the same automation API.
-        if (!confirmed) reasons.Add("Confirm before the scheduled start; the scheduler dispatches only while all gates remain satisfied.");
+        if (!confirmed) reasons.Add("Confirm the verified mission; automatic flight starts only while all readiness gates remain satisfied.");
         return new(id, hash, now, start, windowOpen, connection != null,
-            online, confirmed, configuration?.GetValue<bool>("FlightExecution:Enabled") == true && confirmed && now < start.AddSeconds(5), reasons.ToArray(), end, gatewayConnected, freshPreflight, recorded);
+            online, confirmed, configuration?.GetValue<bool>("FlightExecution:Enabled") == true && confirmed && preArmReady && now >= start, reasons.ToArray(), end, gatewayConnected, freshPreflight, recorded, preArmReady, recorded ? state?.ConfirmedAt : null, actualEndedAt);
     }
 
     public async Task<FlightPreparation> PresenceAsync(Guid id, Guid actor, CancellationToken ct)
@@ -131,7 +141,9 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
     {
         var before = await ReadAsync(id, actor, ct);
         if (expectedHash != before.PlanHash || !before.ConfirmationOpen || !before.OperatorOnline || !before.DroneConnected)
-            throw new InvalidOperationException("Refresh the plan. Confirmation requires T-5 through scheduled start, an online operator and fresh telemetry.");
+            throw new InvalidOperationException("Refresh the plan. Confirmation requires an approved mission within its flight window, an online operator and fresh telemetry.");
+        if (configuration?.GetValue<bool>("FlightExecution:Enabled") == true && !before.PreArmReady)
+            throw new InvalidOperationException("Fresh passing FC pre-arm checks, verified upload and a disarmed aircraft on the ground are required.");
         var result = await validation.RevalidateAsync(id, actor, false, "Preflight", ct);
         if (!result.IsValid || result.Error || result.Stale || result.Incomplete)
             throw new InvalidOperationException("Preflight did not pass: " + result.Message);
@@ -143,6 +155,9 @@ public sealed class MissionAutomationService(AppDbContext db, IMissionValidation
             await FlightEligibility.LockAircraftAsync(db, mission.UAVId, ct);
             var eligibilityBlock = await FlightEligibility.BlockingReasonAsync(db, mission, ct);
             if (eligibilityBlock is not null) throw new InvalidOperationException(eligibilityBlock);
+            var lockedReadiness = await ReadAsync(id, actor, ct);
+            if (mission.Status != "Approved" || configuration?.GetValue<bool>("FlightExecution:Enabled") == true && !lockedReadiness.PreArmReady)
+                throw new InvalidOperationException("Aircraft readiness changed. Review pre-arm checks again.");
             var now = DateTimeOffset.UtcNow;
             var start = new DateTimeOffset(DateTime.SpecifyKind(mission.StartTime!.Value, DateTimeKind.Utc));
             var end = new DateTimeOffset(DateTime.SpecifyKind(mission.EndTime ?? mission.StartTime.Value, DateTimeKind.Utc));

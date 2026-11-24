@@ -12,8 +12,8 @@ import FlightControls from "./flight-controls";
 type Preparation = {
   missionId: string; planHash: string; serverNow: string; scheduledAt: string; endsAt: string;
   confirmationOpen: boolean; gatewayConnected: boolean; droneConnected: boolean; operatorOnline: boolean;
-  preflightReady: boolean; confirmationRecorded: boolean; readinessConfirmed: boolean;
-  dispatchEnabled: boolean; blockingReasons: string[];
+  preArmReady: boolean; preflightReady: boolean; confirmationRecorded: boolean; readinessConfirmed: boolean;
+  actualEndedAt: string | null; dispatchEnabled: boolean; blockingReasons: string[];
 };
 
 export default function FlightPreparationPanel({ missionId }: { missionId: string }) {
@@ -47,9 +47,9 @@ export default function FlightPreparationPanel({ missionId }: { missionId: strin
     document.addEventListener("visibilitychange", refresh); window.addEventListener("online", refresh);
     return () => { active = false; clearInterval(timer); clearInterval(clock); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("online", refresh); };
   }, [missionId]);
-  const windowOpen = state?.confirmationOpen && new Date(state.serverNow).getTime() + elapsed < new Date(state.endsAt).getTime();
+  const windowOpen = elapsed < 15000 && state?.confirmationOpen && new Date(state.serverNow).getTime() + elapsed < new Date(state.endsAt).getTime();
   const ended = state && new Date(state.serverNow).getTime() + elapsed >= new Date(state.endsAt).getTime();
-  const canConfirm = windowOpen && state?.droneConnected && state.operatorOnline && state.preflightReady && !state.confirmationRecorded;
+  const canConfirm = windowOpen && state?.droneConnected && state.operatorOnline && state.preflightReady && state.preArmReady && !state.confirmationRecorded;
   async function decide(action: "confirm" | "cancel") {
     if (!state || acting.current) return;
     acting.current = true; ++sequence.current; setBusy(true); setError("");
@@ -68,17 +68,17 @@ export default function FlightPreparationPanel({ missionId }: { missionId: strin
     {error && <p role="alert">{error}</p>}
     {!state && !error && <p>Checking the mission, drone and preflight data…</p>}
     {state && <>
-      <p>Scheduled start: {formatVietnamDateTime(state.scheduledAt)} · End: {formatVietnamDateTime(state.endsAt)}</p>
-      <p>Gateway: <strong>{state.gatewayConnected ? "Connected" : "Not connected"}</strong> · Telemetry: <strong>{state.droneConnected ? "Fresh" : "Waiting"}</strong> · Preflight: <strong>{state.preflightReady ? "Pass" : "Not ready"}</strong></p>
-      <p role="status">{!windowOpen ? "Confirmation opens at T−5 and closes when the mission ends." : state.confirmationRecorded ? "Your confirmation is recorded for this plan and drone connection." : !state.gatewayConnected ? "Connect the assigned drone. One connection reminder is sent for this mission." : !state.droneConnected || !state.preflightReady ? "Waiting for fresh drone data and passing preflight checks before confirmation." : "Ready for your confirmation. Reminders repeat every two minutes until you confirm or the mission ends."}</p>
+      <p>Scheduled start: {formatVietnamDateTime(state.scheduledAt)} · {state.actualEndedAt ? "Actual mission end" : "Planned flight window ends"}: {formatVietnamDateTime(state.actualEndedAt ?? state.endsAt)}</p>
+      <p>Gateway: <strong>{state.gatewayConnected ? "Connected" : "Not connected"}</strong> · Telemetry: <strong>{state.droneConnected ? "Fresh" : "Waiting"}</strong> · Preflight: <strong>{state.preflightReady ? "Pass" : "Not ready"}</strong> · FC pre-arm: <strong>{state.preArmReady ? "Pass" : "Waiting for verified readiness"}</strong></p>
+      <p role="status">{state.actualEndedAt ? "The flight has ended; landing and disarm were confirmed by the bound flight controller." : !windowOpen ? "Confirmation is available from T−5 while the approved flight window remains open." : state.confirmationRecorded ? "Your confirmation is recorded for this plan and drone connection." : !state.gatewayConnected ? "Connect the assigned drone. One connection reminder is sent for this mission." : !state.droneConnected || !state.preflightReady || !state.preArmReady ? "Waiting for fresh drone data and passing preflight and FC pre-arm checks before confirmation." : "Ready for your confirmation. Reminders repeat every two minutes until you confirm or the mission ends."}</p>
       {!state.preflightReady && state.blockingReasons.filter(reason => reason.includes("preflight")).map(reason => <p key={reason}>{reason}</p>)}
       <div className={styles.actions}>
         <Link className="module-secondary module-link" href={`/portal/missions/${missionId}`} target="_blank" rel="noopener noreferrer">REVIEW MISSION</Link>
         <button className="module-secondary" disabled={Boolean(ended)} aria-expanded={connectionOpen} onClick={() => setConnectionOpen(value => !value)}>CONNECT DRONE / PAIRING</button>
-        <button className="module-primary" disabled={busy || !canConfirm} onClick={() => void decide("confirm")}>{busy ? "CHECKING…" : "CONFIRM AUTOMATIC PREPARATION"}</button>
+        {(state.preArmReady || state.confirmationRecorded) && <button className="module-primary" disabled={busy || !canConfirm} onClick={() => void decide("confirm")}>{busy ? "CHECKING…" : "AGREE TO AUTOMATIC FLIGHT"}</button>}
         {state.confirmationRecorded && <button className="module-secondary" disabled={busy || !windowOpen} onClick={() => void decide("cancel")}>WITHDRAW CONFIRMATION</button>}
       </div>
-      <p>Confirmation records your consent. You decide when to ARM; FC confirmation starts a 10-second takeoff countdown. DISARM is available only with fresh FC ground-state evidence.</p>
+      <p>Your agreement authorizes automatic ARM and flight once the scheduled start has passed and every readiness check passes. If you connect late, review and agree again. Actual mission end is recorded only after the route finishes, landing is confirmed and the FC is disarmed.</p>
       <FlightControls missionId={missionId} planHash={state.planHash} confirmed={state.confirmationRecorded} />
     </>}
     {connectionOpen && !ended && <DroneConnectionClient key={missionId} initialMissionId={missionId} embedded />}
