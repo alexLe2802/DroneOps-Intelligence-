@@ -17,6 +17,7 @@ using DroneOps.Application.Services;
 using DroneOps.Application.Services.Auth;
 using DroneOps.Application.Services.AI;
 using DroneOps.Application.Services.Incidents;
+using DroneOps.Application.Services.License;
 using DroneOps.Application.Services.Missions;
 using DroneOps.Application.Services.Notifications;
 using DroneOps.Application.Services.PostFlight;
@@ -48,8 +49,12 @@ public static class DependencyInjection
             configuration.GetSection(TelemetryMonitoringOptions.SectionName));
         services.Configure<PostFlightOptions>(
             configuration.GetSection(PostFlightOptions.SectionName));
+        services.Configure<GoogleAuthSettings>(
+            configuration.GetSection(GoogleAuthSettings.SectionName));
         services.AddMemoryCache();
         services.AddScoped<UavReviewWorkflow>();
+        services.AddScoped<IPilotLicenseWorkflow, PilotLicenseWorkflow>();
+        services.AddScoped<PilotLicenseWorkflow>();
 
         services.AddFluentValidationAutoValidation();
 
@@ -81,6 +86,7 @@ public static class DependencyInjection
         services.AddScoped<IMissionApprovalService, MissionApprovalService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IAvatarService, AvatarService>();
+        services.AddScoped<IAIMissionReviewService, AIMissionReviewService>();
         services.AddHttpClient<IUserMediaStorage, UserMediaStorage>(client =>
         {
             // Storage is optional. A stalled remote request must not hold an API
@@ -105,6 +111,12 @@ public static class DependencyInjection
             client.BaseAddress =
                 new Uri("https://generativelanguage.googleapis.com/");
         });
+        services.AddHttpClient<IAIMissionReviewService, AIMissionReviewService>(
+      client =>
+      {
+          client.BaseAddress = new Uri(
+              "https://generativelanguage.googleapis.com/");
+      });
         return services;
     }
 }

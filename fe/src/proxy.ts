@@ -3,14 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const dev = process.env.NODE_ENV === "development";
+  const firebaseAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "droneops-intelligence.firebaseapp.com";
+  const firebaseAuthOrigin = /^[a-z0-9.-]+$/i.test(firebaseAuthDomain) ? `https://${firebaseAuthDomain}` : "";
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'", // Existing drone uses style attributes; scripts still require nonces.
     "img-src 'self' data: blob: https://server.arcgisonline.com https://diaswbzjhvzwxcadlias.supabase.co", "font-src 'self'",
-    `connect-src 'self' https://server.arcgisonline.com${dev ? " ws://localhost:* ws://127.0.0.1:*" : ""}`,
+    `connect-src 'self' https://server.arcgisonline.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com${firebaseAuthOrigin ? ` ${firebaseAuthOrigin}` : ""}${dev ? " ws://localhost:* ws://127.0.0.1:*" : ""}`,
     "worker-src 'self' blob:",
-    "frame-src 'none'",
+    `frame-src${firebaseAuthOrigin ? ` ${firebaseAuthOrigin}` : " 'none'"}`,
     "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
     ...(dev ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");

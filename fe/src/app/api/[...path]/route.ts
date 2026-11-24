@@ -4,7 +4,7 @@ import { accessCookie, backendUrl, sessionFromToken } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a-f-]{36}\/(avatar|credentials)|users\/pilot-update-requests(?:\/[0-9a-f-]{36}(?:\/(?:approve|reject))?)?|users\/change-email\/(request|confirm)|auth\/(login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|notifications(?:\/unread-count|\/read-all|\/[0-9a-f-]{36}\/(?:read|seen))?|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/with-files|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users(?:\/(profile|pilot-profile|avatar))?|uavs(?:\/myUAV|\/[0-9a-f-]{36}(?:\/image)?)?|admin\/uavs(?:\/(?:pending|[0-9a-f-]{36}(?:\/(?:approve|activate|reject|deactivate))?))?|missions(?:\/my|\/validate|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject|submit|cancel|confirm-high-risk|cancel-high-risk|telemetry\/latest|start|history|validation(?:\/runs\/[0-9a-f-]{36})?|weather(?:\/refresh)?))?)?|live\/(?:missions|stream)|incidents(?:\/rules|\/alerts\/unread|\/alerts\/[0-9a-f-]{36}\/read|\/[0-9a-f-]{36}(?:\/(?:acknowledge|resolve|history))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36}(?:\/revisions)?)?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|regenerate|report(?:\/revisions)?|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
+const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a-f-]{36}\/(avatar|credentials)|users\/pilot-update-requests(?:\/[0-9a-f-]{36}(?:\/(?:approve|reject))?)?|users\/change-email\/(request|confirm)|auth\/(login|google-login|forgot-password|reset-password|me|sessions|logout|logout-all)|auth\/sessions\/[0-9a-f-]{36}|notifications(?:\/unread-count|\/read-all|\/[0-9a-f-]{36}\/(?:read|seen))?|accounts|accounts\/[0-9a-f-]{36}\/access|pilot-registrations|pilot-registrations\/with-files|pilot-registrations\/first-time-login(?:\/resend-otp)?|pilot-registrations\/[0-9a-f-]{36}(?:\/(?:approve|reject))?|users(?:\/(profile|pilot-profile|avatar))?|uavs(?:\/myUAV|\/[0-9a-f-]{36}(?:\/image)?)?|admin\/uavs(?:\/(?:pending|[0-9a-f-]{36}(?:\/(?:approve|activate|reject|deactivate))?))?|missions(?:\/my|\/validate|\/pending-approvals|\/[0-9a-f-]{36}(?:\/(?:approve|reject|submit|cancel|confirm-high-risk|cancel-high-risk|telemetry\/latest|start|history|validation(?:\/runs\/[0-9a-f-]{36})?|weather(?:\/refresh)?))?)?|live\/(?:missions|stream)|incidents(?:\/rules|\/alerts\/unread|\/alerts\/[0-9a-f-]{36}\/read|\/[0-9a-f-]{36}(?:\/(?:acknowledge|resolve|history))?)?|mission-suggestions(?:\/mine|\/[0-9a-f-]{36})?|geofences(?:\/[0-9a-f-]{36}(?:\/revisions)?)?|flight-history(?:\/analytics|\/[0-9a-f-]{36}\/(?:finalize|regenerate|report(?:\/revisions)?|telemetry|incidents))?|ai\/assessments|ai\/assessments\/mission\/[A-Za-z0-9_-]{1,80})$/;
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
@@ -87,9 +87,10 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       if (!location || !location.startsWith("https://diaswbzjhvzwxcadlias.supabase.co/storage/v1/")) throw new Error("Invalid media redirect");
       return new NextResponse(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });
     }
-    if (upstream.ok && request.method === "POST" && (path === "auth/login" || path === "pilot-registrations/first-time-login")) {
+    if (upstream.ok && request.method === "POST" && ["auth/login", "auth/google-login", "pilot-registrations/first-time-login"].includes(path)) {
       const result = await upstream.json();
-      if (path === "auth/login" && result.code === "first_login_required" && result.requiresFirstLogin === true) {
+      if (result.code === "first_login_required" && result.requiresFirstLogin === true) {
+        if (path === "auth/google-login") return NextResponse.json({ message: "Complete your first sign-in with email, password and approval OTP before using Google sign-in." }, { status: 409 });
         const credentials = JSON.parse(body!.toString());
         clearActivation(request.cookies.get(activationCookie)?.value);
         const id = createActivation(credentials.email, credentials.password);
@@ -100,6 +101,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       if (typeof result.accessToken !== "string") return NextResponse.json({ message: "Backend returned no access token." }, { status: 502 });
       const session = await sessionFromToken(result.accessToken);
       if (!session) return NextResponse.json({ message: "The account cannot access DroneOps." }, { status: 403 });
+      if (path === "auth/google-login" && session.account.role !== "uav_operator") return NextResponse.json({ message: "Google sign-in is available only for registered pilot accounts." }, { status: 403 });
       clearActivation(request.cookies.get(activationCookie)?.value);
       const response = NextResponse.json(session);
       response.cookies.set(activationCookie, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 0 });

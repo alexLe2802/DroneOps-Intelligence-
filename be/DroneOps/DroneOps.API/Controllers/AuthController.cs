@@ -45,6 +45,62 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [AllowAnonymous]
+    [HttpPost("google-login")]
+    public async Task<IActionResult> GoogleLogin(
+        [FromBody] GoogleLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request?.IdToken))
+        {
+            return BadRequest(new
+            {
+                Message = "IdToken is required."
+            });
+        }
+
+        try
+        {
+            var result = await _authService.GoogleLoginAsync(request, cancellationToken);
+            if (result is null)
+            {
+                return Unauthorized(new
+                {
+                    Message = "No account found matching this Google email. Please register or contact an administrator."
+                });
+            }
+
+            if (result.RequiresFirstLogin)
+            {
+                return Ok(new
+                {
+                    code = "first_login_required",
+                    requiresFirstLogin = true,
+                    message = "Enter the OTP from your approval email to activate your account."
+                });
+            }
+
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { Message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            var detail = ex.InnerException != null ? $"{ex.Message} ({ex.InnerException.Message})" : ex.Message;
+            return BadRequest(new { Message = detail });
+        }
+    }
+
     /// <summary>
   
     /// </summary>

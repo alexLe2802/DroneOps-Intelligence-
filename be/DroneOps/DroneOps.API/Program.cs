@@ -19,6 +19,7 @@ var infrastructureCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCas
     "--migrate-postflight", "--check-postflight-schema",
     "--migrate-mission-workflow", "--check-mission-workflow-schema", "--migrate-drone-connections",
     "--migrate-account-workflows", "--check-account-workflow-schema",
+    "--migrate-pilot-licenses", "--check-pilot-license-schema",
     "--migrate-uav-images", "--migrate-uav-reviews", "--check-uav-review-schema",
     "--migrate-notifications", "--check-database-schema"
 };
@@ -71,6 +72,22 @@ if (args.Contains("--migrate-account-workflows") || args.Contains("--check-accou
     }
 
     Console.WriteLine("Account workflow schema verified.");
+    return;
+}
+
+if (args.Contains("--migrate-pilot-licenses") || args.Contains("--check-pilot-license-schema"))
+{
+    await using var source = PostgresDataSourceFactory.Create(connectionString);
+    if (args.Contains("--migrate-pilot-licenses"))
+    {
+        await PilotLicenseSchema.ApplyAsync(source);
+    }
+    else
+    {
+        await PilotLicenseSchema.CheckAsync(source);
+    }
+
+    Console.WriteLine("Pilot license schema verified.");
     return;
 }
 
