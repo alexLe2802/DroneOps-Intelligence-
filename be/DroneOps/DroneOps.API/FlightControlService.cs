@@ -95,7 +95,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             if (mission.UAVId != connection.UavId || connection.RevokedAt != null || connection.ExpiresAt <= now)
                 throw new InvalidOperationException("Connection is no longer eligible for flight control.");
             if (evidence.GatewayInstance == Guid.Empty) throw new InvalidOperationException("Gateway instance is required.");
-            if (state.ConnectionId != connectionId || state.GatewayInstance != evidence.GatewayInstance || state.PlanHash != MissionValidationService.Hash(mission))
+            if (mission.Status is not ("Completed" or "Aborted") && (state.ConnectionId != connectionId || state.GatewayInstance != evidence.GatewayInstance || state.PlanHash != MissionValidationService.Hash(mission)))
             {
                 state.Cancel("Gateway, connection or mission changed. Confirm again after verification.");
                 state.UploadVerified = false; state.ConnectionId = connectionId; state.GatewayInstance = evidence.GatewayInstance;
@@ -138,16 +138,16 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
                 state.Stage = "AwaitingFcProfile";
                 state.Message = evidence.FcProfileError ?? "Waiting for the gateway to apply and read back this exact FC operating envelope.";
             }
-            if (mission.Status == "Approved" && Enabled && now < ready.ScheduledAt && compatible && EnvelopeVerified(state) && !state.UploadVerified && state.Pending == null && state.OnGround(now)
+            if (mission.Status == "Approved" && Enabled && now < ready.EndsAt && compatible && EnvelopeVerified(state) && !state.UploadVerified && state.Pending == null && state.OnGround(now)
                 && evidence.Armed == false && state.Stage is "AwaitingGateway" or "AwaitingFcProfile" or "NeedsPlan" or "Cancelled")
                 state.Queue("Upload", now);
             if (mission.Status == "Approved" && state.DispatchAttemptedAt == null && now >= ready.ScheduledAt)
                 Dispatch(mission, state, ready, now);
-            if (state.Stage == "Countdown" && now < ready.ScheduledAt.AddSeconds(5) && authorized && compatible && state.UploadVerified
+            if (state.Stage == "Countdown" && now < state.DispatchDeadline && authorized && compatible && state.UploadVerified
                 && state.LaunchAt is { } launch && now >= launch && state.Pending == null)
             {
                 var startCommand = state.Queue("Start", now);
-                startCommand.ExpiresAt = ready.ScheduledAt.AddSeconds(5);
+                if (startCommand.ExpiresAt > state.DispatchDeadline!.Value) startCommand.ExpiresAt = state.DispatchDeadline.Value;
             }
             FlightControlCommand? outgoing = null;
             if (state.Pending is { DeliveredAt: null } pending)
@@ -187,17 +187,12 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
 
     private void Dispatch(Mission mission, FlightControlState state, FlightPreparation ready, DateTimeOffset now)
     {
-        if (state.DispatchAttemptedAt != null) return;
-        state.DispatchAttemptedAt = now; state.DispatchDeadline = ready.ScheduledAt.AddSeconds(5);
+        if (state.DispatchAttemptedAt != null || !CanArm(state, ready, now)) return;
+        state.DispatchAttemptedAt = now; state.DispatchDeadline = now.AddSeconds(20) < ready.EndsAt ? now.AddSeconds(20) : ready.EndsAt;
         state.DispatchId = Guid.NewGuid();
-        if (now >= state.DispatchDeadline || !CanArm(state, ready, now))
-        {
-            state.Stage = now >= state.DispatchDeadline ? "Expired" : "Blocked";
-            state.Message = "Scheduled dispatch was blocked or expired. No catch-up launch is permitted.";
-            return;
-        }
         state.ApprovedPlanJson = JsonSerializer.Serialize(MissionPlans.Dto(mission), Json);
-        state.Queue("Arm", now, state.DispatchId).ExpiresAt = state.DispatchDeadline.Value;
+        var armCommand = state.Queue("Arm", now, state.DispatchId);
+        if (armCommand.ExpiresAt > state.DispatchDeadline.Value) armCommand.ExpiresAt = state.DispatchDeadline.Value;
     }
 
     private async Task ReconcileAsync(Mission mission, DroneConnection connection, FlightControlState state,
@@ -254,7 +249,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             }
             if (completed) reached.Add(planned[^1]);
             execution.CompletedAt = now; execution.Outcome = completed ? "Completed" : "Aborted";
-            mission.Status = execution.Outcome; state.Stage = execution.Outcome;
+            mission.Status = execution.Outcome; mission.EndTime = now.UtcDateTime; state.Stage = execution.Outcome;
             state.Message = completed ? "The verified waypoint route finished and FC confirmed landing." : "Flight landed before all planned waypoints were confirmed; partial evidence retained.";
             if (!await db.FlightCompletionEvents.AnyAsync(e => e.MissionId == mission.Id && e.IsTrusted, ct))
             {
@@ -273,13 +268,13 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
 
     private bool CanArm(FlightControlState state, FlightPreparation ready, DateTimeOffset now) => Enabled && Authorized(ready, now)
         && EnvelopeVerified(state)
-        && now >= ready.ScheduledAt && now < ready.ScheduledAt.AddSeconds(5) && state.PilotPresent(now) && state.UploadVerified && state.OnGround(now)
+        && now >= ready.ScheduledAt && now < ready.EndsAt && state.PilotPresent(now) && state.UploadVerified && state.OnGround(now)
         && state.Evidence is { Armed: false, NavigationReady: true, PreArmReady: true }
         && state.Evidence.Firmware == "ArduPilot" && state.Options?.FirmwareTarget == "ArduPilot" && state.Evidence.UploadedHash == state.CompiledHash
         && state.Stage is ("Ready" or "Cancelled") && state.Pending == null && state.PlanHash == ready.PlanHash;
 
     private static bool Authorized(FlightPreparation ready, DateTimeOffset now) => ready.ReadinessConfirmed
-        && ready.DroneConnected && ready.OperatorOnline && now >= ready.ScheduledAt && now < ready.ScheduledAt.AddSeconds(5);
+        && ready.DroneConnected && ready.OperatorOnline && now >= ready.ScheduledAt && now < ready.EndsAt;
 
     private static bool EnvelopeVerified(FlightControlState state) => state.CompiledHash != null && state.Evidence?.VerifiedEnvelopeHash == state.CompiledHash;
 
@@ -293,6 +288,7 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             new { key = "operator", label = "Pilot online", satisfied = ready.OperatorOnline, detail = "Keep Live Monitoring visible and online" },
             new { key = "preflight", label = "Preflight validation", satisfied = ready.PreflightReady, detail = "Fresh passing validation for this exact plan" },
             new { key = "fc-profile", label = "FC flight limits", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && EnvelopeVerified(state), detail = state.Evidence?.FcProfileError ?? "Gateway applies and reads back the supported FC profile before upload" },
+            new { key = "prearm", label = "FC pre-arm checks", satisfied = state.Fresh(now) && state.Evidence?.PreArmReady == true && state.Evidence.NavigationReady && state.OnGround(now), detail = "Fresh FC pre-arm and navigation checks; aircraft on ground" },
             new { key = "upload", label = "Mission read-back", satisfied = state.Fresh(now) && state.PlanHash == ready.PlanHash && state.UploadVerified, detail = "Uploaded items must match the compiled plan" }
         },
         enabled = Enabled, serverNow = now, scheduledAt = ready.ScheduledAt, endsAt = ready.EndsAt,

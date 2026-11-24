@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
+import { fenceDistance } from "@/lib/maps/mission-fences";
 import { describeGeofence } from "@/lib/maps/geofences";
 import type { Geofence, MissionWaypoint, MissionValidationResult, PlannedHome, MissionFence, GeofenceCoordinate } from "@/lib/portal/types";
 
@@ -135,12 +136,38 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
       const latlng = (p: GeofenceCoordinate): Leaflet.LatLngTuple => [p.latitude, p.longitude];
       for (const fence of missionFences) {
         if (fence.shape === "Circle" && fence.center && Number.isFinite(fence.center.latitude) && Number.isFinite(fence.center.longitude) && Number.isFinite(fence.radiusMeters) && fence.radiusMeters! > 0) {
-          L.circle(latlng(fence.center), {radius: fence.radiusMeters!,color,fillOpacity:.1,weight:2}).bindTooltip("Permitted circle").addTo(layer);
-          if(!readOnly) L.marker(latlng(fence.center),{draggable:true,icon:handle()}).bindTooltip("Drag fence center").on("dragend",event=>{
-            if(readOnlyRef.current) return;
-            const p=(event.target as Leaflet.Marker).getLatLng();
-            fenceUpdateRef.current?.({...fence,center:{latitude:p.lat,longitude:p.lng}});
-          }).addTo(layer);
+          const circle = L.circle(latlng(fence.center), {radius: fence.radiusMeters!,color,fillOpacity:.1,weight:2}).bindTooltip(`Permitted circle · ${Math.round(fence.radiusMeters!)} m`).addTo(layer);
+          if (!readOnly) {
+            const center = L.latLng(...latlng(fence.center));
+            // Place the radius handle due east on the same spherical model used by validation.
+            const angle = fence.radiusMeters! / 6371000;
+            const latitude = center.lat * Math.PI / 180;
+            const edge = L.latLng(Math.asin(Math.sin(latitude) * Math.cos(angle)) * 180 / Math.PI,
+              center.lng + Math.atan2(Math.sin(angle) * Math.cos(latitude), Math.cos(angle) - Math.sin(latitude) ** 2) * 180 / Math.PI);
+            const radiusHandle = L.marker(edge,{draggable:true,icon:handle(),title:"Drag circle edge to resize"})
+              .bindTooltip("Drag edge to resize fence").addTo(layer);
+            radiusHandle.on("drag", () => {
+              if (readOnlyRef.current) return;
+              const point = radiusHandle.getLatLng();
+              const radius = Math.max(1, Math.min(100000, Math.round(fenceDistance(fence.center!, {latitude:point.lat,longitude:point.lng}))));
+              circle.setRadius(radius).setTooltipContent(`Permitted circle · ${radius} m`);
+            });
+            radiusHandle.on("dragend", () => {
+              if (!readOnlyRef.current) fenceUpdateRef.current?.({...fence,radiusMeters:circle.getRadius()});
+            });
+            const centerHandle = L.marker(center,{draggable:true,icon:handle(),title:"Drag fence center"}).bindTooltip("Drag fence center").addTo(layer);
+            centerHandle.on("drag", () => {
+              if (readOnlyRef.current) return;
+              const point = centerHandle.getLatLng();
+              circle.setLatLng(point);
+              radiusHandle.setLatLng([edge.lat + point.lat - center.lat, edge.lng + point.lng - center.lng]);
+            });
+            centerHandle.on("dragend", () => {
+              if (readOnlyRef.current) return;
+              const point = centerHandle.getLatLng();
+              fenceUpdateRef.current?.({...fence,center:{latitude:point.lat,longitude:point.lng}});
+            });
+          }
         } else if(fence.shape === "Polygon" && fence.vertices?.length && fence.vertices.every(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))) {
           L.polygon(fence.vertices.map(latlng),{color,fillOpacity:.1,weight:2}).bindTooltip("Permitted polygon").addTo(layer);
           if(!readOnly) fence.vertices.forEach((p,i)=> L.marker(latlng(p),{draggable:true,icon:handle()}).bindTooltip(`Fence vertex ${i+1}`).on("dragend",event=>{

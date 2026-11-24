@@ -9,6 +9,10 @@ internal static class FlightControlChecks
         void Check(bool value, string name) { if (!value) throw new Exception("FAIL: " + name); Console.WriteLine("PASS: " + name); passed++; }
         FlightControlState Ready(bool armed = false) => new() { Stage = "Ready", EvidenceAt = now, PilotAt = now,
             Evidence = new(Guid.NewGuid(), "PX4", armed, 1, true, true, "hash"), CompiledHash = "hash", UploadVerified = true };
+        var scheduled = now.AddMinutes(-10);
+        Check(MissionAutomationService.InConfirmationWindow(now, scheduled, now.AddMinutes(10)), "late connection can explicitly consent within the approved flight window");
+        Check(!MissionAutomationService.InConfirmationWindow(now, now.AddMinutes(6), now.AddMinutes(20)), "consent cannot open earlier than T-5");
+        Check(!MissionAutomationService.InConfirmationWindow(now, scheduled, now), "flight-window expiry remains exclusive");
         var state = Ready(true);
         state.Tick(now, true);
         Check(state.Stage == "Ready" && state.LaunchAt == null, "RC/GCS arming never starts a countdown");

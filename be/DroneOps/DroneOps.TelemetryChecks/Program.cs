@@ -145,7 +145,8 @@ using (var reconnected = sharedSnapshots.Subscribe(missionId))
 var scheduled = DateTimeOffset.UtcNow.AddMinutes(10);
 Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5).AddTicks(-1), scheduled, scheduled.AddMinutes(30)), "automatic confirmation rejects times before T-5");
 Check(MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(-5), scheduled, scheduled.AddMinutes(30)), "automatic confirmation opens exactly at T-5");
-Check(!MissionAutomationService.InConfirmationWindow(scheduled, scheduled, scheduled.AddMinutes(30)), "confirmation closes at the scheduled start");
+Check(MissionAutomationService.InConfirmationWindow(scheduled, scheduled, scheduled.AddMinutes(30)), "confirmation remains open at the scheduled start");
+Check(MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(30).AddTicks(-1), scheduled, scheduled.AddMinutes(30)), "late confirmation remains available until the planned end");
 Check(!MissionAutomationService.InConfirmationWindow(scheduled.AddMinutes(30), scheduled, scheduled.AddMinutes(30)), "confirmation closes exactly at mission end");
 var reviewedPlan = new Mission { Id = Guid.NewGuid(), CreatedBy = Guid.NewGuid(), Name = "Review fingerprint" };
 var manualHash = DroneOps.Application.Validators.Missions.MissionValidationService.Hash(reviewedPlan);

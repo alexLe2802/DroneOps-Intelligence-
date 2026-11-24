@@ -55,7 +55,7 @@ internal static class FlightPreparationChecks
 
         var role = new Role { Id = Guid.NewGuid(), Name = "uav_operator", CreatedAt = DateTimeOffset.UtcNow };
         var owner = new User { Id = Guid.NewGuid(), RoleId = role.Id, Email = "fixture@example.invalid", FullName = "Fixture", PasswordHash = "not-a-password", CreatedAt = DateTimeOffset.UtcNow };
-        var pilot = new Pilot { Id = Guid.NewGuid(), UserId = owner.Id, CreatedAt = DateTime.UtcNow };
+        var pilot = new Pilot { Id = Guid.NewGuid(), UserId = owner.Id, CreatedAt = DateTime.UtcNow, PilotLicenseNo = "FIXTURE-LICENSE", LicenseIssuedDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-1)), LicenseExpiredDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1)) };
         var uav = new UAV { Id = Guid.NewGuid(), PilotId = pilot.Id, Code = "FIXTURE", Name = "Fixture UAV", Status = "Active", CreatedAt = DateTimeOffset.UtcNow };
         var mission = new Mission { Id = Guid.NewGuid(), CreatedBy = owner.Id, UAVId = uav.Id, Name = "Fixture mission", Status = "Approved", AutomaticFlightRequested = true,
             StartTime = DateTime.UtcNow.AddMinutes(4), EndTime = DateTime.UtcNow.AddMinutes(30), CreatedAt = DateTime.UtcNow, AltitudeReference = "Relative", AverageSpeedMetersPerSecond = 5, MaxSpeedMetersPerSecond = 8 };
@@ -78,6 +78,7 @@ internal static class FlightPreparationChecks
         Check(await gateway.ResumeAsync(uav.Id, deviceKey, uid, default) is null, "disconnect does not resurrect the revoked connection");
         var nextMission = new Mission { Id = Guid.NewGuid(), CreatedBy = owner.Id, UAVId = uav.Id, Name = "Web-selected next mission", Status = "Approved", AutomaticFlightRequested = true,
             StartTime = DateTime.UtcNow.AddMinutes(4), EndTime = DateTime.UtcNow.AddMinutes(30), CreatedAt = DateTime.UtcNow, AltitudeReference = "Relative", AverageSpeedMetersPerSecond = 5, MaxSpeedMetersPerSecond = 8 };
+        await db.Missions.Where(m => m.Id == mission.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, "Cancelled"));
         db.Add(nextMission); await db.SaveChangesAsync(); mission = nextMission;
         var selected = Session(uav.Id, mission.Id, owner.Id, uid); selected.PairedAt = null; selected.HardwareIdentity = null; selected.CreatedAt = DateTimeOffset.UtcNow;
         db.Add(selected); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
@@ -114,6 +115,7 @@ internal static class FlightPreparationChecks
         await gateway.RevokeAsync(uav.Id, owner.Id, default);
         await Reject<UnauthorizedAccessException>(() => gateway.ResumeAsync(uav.Id, deviceKey, uid, default), "forget gateway revokes unattended access");
         Check(await db.DroneHardwareIdentities.AnyAsync(h => h.UavId == uav.Id && h.Identity == uid), "forgetting a gateway preserves the permanent physical hardware binding");
+        await db.Missions.Where(m => m.CreatedBy == owner.Id).ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, "Cancelled"));
         await CheckRemindersAsync(source, db, owner, uav, uid);
         Console.WriteLine("Isolated PostgreSQL enrollment/preparation checks passed. No production data or aircraft used.");
     }

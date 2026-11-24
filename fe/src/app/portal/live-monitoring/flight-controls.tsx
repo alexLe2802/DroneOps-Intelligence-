@@ -103,7 +103,7 @@ export default function FlightControls({ missionId, planHash, confirmed }: { mis
         {countdown ? <><strong>{seconds ? `TAKEOFF IN ${seconds}s` : "WAITING FOR FC MISSION START"}</strong><span>FC confirmed ARM. Keep this screen online and the takeoff area clear.</span></>
           : <><strong>{!fresh ? "FC STATUS STALE" : state.armed === true ? "ARMED" : state.armed === false ? "DISARMED" : "ARM STATUS UNKNOWN"}</strong><span>{state.message}</span></>}
       </div>
-      <p>FC mission: <strong>{state.uploadVerified ? "Upload and read-back verified" : "Not verified"}</strong>. ARM becomes available from the scheduled start, after your confirmation and passing readiness checks.</p>
+      <p>FC mission: <strong>{state.uploadVerified ? "Upload and read-back verified" : "Not verified"}</strong>. Automatic ARM requires your agreement, passing FC pre-arm checks and a verified mission, including when connecting after the scheduled start.</p>
       <p>FC Home: {fresh && state.homeLatitudeDegrees != null && state.homeLongitudeDegrees != null
         ? `${state.homeLatitudeDegrees.toFixed(7)}, ${state.homeLongitudeDegrees.toFixed(7)} · ${state.homeAltitudeMslMeters ?? "unknown"} m MSL`
         : "Waiting for fresh Home from the bound flight controller"}. This is the FC reference, not a map-click estimate.</p>
@@ -120,7 +120,7 @@ export default function FlightControls({ missionId, planHash, confirmed }: { mis
         <ul>{state.recoveryAssessment.missingData.map(reason => <li key={reason}>{reason}</li>)}</ul>
       </details>}
       {(confirmed || state.armed === true) && <div className={styles.actions}>
-        <p>{confirmed ? "Pilot consent recorded. The scheduler will dispatch once at the scheduled start if all readiness gates pass." : "Confirm the verified mission before the scheduled start."}</p>
+        <p>{confirmed ? "Pilot consent recorded. Automatic dispatch runs once when the start time has passed and all readiness gates pass." : "Review and agree to the verified mission before automatic flight."}</p>
         <button className="module-secondary" disabled={busy || !fresh || !state.canDisarm} onClick={() => void act("disarm")}>DISARM ON GROUND</button>
         {["Arming", "Countdown"].includes(state.stage) && <button className="module-secondary" disabled={busy} onClick={() => void act("cancel")}>CANCEL TAKEOFF</button>}
       </div>}

@@ -40,6 +40,6 @@ export default function MissionFenceFields({ fences, onChange, drawing, onDraw, 
       {f.shape==="Circle" && <label>Radius (m) <input aria-label={`Fence ${i+1} radius (m)`} type="number" min="1" max="100000" step="1" value={Number.isFinite(f.radiusMeters) ? f.radiusMeters! : ""} disabled={disabled} onChange={e=>onChange(fences.map(x=>x.id===f.id?{...x,radiusMeters:e.target.value===""?NaN:Number(e.target.value)}:x))}/></label>}
       <button type="button" className="text-action" disabled={disabled} onClick={()=>onChange(fences.filter(x=>x.id!==f.id))}>DELETE</button>
     </div>)}
-    <p>Drag polygon vertices or a circle center to edit. This fence monitors incidents; onboard FC fence enforcement is separate.</p>
+    <p>Drag polygon vertices or a circle center to move it. Drag the circle edge handle to resize; the radius updates automatically. This fence monitors incidents; onboard FC fence enforcement is separate.</p>
   </section>;
 }
