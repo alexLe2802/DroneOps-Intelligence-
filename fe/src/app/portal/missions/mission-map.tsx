@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MissionLocation } from "./mission-location";
-import { addBasemap } from "@/lib/maps/basemap";
+import { addBasemap, MAX_MAP_ZOOM } from "@/lib/maps/basemap";
 import type * as Leaflet from "leaflet";
 import { fenceDistance } from "@/lib/maps/mission-fences";
 import { describeGeofence } from "@/lib/maps/geofences";
@@ -10,7 +10,7 @@ import type { Geofence, MissionWaypoint, MissionValidationResult, PlannedHome, M
 
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
-export default function MissionMap({ showUserLocation = false, waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false, missionFences = waypoints[0]?.navigation?.missionFences ?? [], draftFence = [], drawingFence = null, onFenceUpdate }: {
+export default function MissionMap({ showUserLocation = false, waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints.find(point => point.sequenceOrder === 1)?.navigation?.plannedHome ?? waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false, missionFences = waypoints.find(point => point.sequenceOrder === 1)?.navigation?.missionFences ?? waypoints[0]?.navigation?.missionFences ?? [], draftFence = [], drawingFence = null, onFenceUpdate }: {
   missionFences?: MissionFence[]; draftFence?: GeofenceCoordinate[]; drawingFence?: "Polygon" | "Circle" | null; onFenceUpdate?: (fence: MissionFence) => void;
   showUserLocation?: boolean;
   plannedHome?: PlannedHome | null; pickingHome?: boolean;
@@ -26,6 +26,10 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
   const routeRef = useRef<Leaflet.Polyline | null>(null);
   const markersRef = useRef<Leaflet.Marker[]>([]);
   const readOnlyRef = useRef(readOnly);
+  const interactive = Boolean(onAdd || onUpdate);
+  const interactiveRef = useRef(interactive);
+  const fittedMapRef = useRef<Leaflet.Map | null>(null);
+  const fittedRouteKeyRef = useRef("");
   const fenceUpdateRef = useRef(onFenceUpdate);
   useEffect(() => { fenceUpdateRef.current = onFenceUpdate; }, [onFenceUpdate]);
   const onAddRef = useRef(onAdd);
@@ -33,6 +37,7 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
   const [error, setError] = useState("");
   const [mapReady, setMapReady] = useState<Leaflet.Map | null>(null);
   useEffect(() => { readOnlyRef.current = readOnly; }, [readOnly]);
+  useEffect(() => { interactiveRef.current = interactive; }, [interactive]);
   useEffect(() => { onAddRef.current = onAdd; }, [onAdd]);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
@@ -43,24 +48,9 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || !containerRef.current) return;
       // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
-      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, wheelPxPerZoomLevel: 240, wheelDebounceTime: 80, zoomSnap: 0.25, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
+      const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, maxZoom: MAX_MAP_ZOOM, wheelPxPerZoomLevel: 240, wheelDebounceTime: 80, zoomSnap: 0.25, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
       mapRef.current = map;
       addBasemap(L, map, () => setError("Basemap tile could not be loaded."), () => setError(""));
-      geofences.forEach(zone => {
-        const coordinates = zone.coordinates.filter(point => valid(point.latitude, point.longitude));
-        if (coordinates.length < 3) return;
-        const info = describeGeofence(zone);
-        const polygon = L.polygon(coordinates.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple), {
-          color: info.color, fillColor: info.color, weight: 1.2,
-          fillOpacity: info.category === "prohibited" ? .34 : .25, bubblingMouseEvents: false,
-        });
-        const popup = document.createElement("div"); popup.className = "airspace-popup";
-        const title = document.createElement("strong"); title.textContent = zone.name;
-        const category = document.createElement("span"); category.textContent = info.label;
-        const limits = document.createElement("span"); limits.textContent = info.limitLabel;
-        popup.append(title, category, limits);
-        polygon.bindPopup(popup).addTo(map);
-      });
       map.on("click", event => { if (!readOnlyRef.current) onAddRef.current?.(event.latlng.lng, event.latlng.lat); });
       resizeFrame = requestAnimationFrame(() => {
         if (!cancelled) map.invalidateSize({ animate: false, pan: false });
@@ -75,11 +65,39 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
       markersRef.current.forEach(marker => marker.remove());
       markersRef.current = [];
       routeRef.current = null;
+      fittedMapRef.current = null;
+      fittedRouteKeyRef.current = "";
       mapRef.current?.stop();
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [geofences]);
+  }, []);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    let cancelled = false;
+    let layer: Leaflet.LayerGroup | null = null;
+    void import("leaflet").then(({ default: L }) => {
+      if (cancelled || mapRef.current !== mapReady) return;
+      layer = L.layerGroup().addTo(mapReady);
+      geofences.forEach(zone => {
+        const coordinates = zone.coordinates.filter(point => valid(point.latitude, point.longitude));
+        if (coordinates.length < 3) return;
+        const info = describeGeofence(zone);
+        const polygon = L.polygon(coordinates.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple), {
+          color: info.color, fillColor: info.color, weight: 1.2,
+          fillOpacity: info.category === "prohibited" ? .34 : .25, bubblingMouseEvents: false,
+        });
+        const popup = document.createElement("div"); popup.className = "airspace-popup";
+        const title = document.createElement("strong"); title.textContent = zone.name;
+        const category = document.createElement("span"); category.textContent = info.label;
+        const limits = document.createElement("span"); limits.textContent = info.limitLabel;
+        popup.append(title, category, limits);
+        polygon.bindPopup(popup).addTo(layer!);
+      });
+    });
+    return () => { cancelled = true; layer?.remove(); };
+  }, [mapReady, geofences]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -92,6 +110,13 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
       markersRef.current = [];
       if (routeRef.current && map.hasLayer(routeRef.current)) routeRef.current.remove();
       routeRef.current = null;
+      const isInitialMapRender = fittedMapRef.current !== map;
+      const routeKey = waypoints.map(point => `${point.latitude},${point.longitude}`).join(";");
+      const shouldFit = interactiveRef.current
+        ? isInitialMapRender
+        : (isInitialMapRender || fittedRouteKeyRef.current !== routeKey);
+      fittedMapRef.current = map;
+      fittedRouteKeyRef.current = routeKey;
       if (waypoints.some(point => !Number.isFinite(point.latitude) || Math.abs(point.latitude) > 90 || !Number.isFinite(point.longitude) || Math.abs(point.longitude) > 180)) return;
       markersRef.current = waypoints.map((point, index) => {
         const marker = L.marker([point.latitude, point.longitude], {
@@ -117,7 +142,7 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
         const first = waypoints.find(point => point.sequenceOrder === finding.segmentFrom), last = waypoints.find(point => point.sequenceOrder === finding.segmentTo);
         if (first && last) { const note = document.createElement("span"); note.textContent = finding.reason; highlightRef.current.push(L.polyline([[first.latitude, first.longitude], [last.latitude, last.longitude]], { color: "#ef3340", weight: 6 }).bindTooltip(note).addTo(map)); }
       }
-      if (waypoints.length > 0) {
+      if (shouldFit && waypoints.length > 0) {
         const bounds = L.latLngBounds(waypoints.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple));
         map.fitBounds(bounds, { padding: [44, 44], maxZoom: 16, animate: false });
       }
@@ -189,8 +214,8 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
   return <div className="mission-map-wrap">
     <div ref={containerRef} className="mission-map" />
     {showUserLocation && mapReady && <MissionLocation map={mapReady} hasWaypoints={waypoints.length > 0} />}
-    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : drawingFence ? `DRAW ${drawingFence.toUpperCase()} FENCE` : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS</div>
+    <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : drawingFence ? `DRAW ${drawingFence.toUpperCase()} FENCE` : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS{missionFences.length ? ` · ${missionFences.length} FENCE${missionFences.length > 1 ? "S" : ""}` : ""}</div>
     <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
-    {error && <div className="mission-map-error" role="alert">{error}</div>}
+    {error && <div className="mission-map-error" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss map warning" onClick={() => setError("")}>×</button></div>}
   </div>;
 }

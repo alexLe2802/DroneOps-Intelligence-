@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Clock3, Lightbulb, Route, Sparkles } from "lucide-react";
+import { AlertCircle, Clock3, Lightbulb, Route, Sparkles } from "lucide-react";
 import { generateMissionSuggestion, getMyMissionSuggestions } from "@/lib/portal/client";
 import type { MissionSuggestion } from "@/lib/portal/types";
 import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
@@ -17,6 +17,7 @@ type MissionSuggestionPanelProps = {
 
 export default function MissionSuggestionPanel({ disabled = false, onApply }: MissionSuggestionPanelProps) {
   const [prompt, setPrompt] = useState("");
+  const [promptTouched, setPromptTouched] = useState(false);
   const [items, setItems] = useState<MissionSuggestion[] | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [appliedId, setAppliedId] = useState("");
@@ -25,11 +26,12 @@ export default function MissionSuggestionPanel({ disabled = false, onApply }: Mi
   const request = useRef(false);
   const selected = selectedId ? items?.find(item => item.id === selectedId) : undefined;
   const trimmedPrompt = prompt.trim();
-  const promptError = trimmedPrompt.length > 0 && trimmedPrompt.length < minimumPromptLength
+  const rawPromptError = trimmedPrompt.length > 0 && trimmedPrompt.length < minimumPromptLength
     ? `Describe the mission in at least ${minimumPromptLength} characters.`
     : trimmedPrompt.length > maximumPromptLength
       ? `Keep the request within ${maximumPromptLength} characters.`
       : "";
+  const showPromptError = Boolean(rawPromptError) && (promptTouched || trimmedPrompt.length > maximumPromptLength);
 
   const loadHistory = useCallback(() => {
     setError("");
@@ -52,7 +54,8 @@ export default function MissionSuggestionPanel({ disabled = false, onApply }: Mi
 
   async function generate(event: FormEvent) {
     event.preventDefault();
-    if (request.current || !trimmedPrompt || promptError) return;
+    setPromptTouched(true);
+    if (request.current || !trimmedPrompt || rawPromptError) return;
     request.current = true;
     setBusy(true);
     setError("");
@@ -85,10 +88,14 @@ export default function MissionSuggestionPanel({ disabled = false, onApply }: Mi
 
     <form className={styles.form} onSubmit={generate}>
       <label htmlFor="mission-suggestion-prompt">MISSION REQUEST</label>
-      <textarea id="mission-suggestion-prompt" value={prompt} minLength={minimumPromptLength} maxLength={maximumPromptLength} disabled={busy || disabled} aria-invalid={Boolean(promptError)} aria-describedby={promptError ? "mission-suggestion-hint mission-suggestion-error" : "mission-suggestion-hint"} placeholder="Example: Inspect the eastern solar array before 10:00, avoid the residential boundary and prioritize stable image coverage." onChange={event => setPrompt(event.target.value)} />
-      <div className={styles.formFooter}><small id="mission-suggestion-hint">Purpose · location · time · {prompt.length}/{maximumPromptLength}</small><button className="module-primary" type="submit" disabled={busy || disabled || !trimmedPrompt || Boolean(promptError)}><Sparkles size={15} aria-hidden="true" />{busy ? "GENERATING…" : "GENERATE DRAFT"}</button></div>
-      {promptError && <p className={styles.inlineError} id="mission-suggestion-error" role="alert">{promptError}</p>}
-      {error && <div className={styles.error} role="alert"><p>{error}</p><button type="button" className="module-secondary" disabled={busy || disabled} onClick={loadHistory}>RETRY HISTORY</button></div>}
+      <textarea id="mission-suggestion-prompt" value={prompt} minLength={minimumPromptLength} maxLength={maximumPromptLength} disabled={busy || disabled} aria-invalid={showPromptError} aria-describedby={showPromptError ? "mission-suggestion-hint mission-suggestion-error" : "mission-suggestion-hint"} placeholder="Example: Inspect the eastern solar array before 10:00, avoid the residential boundary and prioritize stable image coverage." onBlur={() => { if (trimmedPrompt.length > 0) setPromptTouched(true); }} onChange={event => {
+        const next = event.target.value;
+        setPrompt(next);
+        if (!next.trim() || next.trim().length >= minimumPromptLength) setPromptTouched(false);
+      }} />
+      <div className={styles.formFooter}><small id="mission-suggestion-hint">Purpose · location · time · {prompt.length}/{maximumPromptLength} (min {minimumPromptLength} characters)</small><button className="module-primary" type="submit" disabled={busy || disabled || !trimmedPrompt || Boolean(rawPromptError)}><Sparkles size={15} aria-hidden="true" />{busy ? "GENERATING…" : "GENERATE DRAFT"}</button></div>
+      {showPromptError && <p className={styles.inlineError} id="mission-suggestion-error" role="status"><AlertCircle size={16} aria-hidden="true" /><span>{rawPromptError}</span></p>}
+      {error && <div className={styles.error} role="alert"><div className={styles.errorCopy}><AlertCircle size={17} aria-hidden="true" /><p>{error}</p></div><button type="button" className="module-secondary" disabled={busy || disabled} onClick={loadHistory}>RETRY HISTORY</button></div>}
     </form>
 
     {selected && <article className={styles.result}>

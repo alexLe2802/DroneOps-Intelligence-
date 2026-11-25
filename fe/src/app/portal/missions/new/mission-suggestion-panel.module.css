@@ -10,11 +10,15 @@
 .form textarea:focus { border-color: #28c8f2; outline: 1px solid #28c8f2; }
 .form textarea[aria-invalid="true"] { border-color: #b45e70; }
 .formFooter { align-items: center; }
-.formFooter small { color: var(--sub); font-size: 10px; }
+.formFooter small { color: var(--sub); font-size: 11.5px; }
 .formFooter button, .result > footer button { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-.inlineError { margin: 0; color: #ffb0bc; font-size: 11px; }
-.error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; border: 1px solid #6d3a48; border-radius: 5px; background: #301d28; color: #ffb0bc; font-size: 11px; }
+.inlineError { display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 12px; border: 1px solid #7d3c4b; border-radius: 6px; background: #2d1822; color: #ffd4dc; font-size: 13px; line-height: 1.45; }
+.inlineError svg, .errorCopy svg { flex-shrink: 0; color: #ff8594; }
+.error { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #82404f; border-inline-start: 4px solid #ef6b78; border-radius: 6px; background: #331a24; color: #ffd9e0; font-size: 13.5px; line-height: 1.5; }
+.errorCopy { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.errorCopy svg { margin-top: 2px; }
 .error p { margin: 0; }
+.error button { width: auto !important; flex-shrink: 0; }
 .result { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }
 .result > header { padding: 18px 20px; }
 .result h3 { margin: 5px 0; color: var(--ink); font-size: 18px; }

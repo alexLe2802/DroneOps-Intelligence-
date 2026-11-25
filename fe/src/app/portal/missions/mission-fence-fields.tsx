@@ -25,21 +25,43 @@ export default function MissionFenceFields({ fences, onChange, drawing, onDraw, 
   onDraw:(shape:"Polygon"|"Circle"|null)=>void; vertexCount:number; onFinish:()=>void; disabled?:boolean;
 }) {
   return <section className={styles.panel} aria-label="Mission geofence">
-    <h2>GeoFence · permitted flight areas</h2>
-    <p>Stay inside at least one area. Leaving all areas raises a geofence incident during the mission.</p>
-    <div className={styles.actions}>
-      <button type="button" className="module-secondary" disabled={disabled||fences.length>=20} onClick={()=>onDraw("Polygon")}>POLYGON FENCE</button>
-      <button type="button" className="module-secondary" disabled={disabled||fences.length>=20} onClick={()=>onDraw("Circle")}>CIRCULAR FENCE</button>
-      {drawing==="Polygon" && <button type="button" className="module-secondary" disabled={disabled||vertexCount<3} onClick={onFinish}>FINISH POLYGON ({vertexCount})</button>}
-      {drawing && <button type="button" className="text-action" disabled={disabled} onClick={()=>onDraw(null)}>CANCEL DRAWING</button>}
+    <div className={styles.header}>
+      <div>
+        <h2>GeoFence · permitted flight areas</h2>
+        <p>Stay inside at least one area. Leaving all areas raises a geofence incident during the mission.</p>
+      </div>
+      <span className={styles.badge}>{fences.length} / 20 FENCES</span>
     </div>
-    {drawing && <p role="status">{drawing==="Polygon"?"Click map to add vertices, then Finish polygon.":"Click map for the center, then click the edge to set radius."}</p>}
-    {!fences.length && <p>No mission fences.</p>}
-    {fences.map((f,i)=><div key={f.id} className={styles.actions}>
-      <span>{i+1}. {f.shape==="Circle"?"Circular fence":"Polygon fence"}{f.shape==="Polygon"?` · ${f.vertices?.length ?? 0} vertices`:""}</span>
-      {f.shape==="Circle" && <label>Radius (m) <input aria-label={`Fence ${i+1} radius (m)`} type="number" min="1" max="100000" step="1" value={Number.isFinite(f.radiusMeters) ? f.radiusMeters! : ""} disabled={disabled} onChange={e=>onChange(fences.map(x=>x.id===f.id?{...x,radiusMeters:e.target.value===""?NaN:Number(e.target.value)}:x))}/></label>}
-      <button type="button" className="text-action" disabled={disabled} onClick={()=>onChange(fences.filter(x=>x.id!==f.id))}>DELETE</button>
-    </div>)}
-    <p>Drag polygon vertices or a circle center to move it. Drag the circle edge handle to resize; the radius updates automatically. This fence monitors incidents; onboard FC fence enforcement is separate.</p>
+    <div className={styles.actions}>
+      <button type="button" className="module-secondary" aria-pressed={drawing==="Polygon"} disabled={disabled||fences.length>=20} onClick={()=>onDraw(drawing==="Polygon"?null:"Polygon")}>POLYGON FENCE</button>
+      <button type="button" className="module-secondary" aria-pressed={drawing==="Circle"} disabled={disabled||fences.length>=20} onClick={()=>onDraw(drawing==="Circle"?null:"Circle")}>CIRCULAR FENCE</button>
+      {drawing==="Polygon" && <button type="button" className="module-primary" disabled={disabled||vertexCount<3} onClick={onFinish}>FINISH POLYGON ({vertexCount})</button>}
+      {drawing && <button type="button" className={styles.cancelButton} disabled={disabled} onClick={()=>onDraw(null)}>CANCEL DRAWING</button>}
+    </div>
+    {drawing && <p className={styles.drawingHint} role="status">{drawing==="Polygon"?"Click the map below to add vertices (at least 3), then click Finish polygon.":"Click the map below for the center, then click the edge to set the radius."}</p>}
+    {!fences.length ? <p className={styles.emptyState}>No mission fences configured yet. Choose Polygon fence or Circular fence above, then click on the map below.</p> : <div className={styles.fenceList}>
+      {fences.map((f,i)=>{
+        const invalidRadius = f.shape === "Circle" && (!Number.isFinite(f.radiusMeters) || f.radiusMeters! < 1 || f.radiusMeters! > 100000);
+        return <div key={f.id} className={styles.fenceItem}>
+          <div className={styles.fenceMeta}>
+            <span className={styles.fenceIndex}>{String(i+1).padStart(2, "0")}</span>
+            <strong>{f.shape==="Circle"?"Circular fence":"Polygon fence"}</strong>
+            {f.shape==="Polygon" && <span className={styles.fenceVertices}>{f.vertices?.length ?? 0} vertices</span>}
+          </div>
+          <div className={styles.fenceControls}>
+            {f.shape==="Circle" && <div className={styles.radiusGroup}>
+              <label htmlFor={`mission-fence-radius-${f.id}`}>Radius (m)</label>
+              <span className={`${styles.radiusInputWrap}${invalidRadius ? ` ${styles.radiusInvalid}` : ""}`}>
+                <input id={`mission-fence-radius-${f.id}`} name={`fenceRadius_${i+1}`} data-field-label={`Fence ${i+1} radius`} type="number" min="1" max="100000" step="1" required aria-invalid={invalidRadius} aria-describedby={invalidRadius ? `mission-fence-error-${f.id}` : undefined} value={Number.isFinite(f.radiusMeters) ? f.radiusMeters! : ""} disabled={disabled} onChange={e=>onChange(fences.map(x=>x.id===f.id?{...x,radiusMeters:e.target.value===""?NaN:Number(e.target.value)}:x))}/>
+                <span className={styles.radiusUnit} aria-hidden="true">m</span>
+              </span>
+              {invalidRadius && <span id={`mission-fence-error-${f.id}`} className={styles.fenceError}><span role="img" aria-label="Error">!</span> 1–100,000 m</span>}
+            </div>}
+            <button type="button" className={styles.deleteButton} aria-label={`Delete fence ${i+1}`} disabled={disabled} onClick={()=>onChange(fences.filter(x=>x.id!==f.id))}>DELETE</button>
+          </div>
+        </div>;
+      })}
+    </div>}
+    <p className={styles.helperNote}>Drag polygon vertices or a circle center to move it. Drag the circle edge handle to resize; the radius updates automatically. This fence monitors incidents; onboard FC fence enforcement is separate.</p>
   </section>;
 }

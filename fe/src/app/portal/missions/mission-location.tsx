@@ -12,8 +12,8 @@ export function MissionLocation({ map, hasWaypoints }: { map: Leaflet.Map; hasWa
   useEffect(() => {
     if (hasWaypoints) focusOnResult.current = false;
     const cancelFocus = () => { focusOnResult.current = false; };
-    map.on("movestart click", cancelFocus);
-    return () => { map.off("movestart click", cancelFocus); };
+    map.on("movestart zoomstart click", cancelFocus);
+    return () => { map.off("movestart zoomstart click", cancelFocus); };
   }, [map, hasWaypoints]);
 
   useEffect(() => {

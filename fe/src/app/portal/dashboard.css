@@ -318,40 +318,89 @@
 @media(max-width:1100px){.manager-uav-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:700px){.manager-uav-row{grid-template-columns:52px minmax(0,1fr)}.manager-uav-row>em{grid-column:2}.manager-uav-queue>.uav-actions>*{max-inline-size:100%}}
 
-.mission-builder .mission-error-summary{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border:1px solid #ef6b78;border-inline-start:5px solid #ef6b78;border-radius:6px;background:#401f2a;color:#ffe2e6;scroll-margin-block:100px}.mission-error-summary>svg{flex-shrink:0;margin-top:1px}.mission-builder .mission-error-summary strong{font-size:1rem;line-height:1.5}.mission-builder .mission-error-summary p{margin:4px 0 0;color:#ffe2e6;font-size:.9375rem;line-height:1.6}.mission-error-summary:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.mission-builder .mission-error-summary{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:16px 18px;border:1px solid #ef6b78;border-inline-start:5px solid #ef6b78;border-radius:8px;background:#3a1b26;color:#ffe4e8;scroll-margin-block:100px}.mission-error-summary>svg{flex-shrink:0;margin-top:2px;color:#ff8b97}.mission-error-copy{flex:1;min-width:0}.mission-builder .mission-error-summary strong{display:block;font-size:1rem;line-height:1.45}.mission-builder .mission-error-summary p{margin:4px 0 0;color:#ffe4e8;font-size:.9375rem;line-height:1.6}.mission-error-summary:focus-visible{outline:2px solid #fff;outline-offset:3px}.mission-error-dismiss{display:inline-grid;place-items:center;width:32px;height:32px;flex-shrink:0;border:1px solid #8a4350;border-radius:6px;background:#2a121a;color:#ffd3da;font-size:18px;line-height:1;cursor:pointer}.mission-error-dismiss:hover{border-color:#ef6b78;color:#fff}
+.mission-footer-error{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid #8c3f4d;border-inline-start:4px solid #ef6b78;border-radius:7px;background:#321822;color:#ffdbe0;font-size:13.5px;line-height:1.45}.mission-footer-error>svg{flex-shrink:0;color:#ff8b97}.mission-footer-error>span{flex:1;min-width:0}.mission-footer-error>button{flex-shrink:0;padding:6px 10px;border:1px solid #8c3f4d;border-radius:5px;background:#241018;color:#ffe4e8;font:700 10px/1.2 Consolas,monospace;letter-spacing:.06em;cursor:pointer}
+.mission-builder :is(input,select,textarea){color-scheme:dark}
+.mission-builder .mission-field-grid{gap:16px}
+.mission-builder .mission-field-grid label,.mission-builder .schedule-field>label{font:600 11px/1.4 Consolas,monospace;letter-spacing:.06em;color:#b8cadb}
+.mission-builder .field-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mission-builder .field-heading em{font:600 10px/1.2 system-ui,sans-serif;letter-spacing:0;color:#88d9ed;font-style:normal}
+.mission-builder .field-heading em.optional{color:#8699ad}
+.mission-builder .mission-field-grid :is(input,select,textarea){min-height:42px;border-radius:6px;padding:10px 12px;font:14px/1.4 system-ui,sans-serif;background:#0b131e;border:1px solid #314256;color:#f3f8fd}
+.mission-builder .mission-field-grid .schedule-control input{padding-left:39px}
+.mission-builder .mission-field-grid small,.mission-builder .schedule-field>small{color:#869bb0;font:11.5px/1.45 system-ui,sans-serif;letter-spacing:0}
+.mission-builder :is(input,select,textarea):focus-visible{border-color:#28c8f2;outline:2px solid #28c8f240;outline-offset:0}
+.mission-builder :is(input,select,textarea):is(:user-invalid,[aria-invalid="true"]){border-color:#ef6b78!important;background:#26131c!important}
+.mission-builder .form-warning{display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;padding:12px 14px;border:1px solid #755d2c;border-inline-start:4px solid #f5b942;border-radius:7px;background:#2f2716;color:#ffe39e;font-size:13.5px;line-height:1.55}.mission-builder .form-warning>svg{flex-shrink:0;margin-top:2px;color:#f5b942}
+.mission-builder .builder-section-title>button.text-action{padding:7px 11px;border:1px solid #30475c;border-radius:6px;background:#12202e;color:#83deff;font:700 10px/1.2 Consolas,monospace;cursor:pointer}.mission-builder .builder-section-title>button.text-action:disabled{opacity:.4;cursor:not-allowed}
+.route-actions-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+.route-builder .mission-add-waypoint{margin-top:0;min-height:38px;padding:9px 15px;border:1px solid #355068;border-radius:6px;background:#162636;color:#d9eefb;font:700 11px/1.2 Consolas,monospace;letter-spacing:.06em;cursor:pointer}.route-builder .mission-add-waypoint:hover{border-color:#28c8f2;color:#fff}
+.route-count-pill{padding:6px 11px;border:1px solid #293c4f;border-radius:999px;background:#0e1823;color:#9eb5cb;font:600 12px/1.2 system-ui,sans-serif}
+.mission-create-builder .waypoint-list>article,.mission-edit-waypoint-list>article{grid-template-columns:38px repeat(4,minmax(110px,1fr)) auto!important;align-items:end;gap:12px;padding:14px;border-radius:8px;background:#0e1722;border:1px solid #263545}
+.mission-builder .waypoint-list>article>b{display:grid;place-items:center;width:38px;height:40px;align-self:end;border:1px solid #284b63;border-radius:6px;background:#122838;color:#74dfff;font:700 13px/1 Consolas,monospace}
+.mission-create-builder .waypoint-list>article>.waypoint-order-actions,.mission-edit-waypoint-list>article>.waypoint-order-actions{grid-column:auto;display:inline-flex;align-items:center;gap:6px;align-self:end}
+.mission-builder .waypoint-order-actions button{display:inline-grid;place-items:center;width:36px;height:40px;padding:0;border:1px solid #34475b;border-radius:6px;background:#15202d;color:#d6e4f2;font:600 15px/1 system-ui,sans-serif;cursor:pointer}
+.mission-builder .waypoint-order-actions button:hover:not(:disabled){border-color:#5ccbf2;color:#fff}
+.mission-builder .waypoint-order-actions .waypoint-remove{border-color:#6e3540;background:#361b23;color:#ffb0b8;font-size:18px}
+.mission-builder .waypoint-order-actions .waypoint-remove:hover:not(:disabled){border-color:#ef6b78;background:#4a222d;color:#ffdce0}
+.mission-builder .waypoint-empty{padding:20px;border:1px dashed #33475c;border-radius:8px;background:#0c151f;color:#9fb4c8;font-size:13.5px;line-height:1.55}
+.mission-altitude-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;background:var(--panel);border:1px solid var(--line);border-radius:7px}
+.mission-altitude-card label{display:block;color:#e7edf5;font-size:15px;font-weight:700;line-height:1.3}
+.mission-altitude-card p{margin:4px 0 0;color:var(--sub);font-size:12.5px;line-height:1.5}
+.mission-altitude-card select{min-width:250px;min-height:42px;padding:9px 12px;border:1px solid #314256;border-radius:6px;background:#0b131e;color:#f3f8fd;font-size:13.5px}
+.mission-builder .builder-footer{border-radius:7px;padding:15px 18px;gap:16px}.mission-builder .builder-footer p{font-size:12px;line-height:1.5}.mission-builder .builder-footer .module-primary,.mission-builder .builder-footer .module-secondary{min-height:42px;padding:10px 18px;border-radius:6px;font-size:11px;cursor:pointer}
+.mission-map .leaflet-control-zoom a{background:#0f1924!important;color:#e6f2fc!important;border-color:#354a5f!important}
+.mission-map .leaflet-control-zoom a:hover{background:#182b3d!important;color:#7ee0ff!important}
+.mission-map-wrap .map-hint{z-index:750;bottom:10px;left:12px;max-width:calc(100% - 24px);padding:6px 10px;border-radius:5px;font:600 10.5px/1.35 Consolas,monospace;letter-spacing:.05em}
+.mission-map-error{top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:min(520px,calc(100% - 24px));padding:9px 13px;border-radius:6px;box-shadow:0 8px 24px #0009;font-size:12px}.mission-map-error button{border:0;background:transparent;color:#ffd3d8;font-size:16px;line-height:1;cursor:pointer}
+@media(max-width:1000px){.mission-create-builder .waypoint-list>article,.mission-edit-waypoint-list>article{grid-template-columns:repeat(2,minmax(0,1fr))!important}.mission-builder .waypoint-list>article>b{grid-column:1/-1;width:fit-content;height:30px;padding:0 10px}.mission-create-builder .waypoint-list>article>.waypoint-order-actions,.mission-edit-waypoint-list>article>.waypoint-order-actions{grid-column:1/-1;justify-content:flex-end}}
+@media(max-width:760px){.mission-altitude-card{flex-direction:column;align-items:stretch}.mission-altitude-card select{min-width:0;width:100%}.mission-map-wrap .airspace-map-legend{top:auto;bottom:44px;right:10px;padding:6px 8px}}
+@media(max-width:520px){.mission-create-builder .waypoint-list>article,.mission-edit-waypoint-list>article{grid-template-columns:1fr!important}}
 
 .leaflet-container .map-layer-toggle {
   min-height: 34px;
-  padding: 5px 10px;
-  border: 2px solid #334454;
+  padding: 5px 11px;
+  border: 1px solid #354a5f;
   border-radius: 5px;
-  background: #fff;
-  color: #162532;
-  font: 600 13px/1.4 system-ui, sans-serif;
+  background: #0f1924;
+  color: #e6f2fc;
+  font: 600 12.5px/1.4 system-ui, sans-serif;
   cursor: pointer;
+  box-shadow: 0 2px 8px #0006;
+}
+.leaflet-container .map-layer-toggle:hover {
+  border-color: #5bcff4;
+  color: #8be8f5;
 }
 .leaflet-container .map-layer-toggle[aria-pressed="true"] {
-  background: #163b51;
-  color: #fff;
+  background: #143d4f;
+  border-color: #28c8f2;
+  color: #d6f7ff;
 }
 .leaflet-container.satellite-basemap .leaflet-tile-pane { filter: none; }
 .mission-location {
   position: absolute;
-  z-index: 800;
-  bottom: 48px;
+  z-index: 750;
+  bottom: 44px;
   left: 12px;
   right: 12px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   pointer-events: none;
 }
 .mission-location button, .mission-location span:not(:empty) {
-  padding: 6px 10px;
-  border: 1px solid #334454;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border: 1px solid #354a5f;
   border-radius: 5px;
-  background: #fff;
-  color: #162532;
-  font: 600 13px/1.4 system-ui, sans-serif;
+  background: #0f1924e8;
+  color: #e6f2fc;
+  font: 600 12.5px/1.4 system-ui, sans-serif;
+  box-shadow: 0 2px 8px #0006;
 }
+.mission-location button:hover:not(:disabled) { border-color: #5bcff4; color: #8be8f5; }
 .mission-location button { pointer-events: auto; cursor: pointer; }
