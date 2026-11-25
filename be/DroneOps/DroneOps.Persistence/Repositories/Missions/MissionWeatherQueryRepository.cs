@@ -34,6 +34,17 @@ public sealed class MissionWeatherQueryRepository(
                 cancellationToken);
     }
 
+    public Task<T> WithRefreshLockAsync<T>(string key, Func<Task<T>> action, CancellationToken ct)
+        => db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
+            var result = await action();
+            await transaction.CommitAsync(CancellationToken.None);
+            return result;
+        });
+
     public async Task UpsertCacheAsync(
         string key,
         string forecastJson,

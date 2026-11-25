@@ -2,12 +2,13 @@
 
 import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 
+import { useWeatherRefreshWait } from "./use-weather-refresh";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { getMissionWeather } from "@/lib/portal/client";
 import type { FlightHistoryItem, MissionWeather } from "@/lib/portal/types";
 
-type ForecastState = { weather?: MissionWeather; error?: string; loading?: boolean };
+type ForecastState = { weather?: MissionWeather; error?: string; loading?: boolean; retryAt?: number };
 
 function timeLabel(value: string | null | undefined) {
   if (!value) return "Time unavailable";
@@ -19,19 +20,23 @@ export default function DashboardRouteWeather({ missions }: { missions: FlightHi
   const [forecasts, setForecasts] = useState<Record<string, ForecastState>>(() =>
     Object.fromEntries(missions.map(mission => [mission.missionId, { loading: true }])));
 
-  const load = useCallback(async (refresh = false) => {
-    setForecasts(current => Object.fromEntries(missions.map(mission => [mission.missionId, {
-      ...current[mission.missionId], loading: true, error: "",
-    }])));
-    const results = await Promise.allSettled(missions.map(mission =>
-      getMissionWeather(mission.missionId, undefined, refresh)));
-    setForecasts(Object.fromEntries(results.map((result, index) => {
-      const id = missions[index].missionId;
-      return [id, result.status === "fulfilled"
-        ? { weather: result.value }
-        : { error: result.reason instanceof Error ? result.reason.message : "Forecast unavailable." }];
-    })));
-  }, [missions]);
+  const deadlineFor = (state?: ForecastState) =>
+    state?.weather?.nextRefreshAt ? Date.parse(state.weather.nextRefreshAt) : state?.retryAt ?? 0;
+  const nextRefresh = missions.length
+    ? Math.min(...missions.map(mission => deadlineFor(forecasts[mission.missionId]))) : 0;
+  const wait = useWeatherRefreshWait(nextRefresh);
+
+  async function refresh() {
+    const due = missions.filter(mission => deadlineFor(forecasts[mission.missionId]) <= Date.now());
+    if (!due.length) return;
+    setForecasts(current => ({ ...current, ...Object.fromEntries(due.map(mission =>
+      [mission.missionId, { ...current[mission.missionId], loading: true }])) }));
+    const results = await Promise.allSettled(due.map(mission =>
+      getMissionWeather(mission.missionId, undefined, true)));
+    setForecasts(current => ({ ...current, ...Object.fromEntries(results.map((result, index) =>
+      [due[index].missionId, result.status === "fulfilled" ? { weather: result.value }
+        : { retryAt: Date.now() + 60000, error: result.reason instanceof Error ? result.reason.message : "Forecast unavailable." }])) }));
+  }
 
   useEffect(() => {
     let active = true;
@@ -40,7 +45,7 @@ export default function DashboardRouteWeather({ missions }: { missions: FlightHi
       setForecasts(Object.fromEntries(results.map((result, index) => [missions[index].missionId,
         result.status === "fulfilled"
           ? { weather: result.value }
-          : { error: result.reason instanceof Error ? result.reason.message : "Forecast unavailable." },
+          : { retryAt: Date.now() + 60000, error: result.reason instanceof Error ? result.reason.message : "Forecast unavailable." },
       ])));
     });
     return () => { active = false; };
@@ -80,6 +85,6 @@ export default function DashboardRouteWeather({ missions }: { missions: FlightHi
       })}
     </ul>}
     {!busy && missions.length > 0 && visibleMissions.length === 0 && <div className="dashboard-panel-empty"><strong>NO AVAILABLE FORECASTS</strong><p>No mission currently has an available weather forecast.</p></div>}
-    <footer><span>First waypoint forecast for each mission</span><button type="button" disabled={!missions.length || busy} onClick={() => void load(true)}>Refresh forecasts</button></footer>
+    <footer><span>First waypoint forecast for each mission</span><button type="button" disabled={!missions.length || busy || wait > 0} onClick={() => void refresh()}>{wait ? `Refresh in ${wait}s` : "Refresh forecasts"}</button></footer>
   </article>;
 }

@@ -13,6 +13,8 @@ public interface IMissionWeatherQueryRepository
         string key,
         CancellationToken cancellationToken = default);
 
+    Task<T> WithRefreshLockAsync<T>(string key, Func<Task<T>> action, CancellationToken ct);
+
     Task UpsertCacheAsync(
         string key,
         string forecastJson,
