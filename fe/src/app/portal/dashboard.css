@@ -319,3 +319,39 @@
 @media(max-width:700px){.manager-uav-row{grid-template-columns:52px minmax(0,1fr)}.manager-uav-row>em{grid-column:2}.manager-uav-queue>.uav-actions>*{max-inline-size:100%}}
 
 .mission-builder .mission-error-summary{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border:1px solid #ef6b78;border-inline-start:5px solid #ef6b78;border-radius:6px;background:#401f2a;color:#ffe2e6;scroll-margin-block:100px}.mission-error-summary>svg{flex-shrink:0;margin-top:1px}.mission-builder .mission-error-summary strong{font-size:1rem;line-height:1.5}.mission-builder .mission-error-summary p{margin:4px 0 0;color:#ffe2e6;font-size:.9375rem;line-height:1.6}.mission-error-summary:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+.leaflet-container .map-layer-toggle {
+  min-height: 34px;
+  padding: 5px 10px;
+  border: 2px solid #334454;
+  border-radius: 5px;
+  background: #fff;
+  color: #162532;
+  font: 600 13px/1.4 system-ui, sans-serif;
+  cursor: pointer;
+}
+.leaflet-container .map-layer-toggle[aria-pressed="true"] {
+  background: #163b51;
+  color: #fff;
+}
+.leaflet-container.satellite-basemap .leaflet-tile-pane { filter: none; }
+.mission-location {
+  position: absolute;
+  z-index: 800;
+  bottom: 48px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.mission-location button, .mission-location span:not(:empty) {
+  padding: 6px 10px;
+  border: 1px solid #334454;
+  border-radius: 5px;
+  background: #fff;
+  color: #162532;
+  font: 600 13px/1.4 system-ui, sans-serif;
+}
+.mission-location button { pointer-events: auto; cursor: pointer; }

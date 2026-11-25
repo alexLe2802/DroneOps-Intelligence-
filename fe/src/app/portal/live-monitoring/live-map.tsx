@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { addBasemap } from "@/lib/maps/basemap";
 import type * as Leaflet from "leaflet";
 import type { MissionTelemetry, MissionWaypoint } from "@/lib/portal/types";
 import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
@@ -52,11 +53,7 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
       });
       mapRef.current = map;
       L.control.zoom({ position: "bottomright" }).addTo(map);
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
-        attribution: "Tiles &copy; Esri",
-        maxZoom: 19,
-        crossOrigin: true,
-      }).on("tileerror", () => setMapError("Basemap tiles are temporarily unavailable. Telemetry values remain visible below.")).addTo(map);
+      addBasemap(L, map, () => setMapError("Basemap tiles are temporarily unavailable. Telemetry values remain visible below."), () => setMapError(""));
       resizeObserver = new ResizeObserver(() => map.invalidateSize({ animate: false, pan: false }));
       resizeObserver.observe(containerRef.current);
       setReady(true);

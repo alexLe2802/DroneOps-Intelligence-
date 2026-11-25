@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { addBasemap } from "@/lib/maps/basemap";
 import type * as Leaflet from "leaflet";
 import { describeGeofence } from "@/lib/maps/geofences";
 import type { Geofence, LiveMission } from "@/lib/portal/types";
@@ -84,9 +85,7 @@ export default function DashboardMap({ geofences, liveMissions = [], onCursorCoo
       map.on("mouseout", () => onCursorCoordinate?.(null));
       L.control.zoom({ position: "bottomleft" }).addTo(map);
       L.control.scale({ position: "bottomright", metric: true, imperial: false }).addTo(map);
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
-        attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
-      }).on("tileerror", () => setError("Basemap tile could not be loaded.")).addTo(map);
+      addBasemap(L, map, () => setError("Basemap tile could not be loaded."), () => setError(""));
       geofences.forEach(zone => {
         const coordinates = zone.coordinates.filter(point => valid(point.latitude, point.longitude));
         if (coordinates.length < 3) return;

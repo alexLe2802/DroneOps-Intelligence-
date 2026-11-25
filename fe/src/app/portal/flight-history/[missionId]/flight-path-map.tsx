@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { addBasemap } from "@/lib/maps/basemap";
 import type * as Leaflet from "leaflet";
 import type { FlightTelemetryPoint, PostFlightReport } from "@/lib/portal/types";
 import styles from "../flight-history.module.css";
@@ -39,9 +40,7 @@ export default function FlightPathMap({ telemetry, uavCode, planned }: { telemet
       mapRef.current = map;
       L.control.zoom({ position: "bottomright" }).addTo(map);
       L.control.scale({ position: "bottomleft", metric: true, imperial: false }).addTo(map);
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true })
-        .on("tileerror", () => setError("Basemap tiles are unavailable. Recorded telemetry is still listed below."))
-        .addTo(map);
+      addBasemap(L, map, () => setError("Basemap tiles are unavailable. Recorded telemetry is still listed below."), () => setError(""));
       observer = new ResizeObserver(() => map.invalidateSize({ animate: false, pan: false }));
       observer.observe(containerRef.current);
       setReady(true);

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { MissionLocation } from "./mission-location";
+import { addBasemap } from "@/lib/maps/basemap";
 import type * as Leaflet from "leaflet";
 import { fenceDistance } from "@/lib/maps/mission-fences";
 import { describeGeofence } from "@/lib/maps/geofences";
@@ -8,8 +10,9 @@ import type { Geofence, MissionWaypoint, MissionValidationResult, PlannedHome, M
 
 const valid = (latitude: number, longitude: number) => longitude >= 100 && longitude <= 110 && latitude >= 7 && latitude <= 24;
 
-export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false, missionFences = waypoints[0]?.navigation?.missionFences ?? [], draftFence = [], drawingFence = null, onFenceUpdate }: {
+export default function MissionMap({ showUserLocation = false, waypoints, geofences, onAdd, onUpdate, readOnly = false, findings, plannedHome = waypoints[0]?.navigation?.plannedHome ?? null, pickingHome = false, missionFences = waypoints[0]?.navigation?.missionFences ?? [], draftFence = [], drawingFence = null, onFenceUpdate }: {
   missionFences?: MissionFence[]; draftFence?: GeofenceCoordinate[]; drawingFence?: "Polygon" | "Circle" | null; onFenceUpdate?: (fence: MissionFence) => void;
+  showUserLocation?: boolean;
   plannedHome?: PlannedHome | null; pickingHome?: boolean;
   waypoints: MissionWaypoint[]; geofences: Geofence[];
   onAdd?: (longitude: number, latitude: number) => void;
@@ -42,9 +45,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
       // SVG avoids queued Canvas redraws accessing a destroyed context on teardown.
       const map = L.map(containerRef.current, { center: [10.849, 106.7725], zoom: 12, wheelPxPerZoomLevel: 240, wheelDebounceTime: 80, zoomSnap: 0.25, preferCanvas: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false });
       mapRef.current = map;
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
-        attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
-      }).on("tileerror", () => setError("Basemap tile could not be loaded.")).addTo(map);
+      addBasemap(L, map, () => setError("Basemap tile could not be loaded."), () => setError(""));
       geofences.forEach(zone => {
         const coordinates = zone.coordinates.filter(point => valid(point.latitude, point.longitude));
         if (coordinates.length < 3) return;
@@ -187,6 +188,7 @@ export default function MissionMap({ waypoints, geofences, onAdd, onUpdate, read
 
   return <div className="mission-map-wrap">
     <div ref={containerRef} className="mission-map" />
+    {showUserLocation && mapReady && <MissionLocation map={mapReady} hasWaypoints={waypoints.length > 0} />}
     <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : drawingFence ? `DRAW ${drawingFence.toUpperCase()} FENCE` : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS</div>
     <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
     {error && <div className="mission-map-error" role="alert">{error}</div>}
