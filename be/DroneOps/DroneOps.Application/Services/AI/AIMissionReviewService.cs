@@ -259,6 +259,10 @@ public class AIMissionReviewService : IAIMissionReviewService
         The mission has already been submitted by a pilot
         and is currently in Pending Review status.
 
+        Write advice, risks and recommendation
+        in Vietnamese with full diacritics (tiếng Việt có dấu), even when the input is unaccented.
+        Keep JSON keys and enumerated values exactly as specified.
+
         IMPORTANT RULES:
 
         - The Operation Manager is the final decision maker.
