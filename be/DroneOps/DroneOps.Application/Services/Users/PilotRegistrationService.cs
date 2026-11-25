@@ -86,6 +86,11 @@ public class PilotRegistrationService : IPilotRegistrationService
                 "Attach exactly one PDF or Word license document.");
         }
 
+        if (await _repository.EmailExistsAsync(request.Email))
+        {
+            throw new InvalidOperationException("Email already registered.");
+        }
+
         var uploaded = new List<string>();
 
         try
@@ -149,7 +154,7 @@ public class PilotRegistrationService : IPilotRegistrationService
 
         if (existed)
         {
-            throw new Exception("Email already registered.");
+            throw new InvalidOperationException("Email already registered.");
         }
 
         var registrationId = Guid.NewGuid();

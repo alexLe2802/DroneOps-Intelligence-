@@ -15,11 +15,14 @@ namespace DroneOps.API.Controllers;
 public class PilotRegistrationController : ControllerBase
 {
     private readonly IPilotRegistrationService _service;
+    private readonly ILogger<PilotRegistrationController> _logger;
 
     public PilotRegistrationController(
-        IPilotRegistrationService service)
+        IPilotRegistrationService service,
+        ILogger<PilotRegistrationController> logger)
     {
         _service = service;
+        _logger = logger;
     }
 
     [AllowAnonymous]
@@ -68,12 +71,19 @@ public class PilotRegistrationController : ControllerBase
         }
         catch (Exception e)
         {
+            if (e is not ArgumentException && e is not InvalidOperationException)
+            {
+                _logger.LogError(e, "Pilot registration with files failed.");
+            }
+
             string message =
                 e is ArgumentException ||
                 e is InvalidOperationException
                     ? e.Message
-                    : "Unable to submit registration. " +
-                      "Check your details or try again.";
+                    : e is HttpRequestException httpEx
+                        ? $"License document upload failed (storage HTTP {(int?)httpEx.StatusCode ?? 502}). Please verify storage credentials and try again."
+                        : "Unable to submit registration. " +
+                          "Check your details or try again.";
 
             return BadRequest(new
             {
