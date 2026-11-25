@@ -100,14 +100,18 @@
   font: 700 12px var(--font-mono);
 }
 .historyEmpty {
-  padding: 24px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 28px 24px;
   margin-top: 16px;
   border: 1.5px dashed var(--outline, #cbd5e1);
   border-radius: 8px;
   background: var(--surface-low, #f8fafc);
   text-align: center;
 }
-.historyEmpty strong { font-size: 14px; color: var(--color-ink, #0d1c2e); }
+.historyEmpty strong { font-size: 14.5px; color: var(--color-ink, #0d1c2e); }
+.historyEmpty p { margin: 0; max-width: 52ch; text-align: center; }
 .historyItem {
   margin-top: 12px;
   padding: 16px;
