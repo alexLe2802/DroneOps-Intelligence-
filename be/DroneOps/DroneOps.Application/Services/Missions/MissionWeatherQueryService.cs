@@ -85,7 +85,8 @@ public sealed class MissionWeatherQueryService(
                 ct);
 
         if (!refresh &&
-            cached is not null)
+            cached is not null &&
+            cached.ExpiresAt >= DateTimeOffset.UtcNow)
         {
             var result =
                 JsonSerializer.Deserialize<WeatherAdvisory>(
@@ -94,17 +95,10 @@ public sealed class MissionWeatherQueryService(
                 ?? throw new InvalidOperationException(
                     "Cached weather forecast is invalid.");
 
-            if (cached.ExpiresAt <
-                DateTimeOffset.UtcNow)
+            if (result.Status != "Unavailable")
             {
-                result.Status = "Stale";
-                result.Available = false;
-
-                result.Warnings.Add(
-                    "Cached forecast expired. Refresh to obtain a new forecast.");
+                return result;
             }
-
-            return result;
         }
 
         // =========================
@@ -153,13 +147,16 @@ public sealed class MissionWeatherQueryService(
                 ?? throw new InvalidOperationException(
                     "Cached weather forecast is invalid.");
 
-            old.Status = "Stale";
-            old.Available = false;
+            if (old.Status != "Unavailable")
+            {
+                old.Status = "Stale";
+                old.Available = false;
 
-            old.Warnings.Add(
-                "Provider refresh failed; previous forecast is shown as stale.");
+                old.Warnings.Add(
+                    "Provider refresh failed; previous forecast is shown as stale.");
 
-            return old;
+                return old;
+            }
         }
 
         // =========================

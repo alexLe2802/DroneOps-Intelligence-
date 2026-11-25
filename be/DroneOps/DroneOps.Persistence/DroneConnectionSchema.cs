@@ -4,7 +4,7 @@ public static class DroneConnectionSchema
 {
     public static async Task ApplyAsync(NpgsqlDataSource source)
     {
-        foreach(var resource in new[]{"DroneOps.Persistence.DroneConnections.sql","DroneOps.Persistence.DroneHardware.sql"})
+        foreach(var resource in new[]{"DroneOps.Persistence.DroneConnections.sql","DroneOps.Persistence.DroneHardware.sql","DroneOps.Persistence.OptionalConnectionMission.sql"})
         {
             using var stream=typeof(DroneConnectionSchema).Assembly.GetManifestResourceStream(resource)!;
             using var reader=new StreamReader(stream);
@@ -17,6 +17,12 @@ public static class DroneConnectionSchema
     {
         try
         {
+            await using var column = source.CreateCommand("""
+                SELECT is_nullable FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'DroneConnection' AND column_name = 'MissionId'
+                """);
+            if (!Equals(await column.ExecuteScalarAsync(), "YES"))
+                throw new InvalidOperationException("Apply the optional connection mission migration before starting this API version.");
             await SchemaCommandExecutor.ExecuteAsync(source, """
                 SELECT "TokenHash", "LastSampleAt" FROM public."DroneConnection" LIMIT 0;
                 SELECT h."Identity", c."HardwareIdentity"

@@ -88,5 +88,5 @@ fi
 printf '  \033[1;36mBackend\033[0m        %s\n' "$server"
 printf '  \033[1;32m✓ Ready\033[0m · services start automatically on boot\n'
 printf '  Setup complete. You may close this terminal and SSH.\n'
-printf '  Power-on and Internet are sufficient on future boots. Select the mission on the web.\n'
+printf '  Power-on and Internet are sufficient on future boots. Connect your UAV on the web.\n'
 printf '  Optional diagnostics: journalctl -u droneops-gateway -n 30 --no-pager\n'

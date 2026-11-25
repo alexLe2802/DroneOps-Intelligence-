@@ -9,8 +9,8 @@ public sealed class DroneConnectionRepository(AppDbContext db) : IDroneConnectio
 {
     private IQueryable<DroneConnection> Usable() => db.DroneConnections.Where(c => c.RevokedAt == null && c.ExpiresAt > DateTimeOffset.UtcNow
         && db.UAVs.Any(u => u.Id == c.UavId && u.Status == "Active" && u.Pilot.UserId == c.OwnerId)
-        && db.Missions.Any(m => m.Id == c.MissionId && m.UAVId == c.UavId && m.CreatedBy == c.OwnerId
-            && (m.Status == "Approved" || m.Status == "InProgress" || m.Status == "In Progress")));
+        && (c.MissionId == null || db.Missions.Any(m => m.Id == c.MissionId && m.UAVId == c.UavId && m.CreatedBy == c.OwnerId
+            && (m.Status == "Approved" || m.Status == "InProgress" || m.Status == "In Progress"))));
 
     public Task CreateAsync(DroneConnection connection, CancellationToken ct) => db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
     {
@@ -21,7 +21,7 @@ public sealed class DroneConnectionRepository(AppDbContext db) : IDroneConnectio
         if (aircraft is null || !await db.Pilots.AnyAsync(p => p.Id == aircraft.PilotId && p.UserId == connection.OwnerId, ct))
             throw new UnauthorizedAccessException("This UAV is not assigned to your pilot account.");
         if (aircraft.Status != "Active") throw new InvalidOperationException("The UAV must be active before connecting.");
-        if (!await db.Missions.AnyAsync(m => m.Id == connection.MissionId && m.CreatedBy == connection.OwnerId && m.UAVId == aircraft.Id
+        if (connection.MissionId.HasValue && !await db.Missions.AnyAsync(m => m.Id == connection.MissionId && m.CreatedBy == connection.OwnerId && m.UAVId == aircraft.Id
             && (m.Status == "Approved" || m.Status == "InProgress" || m.Status == "In Progress"), ct))
             throw new InvalidOperationException("Select your approved or in-progress mission assigned to this UAV.");
         await db.DroneConnections.Where(c => c.UavId == aircraft.Id && c.RevokedAt == null)

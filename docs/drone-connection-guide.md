@@ -34,7 +34,7 @@ Jetson/laptop được tin cậy; không chia sẻ file credential hoặc ZIP ch
 
 ### Đăng ký lần đầu
 
-1. Trên **Connect Drone**, chọn **JETSON ONBOARD**, đúng UAV và mission đã duyệt.
+1. Trên **Connect Drone**, chọn **JETSON ONBOARD**, đúng UAV đang hoạt động được giao cho bạn. Có thể ghép khi chưa có nhiệm vụ.
 2. Xác nhận lần khóa phần cứng đầu tiên, tạo mã ghép có hiệu lực 5 phút.
 3. SSH hoặc mở terminal Jetson **một lần**, dán lệnh **COPY JETSON COMMAND**.
    Lệnh tải package, tìm `/dev/serial/by-id`, cài router/gateway, bật service,
@@ -47,14 +47,13 @@ Jetson/laptop được tin cậy; không chia sẻ file credential hoặc ZIP ch
 
 Bật flight controller và Jetson, chờ mạng đã lưu. `droneops-router` và
 `droneops-gateway` tự chạy bằng systemd, thử lại sau mất mạng/serial, đọc UID và
-xin lease mission mới. Người dùng không cần chạy terminal.
+xin lại phiên kết nối cho UAV. Người dùng không cần chạy terminal.
 
-Khi đổi mission, chọn UAV và mission mới trên web rồi bấm **CONNECT SELECTED
-MISSION**. Gateway đã đăng ký có thể tự nhận connection này; không cần dán mã
-mới vào Jetson. Nếu chưa chọn mission hợp lệ, gateway chờ; nó không tự tạo
-mission, không chọn UAV khác và không cất cánh.
+Trên **Connect Drone**, chọn UAV rồi bấm **CONNECT UAV** để gateway đã đăng ký
+nhận phiên mới. Khi cần ghi telemetry cho một nhiệm vụ cụ thể, mở nhiệm vụ
+trong **Live Monitoring** và kết nối UAV tại đó. Mỗi UAV có một phiên hiện hành.
 
-Credential đăng ký gateway là lâu dài và có thể thu hồi; lease mission vẫn có
+Credential đăng ký gateway có thể thu hồi. Phiên kết nối có
 thời hạn 12 giờ và được xin lại khi nối. Thu hồi gateway hoặc thay gateway cần
 ghép một lần nữa. Cài gateway mới cho cùng UAV thay credential thiết bị cũ.
 
@@ -73,10 +72,10 @@ ghép một lần nữa. Cài gateway mới cho cùng UAV thay credential thiế
 4. Launcher tự cài môi trường Python riêng, liệt kê USB và dò heartbeat
    ArduPilot/PX4 ở các baud phổ biến. Nếu nhiều cổng USB, chỉ cần chọn số của
    ground radio. Không nhập `COM5`, system ID hoặc IP trong trường hợp tự dò được.
-5. Chọn UAV/mission và tạo connection trên web. Lần đầu launcher hỏi mã ghép;
+5. Chọn UAV và tạo connection trên web. Lần đầu launcher hỏi mã ghép;
    nhập mã của đúng UAV. Nó đọc UID và lưu credential riêng cho controller đó.
 6. Giữ cửa sổ launcher mở, laptop có Internet và không sleep. Những lần sau chỉ
-   mở lại launcher; chọn mission trên web, không ghép lại chỉ vì đổi Wi‑Fi/IP.
+   mở lại launcher; chọn UAV trên web, không ghép lại chỉ vì đổi Wi‑Fi/IP.
 
 Nếu dò thất bại: đóng Mission Planner/QGroundControl đang giữ serial, kiểm tra
 USB, radio pairing, baud của cổng TELEM và nguồn. Dò baud không sửa được radio
@@ -89,7 +88,7 @@ riêng, không cần để kết nối website.
 
 ## 4. Ngắt kết nối, thay gateway và dữ liệu riêng
 
-- **DISCONNECT**: thu hồi connection của mission hiện tại; gateway không được
+- **DISCONNECT**: thu hồi phiên kết nối hiện tại của UAV; gateway không được
   tự hồi sinh connection đó. Tạo connection mới trên web để cho phép nối lại.
 - **FORGET TRUSTED GATEWAY**: thu hồi đăng ký lâu dài và tất cả connection của
   UAV; UID vẫn khóa với UAV. Muốn dùng lại cần ghép lần đầu trên thiết bị.

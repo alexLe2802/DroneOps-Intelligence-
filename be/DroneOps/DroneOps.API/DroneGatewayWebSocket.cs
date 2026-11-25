@@ -55,8 +55,8 @@ public static class DroneGatewayWebSocket
                     .ResumeAsync(request.UavId, request.DeviceToken, request.HardwareIdentity, context.RequestAborted);
                 if (credential is null)
                 {
-                    await SendAsync(socket, new { type = "waiting", message = "No selected eligible mission. Select this UAV and create a connection on the web." }, context.RequestAborted);
-                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Waiting for mission selection.", context.RequestAborted);
+                    await SendAsync(socket, new { type = "waiting", message = "No eligible connection. Select this UAV and create a connection on the web." }, context.RequestAborted);
+                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Waiting for a UAV connection.", context.RequestAborted);
                     return;
                 }
                 session = new(credential.ConnectionId, credential.Token, credential.HardwareIdentity);
@@ -127,7 +127,7 @@ public static class DroneGatewayWebSocket
                         throw new ArgumentException(string.Join("; ", validation.Errors.Select(x => x.ErrorMessage)));
                     var result = await service.SampleAsync(session.ConnectionId, session.Token, session.HardwareIdentity, key, sample, context.RequestAborted);
                     await SendAsync(socket, new { type = "telemetryAck", idempotencyKey = key, payload = result }, context.RequestAborted);
-                    if (!preparationChecked)
+                    if (sample.MissionId.HasValue && !preparationChecked)
                     {
                         preparationChecked = true;
                         try

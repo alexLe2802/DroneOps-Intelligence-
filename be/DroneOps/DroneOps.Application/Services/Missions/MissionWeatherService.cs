@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Options;
@@ -7,6 +8,7 @@ using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Entities;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DroneOps.Application.Services.Missions;
@@ -14,15 +16,24 @@ namespace DroneOps.Application.Services.Missions;
 public sealed class MissionWeatherService(
     HttpClient http,
     IOptions<MissionWeatherOptions> options,
-    IMemoryCache cache)
+    IMemoryCache cache,
+    ILogger<MissionWeatherService> logger)
     : IMissionWeatherService
 {
     private const string ProviderUrl =
         "https://api.open-meteo.com/v1/forecast";
 
+    private const string FallbackProviderUrl =
+        "https://api.met.no/weatherapi/locationforecast/2.0/compact";
+
+    private const string FallbackUserAgent =
+        "DroneOpsIntelligence/1.0 (+https://droneops.click)";
+
     private sealed record CachedHours(
         JsonElement Hours,
-        DateTimeOffset FetchedAt);
+        DateTimeOffset FetchedAt,
+        string Provider = "Open-Meteo",
+        int MaxSlotHours = 1);
 
     private sealed record RoutePoint(
         int SequenceOrder,
@@ -101,6 +112,8 @@ public sealed class MissionWeatherService(
                 string,
                 (CachedHours? Data, bool Stale)>();
 
+        var providersUsed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var routePoint in routePoints)
         {
             var raw = await GetForecastAsync(
@@ -110,6 +123,11 @@ public sealed class MissionWeatherService(
                 policy,
                 budget.Token,
                 cancellationToken);
+
+            if (raw.Data is not null)
+            {
+                providersUsed.Add(raw.Data.Provider);
+            }
 
             var estimatedArrival =
                 EstimateArrivalTime(
@@ -200,6 +218,11 @@ public sealed class MissionWeatherService(
             CalculateOverallStatus(
                 routePoints.Count,
                 result.Waypoints);
+
+        if (providersUsed.Count > 0)
+        {
+            result.Provider = string.Join(" + ", providersUsed);
+        }
 
         result.Available =
             result.Status == "Available";
@@ -574,10 +597,17 @@ public sealed class MissionWeatherService(
                     $"&timezone=GMT" +
                     $"&forecast_days={forecastDays}";
 
+                using var response = await http.GetAsync(
+                    uri, HttpCompletionOption.ResponseHeadersRead, budgetToken);
+
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    await LogRateLimitAsync(response, budgetToken);
+                }
+
+                response.EnsureSuccessStatusCode();
                 using var document =
-                    await http.GetFromJsonAsync<JsonDocument>(
-                        uri,
-                        budgetToken)
+                    await response.Content.ReadFromJsonAsync<JsonDocument>(budgetToken)
                     ?? throw new JsonException(
                         "Weather provider returned an empty response.");
 
@@ -598,7 +628,9 @@ public sealed class MissionWeatherService(
                 var newCache =
                     new CachedHours(
                         hours,
-                        DateTimeOffset.UtcNow);
+                        DateTimeOffset.UtcNow,
+                        "Open-Meteo",
+                        1);
 
                 result =
                     (newCache, false);
@@ -608,18 +640,229 @@ public sealed class MissionWeatherService(
                     newCache,
                     TimeSpan.FromHours(24));
             }
-            catch (Exception)
+            catch (Exception ex)
                 when (!cancellationToken
                     .IsCancellationRequested)
             {
-                result =
-                    (stored, stored is not null);
+                logger.LogWarning(
+                    ex,
+                    "Open-Meteo forecast failed for ({Latitude}, {Longitude}); attempting MET Norway fallback.",
+                    latitudeText,
+                    longitudeText);
+
+                var fallback = await TryFetchMetNorwayAsync(
+                    latitudeText,
+                    longitudeText,
+                    budgetToken,
+                    cancellationToken);
+
+                if (fallback is not null)
+                {
+                    result = (fallback, false);
+                    cache.Set(
+                        cacheKey,
+                        fallback,
+                        TimeSpan.FromHours(6));
+                }
+                else
+                {
+                    result =
+                        (stored, stored is not null);
+                }
             }
         }
 
         fetched[cacheKey] = result;
 
         return result;
+    }
+
+    private async Task<CachedHours?> TryFetchMetNorwayAsync(
+        string latitudeText,
+        string longitudeText,
+        CancellationToken budgetToken,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{FallbackProviderUrl}?lat={latitudeText}&lon={longitudeText}");
+
+            request.Headers.TryAddWithoutValidation("User-Agent", FallbackUserAgent);
+            request.Headers.TryAddWithoutValidation("Accept", "application/json");
+
+            using var response = await http.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                budgetToken);
+
+            response.EnsureSuccessStatusCode();
+
+            using var document =
+                await response.Content.ReadFromJsonAsync<JsonDocument>(budgetToken);
+
+            if (document is null ||
+                !document.RootElement.TryGetProperty("properties", out var props) ||
+                !props.TryGetProperty("timeseries", out var series) ||
+                series.ValueKind != JsonValueKind.Array ||
+                series.GetArrayLength() == 0)
+            {
+                return null;
+            }
+
+            var times = new List<string>();
+            var temps = new List<decimal?>();
+            var humidities = new List<decimal?>();
+            var windSpeeds = new List<decimal?>();
+            var windDirs = new List<decimal?>();
+            var windGusts = new List<decimal?>();
+            var rainProbs = new List<decimal?>();
+            var rains = new List<decimal?>();
+            var visibilities = new List<decimal?>();
+            var clouds = new List<decimal?>();
+            var codes = new List<int?>();
+
+            foreach (var entry in series.EnumerateArray())
+            {
+                if (!entry.TryGetProperty("time", out var timeEl) ||
+                    timeEl.GetString() is not { Length: > 0 } timeText ||
+                    !entry.TryGetProperty("data", out var dataEl) ||
+                    !dataEl.TryGetProperty("instant", out var instantEl) ||
+                    !instantEl.TryGetProperty("details", out var detailsEl))
+                {
+                    continue;
+                }
+
+                decimal? ReadNum(JsonElement parent, string name) =>
+                    parent.TryGetProperty(name, out var v) &&
+                    v.ValueKind == JsonValueKind.Number &&
+                    v.TryGetDecimal(out var d)
+                        ? d
+                        : null;
+
+                decimal? rainMm = null;
+                string? symbol = null;
+
+                if (dataEl.TryGetProperty("next_1_hours", out var next1))
+                {
+                    if (next1.TryGetProperty("details", out var d1))
+                        rainMm = ReadNum(d1, "precipitation_amount");
+                    if (next1.TryGetProperty("summary", out var s1) &&
+                        s1.TryGetProperty("symbol_code", out var sym1))
+                        symbol = sym1.GetString();
+                }
+                else if (dataEl.TryGetProperty("next_6_hours", out var next6))
+                {
+                    if (next6.TryGetProperty("details", out var d6))
+                    {
+                        var sixHourRain = ReadNum(d6, "precipitation_amount");
+                        rainMm = sixHourRain.HasValue
+                            ? Math.Round(sixHourRain.Value / 6m, 2)
+                            : null;
+                    }
+                    if (next6.TryGetProperty("summary", out var s6) &&
+                        s6.TryGetProperty("symbol_code", out var sym6))
+                        symbol = sym6.GetString();
+                }
+
+                times.Add(timeText);
+                temps.Add(ReadNum(detailsEl, "air_temperature"));
+                humidities.Add(ReadNum(detailsEl, "relative_humidity"));
+                windSpeeds.Add(ReadNum(detailsEl, "wind_speed"));
+                windDirs.Add(ReadNum(detailsEl, "wind_from_direction"));
+                windGusts.Add(ReadNum(detailsEl, "wind_speed_of_gust"));
+                rainProbs.Add(null);
+                rains.Add(rainMm);
+                visibilities.Add(null);
+                clouds.Add(ReadNum(detailsEl, "cloud_area_fraction"));
+                codes.Add(MapMetNorwaySymbolToWmo(symbol));
+            }
+
+            if (times.Count == 0)
+            {
+                return null;
+            }
+
+            var payload = new Dictionary<string, object?>
+            {
+                ["time"] = times,
+                ["temperature_2m"] = temps,
+                ["relative_humidity_2m"] = humidities,
+                ["wind_speed_10m"] = windSpeeds,
+                ["wind_direction_10m"] = windDirs,
+                ["wind_gusts_10m"] = windGusts,
+                ["precipitation_probability"] = rainProbs,
+                ["rain"] = rains,
+                ["visibility"] = visibilities,
+                ["cloud_cover"] = clouds,
+                ["weather_code"] = codes
+            };
+
+            var hours = JsonSerializer.SerializeToElement(payload).Clone();
+            return new CachedHours(
+                hours,
+                DateTimeOffset.UtcNow,
+                "MET Norway (fallback)",
+                6);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(
+                ex,
+                "MET Norway fallback forecast also failed for ({Latitude}, {Longitude}).",
+                latitudeText,
+                longitudeText);
+            return null;
+        }
+    }
+
+    private static int? MapMetNorwaySymbolToWmo(string? symbol)
+    {
+        if (string.IsNullOrWhiteSpace(symbol)) return null;
+        var s = symbol.ToLowerInvariant();
+        if (s.Contains("thunder")) return 95;
+        if (s.Contains("heavyrain")) return 65;
+        if (s.Contains("rainshowers")) return 80;
+        if (s.Contains("lightrain")) return 61;
+        if (s.Contains("rain")) return 63;
+        if (s.Contains("fog")) return 45;
+        if (s.Contains("snow")) return 73;
+        if (s.Contains("cloudy") && !s.Contains("partly")) return 3;
+        if (s.Contains("partlycloudy")) return 2;
+        if (s.Contains("fair")) return 1;
+        if (s.Contains("clearsky")) return 0;
+        return null;
+    }
+
+    private async Task LogRateLimitAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        string? reason = null;
+        try
+        {
+            const int maxBodyBytes = 4096;
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            var buffer = new byte[maxBodyBytes + 1];
+            var count = await stream.ReadAtLeastAsync(buffer, buffer.Length, false, ct);
+            if (count == 0 || count > maxBodyBytes)
+                return;
+
+            using var body = JsonDocument.Parse(buffer.AsMemory(0, count));
+            if (body.RootElement.ValueKind == JsonValueKind.Object &&
+                body.RootElement.TryGetProperty("reason", out var field) &&
+                field.ValueKind == JsonValueKind.String &&
+                field.GetString() is { } message)
+            {
+                reason = string.Concat(message.Take(256).Where(c => !char.IsControl(c)));
+            }
+        }
+        finally
+        {
+            logger.LogWarning(
+                "Open-Meteo HTTP 429. Reason: {Reason}. Retry-After: {RetryAfter}",
+                string.IsNullOrWhiteSpace(reason) ? "unavailable" : reason,
+                response.Headers.RetryAfter?.ToString() ?? "not provided");
+        }
     }
 
     // =========================================================
@@ -650,6 +893,8 @@ public sealed class MissionWeatherService(
 
         var selectedIndex = -1;
 
+        var slotSpanHours = Math.Max(1, cachedHours.MaxSlotHours);
+
         for (var index = 0;
              index < times.GetArrayLength();
              index++)
@@ -664,9 +909,22 @@ public sealed class MissionWeatherService(
                 continue;
             }
 
+            var slotEnd = forecastTime.AddHours(slotSpanHours);
+            if (index + 1 < times.GetArrayLength() &&
+                DateTime.TryParse(
+                    times[index + 1].GetString(),
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal |
+                    DateTimeStyles.AdjustToUniversal,
+                    out var nextForecastTime) &&
+                nextForecastTime > forecastTime &&
+                nextForecastTime <= slotEnd)
+            {
+                slotEnd = nextForecastTime;
+            }
+
             if (forecastTime <= targetTime &&
-                forecastTime.AddHours(1) >
-                targetTime)
+                slotEnd > targetTime)
             {
                 selectedIndex = index;
                 break;

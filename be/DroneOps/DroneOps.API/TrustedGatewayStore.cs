@@ -5,7 +5,7 @@ using Npgsql;
 
 namespace DroneOps.API;
 
-// A trusted device selects only a mission connection explicitly created by its owner.
+// A trusted device selects only a UAV connection explicitly created by its owner.
 // It never creates a mission, changes the hardware binding, or starts a flight.
 public sealed class TrustedGatewayStore(NpgsqlDataSource source)
 {
@@ -72,11 +72,11 @@ public sealed class TrustedGatewayStore(NpgsqlDataSource source)
                 "GatewayName" = @name, "SystemId" = @system, "ComponentId" = @component
             WHERE c."Id" = (
                 SELECT d."Id" FROM public."DroneConnection" d
-                JOIN public."Mission" m ON m."Id" = d."MissionId" AND m."UAVId" = d."UavId"
+                LEFT JOIN public."Mission" m ON m."Id" = d."MissionId" AND m."UAVId" = d."UavId"
                     AND m."CreatedBy" = d."OwnerId" AND m."Status" IN ('Approved', 'InProgress', 'In Progress')
                 WHERE d."UavId" = @uav AND d."OwnerId" = @owner AND d."RevokedAt" IS NULL
                     AND (d."HardwareIdentity" IS NULL OR d."HardwareIdentity" = @identity)
-                    AND m."EndTime" > now()
+                    AND (d."MissionId" IS NULL OR m."EndTime" > now())
                 ORDER BY d."CreatedAt" DESC LIMIT 1 FOR UPDATE OF d
             ) AND c."RevokedAt" IS NULL
             RETURNING c."Id", c."MissionId", c."ExpiresAt"
@@ -94,7 +94,7 @@ public sealed class TrustedGatewayStore(NpgsqlDataSource source)
             if (await reader.ReadAsync(ct))
             {
                 var id = reader.GetGuid(0);
-                result = new(id, uavId, reader.GetGuid(1), $"gateway-{id:N}", leaseToken,
+                result = new(id, uavId, reader.IsDBNull(1) ? null : reader.GetGuid(1), $"gateway-{id:N}", leaseToken,
                     reader.GetFieldValue<DateTimeOffset>(2), identity);
             }
         }

@@ -16,7 +16,7 @@ type Preparation = {
   actualEndedAt: string | null; dispatchEnabled: boolean; blockingReasons: string[];
 };
 
-export default function FlightPreparationPanel({ missionId }: { missionId: string }) {
+export default function FlightPreparationPanel({ missionId, uavId }: { missionId: string; uavId: string }) {
   const [state, setState] = useState<Preparation | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -81,6 +81,6 @@ export default function FlightPreparationPanel({ missionId }: { missionId: strin
       <p>Your agreement authorizes automatic ARM and flight once the scheduled start has passed and every readiness check passes. If you connect late, review and agree again. Actual mission end is recorded only after the route finishes, landing is confirmed and the FC is disarmed.</p>
       <FlightControls missionId={missionId} planHash={state.planHash} confirmed={state.confirmationRecorded} />
     </>}
-    {connectionOpen && !ended && <DroneConnectionClient key={missionId} initialMissionId={missionId} embedded />}
+    {connectionOpen && !ended && <DroneConnectionClient key={missionId} missionContext={{ id: missionId, uavId }} embedded />}
   </section>;
 }
