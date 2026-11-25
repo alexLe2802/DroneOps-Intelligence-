@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Options;
@@ -7,6 +8,7 @@ using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Validators.Missions;
 using DroneOps.Domain.Entities;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DroneOps.Application.Services.Missions;
@@ -14,7 +16,8 @@ namespace DroneOps.Application.Services.Missions;
 public sealed class MissionWeatherService(
     HttpClient http,
     IOptions<MissionWeatherOptions> options,
-    IMemoryCache cache)
+    IMemoryCache cache,
+    ILogger<MissionWeatherService> logger)
     : IMissionWeatherService
 {
     private const string ProviderUrl =
@@ -574,10 +577,17 @@ public sealed class MissionWeatherService(
                     $"&timezone=GMT" +
                     $"&forecast_days={forecastDays}";
 
+                using var response = await http.GetAsync(
+                    uri, HttpCompletionOption.ResponseHeadersRead, budgetToken);
+
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    await LogRateLimitAsync(response, budgetToken);
+                }
+
+                response.EnsureSuccessStatusCode();
                 using var document =
-                    await http.GetFromJsonAsync<JsonDocument>(
-                        uri,
-                        budgetToken)
+                    await response.Content.ReadFromJsonAsync<JsonDocument>(budgetToken)
                     ?? throw new JsonException(
                         "Weather provider returned an empty response.");
 
@@ -620,6 +630,36 @@ public sealed class MissionWeatherService(
         fetched[cacheKey] = result;
 
         return result;
+    }
+
+    private async Task LogRateLimitAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        string? reason = null;
+        try
+        {
+            const int maxBodyBytes = 4096;
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            var buffer = new byte[maxBodyBytes + 1];
+            var count = await stream.ReadAtLeastAsync(buffer, buffer.Length, false, ct);
+            if (count == 0 || count > maxBodyBytes)
+                return;
+
+            using var body = JsonDocument.Parse(buffer.AsMemory(0, count));
+            if (body.RootElement.ValueKind == JsonValueKind.Object &&
+                body.RootElement.TryGetProperty("reason", out var field) &&
+                field.ValueKind == JsonValueKind.String &&
+                field.GetString() is { } message)
+            {
+                reason = string.Concat(message.Take(256).Where(c => !char.IsControl(c)));
+            }
+        }
+        finally
+        {
+            logger.LogWarning(
+                "Open-Meteo HTTP 429. Reason: {Reason}. Retry-After: {RetryAfter}",
+                string.IsNullOrWhiteSpace(reason) ? "unavailable" : reason,
+                response.Headers.RetryAfter?.ToString() ?? "not provided");
+        }
     }
 
     // =========================================================
