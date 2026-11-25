@@ -4,10 +4,15 @@ import test from "node:test";
 
 const formSource = await readFile(new URL("../src/app/portal/missions/new/mission-form.tsx", import.meta.url), "utf8");
 const suggestionSource = await readFile(new URL("../src/app/portal/missions/new/mission-suggestion-panel.tsx", import.meta.url), "utf8");
+const editSource = await readFile(new URL("../src/app/portal/missions/[id]/edit/mission-edit-client.tsx", import.meta.url), "utf8");
+const analysisSource = await readFile(new URL("../src/app/portal/missions/new/draft-analysis-panel.tsx", import.meta.url), "utf8");
 const assessmentSource = await readFile(new URL("../src/app/portal/ai-assessment/ai-assessment-client.tsx", import.meta.url), "utf8");
 
 test("mission suggestion belongs to pilot mission authoring and not risk assessment", () => {
-  assert.match(formSource, /<MissionSuggestionPanel disabled=\{saving\} onApply=\{applySuggestion\}/);
+  assert.ok(formSource.indexOf("<DraftAnalysisPanel") > formSource.indexOf("<MissionMap"));
+  assert.match(formSource, /name\.trim\(\)\.length < 2/);
+  assert.match(formSource, /routeError\(waypoints\)/);
+  assert.match(analysisSource, /disabled=\{disabled \|\| !draft \|\| busy\}/);
   assert.doesNotMatch(assessmentSource, /MissionSuggestionPanel/);
   assert.match(suggestionSource, /generateMissionSuggestion/);
   assert.match(suggestionSource, /getMyMissionSuggestions/);
@@ -21,18 +26,14 @@ test("new mission does not display a previous proposal until the pilot generates
   assert.match(suggestionSource, /setSelectedId\(created\.id\)/);
 });
 
-test("applying a suggestion fills mission details but keeps UAV, schedule and route manual", () => {
-  assert.match(formSource, /setName\(suggestion\.missionName\.trim\(\)\)/);
-  assert.match(formSource, /setDescription\(suggestion\.missionPurpose\.trim\(\)\)/);
-  assert.match(formSource, /setAverageSpeed/);
-  assert.match(formSource, /setMaxSpeed/);
-  assert.doesNotMatch(formSource.slice(formSource.indexOf("function applySuggestion"), formSource.indexOf("async function submit")), /setWaypoints/);
-  assert.match(formSource, /Your UAV, schedule and waypoints will be kept/);
-  assert.match(suggestionSource, /APPLY MISSION DETAILS/);
+test("draft analysis applies individual speed and schedule fields only", () => {
+  assert.match(formSource, /applyCruise=\{setAverageSpeed\} applyCeiling=\{setMaxSpeed\} applyEnd=\{setEndTime\}/);
+  assert.match(formSource, /key=\{JSON.stringify\(analysisDraft\)\}/);
+  assert.doesNotMatch(analysisSource, /setWaypoints|setUavId|setName/);
 });
 
-test("mission suggestion UI does not treat AI output as route evidence", () => {
+test("editing still supports prior suggestions without treating generated waypoints as route evidence", () => {
+  assert.match(editSource, /<MissionSuggestionPanel/);
   assert.match(suggestionSource, /You choose the UAV, schedule and route/);
   assert.doesNotMatch(suggestionSource, /selected\.waypoints/);
-  assert.doesNotMatch(formSource.slice(formSource.indexOf("function applySuggestion"), formSource.indexOf("async function submit")), /latitude|longitude|actionType/);
 });

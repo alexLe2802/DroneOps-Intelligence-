@@ -7,7 +7,7 @@ import { AlertCircle, AlertTriangle, CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
-import type { AssignedUav, Geofence, MissionSuggestion, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
+import type { AssignedUav, Geofence, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 
@@ -22,7 +22,7 @@ import FlightModeFields, { type FlightMode } from "../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
 import MissionFenceFields, { useFenceDrawing } from "../mission-fence-fields";
 import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
-import MissionSuggestionPanel from "./mission-suggestion-panel";
+import DraftAnalysisPanel from "./draft-analysis-panel";
 
 const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
 
@@ -105,6 +105,7 @@ export default function MissionForm() {
   const [averageSpeed, setAverageSpeed] = useState("");
   const [maxSpeed, setMaxSpeed] = useState("");
   const [automaticFlightLimits, setAutomaticFlightLimits] = useState(defaultAutomaticLimits);
+  const [payloadKg, setPayloadKg] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [missionFences, setMissionFences] = useState<MissionFence[]>([]);
@@ -171,27 +172,6 @@ export default function MissionForm() {
       return normalizeWaypointActions(next);
     });
   }
-  function applySuggestion(suggestion: MissionSuggestion) {
-    const hasDraft = Boolean(flightMode || name || description || averageSpeed || maxSpeed || altitudeReference || waypoints.length);
-    if (hasDraft && !window.confirm("Replace the current mission details with this suggestion? Your UAV, schedule and waypoints will be kept.")) return;
-
-    if (suggestion.missionName.trim()) setName(suggestion.missionName.trim());
-    if (suggestion.missionPurpose.trim()) setDescription(suggestion.missionPurpose.trim());
-    if (suggestion.automaticFlightRequested != null) setFlightMode(suggestion.automaticFlightRequested ? "automatic" : "manual");
-    if (["AGL", "MSL", "Relative"].includes(suggestion.altitudeReference)) {
-      setAltitudeReference(suggestion.altitudeReference as "AGL" | "MSL" | "Relative");
-    } else if (suggestion.automaticFlightRequested) {
-      setAltitudeReference("Relative");
-    }
-    if (Number.isFinite(suggestion.averageSpeedMetersPerSecond) && Number(suggestion.averageSpeedMetersPerSecond) > 0) {
-      setAverageSpeed(String(suggestion.averageSpeedMetersPerSecond));
-    }
-    if (Number.isFinite(suggestion.maxSpeedMetersPerSecond) && Number(suggestion.maxSpeedMetersPerSecond) > 0) {
-      setMaxSpeed(String(suggestion.maxSpeedMetersPerSecond));
-    }
-    setError("");
-    window.setTimeout(() => document.getElementById("mission-information")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-  }
   async function submit(event: FormEvent) {
     event.preventDefault(); setError("");
     if (pending.current) return;
@@ -229,9 +209,24 @@ export default function MissionForm() {
   const activeAircraft = aircraft.filter(item => item.status.toLowerCase() === "active");
   const earliestStart = localDateTimeMinimum();
   const earliestEnd = startTime || earliestStart;
+  const start = Date.parse(startTime + "+07:00");
+  const end = Date.parse(endTime + "+07:00");
+  const missing = [
+    !activeAircraft.some(item => item.id === uavId) && "Select an active assigned UAV.",
+    name.trim().length < 2 && "Enter a mission name of at least two characters.",
+    !(start >= Date.parse(earliestStart + "+07:00")) && "Choose a future start date and time.",
+    endTime && !(end > start) && "Choose an end time after the start or leave it blank for an estimate.",
+    payloadKg && Number(payloadKg) < 0 && "Enter a non-negative payload or leave it blank.",
+    routeError(waypoints),
+  ].filter((message): message is string => Boolean(message));
+  const analysisDraft = missing.length ? null : {
+    uavId, name: name.trim(), startTime: vietnamInputToUtcIso(startTime), endTime: endTime ? vietnamInputToUtcIso(endTime) : null,
+    waypoints, automatic: flightMode === null ? null : automaticFlightRequested, limits: automaticFlightRequested ? automaticFlightLimits : null,
+    altitudeReference: altitudeReference || null, cruise: averageSpeed ? Number(averageSpeed) : null,
+    ceiling: maxSpeed ? Number(maxSpeed) : null, payloadKg: payloadKg ? Number(payloadKg) : null,
+  };
   return <>
     <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
-    <MissionSuggestionPanel disabled={saving} onApply={applySuggestion} />
     <form ref={formRef} className="mission-builder mission-create-builder" onSubmit={submit} onBlurCapture={event => syncFieldAriaInvalid(event.target)} onChangeCapture={event => { syncFieldAriaInvalid(event.target); if (error) setError(""); }} onInputCapture={event => { syncFieldAriaInvalid(event.target); if (error) setError(""); }} onInvalidCapture={event => {
       const field = event.target;
       if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;
@@ -284,6 +279,12 @@ export default function MissionForm() {
         </div>
         <select id="mission-altitude-reference" name="altitudeReference" data-field-label="Altitude reference" value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option disabled={automaticFlightRequested} value="AGL">AGL — above ground</option><option disabled={automaticFlightRequested} value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select>
       </div>
+      <section className="mission-fields">
+        <label htmlFor="draft-payload">Payload for this analysis (kg, optional)</label>
+        <input id="draft-payload" type="number" min="0" step="any" value={payloadKg} onChange={event => setPayloadKg(event.target.value)} />
+        <DraftAnalysisPanel key={JSON.stringify(analysisDraft)} draft={analysisDraft} missing={missing} disabled={saving}
+          applyCruise={setAverageSpeed} applyCeiling={setMaxSpeed} applyEnd={setEndTime} />
+      </section>
       </fieldset>
       {error && <div className="mission-footer-error"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span><button type="button" onClick={() => { errorRef.current?.focus({ preventScroll: true }); errorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }}>TOP ↑</button></div>}
       <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS{missionFences.length ? <> · <b>{missionFences.length}</b> FENCES</> : null} · Save a Draft, then submit it from Mission Details for validation and review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button type="submit" className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "SAVING…" : "SAVE DRAFT MISSION"}</button></div></footer>

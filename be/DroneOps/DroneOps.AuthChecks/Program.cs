@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authorization;
 if (args.Length == 1 && args[0] == "--gemini-fallback")
 {
     await GeminiFallbackChecks.RunAsync();
+    await DraftAnalysisChecks.RunAsync();
     return;
 }
 

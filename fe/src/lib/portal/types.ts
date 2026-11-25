@@ -108,6 +108,20 @@ export type MissionBatteryRisk = {
   warnings: string[];
 };
 
+export type DraftAnalysisRequest = {
+  uavId: string; name: string; startTime: string; endTime: string | null; waypoints: MissionWaypoint[];
+  automatic: boolean | null; limits: AutomaticFlightLimits | null; altitudeReference: string | null;
+  cruise: number | null; ceiling: number | null; payloadKg: number | null;
+};
+export type DraftAnalysis = {
+  cruiseBasis: string | null; cruise: number | null; ceiling: number | null; estimatedEnd: string | null;
+  findings: string[]; weatherStatus: string; provider: string; fetchedAt: string; explanation: string | null;
+  windLimit: number | null; gustLimit: number | null;
+  windAlerts: { sequenceOrder: number; segmentFrom: number | null; segmentTo: number | null;
+    estimatedArrivalTime: string | null; forecastTime: string | null;
+    windSpeedMetersPerSecond: number | null; windGustMetersPerSecond: number | null; riskLevel: string }[];
+};
+
 export type MissionWeather = {
   nextRefreshAt?: string | null;
   missionId?: string; updateRequestId?: string | null; status: "Available" | "Partial" | "Unavailable" | "Stale"; provider: string; available: boolean; fetchedAt: string; generatedAt: string; expiresAt: string; flightStartTime?: string | null; flightEndTime?: string | null; overallRisk: string; warnings: string[];

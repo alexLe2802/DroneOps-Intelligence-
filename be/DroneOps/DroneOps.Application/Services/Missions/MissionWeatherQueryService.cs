@@ -56,6 +56,14 @@ public sealed class MissionWeatherQueryService(
             mission = MissionPlans.Propose(mission, dto);
         }
 
+        return await ReadCachedAsync(mission, refresh, updateRequestId, ct);
+    }
+
+    public Task<WeatherAdvisory> ReadDraftAsync(Mission draft, CancellationToken ct) =>
+        ReadCachedAsync(draft, false, null, ct);
+
+    private async Task<WeatherAdvisory> ReadCachedAsync(Mission mission, bool refresh, Guid? updateRequestId, CancellationToken ct)
+    {
         // =========================
         // CACHE KEY
         // =========================
@@ -93,7 +101,7 @@ public sealed class MissionWeatherQueryService(
                 ? await provider.FetchAsync(mission, refresh, CancellationToken.None)
                 : await weather.GetAsync(mission, CancellationToken.None);
             var value = fetched;
-            value.MissionId = id;
+            value.MissionId = mission.Id == Guid.Empty ? null : mission.Id;
             value.UpdateRequestId = updateRequestId;
             value.PlanHash = planHash;
             value.FlightStartTime = mission.StartTime;
