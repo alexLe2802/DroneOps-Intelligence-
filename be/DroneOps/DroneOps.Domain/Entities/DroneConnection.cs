@@ -7,7 +7,7 @@ public sealed class DroneConnection
     public Guid Id { get; set; }
     public Guid OwnerId { get; set; }
     public Guid UavId { get; set; }
-    public Guid MissionId { get; set; }
+    public Guid? MissionId { get; set; }
     public string PairCodeHash { get; set; } = "";
     public string? HardwareIdentity { get; set; }
     public string? TokenHash { get; set; }

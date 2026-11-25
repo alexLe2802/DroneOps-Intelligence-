@@ -89,7 +89,8 @@ public sealed class FlightControlService(AppDbContext db, MissionAutomationServi
             var cachedJson = JsonSerializer.Serialize(trustedSnapshot, Json);
             await db.UAVs.Where(u => u.Id == connection.UavId).ExecuteUpdateAsync(u => u.SetProperty(x => x.FirmwareNavigationDefaultsJson, cachedJson), ct);
         }
-        return await Locked(connection.MissionId, connection.OwnerId, async (mission, row, state) =>
+        if (connection.MissionId is not Guid missionId) return new { enabled = false };
+        return await Locked(missionId, connection.OwnerId, async (mission, row, state) =>
         {
             var now = Now;
             if (mission.UAVId != connection.UavId || connection.RevokedAt != null || connection.ExpiresAt <= now)

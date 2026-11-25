@@ -95,7 +95,7 @@ tự kết nối trên Ubuntu. Chi tiết cài router thủ công nằm trong CO
 
 ### 4. Ghép đôi sau khi cài thành công
 
-Trên Connect Drone chọn UAV/mission và tạo mã 5 phút. Chạy:
+Trên Connect Drone chọn UAV đang hoạt động của bạn và tạo mã 5 phút. Chạy:
 
 ```bash
 sudo bash /opt/droneops-gateway/pair-jetson.sh
@@ -108,8 +108,8 @@ Nếu file không tồn tại, bước cài đặt chưa hoàn tất; chạy l�
 
 Trong cùng phiên còn hợp lệ, chỉ cần bật nguồn Pixhawk/Jetson và mạng đã lưu có
 đường đến backend. Service tự chạy và nối lại khi mất mạng, không cần giữ SSH.
-Credential trusted gateway có hiệu lực đến khi bị thu hồi; mission lease có thời
-hạn 12 giờ. Chọn connection/mission hợp lệ trên web để gateway nhận lease tương ứng.
+Credential trusted gateway có hiệu lực đến khi bị thu hồi; lease kết nối UAV có thời
+hạn 12 giờ. Connect Drone tạo phiên theo UAV. Để ghi telemetry cho nhiệm vụ, kết nối từ nhiệm vụ trong Live Monitoring.
 Thu hồi đăng ký hoặc thay gateway yêu cầu ghép lại; Internet không tự cấp quyền.
 Kiểm tra:
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using DroneOps.Application.DTOs.Request.Telemetry;
+using DroneOps.Application.Interfaces.Telemetry;
 using DroneOps.Application.DTOs.Response.Telemetry;
 using DroneOps.Persistence.Interfaces;
 using Microsoft.AspNetCore.RateLimiting;
@@ -416,6 +417,26 @@ try
     await using(var scope=app.Services.CreateAsyncScope())
         Check(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Incidents.CountAsync(i=>i.MissionId==fenceMissionId)==1,"ended mission does not generate a new fence incident");
 
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId,"uav_operator"));
+    var standalone = await client.PostAsJsonAsync("/api/drone-connections", new { uavId = otherUavId });
+    Check(standalone.StatusCode == HttpStatusCode.Created, "pilot creates a connection for an aircraft without missions");
+    var uavPairing = (await standalone.Content.ReadFromJsonAsync<DronePairing>())!;
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IDroneConnectionService>();
+        var credential = await service.PairAsync(new(uavPairing.PairingCode, "Standalone fixture", 1, 1, "UID64-0000000000000002"), default);
+        Check(credential.MissionId == null, "paired credential has no mission scope");
+        var sample = new IngestTelemetrySampleRequest { SourceId = credential.SourceId, UavId = otherUavId, SourceTimestamp = DateTimeOffset.UtcNow, BatteryPercent = 75 };
+        var accepted = await service.SampleAsync(credential.ConnectionId, credential.Token, credential.HardwareIdentity, "standalone", sample, default);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Check(accepted.Accepted && await db.TelemetryRecords.AnyAsync(t => t.SourceId == credential.SourceId && t.MissionId == null), "standalone telemetry persists without a mission");
+        sample.MissionId = missionId;
+        try {
+            await service.SampleAsync(credential.ConnectionId, credential.Token, credential.HardwareIdentity, "wrong-scope", sample, default);
+            throw new Exception("Standalone credential accepted mission telemetry");
+        } catch (UnauthorizedAccessException) { Check(true, "standalone credential cannot claim mission telemetry"); }
+    }
+
     if (args.Length == 2 && args[0] == "--gateway")
     {
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(pilotId,"uav_operator"));
@@ -435,7 +456,7 @@ try
         var gatewayLatest=await Json(await client.GetAsync($"/api/missions/{missionId}/telemetry/latest"));
         Check(gatewayLatest.GetProperty("latitude").GetDecimal()==11.35m&&gatewayLatest.GetProperty("groundSpeedMetersPerSecond").GetDecimal()==5m,"gateway measurements reach latest API with converted units");
         var sessions=(await client.GetFromJsonAsync<List<DroneConnectionView>>("/api/drone-connections"))!;
-        Check(sessions.Single().Status=="ReceivingTelemetry","session API reports drone samples separately from gateway online");
+        Check(sessions.Single(s => s.Id == pairing.Connection.Id).Status=="ReceivingTelemetry","session API reports drone samples separately from gateway online");
         using var gatewayStreamTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(8));
         using var gatewayStream=await client.GetAsync($"/api/live/stream?missionId={missionId}",HttpCompletionOption.ResponseHeadersRead,gatewayStreamTimeout.Token);
         gatewayStream.EnsureSuccessStatusCode();
@@ -446,7 +467,7 @@ try
         Check((await client.DeleteAsync($"/api/drone-connections/{pairing.Connection.Id}")).StatusCode==HttpStatusCode.NoContent,"pilot can revoke gateway over HTTP");
         // The loopback suite uses InMemory EF and a repository test double, not PostgreSQL.
         var retained=(await client.GetFromJsonAsync<List<DroneBindingView>>("/api/drone-connections/aircraft"))!;
-        Check(retained.Single().HardwareIdentity=="UID64-00000000075BCD15","physical hardware binding survives disconnect");
+        Check(retained.Single(b => b.UavId == fixtureUavId).HardwareIdentity=="UID64-00000000075BCD15","physical hardware binding survives disconnect");
         // Wrong-hardware and duplicate-registry pairing are covered at the service boundary in AuthChecks;
         // this loopback section verifies the real WebSocket transport and MAVLink framing.
         await using(var modelScope=app.Services.CreateAsyncScope())

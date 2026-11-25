@@ -85,7 +85,7 @@ def open_gateway_socket(endpoint, session=None, pairing=None):
         connection.send(json.dumps(hello, separators=(',', ':')))
         response = json.loads(connection.recv())
         if response.get('type') == 'waiting':
-            raise GatewayWaiting(response.get('message', 'Waiting for mission selection on the web.'))
+            raise GatewayWaiting(response.get('message', 'Waiting for a UAV connection on the web.'))
         if response.get('type') == 'error':
             raise GatewayError(response.get('message', 'Gateway WebSocket handshake rejected.'))
         if response.get('type') != expected:

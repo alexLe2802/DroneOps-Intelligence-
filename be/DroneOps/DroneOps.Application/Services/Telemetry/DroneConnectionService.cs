@@ -20,7 +20,7 @@ public sealed class DroneConnectionService(IDroneConnectionRepository repository
     public async Task<List<DroneBindingView>> BindingsAsync(Guid owner,CancellationToken ct) => (await repository.BindingsAsync(owner,ct)).Select(h=>new DroneBindingView(h.UavId,h.Identity,h.BoundAt)).ToList();
     public async Task<DronePairing> CreateAsync(Guid owner, CreateDroneConnection request, CancellationToken ct)
     {
-        if (request.UavId == Guid.Empty || request.MissionId == Guid.Empty) throw new ArgumentException("Select a UAV and mission.");
+        if (request.UavId == Guid.Empty) throw new ArgumentException("Select a UAV.");
         var code = Convert.ToHexString(RandomNumberGenerator.GetBytes(8)); // 64-bit, expires in five minutes.
         var now = DateTimeOffset.UtcNow;
         var connection = new DroneConnection { Id=Guid.NewGuid(),OwnerId=owner,UavId=request.UavId,MissionId=request.MissionId,
@@ -46,7 +46,7 @@ public sealed class DroneConnectionService(IDroneConnectionRepository repository
     private async Task<DroneConnection> Authenticate(Guid id,string token,string hardwareIdentity,CancellationToken ct)
     {
         if(token.Length!=64)throw new UnauthorizedAccessException("Invalid gateway credential.");
-        var c=await repository.AuthenticateAsync(id,Hash(token),ct) ?? throw new UnauthorizedAccessException("Connection expired, revoked or no longer assigned to an eligible mission/UAV.");
+        var c=await repository.AuthenticateAsync(id,Hash(token),ct) ?? throw new UnauthorizedAccessException("Connection expired, revoked or no longer eligible for this UAV.");
         if(c.HardwareIdentity!=hardwareIdentity)throw new UnauthorizedAccessException("Connected drone hardware does not match this session.");
         return c;
     }
@@ -57,10 +57,13 @@ public sealed class DroneConnectionService(IDroneConnectionRepository repository
         var c=await Authenticate(id,token,hardwareIdentity,ct);
         var source=$"gateway-{c.Id:N}";
         if(request.UavId!=c.UavId || request.MissionId!=c.MissionId || request.SourceId!=source)
-            throw new UnauthorizedAccessException("Gateway credential is restricted to its paired UAV and mission.");
+            throw new UnauthorizedAccessException("Gateway credential is restricted to its paired UAV and session scope.");
         if(string.IsNullOrWhiteSpace(key) || key.Length>150)throw new ArgumentException("A valid Idempotency-Key is required.");
         var result=await telemetry.IngestSampleAsync($"{source}:{Hash(key)}",request,ct);
-        if(result.Accepted && result.UsedForLatestProjection && !result.IsDuplicate && !result.IsLateArrival)await repository.TouchAsync(id,true,ct);
+        var now = DateTimeOffset.UtcNow;
+        var fresh = request.SourceTimestamp >= now.AddSeconds(-15) && request.SourceTimestamp <= now;
+        if (fresh && result.Accepted && result.UsedForLatestProjection && !result.IsDuplicate && !result.IsLateArrival)
+            await repository.TouchAsync(id, true, ct);
         return result;
     }
 }

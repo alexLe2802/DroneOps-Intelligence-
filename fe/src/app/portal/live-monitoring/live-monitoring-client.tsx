@@ -10,6 +10,7 @@ import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
 import { armingDisplay } from "@/lib/portal/arming-state";
 import DetectionNotice from "./detection-notice";
 import LiveMap from "./live-map";
+import DroneConnectionClient from "../drone-connection/drone-connection-client";
 import FlightPreparationPanel from "./flight-preparation-panel";
 import styles from "./live-monitoring.module.css";
 
@@ -33,6 +34,7 @@ function telemetryFromMission(mission: LiveMission): MissionTelemetry {
 
 export default function LiveMonitoringClient({ initialMissionId = "", canPrepare = false }: { initialMissionId?: string; canPrepare?: boolean }) {
   const [missions, setMissions] = useState<LiveMission[] | null>(null);
+  const [connectionMission, setConnectionMission] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [aircraft, setAircraft] = useState<AssignedUav | null>(null);
@@ -211,7 +213,13 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
   if (missions === null) return <section className={styles.state}><div className={styles.spinner} /><p>ESTABLISHING LIVE OPERATIONS LINK</p></section>;
 
   return <div className={styles.monitor}>
-    {canPrepare && mission?.id === selectedId && mission.automaticFlightRequested && mission.status === "Approved" && <FlightPreparationPanel key={selectedId} missionId={selectedId} />}
+    {canPrepare && mission?.id === selectedId && mission.uavId && !missionEnded
+      && ["approved", "inprogress"].includes(statusKey(mission.status))
+      && !(mission.automaticFlightRequested && mission.status === "Approved") &&
+      <section><button type="button" className="module-secondary" aria-expanded={connectionMission === selectedId} onClick={() => setConnectionMission(connectionMission === selectedId ? "" : selectedId)}>Connect UAV to this mission</button>
+        {connectionMission === selectedId && <DroneConnectionClient key={selectedId} missionContext={{ id: selectedId, uavId: mission.uavId }} embedded />}
+      </section>}
+    {canPrepare && mission?.id === selectedId && mission.uavId && mission.automaticFlightRequested && mission.status === "Approved" && <FlightPreparationPanel uavId={mission.uavId} key={selectedId} missionId={selectedId} />}
     <header className={styles.commandHeader}>
       <div className={styles.missionIdentity}>
         <span className={styles.eyebrow}>LIVE OPERATIONS / MISSION CHANNEL</span>

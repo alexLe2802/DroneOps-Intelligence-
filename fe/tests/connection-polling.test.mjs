@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 // Run the component's polling effect with a controlled browser and clock.
 const source = await readFile(new URL('../src/app/portal/drone-connection/drone-connection-client.tsx', import.meta.url), 'utf8');
-const effect = source.slice(source.indexOf('  useEffect(() => {'), source.indexOf('  const eligible='));
+const effect = source.slice(source.lastIndexOf('  useEffect(() => {', source.indexOf('    if (loading) return;')), source.indexOf('  }, [loading]);') + '  }, [loading]);'.length);
 const js = ts.transpileModule(effect, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 function setup(sessions = () => Promise.resolve([])) {
   const document = Object.assign(new EventTarget(), { visibilityState: 'visible' });
