@@ -1,43 +1,62 @@
-.panel { margin-block: 18px; padding: 18px; border: 1px solid #334c63; border-radius: 10px; background: #142536; min-inline-size: 0; color: #e6eef7; }
+.panel {
+  margin-block: 18px;
+  padding: 20px;
+  border: 1px solid var(--outline-variant, #e2e8f0);
+  border-radius: 10px;
+  background: var(--surface-low, #f8fafc);
+  min-inline-size: 0;
+  color: var(--color-ink, #0d1c2e);
+}
 .panel *, .panel *::before, .panel *::after { box-sizing: border-box; }
 .panel header { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
-.eyebrow { color: #89cbdc; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
-.panel h3 { font-size: 17px; line-height: 1.5; margin: 5px 0 0; }
-.panel h4 { font-size: 14px; margin: 0; }
-.panel p, .panel li { font-size: 12px; line-height: 1.8; color: #b6c8da; overflow-wrap: anywhere; margin-block: 10px; }
-.panel .status { color: #d0e0ed; }
-.status strong { color: #a6eed0; }
-.panel .empty { padding: 12px; border-inline-start: 3px solid #55b99a; background: #152f35; border-radius: 4px; color: #c9e6dd; }
-.panel .hint { color: #a3b8cb; font-size: 11px; }
-.panel button { min-block-size: 38px; padding: 9px 13px; border: 1px solid #516e86; border-radius: 6px; background: #21394f; color: #e2edf7; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1.5; }
-.panel header button { font-size: 11px; min-block-size: 34px; background: transparent; }
-.panel button:hover:not(:disabled) { filter: brightness(1.15); }
-.panel button:disabled { opacity: .5; cursor: not-allowed; }
-.panel :is(button, textarea, summary, [tabindex]):focus-visible { outline: 2px solid #80deed; outline-offset: 4px; }
-.panel button.primary { border-color: #63d9eb; background: #73dfed; color: #082431; }
-.panel button.danger { border-color: #d26e82; background: #a93650; color: #fff; }
+.eyebrow { color: var(--primary-action, #1754a1); font: 700 11.5px var(--font-mono); letter-spacing: 0.06em; }
+.panel h3 { font-size: 18px; line-height: 1.4; margin: 4px 0 0; }
+.panel h4 { font-size: 15px; margin: 0; }
+.panel p, .panel li { font-size: 14px; line-height: 1.65; color: var(--color-muted, #475569); overflow-wrap: anywhere; margin-block: 8px; }
+.panel .status { color: var(--color-ink, #0d1c2e); }
+.status strong { color: var(--color-success, #176047); }
+.panel .empty { padding: 12px 14px; border-inline-start: 3px solid var(--color-success); background: var(--success-bg); border-radius: 6px; color: var(--color-success); }
+.panel .hint { color: var(--color-muted, #475569); font-size: 13px; }
+.panel button {
+  min-block-size: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--control-border, #8596ab);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--color-ink, #0d1c2e);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.panel button:hover:not(:disabled) { background: var(--primary-container); border-color: var(--primary-action); }
+.panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+.panel :is(button, textarea, summary, [tabindex]):focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.panel button.primary { border-color: var(--primary); background: var(--primary); color: #ffffff; }
+.panel button.primary:hover:not(:disabled) { background: var(--primary-hover); }
+.panel button.danger { border-color: var(--color-error); background: var(--color-error); color: #ffffff; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; padding-block: 12px; }
-.table { overflow: auto; max-inline-size: 100%; max-block-size: 420px; border: 1px solid #3e566c; border-radius: 7px; margin-block: 14px; }
+.table { overflow: auto; max-inline-size: 100%; max-block-size: 420px; border: 1px solid var(--outline-variant); border-radius: 8px; background: #ffffff; margin-block: 14px; }
 .table table { border-collapse: separate; border-spacing: 0; table-layout: fixed; min-inline-size: 420px; inline-size: 100%; }
-.table caption { text-align: start; padding: 12px; font-size: 12px; color: #c1d4e6; background: #182e42; }
-.table th, .table td { padding: 11px; border-block-end: 1px solid #30495f; text-align: start; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; vertical-align: top; }
-.table thead { position: sticky; inset-block-start: 0; z-index: 1; background: #20394e; }
-.table tbody th { background: #192d40; font-weight: 500; }
-.changed { display: inline-block; margin-block-start: 5px; padding: 2px 6px; background: #493c22; border-radius: 4px; color: #ffe2a6; font-size: 10px; }
-.confirm { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 14px; padding: 16px; border: 1px solid #7591a9; border-radius: 8px; background: #0e1d2b; }
+.table caption { text-align: start; padding: 12px; font-size: 13px; font-weight: 600; color: var(--color-ink); background: var(--surface-low); }
+.table th, .table td { padding: 11px 12px; border-block-end: 1px solid var(--outline-variant); text-align: start; font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; vertical-align: top; }
+.table thead { position: sticky; inset-block-start: 0; z-index: 1; background: var(--surface-container); font: 700 12px var(--font-mono); color: var(--color-muted); }
+.table tbody th { background: #ffffff; font-weight: 600; }
+.changed { display: inline-block; margin-block-start: 4px; padding: 2px 8px; background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: 999px; color: var(--color-warning); font-size: 11px; font-weight: 700; }
+.confirm { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 14px; padding: 16px; border: 1px solid var(--outline); border-radius: 8px; background: #ffffff; }
 .confirm h4, .confirm p, .confirm label { flex-basis: 100%; margin: 0; }
-.confirm label { display: grid; gap: 8px; font-size: 12px; color: #d4e2ef; }
-.confirm textarea { min-block-size: 90px; inline-size: 100%; resize: vertical; padding: 10px; background: #091521; color: #e2edf6; border: 1px solid #657e96; border-radius: 5px; font: inherit; }
-.history { margin-block-start: 16px; border-block-start: 1px solid #38516a; padding-block-start: 14px; }
-.history > summary { cursor: pointer; font-size: 12px; font-weight: 650; color: #dae7f3; line-height: 1.8; }
-.history > summary span { font-size: 10px; color: #a1b8ce; font-weight: 400; margin-inline-start: 6px; }
+.confirm label { display: grid; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--color-ink); }
+.confirm textarea { min-block-size: 90px; inline-size: 100%; resize: vertical; padding: 10px 12px; background: var(--surface-low); color: var(--color-ink); border: 1px solid var(--control-border); border-radius: 6px; font: inherit; }
+.history { margin-block-start: 16px; border-block-start: 1px solid var(--outline-variant); padding-block-start: 14px; }
+.history > summary { cursor: pointer; font-size: 14px; font-weight: 650; color: var(--color-ink); line-height: 1.6; }
+.history > summary span { font-size: 12px; color: var(--color-muted); font-weight: 500; margin-inline-start: 6px; }
 .history ol { padding-inline-start: 20px; margin-block-end: 0; }
-.history li { padding-block: 12px; border-block-end: 1px solid #30495e; }
-.history li > strong { color: #e2edf6; }
-.history li details { margin-block-start: 10px; }
-.history li summary { cursor: pointer; color: #9bd4e3; }
+.history li { padding-block: 12px; border-block-end: 1px solid var(--outline-variant); }
+.history li > strong { color: var(--color-ink); }
+.history li details { margin-block-start: 8px; }
+.history li summary { cursor: pointer; color: var(--primary-action); font-weight: 600; }
 .history dl { margin: 10px 0; }
-.history dl div { display: block; padding: 10px; border-block-start: 1px solid #3a536b; }
-.history dt { font-size: 11px; color: #acbfd3; }
-.history dd { margin: 4px 0 0; text-align: start; overflow-wrap: anywhere; }
+.history dl div { display: block; padding: 10px; border-block-start: 1px solid var(--outline-variant); }
+.history dt { font-size: 12px; color: var(--color-muted); font-weight: 600; }
+.history dd { margin: 4px 0 0; text-align: start; color: var(--color-ink); overflow-wrap: anywhere; }
 @media (max-width: 480px) { .panel { padding: 14px; } .actions button { flex: 1 1 auto; } }

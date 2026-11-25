@@ -92,12 +92,12 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
       group.clearLayers();
       if (coordinates.length >= 2 && coordinates.every(validCoordinate)) {
         L.polyline(coordinates.map(point => [point.latitude, point.longitude]), {
-          color: "#22d3ee", weight: 2, dashArray: coordinates.length < 3 ? "5 5" : undefined,
+          color: "#1754a1", weight: 2.5, dashArray: coordinates.length < 3 ? "5 5" : undefined,
         }).addTo(group);
       }
       if (coordinates.length >= 3 && coordinates.every(validCoordinate)) {
         L.polygon(coordinates.map(point => [point.latitude, point.longitude]), {
-          color: "#22d3ee", fillColor: "#22d3ee", weight: 2, fillOpacity: .22,
+          color: "#1754a1", fillColor: "#1754a1", weight: 2.5, fillOpacity: .2,
         }).addTo(group);
       }
       coordinates.forEach((point, index) => {

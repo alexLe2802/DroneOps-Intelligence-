@@ -230,8 +230,8 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
 
     {!missions.length ? <section className={styles.emptyState}><span>NO LIVE CHANNEL</span><h2>No active missions</h2><p>The backend returned no missions currently eligible for live tracking.</p><button type="button" onClick={() => void loadMissions()}>RETRY CONNECTION</button></section> : <>
       {arming.remindToArm && !missionEnded && !(canPrepare && mission?.automaticFlightRequested && mission.status === "Approved") && <div className={styles.armReminder} role="status" aria-live="polite">
-        <strong>DRONE ĐANG DISARM — CHƯA ARM</strong>
-        <p>Hoàn tất kiểm tra trước bay và bảo đảm khu vực an toàn, sau đó ARM bằng bộ điều khiển hoặc GCS khi sẵn sàng bay. Lời nhắc sẽ tự tắt khi nhận telemetry xác nhận drone đã ARM.</p>
+        <strong>DRONE DISARMED — NOT ARMED</strong>
+        <p>Complete pre-flight checks and verify the flight area is clear, then ARM via the remote controller or GCS when ready. This reminder clears automatically once telemetry confirms the aircraft is ARMED.</p>
       </div>}
       <DetectionNotice messages={telemetry?.missionId === selectedId ? telemetry.detectionDiagnostics : undefined} />
       <section className={styles.signalStrip}>
@@ -273,10 +273,10 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
           <article className={styles.telemetryCard}>
             <span>01. GEOLOCATION & GPS</span>
             {hasTelemetryPosition(telemetry) ? <dl className={styles.coordinates}>
-              <div><dt>Vĩ độ <span>Latitude</span></dt><dd>{telemetry.latitude.toFixed(6)}°</dd></div>
-              <div><dt>Kinh độ <span>Longitude</span></dt><dd>{telemetry.longitude.toFixed(6)}°</dd></div>
+              <div><dt>Latitude <span>WGS84</span></dt><dd>{telemetry.latitude.toFixed(6)}°</dd></div>
+              <div><dt>Longitude <span>WGS84</span></dt><dd>{telemetry.longitude.toFixed(6)}°</dd></div>
             </dl> : <strong>Position unavailable</strong>}
-            <div><small>{hasTelemetryPosition(telemetry) ? "Đơn vị: độ thập phân (WGS84)" : "Waiting for valid coordinates"}</small><small>Snapshot: {telemetry?.snapshotKind ?? "Missing"}</small></div>
+            <div><small>{hasTelemetryPosition(telemetry) ? "Unit: decimal degrees (WGS84)" : "Waiting for valid coordinates"}</small><small>Snapshot: {telemetry?.snapshotKind ?? "Missing"}</small></div>
           </article>
           <TelemetryCard index="02" label="ALTITUDE" value={valueOr(telemetry?.altitudeMeters, telemetry?.altitudeReference === "AGL" ? " m AGL" : telemetry?.altitudeReference === "MSL" ? " m MSL" : " m")} lines={[`Reference: ${telemetry?.altitudeReference === "Relative" ? "Relative to Home" : telemetry?.altitudeReference ?? "Unavailable"}`, `Validity: ${telemetry?.isValid ? "Valid" : "Unavailable"}`]} />
           <TelemetryCard index="03" label="VELOCITY" value={valueOr(telemetry?.groundSpeedMetersPerSecond, " m/s")} lines={[telemetry?.groundSpeedMetersPerSecond == null ? "Ground speed unavailable" : `${(Number(telemetry.groundSpeedMetersPerSecond) * 3.6).toFixed(1)} km/h`, "Wind data unavailable"]} />

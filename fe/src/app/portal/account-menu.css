@@ -1,11 +1,79 @@
-.account-menu{position:relative;flex-shrink:0;letter-spacing:normal}
-.account-menu .avatar{cursor:pointer}
-.account-menu-panel{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;max-width:min(280px,calc(100vw - 28px));padding:6px;background:#101925;border:1px solid #293b50;border-radius:8px;box-shadow:0 8px 28px #0008;z-index:20}
-.account-menu-panel a,.account-menu-panel button{display:block;width:100%;padding:12px;border:0;border-radius:4px;background:transparent;color:#e9f2fc;text-align:left;text-decoration:none;font:13px Arial,sans-serif;cursor:pointer}
-.account-menu-panel a:hover,.account-menu-panel button:hover{background:#233449}
-.account-menu .avatar:focus-visible,.account-menu-panel a:focus-visible,.account-menu-panel button:focus-visible{outline:2px solid #8ed4f5;outline-offset:2px}
-.account-menu-panel button:disabled{opacity:.6;cursor:wait}
-.account-menu-panel p{padding:0 12px;color:#ffb0b2;font:12px/1.5 Arial,sans-serif;overflow-wrap:anywhere}
-.account-menu .avatar{width:32px;height:32px;border-radius:50%;border:1px solid #8acff3;background:#8ed4f5;color:#07121d;font-weight:700}
+.account-menu {
+  position: relative;
+  flex-shrink: 0;
+  letter-spacing: normal;
+}
 
-.account-menu .avatar{display:grid;place-items:center;padding:0;overflow:hidden}
+.account-menu .avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 2px solid #bfd7f5;
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.account-menu .avatar:hover {
+  border-color: var(--primary-action);
+}
+
+.account-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 184px;
+  max-width: min(280px, calc(100vw - 28px));
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--outline-variant);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(13, 28, 46, 0.12);
+  z-index: 40;
+}
+
+.account-menu-panel a,
+.account-menu-panel button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-ink);
+  text-align: left;
+  text-decoration: none;
+  font: 500 14px/1.4 var(--font-body);
+  cursor: pointer;
+}
+
+.account-menu-panel a:hover,
+.account-menu-panel button:hover {
+  background: var(--primary-container);
+  color: var(--primary);
+}
+
+.account-menu .avatar:focus-visible,
+.account-menu-panel a:focus-visible,
+.account-menu-panel button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.account-menu-panel button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.account-menu-panel p {
+  padding: 6px 12px;
+  color: var(--color-error);
+  font: 500 13px/1.5 var(--font-body);
+  overflow-wrap: anywhere;
+}

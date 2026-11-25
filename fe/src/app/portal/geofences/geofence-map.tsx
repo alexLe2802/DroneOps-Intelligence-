@@ -41,8 +41,8 @@ export default function GeofenceMap({ coordinates, editable, onChange }: {
       const valid = coordinates.every(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && Math.abs(p.latitude) <= 90 && Math.abs(p.longitude) <= 180);
       if (!valid) return;
       const points = coordinates.map(p => [p.latitude, p.longitude] as Leaflet.LatLngTuple);
-      if (points.length >= 3) L.polygon(points, { color: "#25d6ff", fillOpacity: .2 }).addTo(layer.current);
-      else if (points.length > 1) L.polyline(points, { color: "#25d6ff" }).addTo(layer.current);
+      if (points.length >= 3) L.polygon(points, { color: "#1754a1", fillOpacity: .2 }).addTo(layer.current);
+      else if (points.length > 1) L.polyline(points, { color: "#1754a1" }).addTo(layer.current);
       points.forEach((point, index) => {
         const marker = L.marker(point, { draggable: editable, icon: L.divIcon({ className: "waypoint-marker-shell", html: `<span class="waypoint-marker"><b>${index + 1}</b></span>`, iconSize: [28, 28], iconAnchor: [14, 28] }) }).addTo(layer.current!);
         marker.on("dragend", () => {

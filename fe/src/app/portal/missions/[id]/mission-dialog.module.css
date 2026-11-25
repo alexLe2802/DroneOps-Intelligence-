@@ -6,39 +6,43 @@
 }
 
 .reasonHeading b {
-  color: #ff9ea6;
-  font-size: 8px;
+  color: var(--color-error, #922b21);
+  font-size: 12px;
 }
 
 .counter {
   display: block;
-  margin-top: 7px;
-  color: #7f8d9d;
+  margin-top: 6px;
+  color: var(--color-muted, #475569);
   text-align: right;
-  font: 8px Consolas, monospace;
+  font: 500 12px var(--font-mono);
 }
 
 .back,
 .confirm {
-  min-height: 40px;
-  padding: 0 16px;
-  border-radius: 2px;
-  font: 700 8px Consolas, monospace;
-  letter-spacing: .8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 6px;
+  font: 600 14px var(--font-body);
+  cursor: pointer;
 }
 
 .back {
-  border: 1px solid #3a4858;
-  background: #202834;
-  color: #dce5ed;
+  border: 1px solid var(--control-border, #8596ab);
+  background: #ffffff;
+  color: var(--color-ink, #0d1c2e);
+}
+
+.back:hover:not(:disabled) {
+  background: var(--surface-container, #f1f5f9);
 }
 
 .confirm {
-  border: 1px solid #91424d;
-  background: #c62c3a;
-  color: #fff;
+  border: 1px solid var(--color-error, #922b21);
+  background: var(--color-error, #922b21);
+  color: #ffffff;
 }
 
 .confirm:hover:not(:disabled) {
-  background: #e13b49;
+  background: #7a2119;
 }

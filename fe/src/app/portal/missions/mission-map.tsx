@@ -135,7 +135,7 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
       if (waypoints.length > 1) {
         const positions: Leaflet.LatLngTuple[] = waypoints.map(point => [point.latitude, point.longitude]);
         if (waypoints.at(-1)?.actionType === "Return") positions.push([waypoints[0].latitude, waypoints[0].longitude]);
-        routeRef.current = L.polyline(positions, { color: "#25d6ff", weight: 4, opacity: .95 }).addTo(map);
+        routeRef.current = L.polyline(positions, { color: "#1754a1", weight: 4, opacity: .95 }).addTo(map);
       }
       for (const finding of findings ?? []) {
         if (finding.segmentFrom == null || finding.segmentTo == null) continue;
@@ -157,12 +157,12 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
     void import("leaflet").then(({ default: L }) => {
       if (cancelled || mapRef.current !== mapReady) return;
       layer = L.layerGroup().addTo(mapReady);
-      const color = "#58e6b0";
-      const handle = () => L.divIcon({className:"",html:'<span style="display:block;width:16px;height:16px;border:3px solid #fff;border-radius:50%;background:#14785e;box-shadow:0 1px 6px #0008"></span>',iconSize:[16,16],iconAnchor:[8,8]});
+      const color = "#16a34a";
+      const handle = () => L.divIcon({className:"",html:'<span style="display:block;width:16px;height:16px;border:3px solid #fff;border-radius:50%;background:#15803d;box-shadow:0 1px 6px rgba(13,28,46,.35)"></span>',iconSize:[16,16],iconAnchor:[8,8]});
       const latlng = (p: GeofenceCoordinate): Leaflet.LatLngTuple => [p.latitude, p.longitude];
       for (const fence of missionFences) {
         if (fence.shape === "Circle" && fence.center && Number.isFinite(fence.center.latitude) && Number.isFinite(fence.center.longitude) && Number.isFinite(fence.radiusMeters) && fence.radiusMeters! > 0) {
-          const circle = L.circle(latlng(fence.center), {radius: fence.radiusMeters!,color,fillOpacity:.1,weight:2}).bindTooltip(`Permitted circle · ${Math.round(fence.radiusMeters!)} m`).addTo(layer);
+          const circle = L.circle(latlng(fence.center), { radius: fence.radiusMeters!, color, fillOpacity: .1, weight: 2 }).bindTooltip(`Permitted circle · ${Math.round(fence.radiusMeters!)} m`).addTo(layer);
           if (!readOnly) {
             const center = L.latLng(...latlng(fence.center));
             // Place the radius handle due east on the same spherical model used by validation.
@@ -170,18 +170,18 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
             const latitude = center.lat * Math.PI / 180;
             const edge = L.latLng(Math.asin(Math.sin(latitude) * Math.cos(angle)) * 180 / Math.PI,
               center.lng + Math.atan2(Math.sin(angle) * Math.cos(latitude), Math.cos(angle) - Math.sin(latitude) ** 2) * 180 / Math.PI);
-            const radiusHandle = L.marker(edge,{draggable:true,icon:handle(),title:"Drag circle edge to resize"})
+            const radiusHandle = L.marker(edge, { draggable: true, icon: handle(), title: "Drag circle edge to resize" })
               .bindTooltip("Drag edge to resize fence").addTo(layer);
             radiusHandle.on("drag", () => {
               if (readOnlyRef.current) return;
               const point = radiusHandle.getLatLng();
-              const radius = Math.max(1, Math.min(100000, Math.round(fenceDistance(fence.center!, {latitude:point.lat,longitude:point.lng}))));
+              const radius = Math.max(1, Math.min(100000, Math.round(fenceDistance(fence.center!, { latitude: point.lat, longitude: point.lng }))));
               circle.setRadius(radius).setTooltipContent(`Permitted circle · ${radius} m`);
             });
             radiusHandle.on("dragend", () => {
-              if (!readOnlyRef.current) fenceUpdateRef.current?.({...fence,radiusMeters:circle.getRadius()});
+              if (!readOnlyRef.current) fenceUpdateRef.current?.({ ...fence, radiusMeters: circle.getRadius() });
             });
-            const centerHandle = L.marker(center,{draggable:true,icon:handle(),title:"Drag fence center"}).bindTooltip("Drag fence center").addTo(layer);
+            const centerHandle = L.marker(center, { draggable: true, icon: handle(), title: "Drag fence center" }).bindTooltip("Drag fence center").addTo(layer);
             centerHandle.on("drag", () => {
               if (readOnlyRef.current) return;
               const point = centerHandle.getLatLng();
@@ -191,31 +191,31 @@ export default function MissionMap({ showUserLocation = false, waypoints, geofen
             centerHandle.on("dragend", () => {
               if (readOnlyRef.current) return;
               const point = centerHandle.getLatLng();
-              fenceUpdateRef.current?.({...fence,center:{latitude:point.lat,longitude:point.lng}});
+              fenceUpdateRef.current?.({ ...fence, center: { latitude: point.lat, longitude: point.lng } });
             });
           }
-        } else if(fence.shape === "Polygon" && fence.vertices?.length && fence.vertices.every(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))) {
-          L.polygon(fence.vertices.map(latlng),{color,fillOpacity:.1,weight:2}).bindTooltip("Permitted polygon").addTo(layer);
-          if(!readOnly) fence.vertices.forEach((p,i)=> L.marker(latlng(p),{draggable:true,icon:handle()}).bindTooltip(`Fence vertex ${i+1}`).on("dragend",event=>{
-            if(readOnlyRef.current) return;
-            const location=(event.target as Leaflet.Marker).getLatLng();
-            fenceUpdateRef.current?.({...fence,vertices:fence.vertices!.map((v,j)=>j===i?{latitude:location.lat,longitude:location.lng}:v)});
+        } else if (fence.shape === "Polygon" && fence.vertices?.length && fence.vertices.every(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))) {
+          L.polygon(fence.vertices.map(latlng), { color, fillOpacity: .1, weight: 2 }).bindTooltip("Permitted polygon").addTo(layer);
+          if (!readOnly) fence.vertices.forEach((p, i) => L.marker(latlng(p), { draggable: true, icon: handle() }).bindTooltip(`Fence vertex ${i + 1}`).on("dragend", event => {
+            if (readOnlyRef.current) return;
+            const location = (event.target as Leaflet.Marker).getLatLng();
+            fenceUpdateRef.current?.({ ...fence, vertices: fence.vertices!.map((v, j) => j === i ? { latitude: location.lat, longitude: location.lng } : v) });
           }).addTo(layer!));
         }
       }
       if(draftFence.length) {
-        L.polyline(draftFence.map(latlng),{color:"#ffc857",dashArray:"6 4"}).addTo(layer);
-        draftFence.forEach(p=>L.circleMarker(latlng(p),{radius:5,color:"#ffc857"}).addTo(layer!));
+        L.polyline(draftFence.map(latlng),{color:"#d97706",dashArray:"6 4"}).addTo(layer);
+        draftFence.forEach(p=>L.circleMarker(latlng(p),{radius:5,color:"#d97706"}).addTo(layer!));
       }
     });
-    return ()=>{cancelled=true;layer?.remove();};
+    return () => { cancelled = true; layer?.remove(); };
   }, [mapReady, missionFences, draftFence, readOnly]);
 
   return <div className="mission-map-wrap">
     <div ref={containerRef} className="mission-map" />
     {showUserLocation && mapReady && <MissionLocation map={mapReady} hasWaypoints={waypoints.length > 0} />}
     <div className="map-hint">{readOnly ? "ROUTE PREVIEW" : drawingFence ? `DRAW ${drawingFence.toUpperCase()} FENCE` : pickingHome ? "CLICK TO SET PLANNED HOME" : "CLICK TO ADD · DRAG TO ADJUST"} · {waypoints.length} WAYPOINTS{missionFences.length ? ` · ${missionFences.length} FENCE${missionFences.length > 1 ? "S" : ""}` : ""}</div>
-    <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
+    <div className="airspace-map-legend"><span className="prohibited">Prohibited airspace</span><span className="restricted">Restricted airspace</span></div>
     {error && <div className="mission-map-error" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss map warning" onClick={() => setError("")}>×</button></div>}
   </div>;
 }

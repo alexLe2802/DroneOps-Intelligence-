@@ -161,24 +161,24 @@ export default function OperationalDashboard({ account }: { account: Account }) 
   return <PortalShell account={account} dashboard>
     <section className={`critical-banner${hasIncidents ? "" : " clear"}`}>
       <span className="dash-icon">{hasIncidents ? "!" : "✓"}</span>
-      <div>{hasIncidents ? "REQUIRES ACTION" : "AIRSPACE STATUS"}<br />LIVE INCIDENT REGISTRY</div>
+      <div>{hasIncidents ? "ACTION REQUIRED" : "AIRSPACE STATUS"}<br />INCIDENT MONITOR</div>
       <p>{incidents === null
         ? "Incident status is temporarily unavailable. Other dashboard modules remain operational."
         : hasIncidents
           ? `${unresolvedIncidents} unresolved incident${unresolvedIncidents === 1 ? "" : "s"} require operational review.`
           : "No unresolved incidents require immediate attention."}</p>
       <div className="critical-banner-actions">
-        <Link className="preset-button" href="/portal/flight-history">FLIGHT HISTORY</Link>
-        {hasIncidents && <Link className="new-mission danger-button" href="/portal/incidents">OPEN INCIDENTS</Link>}
+        <Link className="preset-button" href="/portal/flight-history">Flight History</Link>
+        {hasIncidents && <Link className="new-mission danger-button" href="/portal/incidents">Open Incidents</Link>}
       </div>
     </section>
 
     {warnings.length > 0 && <section className="dashboard-service-warning" role="status"><b>PARTIAL BACKEND ACCESS</b>{warnings.map(message => <p key={message}>{message}</p>)}</section>}
 
     <section className="dashboard-heading">
-      <div><h1>Mission &amp; Fleet Operations Hub</h1><Link href="/portal/flight-history">Operational analytics · filter by date, UAV or mission</Link></div>
-      <Link className="preset-button" href="/portal/geofences">⌁ SECTOR PRESETS</Link>
-      <Link className="new-mission" href={manager ? "/portal/uav-management" : "/portal/missions/new"}>{manager ? "REVIEW UAV QUEUE" : "+ NEW MISSION DISPATCH"}</Link>
+      <div><h1>Mission &amp; Fleet Operations</h1><Link href="/portal/flight-history">Operational analytics · filter by date, UAV or mission</Link></div>
+      <Link className="preset-button" href="/portal/geofences">Airspace &amp; Geofences</Link>
+      <Link className="new-mission" href={manager ? "/portal/uav-management" : "/portal/missions/new"}>{manager ? "Review UAV Queue" : "+ Create Mission"}</Link>
     </section>
 
     <section className="metric-grid" aria-label="Operational summary">
@@ -191,9 +191,9 @@ export default function OperationalDashboard({ account }: { account: Account }) 
 
     <div className="operations-grid">
       <section className="map-panel">
-        <header><b>◎ TAC-CANVAS // OPERATIONAL AIRSPACE</b><em>{mapCursor ? `${Math.abs(mapCursor.latitude).toFixed(5)}°${mapCursor.latitude >= 0 ? "N" : "S"}, ${Math.abs(mapCursor.longitude).toFixed(5)}°${mapCursor.longitude >= 0 ? "E" : "W"}` : "MOVE CURSOR OVER MAP"}</em></header>
+        <header><b>Operational Airspace</b><em>{mapCursor ? `${Math.abs(mapCursor.latitude).toFixed(5)}°${mapCursor.latitude >= 0 ? "N" : "S"}, ${Math.abs(mapCursor.longitude).toFixed(5)}°${mapCursor.longitude >= 0 ? "E" : "W"}` : "Move cursor over map"}</em></header>
         <DashboardMap geofences={zones} liveMissions={liveMissions ?? []} onCursorCoordinate={setMapCursor} />
-        <footer><span>Layers: <b>Geofences + live mission telemetry</b></span><span><Link href="/portal/geofences">AIRSPACE REGISTRY</Link> · <Link href="/portal/live-monitoring">LIVE MONITORING →</Link></span></footer>
+        <footer><span>Layers: <b>Geofences + live mission telemetry</b></span><span><Link href="/portal/geofences">Airspace Registry</Link> · <Link href="/portal/live-monitoring">Live Monitoring →</Link></span></footer>
       </section>
 
       <aside className="insight-column" tabIndex={0} aria-label="AI decision engine and latest incidents">

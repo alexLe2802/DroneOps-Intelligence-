@@ -23,6 +23,7 @@ const fenceFieldsCode = ts.transpileModule(
     .replace('import styles from "./planned-home-fields.module.css";', 'const styles = new Proxy({}, { get: (_, key) => key });'),
   { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } },
 ).outputText
+  .replace('"lucide-react"', JSON.stringify(pathToFileURL(require.resolve('lucide-react')).href))
   .replace('"react"', JSON.stringify(pathToFileURL(require.resolve('react')).href))
   .replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href));
 const { default: MissionFenceFields } = await import('data:text/javascript;base64,' + Buffer.from(fenceFieldsCode).toString('base64'));
@@ -107,7 +108,7 @@ test('geofence zone controls sit directly above MissionMap in create and edit mi
  assert.match(html, /id="mission-fence-radius-circle"/);
  assert.match(html, /Click the map below/);
  assert.match(html, /class="fenceItem"/);
- assert.match(html, /class="deleteButton"[^>]*>DELETE/);
+ assert.match(html, /<button type="button" class="deleteButton" aria-label="Delete fence 1"><svg[^>]*aria-hidden="true"[^]*?<\/svg>Delete fence<\/button>/);
 
  const invalidHtml = renderToStaticMarkup(React.createElement(MissionFenceFields, {
   fences: [{ ...circle, radiusMeters: 0 }],
@@ -124,7 +125,7 @@ test('geofence zone controls sit directly above MissionMap in create and edit mi
 test('mission form aligns fence delete controls, avoids option-text leaks in errors, and keeps submit enabled for validation feedback',()=>{
  assert.match(fenceCssSource, /\.radiusInputWrap\s*\{[^}]*height:\s*38px/);
  assert.match(fenceCssSource, /\.deleteButton\s*\{[^}]*height:\s*38px/);
- assert.match(fenceCssSource, /color-scheme:\s*dark/);
+ assert.match(fenceCssSource, /color-scheme:\s*light/);
  assert.match(formSource, /export function describeInvalidMissionField/);
  assert.match(formSource, /data-field-label="Assigned UAV"/);
  assert.match(formSource, /Flight mode: Choose Manual operation or Automatic mission before saving\./);

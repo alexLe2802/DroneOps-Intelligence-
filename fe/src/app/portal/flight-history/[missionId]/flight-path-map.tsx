@@ -61,11 +61,11 @@ export default function FlightPathMap({ telemetry, uavCode, planned }: { telemet
       const rendered = points.filter((_, index) => index % stride === 0 || index === points.length - 1);
       const coordinates = rendered.map(point => [point.latitude!, point.longitude!] as Leaflet.LatLngTuple);
       const plannedCoordinates = (planned?.waypoints ?? []).map(p => [p.latitude, p.longitude] as Leaflet.LatLngTuple);
-      if(plannedCoordinates.length) layersRef.current.push(L.polyline(plannedCoordinates,{color:"#ffd078",weight:3,dashArray:"8 8"}).bindTooltip("APPROVED EXECUTION ROUTE").addTo(map));
+      if(plannedCoordinates.length) layersRef.current.push(L.polyline(plannedCoordinates,{color:"#d97706",weight:3,dashArray:"8 8"}).bindTooltip("APPROVED EXECUTION ROUTE").addTo(map));
       if(coordinates.length) {
-      const route = L.polyline(coordinates, { color: "#58d4fb", weight: 4, opacity: .9 }).addTo(map);
-      const start = L.circleMarker(coordinates[0], { radius: 7, color: "#08141d", weight: 3, fillColor: "#5ce0b5", fillOpacity: 1 }).bindTooltip("FLIGHT START").addTo(map);
-      const end = L.circleMarker(coordinates.at(-1)!, { radius: 7, color: "#08141d", weight: 3, fillColor: "#ff9d99", fillOpacity: 1 }).bindTooltip("FLIGHT END").addTo(map);
+      const route = L.polyline(coordinates, { color: "#1754a1", weight: 4, opacity: .95 }).addTo(map);
+      const start = L.circleMarker(coordinates[0], { radius: 7, color: "#ffffff", weight: 2.5, fillColor: "#16a34a", fillOpacity: 1 }).bindTooltip("FLIGHT START").addTo(map);
+      const end = L.circleMarker(coordinates.at(-1)!, { radius: 7, color: "#ffffff", weight: 2.5, fillColor: "#dc2626", fillOpacity: 1 }).bindTooltip("FLIGHT END").addTo(map);
       layersRef.current.push(route, start, end);
       }
       map.fitBounds(L.latLngBounds([...coordinates,...plannedCoordinates]), { padding: [44, 44], maxZoom: 16, animate: false });
@@ -75,7 +75,7 @@ export default function FlightPathMap({ telemetry, uavCode, planned }: { telemet
 
   return <div className={styles.flightMap}>
     <div ref={containerRef} className={styles.flightMapCanvas} />
-    <div className={styles.flightMapBanner}>{points.length ? `${uavCode || "UAV"} // ${points.length} POSITION FIXES` : `0 OF ${telemetry.length} VALID POSITION FIXES`}</div>
+    <div className={styles.flightMapBanner}>{points.length ? `${uavCode || "UAV"} · ${points.length} POSITION FIXES` : `0 OF ${telemetry.length} VALID POSITION FIXES`}</div>
     {!points.length && !planned?.waypoints.length && <div className={styles.flightMapEmpty} role="status" aria-live="polite">
       <div>
         <span className={styles.flightMapEmptyIcon} aria-hidden="true">!</span>

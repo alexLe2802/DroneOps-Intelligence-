@@ -176,7 +176,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
     <section className="approval-queue-bar" aria-label="Pending mission queue">
       <div><span>PENDING REVIEW QUEUE</span><strong>{String(totalCount).padStart(2, "0")}</strong></div>
       <label><span className="sr-only">Search pending missions</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search mission, pilot or UAV" disabled={busy || refreshing} /></label>
-      <label><span className="sr-only">Selected mission</span><select value={selected?.missionId ?? ""} onChange={event => selectMission(event.target.value)} disabled={busy || refreshing || !filtered.length}>{filtered.length ? filtered.map(item => <option key={item.missionId} value={item.missionId}>{missionCode(item.missionId)}{" // "}{item.missionName}</option>) : <option value="">No matching mission</option>}</select></label>
+      <label><span className="sr-only">Selected mission</span><select value={selected?.missionId ?? ""} onChange={event => selectMission(event.target.value)} disabled={busy || refreshing || !filtered.length}>{filtered.length ? filtered.map(item => <option key={item.missionId} value={item.missionId}>{missionCode(item.missionId)}{" · "}{item.missionName}</option>) : <option value="">No matching mission</option>}</select></label>
       <nav aria-label="Queue navigation"><button type="button" aria-label="Previous mission" disabled={busy || refreshing || selectedIndex <= 0} onClick={() => moveSelection(-1)}>&lt;</button><span>{selectedIndex >= 0 ? selectedIndex + 1 : 0} / {filtered.length}</span><button type="button" aria-label="Next mission" disabled={busy || refreshing || selectedIndex < 0 || selectedIndex >= filtered.length - 1} onClick={() => moveSelection(1)}>&gt;</button></nav>
       <button type="button" className="approval-refresh" disabled={busy || refreshing} onClick={() => void load()}>{refreshing ? "SYNCING" : "REFRESH"}</button>
     </section>
@@ -185,14 +185,13 @@ export default function MissionApprovalsClient({ account }: { account: Account }
     {error !== null && <div className="approval-error" role="alert"><span>{error instanceof Error ? error.message : "The approval request could not be completed."}</span><button type="button" onClick={() => setError(null)}>x</button></div>}
     {!selected ? <ModuleEmpty title="No pending mission" message={items.length ? "No mission matches the current search." : "There are no mission plans waiting for manager approval."} /> : <>
       <header className="approval-heading">
-        <div><p>OPERATIONAL CLEARANCE // TASK GATE UC-09 // REF: SCR-09</p><div><h1>Approvals / Mission Review: <span>{missionCode(selected.missionId)}</span></h1><b>{selected.status}</b></div><small>{selected.missionName}</small></div>
-        <dl><div><dt>SUBMITTED BY</dt><dd>{selected.pilotName || "Unknown Pilot"}<small>{selected.pilotEmail || "Email unavailable"}</small></dd></div><div><dt>TIMESTAMP</dt><dd>{formatDate(selected.createdAt)}</dd></div></dl>
+        <div><p>MISSION REVIEW</p><div><h1>Mission Review: <span>{missionCode(selected.missionId)}</span></h1><b>{selected.status}</b></div><small>{selected.missionName}</small></div>
+        <dl><div><dt>SUBMITTED BY</dt><dd>{selected.pilotName || "Unknown Pilot"}<small>{selected.pilotEmail || "Email unavailable"}</small></dd></div><div><dt>SUBMITTED AT</dt><dd>{formatDate(selected.createdAt)}</dd></div></dl>
       </header>
 
       <section className="approval-clearance-grid" aria-label="Mission clearance summary">
-        <article className="clearance-airspace"><header><span>AIRSPACE CLEARANCE</span><i>AS</i></header><strong>{validationState(selected.validation)}</strong><p>Backend validation summary</p><div><i /></div></article>
+        <article className="clearance-airspace"><header><span>AIRSPACE VALIDATION</span><i>AS</i></header><strong>{validationState(selected.validation)}</strong><p>Backend validation summary</p><div><i /></div></article>
         <article><header><span>ASSIGNED AIRFRAME</span><i>UA</i></header><strong>{selected.uavCode || "UNASSIGNED"}</strong><p>{selected.uavName || "No aircraft record"}</p><div><i /></div></article>
-        <article className="clearance-unavailable"><header><span>PILOT COMPLIANCE</span><i>PC</i></header><strong>Unavailable</strong><p>Certification data not returned</p><div><i /></div></article>
         <article><header><span>WEATHER ADVISORY</span><i>WX</i></header><strong>{selected.validation?.weather?.available ? "Forecast loaded" : "Incomplete"}</strong><p>Advisory only; does not block approval. <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p><div><i /></div></article>
       </section>
 

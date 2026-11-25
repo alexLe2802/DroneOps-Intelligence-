@@ -1,5 +1,6 @@
 "use client";
 import type { MissionFence, GeofenceCoordinate } from "@/lib/portal/types";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { fenceDistance } from "@/lib/maps/mission-fences";
 import styles from "./planned-home-fields.module.css";
@@ -57,7 +58,16 @@ export default function MissionFenceFields({ fences, onChange, drawing, onDraw, 
               </span>
               {invalidRadius && <span id={`mission-fence-error-${f.id}`} className={styles.fenceError}><span role="img" aria-label="Error">!</span> 1–100,000 m</span>}
             </div>}
-            <button type="button" className={styles.deleteButton} aria-label={`Delete fence ${i+1}`} disabled={disabled} onClick={()=>onChange(fences.filter(x=>x.id!==f.id))}>DELETE</button>
+            <button
+              type="button"
+              className={styles.deleteButton}
+              aria-label={`Delete fence ${i + 1}`}
+              disabled={disabled}
+              onClick={() => onChange(fences.filter(fence => fence.id !== f.id))}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+              Delete fence
+            </button>
           </div>
         </div>;
       })}
