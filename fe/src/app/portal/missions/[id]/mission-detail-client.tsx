@@ -241,7 +241,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
 
     <section className="mission-detail-layout">
       <div className="mission-route-panel">
-        <header><div><p className="module-kicker">ROUTE PLAN</p><h2>Current Mission Flight Path</h2></div><span>{geofences.length} AIRSPACE ZONES</span></header>
+        <header><div><p className="module-kicker">ROUTE PLAN</p><h2>Current Mission Flight Path</h2></div></header>
         {mission.waypoints.length > 0 ? <MissionMap waypoints={mission.waypoints} geofences={geofences} readOnly findings={readinessValidation?.findings} /> : <div className="mission-route-empty"><span>⌁</span><h3>Route data unavailable</h3><p>No waypoint data was returned for this mission.</p></div>}
       </div>
       <aside className="mission-overview-panel">

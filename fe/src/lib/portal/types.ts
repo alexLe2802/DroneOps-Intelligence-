@@ -235,6 +235,49 @@ export type NotificationFeed = {
   items: PortalNotification[];
 };
 
+export type PilotCompletedMissionSummary = {
+  missionId: string;
+  missionName: string;
+  uavCode: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  incidentCount: number;
+};
+
+export type PilotApprovalTrackRecord = {
+  completedMissionsCount: number;
+  totalIncidentsCount: number;
+  openIncidentsCount: number;
+  recentCompletedMissions: PilotCompletedMissionSummary[];
+};
+
+export type ApprovalUavSummary = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  hasPendingProposal: boolean;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  emptyWeightKg: number | null;
+  maxTakeoffWeightKg: number | null;
+  maxPayloadKg: number | null;
+  batteryType: string | null;
+  batteryCapacityMah: number | null;
+  batteryVoltage: number | null;
+  batteryCellCount: number | null;
+  maxFlightTimeMinutes: number | null;
+  maxRangeKm: number | null;
+  maxSpeedKmh: number | null;
+  maxWindSpeedMps: number | null;
+  maxOperatingAltitudeMeters: number | null;
+  lastMaintenanceAt: string | null;
+  nextMaintenanceAt: string | null;
+  totalFlightHours: number;
+  totalFlights: number;
+};
+
 export type PendingMissionApproval = {
   requiresPilotConfirmation?: boolean;
   proposalAuthorId?: string;
@@ -258,6 +301,8 @@ export type PendingMissionApproval = {
   waypointCount: number;
   validationStatus: string;
   validation?: MissionValidationResult | null;
+  pilotRecord?: PilotApprovalTrackRecord | null;
+  assignedUav?: ApprovalUavSummary | null;
   validationIssues?: string[];
 };
 

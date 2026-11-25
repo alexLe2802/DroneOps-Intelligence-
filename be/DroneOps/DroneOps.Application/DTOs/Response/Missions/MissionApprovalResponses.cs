@@ -40,7 +40,55 @@ public class PendingApprovalItemResponse
 
     public List<string> ValidationIssues { get; set; } = new();
 
+    public PilotApprovalTrackRecord? PilotRecord { get; set; }
 
+    public ApprovalUavSummary? AssignedUav { get; set; }
+}
+
+public class PilotApprovalTrackRecord
+{
+    public int CompletedMissionsCount { get; set; }
+    public int TotalIncidentsCount { get; set; }
+    public int OpenIncidentsCount { get; set; }
+    public List<PilotCompletedMissionSummary> RecentCompletedMissions { get; set; } = new();
+}
+
+public class PilotCompletedMissionSummary
+{
+    public Guid MissionId { get; set; }
+    public string MissionName { get; set; } = string.Empty;
+    public string? UavCode { get; set; }
+    public DateTime? StartTime { get; set; }
+    public DateTime? EndTime { get; set; }
+    public int IncidentCount { get; set; }
+}
+
+public class ApprovalUavSummary
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public bool HasPendingProposal { get; set; }
+    public string? Manufacturer { get; set; }
+    public string? Model { get; set; }
+    public string? SerialNumber { get; set; }
+    public decimal? EmptyWeightKg { get; set; }
+    public decimal? MaxTakeoffWeightKg { get; set; }
+    public decimal? MaxPayloadKg { get; set; }
+    public string? BatteryType { get; set; }
+    public int? BatteryCapacityMah { get; set; }
+    public decimal? BatteryVoltage { get; set; }
+    public int? BatteryCellCount { get; set; }
+    public int? MaxFlightTimeMinutes { get; set; }
+    public decimal? MaxRangeKm { get; set; }
+    public decimal? MaxSpeedKmh { get; set; }
+    public decimal? MaxWindSpeedMps { get; set; }
+    public decimal? MaxOperatingAltitudeMeters { get; set; }
+    public DateTimeOffset? LastMaintenanceAt { get; set; }
+    public DateTimeOffset? NextMaintenanceAt { get; set; }
+    public decimal TotalFlightHours { get; set; }
+    public int TotalFlights { get; set; }
 }
 
 public class PagedPendingApprovalsResponse
