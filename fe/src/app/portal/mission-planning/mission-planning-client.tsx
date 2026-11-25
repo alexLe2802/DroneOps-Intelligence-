@@ -180,10 +180,10 @@ export default function MissionPlanningClient() {
 
   return <div className="mission-registry">
     <header className="mission-registry-heading">
-      <div><div className="mission-registry-eyebrow"><span>REGISTRY // UTM-04</span><b>SYS: READY <i /></b></div><h1>UAV Mission Plans &amp; Operational Registry</h1><p>Search, filter, schedule, and review autonomous flight missions across operational sectors.</p></div>
+      <div><p className="module-kicker">MISSION PLANNING</p><h1>UAV Mission Plans &amp; Registry</h1><p>Search, filter, schedule, and review flight missions across your authorized fleet.</p></div>
       <div className="mission-registry-actions">
-        <button type="button" className="manifest-export" onClick={exportManifest} disabled={filtered.length === 0}><span aria-hidden="true">CSV</span><b>EXPORT<br />MANIFEST</b></button>
-        <Link className="plan-mission" href="/portal/mission-approvals"><span aria-hidden="true">RV</span><b>Review Missions</b><small>APPROVAL QUEUE</small></Link>
+        <button type="button" className="manifest-export" onClick={exportManifest} disabled={filtered.length === 0}><span aria-hidden="true">CSV</span><b>Export CSV</b></button>
+        <Link className="plan-mission" href="/portal/mission-approvals"><b>Review Missions</b><small>Approval queue</small></Link>
       </div>
     </header>
 
@@ -194,40 +194,39 @@ export default function MissionPlanningClient() {
     </section>
 
     <section className="mission-registry-filters" aria-label="Mission filters">
-      <label className="mission-search"><span>MISSION LOOKUP</span><input value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder="Search by mission code, name, UAV or pilot" /></label>
-      <label className="mission-sector"><span>SECTOR</span><select aria-label="Operational sector"><option>All Operational Sectors</option></select></label>
-      <label><span>FROM</span><input type="date" value={dateFrom} onChange={event => { setDateFrom(event.target.value); setPage(1); }} /></label>
-      <label><span>TO</span><input type="date" value={dateTo} onChange={event => { setDateTo(event.target.value); setPage(1); }} /></label>
-      <div className="mission-filter-actions"><button type="button" onClick={() => { setQuery(""); setBucket("all"); setDateFrom(""); setDateTo(""); setPage(1); }}>RESET</button><button type="button" onClick={refreshRegistry} disabled={refreshing}>{refreshing ? "SYNCING" : "REFRESH"}</button></div>
+      <label className="mission-search"><span>Mission lookup</span><input value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder="Search by mission code, name, UAV or pilot" /></label>
+      <label><span>From</span><input type="date" value={dateFrom} onChange={event => { setDateFrom(event.target.value); setPage(1); }} /></label>
+      <label><span>To</span><input type="date" value={dateTo} onChange={event => { setDateTo(event.target.value); setPage(1); }} /></label>
+      <div className="mission-filter-actions"><button type="button" onClick={() => { setQuery(""); setBucket("all"); setDateFrom(""); setDateTo(""); setPage(1); }}>Reset</button><button type="button" onClick={refreshRegistry} disabled={refreshing}>{refreshing ? "Syncing…" : "Refresh"}</button></div>
     </section>
 
     <section className="mission-manifest-panel">
-      <header><div><b>ACTIVE MANIFEST <span>(SHOWING {filtered.length} RECORDS)</span></b><em>GEODESIC WGS-84</em></div><span>AUTO REFRESH: <strong>30s</strong>{lastSynced ? ` // ${formatVietnamTime(lastSynced)}` : ""}</span></header>
+      <header><div><b>Mission Plans <span>({filtered.length} matching)</span></b></div><span>Auto-refresh: <strong>30s</strong>{lastSynced ? ` · ${formatVietnamTime(lastSynced)}` : ""}</span></header>
       <div className="mission-manifest-table-wrap"><table>
         <thead><tr><th>Mission ID</th><th>Mission Plan</th><th>Assigned UAV</th><th>Pilot in Command</th><th>Schedule</th><th>Route Profile</th><th>Validation State</th><th>Record</th></tr></thead>
         <tbody>{visible.map(item => {
           const itemBucket = bucketFor(item.status);
           const pendingReview = itemBucket === "pending";
           return <tr key={item.id} className={itemBucket === "cancelled" ? "registry-danger-row" : ""}>
-            <td><b className="mission-code">#MS-{item.id.slice(0, 4).toUpperCase()}</b><small>ID {item.id.slice(-4).toUpperCase()}</small></td>
+            <td><b className="mission-code">#{item.id.slice(0, 8).toUpperCase()}</b></td>
             <td><strong>{item.name}</strong><small>{item.description || "No mission brief provided"}</small></td>
-            <td><b>{item.uavCode || "Unassigned"}</b><small>{item.uavName || "No aircraft record"}{item.uavStatus ? ` // ${item.uavStatus}` : ""}</small></td>
-            <td><div className="registry-pilot"><i>{initials(item.pilotName ?? "")}</i><span><b>{item.pilotName || "Pilot unavailable"}</b><small>{item.createdBy ? `USER ${item.createdBy.slice(0, 8).toUpperCase()}` : "CREATOR UNAVAILABLE"}</small></span></div></td>
-            <td><b>{formatDate(item.startTime)}</b><small>{item.endTime ? `END ${formatDate(item.endTime)}` : "END NOT SCHEDULED"}</small></td>
-            <td><b>{item.waypoints.length} waypoint{item.waypoints.length === 1 ? "" : "s"}</b><small>{item.altitudeReference || "ALT REF N/A"}{" // "}{missionDuration(item)}</small></td>
+            <td><b>{item.uavCode || "Unassigned"}</b><small>{item.uavName || "No aircraft record"}{item.uavStatus ? ` · ${item.uavStatus}` : ""}</small></td>
+            <td><div className="registry-pilot"><i>{initials(item.pilotName ?? "")}</i><span><b>{item.pilotName || "Pilot unavailable"}</b><small>{item.createdBy ? `User ${item.createdBy.slice(0, 8).toUpperCase()}` : "Creator unavailable"}</small></span></div></td>
+            <td><b>{formatDate(item.startTime)}</b><small>{item.endTime ? `End ${formatDate(item.endTime)}` : "End not scheduled"}</small></td>
+            <td><b>{item.waypoints.length} waypoint{item.waypoints.length === 1 ? "" : "s"}</b><small>{item.altitudeReference || "Alt ref N/A"}{" · "}{missionDuration(item)}</small></td>
             <td><span className={`registry-state ${itemBucket}`}>{formatStatus(item.status)}</span><small>{validationLabel(item)}</small></td>
-            <td><Link href={pendingReview ? `/portal/mission-approvals?missionId=${encodeURIComponent(item.id)}` : `/portal/missions/${encodeURIComponent(item.id)}`}>{pendingReview ? "REVIEW" : "OPEN"} <span aria-hidden="true">&gt;</span></Link></td>
+            <td><Link href={pendingReview ? `/portal/mission-approvals?missionId=${encodeURIComponent(item.id)}` : `/portal/missions/${encodeURIComponent(item.id)}`}>{pendingReview ? "Review" : "Open"} <span aria-hidden="true">→</span></Link></td>
           </tr>;
         })}
         {visible.length === 0 && <tr><td className="mission-registry-empty" colSpan={8}>No mission records match the selected filters.</td></tr>}</tbody>
       </table></div>
-      <footer><div className="manifest-range"><span>Showing <strong>{rangeStart}-{rangeEnd}</strong> of <strong>{filtered.length}</strong> flight plans</span><em><small>PAGE SIZE</small><strong>{PAGE_SIZE}</strong><small>/ PAGE</small></em></div><nav aria-label="Mission registry pages"><button type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>&lt;</button>{pageNumbers.map(number => <button type="button" key={number} className={number === currentPage ? "current" : ""} aria-current={number === currentPage ? "page" : undefined} onClick={() => setPage(number)}>{number}</button>)}<button type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage(value => Math.min(totalPages, value + 1))}>&gt;</button></nav></footer>
+      <footer><div className="manifest-range"><span>Showing <strong>{rangeStart}-{rangeEnd}</strong> of <strong>{filtered.length}</strong> flight plans</span><em><small>PAGE SIZE</small><strong>{PAGE_SIZE}</strong></em></div><nav aria-label="Mission registry pages"><button type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>&lt;</button>{pageNumbers.map(number => <button type="button" key={number} className={number === currentPage ? "current" : ""} aria-current={number === currentPage ? "page" : undefined} onClick={() => setPage(number)}>{number}</button>)}<button type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage(value => Math.min(totalPages, value + 1))}>&gt;</button></nav></footer>
     </section>
 
     <section className="mission-registry-insights">
-      <article><header><div><i aria-hidden="true">CL</i><h2>Corridor Load</h2></div><b>{activeCount ? "ACTIVE" : "NOMINAL"}</b></header><p>UTM Sector 04 currently handles {activeCount} active mission stream{activeCount === 1 ? "" : "s"} from the backend registry.</p><div className="registry-progress"><i style={{ width: `${Math.min(100, activeCount * 20)}%` }} /></div><footer><span>CHANNEL CAPACITY</span><b>{Math.min(100, activeCount * 20)}%</b></footer></article>
+      <article><header><div><i aria-hidden="true">AM</i><h2>Active Missions</h2></div><b>{activeCount ? `${activeCount} ACTIVE` : "IDLE"}</b></header><p>{activeCount} active mission{activeCount === 1 ? " is" : "s are"} currently tracked in the operational registry.</p><div className="registry-progress"><i style={{ width: `${missions.length ? Math.round((activeCount / missions.length) * 100) : 0}%` }} /></div><footer><span>TOTAL PLANS</span><b>{missions.length}</b></footer></article>
       <article><header><div><i aria-hidden="true">FA</i><h2>Fleet Assignment</h2></div><b>{assignedCount}/{missions.length}</b></header><p>{assignedCount} registered mission plan{assignedCount === 1 ? " has" : "s have"} an aircraft assignment in the current registry.</p><div className="registry-progress"><i style={{ width: `${missions.length ? Math.round(assignedCount / missions.length * 100) : 0}%` }} /></div><footer><span>ASSIGNED COVERAGE</span><b>{missions.length ? Math.round(assignedCount / missions.length * 100) : 0}%</b></footer></article>
-      <article><header><div><i aria-hidden="true">GC</i><h2>Geofence Compliance</h2></div><b className={validationAttentionCount ? "alert" : ""}>{validationAttentionCount ? `${validationAttentionCount} ATTENTION` : "CLEAR"}</b></header><p>{zones.length} configured airspace zone{zones.length === 1 ? " is" : "s are"} available. {validationAttentionCount} mission plan{validationAttentionCount === 1 ? " requires" : "s require"} validation review.</p><footer><span>AIRSPACE REGISTRY</span><Link href="/portal/geofences">OPEN &gt;</Link></footer></article>
+      <article><header><div><i aria-hidden="true">GC</i><h2>Geofence Compliance</h2></div><b className={validationAttentionCount ? "alert" : ""}>{validationAttentionCount ? `${validationAttentionCount} ATTENTION` : "CLEAR"}</b></header><p>{zones.length} configured airspace zone{zones.length === 1 ? " is" : "s are"} available. {validationAttentionCount} mission plan{validationAttentionCount === 1 ? " requires" : "s require"} validation review.</p><footer><span>AIRSPACE REGISTRY</span><Link href="/portal/geofences">Open →</Link></footer></article>
     </section>
   </div>;
 }

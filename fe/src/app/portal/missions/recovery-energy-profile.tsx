@@ -42,6 +42,6 @@ export default function RecoveryEnergyProfileFields({ value, onChange }: { value
       <a className={styles.reset} href="/data/recovery-energy-profile.template.json" download>Download template</a>
       {value && <button className={styles.reset} type="button" onClick={() => onChange(null)}>Remove measurements</button>}</div>
     {value && <dl className={styles.profileValues}><div><dt>Measurement reference</dt><dd>{value.measurementReference}</dd></div><div><dt>Usable capacity / payload</dt><dd>{value.usableCapacityWh} Wh / {value.payloadKg} kg</dd></div><div><dt>Battery / configuration</dt><dd>{value.batteryIdentifier} · {value.airframeConfiguration}</dd></div><div><dt>Valid until</dt><dd>{formatVietnamDateTime(value.validUntilUtc)}</dd></div><div><dt>Energy margin</dt><dd>×{value.energyMarginFactor} · {value.remainingEnergyCurve.length} measured SOC points</dd></div></dl>}
-    {error && <p role="alert">{error}</p>}
+    {error && <p className={styles.profileError} role="alert">{error}</p>}
   </details>;
 }

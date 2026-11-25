@@ -278,7 +278,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     {dialog && <div className="mission-dialog-backdrop" role="presentation">
       <section className="mission-dialog" role="dialog" aria-modal="true" aria-labelledby="mission-dialog-title">
         <header>
-          <div><p className="module-kicker">MISSION LIFECYCLE // CANCELLATION</p><h2 id="mission-dialog-title">Cancel this mission plan?</h2></div>
+          <div><p className="module-kicker">MISSION LIFECYCLE · CANCELLATION</p><h2 id="mission-dialog-title">Cancel this mission plan?</h2></div>
           <button type="button" aria-label="Close cancellation dialog" disabled={busy !== null} onClick={() => setDialog(null)}>x</button>
         </header>
         <div className="mission-dialog-body">

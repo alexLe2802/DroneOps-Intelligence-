@@ -11,11 +11,11 @@ export default function FlightModeFields({ value, onChange }: { value: FlightMod
     <fieldset className={styles.modeOptions}>
       <legend className={styles.srOnly}>Choose flight mode</legend>
       <label className={value === "manual" ? styles.selected : ""}>
-        <input type="radio" name="flight-mode" value="manual" checked={value === "manual"} required onChange={() => onChange("manual")} />
+        <input type="radio" name="flight-mode" data-field-label="Flight mode" value="manual" checked={value === "manual"} required onChange={() => onChange("manual")} />
         <Gamepad2 size={20} aria-hidden="true" /><span>Manual operation</span>
       </label>
       <label className={value === "automatic" ? styles.selected : ""}>
-        <input type="radio" name="flight-mode" value="automatic" checked={value === "automatic"} required onChange={() => onChange("automatic")} />
+        <input type="radio" name="flight-mode" data-field-label="Flight mode" value="automatic" checked={value === "automatic"} required onChange={() => onChange("automatic")} />
         <Route size={20} aria-hidden="true" /><span>Automatic mission</span>
       </label>
     </fieldset>

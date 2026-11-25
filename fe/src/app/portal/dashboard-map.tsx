@@ -103,10 +103,10 @@ export default function DashboardMap({ geofences, liveMissions = [], onCursorCoo
       });
       liveMissions.forEach(mission => {
         if (mission.latitude == null || mission.longitude == null || !valid(mission.latitude, mission.longitude)) return;
-        const color = mission.connectivityStatus === "Online" ? "#58e6bd"
-          : mission.connectivityStatus === "Stale" ? "#f5c86b" : "#ff858c";
+        const color = mission.connectivityStatus === "Online" ? "#16a34a"
+          : mission.connectivityStatus === "Stale" ? "#d97706" : "#dc2626";
         const marker = L.circleMarker([mission.latitude, mission.longitude], {
-          radius: 8, color: "#e8f7ff", weight: 2, fillColor: color, fillOpacity: 1,
+          radius: 8, color: "#ffffff", weight: 2.5, fillColor: color, fillOpacity: 1,
         });
         const popup = document.createElement("div");
         popup.className = "airspace-popup";
@@ -142,7 +142,7 @@ export default function DashboardMap({ geofences, liveMissions = [], onCursorCoo
 
   return <div className="dashboard-map-shell">
     <div ref={containerRef} className="dashboard-live-map" />
-    <div className="airspace-map-legend"><span className="prohibited">Vùng cấm bay</span><span className="restricted">Vùng giới hạn bay</span></div>
+    <div className="airspace-map-legend"><span className="prohibited">Prohibited airspace</span><span className="restricted">Restricted airspace</span></div>
     {error && <div className="dashboard-map-error" role="alert">{error}</div>}
     <div className="dashboard-map-toolbar">
       {locationError && <p className="dashboard-location-error" role="alert">{locationError}</p>}

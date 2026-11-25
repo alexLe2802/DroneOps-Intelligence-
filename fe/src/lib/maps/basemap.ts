@@ -1,10 +1,14 @@
 import type * as Leaflet from "leaflet";
 
+export const MAX_NATIVE_TILE_ZOOM = 19;
+export const MAX_MAP_ZOOM = 24;
+
 export function addBasemap(L: typeof Leaflet, map: Leaflet.Map, onTileError: () => void, onSwitch: () => void) {
+  map.setMaxZoom(MAX_MAP_ZOOM);
   const service = "https://server.arcgisonline.com/ArcGIS/rest/services";
   const layer = (name: string, attribution: string) =>
     L.tileLayer(`${service}/${name}/MapServer/tile/{z}/{y}/{x}`, {
-      attribution, maxZoom: 19, crossOrigin: true,
+      attribution, maxNativeZoom: MAX_NATIVE_TILE_ZOOM, maxZoom: MAX_MAP_ZOOM, crossOrigin: true,
     }).on("tileerror", onTileError);
 
   const street = layer("World_Street_Map", "Tiles &copy; Esri");

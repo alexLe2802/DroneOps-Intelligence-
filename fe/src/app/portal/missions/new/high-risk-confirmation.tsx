@@ -35,7 +35,7 @@ export default function HighRiskConfirmation({ mission, busy, error, onConfirm, 
     <section className={styles.dialog} role="alertdialog" aria-modal="true" aria-labelledby="high-risk-title" aria-describedby="high-risk-description">
       <header>
         <span><AlertTriangle size={20} aria-hidden="true" /></span>
-        <div><p>VALIDATION RESULT // PILOT DECISION REQUIRED</p><h2 id="high-risk-title">{title}</h2></div>
+        <div><p>VALIDATION RESULT · PILOT DECISION REQUIRED</p><h2 id="high-risk-title">{title}</h2></div>
       </header>
       <div className={styles.body}>
         <p id="high-risk-description">{description}</p>

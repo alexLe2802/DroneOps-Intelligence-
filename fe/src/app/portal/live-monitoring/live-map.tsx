@@ -117,20 +117,20 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
       const validWaypoints = waypoints.filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude) && Math.abs(point.latitude) <= 90 && Math.abs(point.longitude) <= 180);
       if (validWaypoints.length > 1) {
         const positions = validWaypoints.map(point => [point.latitude, point.longitude] as Leaflet.LatLngTuple);
-        routeLayersRef.current.push(L.polyline(positions, { color: "#71cdf2", weight: 3, opacity: .76, dashArray: "8 7" }).addTo(map));
+        routeLayersRef.current.push(L.polyline(positions, { color: "#1754a1", weight: 3, opacity: .82, dashArray: "8 7" }).addTo(map));
         const completed = positions.slice(0, Math.min(Math.max(sequence, 1), positions.length));
-        if (completed.length > 1) routeLayersRef.current.push(L.polyline(completed, { color: "#54e2b5", weight: 4, opacity: .95 }).addTo(map));
+        if (completed.length > 1) routeLayersRef.current.push(L.polyline(completed, { color: "#16a34a", weight: 4, opacity: .95 }).addTo(map));
       }
       waypointLayersRef.current = validWaypoints.map((point, index) => {
         const completed = index < sequence;
         const active = index === Math.max(0, sequence - 1);
         return L.circleMarker([point.latitude, point.longitude], {
           radius: active ? 7 : 5,
-          color: active ? "#e9f7ff" : completed ? "#57e2b6" : "#70cdf2",
-          fillColor: active ? "#20bbed" : completed ? "#57e2b6" : "#172638",
+          color: "#ffffff",
+          fillColor: active ? "#1754a1" : completed ? "#16a34a" : "#64748b",
           fillOpacity: 1,
           weight: 2,
-        }).bindTooltip(`WP-${String(index + 1).padStart(2, "0")} / ${point.actionType}`, { direction: "top" }).addTo(map);
+        }).bindTooltip(`WP-${String(index + 1).padStart(2, "0")} · ${point.actionType}`, { direction: "top" }).addTo(map);
       });
     });
     return () => { cancelled = true; };
@@ -161,7 +161,7 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
       aircraftRef.current.unbindTooltip();
       if (!livePosition) {
         const label = document.createElement("span");
-        label.textContent = `Vị trí cuối cùng · ${formatWeatherTime(telemetry.sourceTimestamp)}`;
+        label.textContent = `Last known position · ${formatWeatherTime(telemetry.sourceTimestamp)}`;
         aircraftRef.current.bindTooltip(label, { permanent: true, direction: "bottom", offset: [0, 20] });
       }
     });
@@ -191,12 +191,12 @@ export default function LiveMap({ missionId, telemetry, waypoints, sequence, rec
   const noSpatialData = waypoints.length === 0 && !hasPosition(telemetry);
   return <div className={styles.mapStage}>
     <div ref={containerRef} className={styles.mapCanvas} />
-    <div className={styles.mapTopLeft}>SECTOR GRID / {hasPosition(telemetry) ? livePosition ? "LIVE POSITION" : "LAST KNOWN POSITION" : "POSITION UNAVAILABLE"}</div>
+    <div className={styles.mapTopLeft}>AIRSPACE MAP · {hasPosition(telemetry) ? livePosition ? "LIVE POSITION" : "LAST KNOWN POSITION" : "POSITION UNAVAILABLE"}</div>
     <div className={styles.mapTopRight} data-state={linkState}><i /> DRONE {linkState.toUpperCase()}</div>
-    {hasPosition(telemetry) && !livePosition && <div className={styles.mapLastKnown} role="status">{linkState === "offline" ? "Drone đã mất kết nối." : "Dữ liệu vị trí chưa được cập nhật."} Marker hiển thị vị trí cuối cùng nhận lúc {formatWeatherTime(telemetry.sourceTimestamp)}.</div>}
-    <div className={styles.airspaceLegend} aria-label="Airspace restrictions"><span><i style={{ background: "#ff3344" }} /> Vùng cấm bay</span><span><i style={{ background: "#facc15" }} /> Vùng hạn chế bay</span>{airspaceState !== "loaded" && <small role="status">{airspaceState === "loading" ? "Loading airspace…" : airspaceState === "empty" ? "No restriction data available" : "Airspace could not be loaded. Reload the page to retry."}</small>}</div>
-    {!hasPosition(telemetry) && !noSpatialData && <div className={styles.mapError} role="status">UAV position unavailable / Chưa có vị trí UAV hợp lệ</div>}
-    {noSpatialData && <div className={styles.mapEmpty}><b>NO SPATIAL TELEMETRY</b><span>Waiting for a valid UAV position / Đang chờ vị trí UAV hợp lệ.</span></div>}
+    {hasPosition(telemetry) && !livePosition && <div className={styles.mapLastKnown} role="status">{linkState === "offline" ? "Drone disconnected." : "Position data has not updated recently."} Marker shows last known position received at {formatWeatherTime(telemetry.sourceTimestamp)}.</div>}
+    <div className={styles.airspaceLegend} aria-label="Airspace restrictions"><span><i style={{ background: "#dc2626" }} /> Prohibited airspace</span><span><i style={{ background: "#d97706" }} /> Restricted airspace</span>{airspaceState !== "loaded" && <small role="status">{airspaceState === "loading" ? "Loading airspace…" : airspaceState === "empty" ? "No restriction data available" : "Airspace could not be loaded. Reload the page to retry."}</small>}</div>
+    {!hasPosition(telemetry) && !noSpatialData && <div className={styles.mapError} role="status">UAV position unavailable</div>}
+    {noSpatialData && <div className={styles.mapEmpty}><b>NO SPATIAL TELEMETRY</b><span>Waiting for a valid UAV position.</span></div>}
     {mapError && <div className={styles.mapError} role="alert">{mapError}</div>}
   </div>;
 }

@@ -3,21 +3,20 @@
   max-inline-size: 68ch;
   overflow-wrap: anywhere;
 }
-
 .description > p { margin-block: 0 8px; }
 .description summary {
   cursor: pointer;
-  color: var(--color-accent, #75d9ff);
-  font: 600 12px/1.5 var(--font-body, Arial, sans-serif);
+  color: var(--primary-action, #1754a1);
+  font: 600 13.5px/1.5 var(--font-body);
 }
 .description summary:focus-visible {
-  outline: 2px solid var(--color-focus, #75d9ff);
-  outline-offset: 3px;
+  outline: 3px solid var(--color-focus, #1754a1);
+  outline-offset: 2px;
 }
 .description ul {
   margin-block: 8px 0;
   padding-inline-start: 20px;
-  color: var(--color-muted, #9dabb9);
-  font: 13px/1.5 var(--font-body, Arial, sans-serif);
+  color: var(--color-muted, #475569);
+  font: 400 14px/1.55 var(--font-body);
 }
 .description li + li { margin-block-start: 6px; }
