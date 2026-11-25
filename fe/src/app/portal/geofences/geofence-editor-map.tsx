@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { addBasemap } from "@/lib/maps/basemap";
 import type * as Leaflet from "leaflet";
 import { validCoordinate } from "@/lib/maps/planning-validation";
 import { describeGeofence } from "@/lib/maps/geofences";
@@ -43,9 +44,7 @@ export default function GeofenceEditorMap({ coordinates, zones, editingId, onCha
       mapRef.current = map;
       L.control.zoom({ position: "bottomright" }).addTo(map);
       L.control.scale({ position: "bottomleft", metric: true, imperial: false }).addTo(map);
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
-        attribution: "Tiles &copy; Esri", maxZoom: 19, crossOrigin: true,
-      }).on("tileerror", () => setError("Unable to load the basemap.")).addTo(map);
+      addBasemap(L, map, () => setError("Unable to load the basemap."), () => setError(""));
 
       zones.forEach(zone => {
         if (zone.id === editingId || zone.coordinates.length < 3) return;

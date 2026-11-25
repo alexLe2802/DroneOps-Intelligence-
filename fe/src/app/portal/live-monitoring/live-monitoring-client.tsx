@@ -8,6 +8,7 @@ import { getAssignedUav, getManagedUav, getLatestMissionTelemetry, getLiveMissio
 import type { AssignedUav, IncidentItem, LiveMission, MissionDetail, MissionTelemetry } from "@/lib/portal/types";
 import { hasTelemetryPosition } from "@/lib/portal/telemetry-position";
 import { armingDisplay } from "@/lib/portal/arming-state";
+import DetectionNotice from "./detection-notice";
 import LiveMap from "./live-map";
 import FlightPreparationPanel from "./flight-preparation-panel";
 import styles from "./live-monitoring.module.css";
@@ -232,6 +233,7 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
         <strong>DRONE ĐANG DISARM — CHƯA ARM</strong>
         <p>Hoàn tất kiểm tra trước bay và bảo đảm khu vực an toàn, sau đó ARM bằng bộ điều khiển hoặc GCS khi sẵn sàng bay. Lời nhắc sẽ tự tắt khi nhận telemetry xác nhận drone đã ARM.</p>
       </div>}
+      <DetectionNotice messages={telemetry?.missionId === selectedId ? telemetry.detectionDiagnostics : undefined} />
       <section className={styles.signalStrip}>
         <div className={connection === "online" ? styles.good : connection === "stale" ? styles.warning : styles.danger}><b>TELEMETRY LINK</b><span>{connection.toUpperCase()} / {telemetry?.snapshotKind?.toUpperCase() ?? "SNAPSHOT"}</span></div>
         <div className={latestIncident ? styles.danger : styles.good}><b>{latestIncident ? `${latestIncident.severity} INCIDENT` : "INCIDENT CHANNEL"}</b><span>{latestIncident?.title ?? "No open incident received for this mission."}</span></div>
@@ -291,7 +293,6 @@ export default function LiveMonitoringClient({ initialMissionId = "", canPrepare
       </section>
 
       <section className={styles.rawPanel}>
-        {telemetry?.detectionDiagnostics?.map(message => <p key={message} role="status">{message}</p>)}
         <header><span>RAW TELEMETRY SNAPSHOT</span><b>{telemetry?.sourceTimestamp ? new Date(telemetry.sourceTimestamp).toISOString() : "NO SOURCE TIMESTAMP"}</b></header>
         <div><code>MISSION_ID: {selectedId}</code><code>UAV_ID: {telemetry?.uavId ?? "UNAVAILABLE"}</code><code>RECEIVED_AT: {telemetry?.receivedAt ?? "UNAVAILABLE"}</code><code>VALID: {String(telemetry?.isValid ?? false).toUpperCase()}</code></div>
       </section>

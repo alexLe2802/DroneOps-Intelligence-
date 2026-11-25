@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { addBasemap } from "@/lib/maps/basemap";
 import type * as Leaflet from "leaflet";
 import type { GeofenceCoordinate } from "@/lib/portal/types";
 
@@ -22,8 +23,7 @@ export default function GeofenceMap({ coordinates, editable, onChange }: {
       if (cancelled || !container.current) return;
       const instance = L.map(container.current, { center: [10.849, 106.7725], zoom: 12 });
       map.current = instance;
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 19 })
-        .on("tileerror", () => setError("Basemap unavailable. You can still enter coordinates below.")).addTo(instance);
+      addBasemap(L, instance, () => setError("Basemap unavailable. You can still enter coordinates below."), () => setError(""));
       layer.current = L.layerGroup().addTo(instance);
       instance.on("click", event => {
         const current = values.current;

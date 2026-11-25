@@ -964,3 +964,24 @@
 .armarmed { color: #77d9ac; }
 .armdisarmed { color: #f4d69b; }
 .armunknown { color: #adb9c7; }
+
+.noticeRegion:empty { position: absolute; }
+
+.detectionNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #a37734;
+  border-inline-start: 5px solid #ffc766;
+  border-radius: 6px;
+  background: #30271b;
+  color: #fff1d8;
+  font: 400 16px/1.5 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.detectionNotice svg { flex: none; margin-top: 2px; color: #ffc766; }
+.detectionNotice h2 { margin: 0; color: #ffda93; font: 700 18px/1.4 system-ui, sans-serif; }
+.detectionNotice ul { margin: 4px 0 0; padding-inline-start: 1.2em; }
+.detectionNotice li:only-child { list-style: none; margin-inline-start: -1.2em; }

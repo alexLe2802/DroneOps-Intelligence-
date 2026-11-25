@@ -213,7 +213,7 @@ export default function MissionForm() {
       <section className="route-builder">
         <div className="builder-section-title"><span>02</span><div><h2>Flight waypoints</h2><p>Start with Takeoff/Home. Finish with Land at the last point, or Return/RTL to visit it and return to FC Home.</p></div><button type="button" className="text-action" disabled={!waypoints.length} onClick={() => { if (window.confirm("Clear all waypoints?")) setWaypoints([]); }}>CLEAR ROUTE</button></div>
         {geofenceWarning && <p className="form-warning">{geofenceWarning}</p>}
-        <MissionMap missionFences={missionFences} draftFence={fenceDrawing.draft} drawingFence={fenceDrawing.drawing} onFenceUpdate={fence => setMissionFences(current => current.map(f => f.id === fence.id ? fence : f))} plannedHome={null} waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
+        <MissionMap showUserLocation missionFences={missionFences} draftFence={fenceDrawing.draft} drawingFence={fenceDrawing.drawing} onFenceUpdate={fence => setMissionFences(current => current.map(f => f.id === fence.id ? fence : f))} plannedHome={null} waypoints={waypoints} geofences={geofences} onAdd={addWaypoint} onUpdate={updateWaypoint} readOnly={saving} />
         <button type="button" className="module-secondary mission-add-waypoint" onClick={() => addWaypoint()}>ADD WAYPOINT MANUALLY</button>
         <div className="waypoint-list">{waypoints.length === 0 ? <div className="waypoint-empty">Click the map to create a waypoint. You can then drag its marker or type exact coordinates below.</div> : waypoints.map((point, index) => {
           const endpointAction: WaypointAction | null = index === 0 ? "TakeOff" : null;
