@@ -66,7 +66,8 @@ public static class DependencyInjection
         services.AddScoped<IMissionWorkflowService, MissionWorkflowService>();
         services.AddScoped<IMissionWeatherQueryService,MissionWeatherQueryService>();
 
-        services.AddOptions<MissionWeatherOptions>();
+        services.Configure<MissionWeatherOptions>(
+            configuration.GetSection("MissionWeather"));
 
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IAuthService, AuthService>();
