@@ -89,7 +89,11 @@ public sealed class GeminiAIService : IAIService
             in Vietnamese with full diacritics (tiếng Việt có dấu), even when the input is unaccented.
             Keep JSON keys and enumerated values exactly as specified.
 
-            The pilot is the final decision maker.
+            Address only the pilot preparing a draft mission. The pilot chooses
+            which suggestions to apply before submitting the draft for review.
+            Describe risks the pilot should check and changes the pilot can make.
+            Omit reviewer briefings, instructions for the Operation Manager and
+            recommendations to approve or reject the mission, even if requested.
 
             Do not create, approve, validate or execute the mission.
 

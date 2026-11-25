@@ -72,6 +72,8 @@ internal static class GeminiFallbackChecks
             var instruction = payload.RootElement.GetProperty("system_instruction").GetProperty("parts")[0]
                 .GetProperty("text").GetString();
             Check(instruction?.Contains("tiếng Việt có dấu") == true, "request specifies accented Vietnamese");
+            Check(instruction?.Contains("Address only the pilot") == true &&
+                instruction.Contains("Omit reviewer briefings"), "draft advice is scoped to the pilot");
             var model = request.RequestUri!.AbsolutePath.Split('/').Last().Split(':')[0];
             Calls.Add((model, request.Headers.GetValues("x-goog-api-key").Single()));
             var status = Calls.Count == 1 ? firstStatus : nextStatus;
