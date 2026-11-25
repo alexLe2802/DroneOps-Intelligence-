@@ -84,9 +84,11 @@ public sealed class DraftAnalysisService(AppDbContext db, IMissionWeatherQuerySe
         if (estimatedEnd == null && r.EndTime == null)
             findings.Add("Dự báo dùng giờ bắt đầu cho cả tuyến vì chưa có thời lượng hoặc giờ kết thúc.");
         if (forecast.Status != "Available") findings.Add($"Dự báo {forecast.Status}: chưa đủ dữ liệu thời tiết hiện hành cho toàn tuyến.");
-        if (uav.MaxWindSpeedMps == null) findings.Add("Thiếu giới hạn gió của UAV.");
-        var windLimit = uav.MaxWindSpeedMps;
-        if (automatic) windLimit = Math.Min(windLimit ?? decimal.MaxValue, limits!.MaxWindMetersPerSecond);
+        const decimal defaultWindLimitMps = 8.5m;
+        decimal? windLimit = uav.MaxWindSpeedMps ?? defaultWindLimitMps;
+        if (uav.MaxWindSpeedMps == null)
+            findings.Add($"UAV wind limit is not recorded; using default {defaultWindLimitMps} m/s for wind checks.");
+        if (automatic) windLimit = Math.Min(windLimit.Value, limits!.MaxWindMetersPerSecond);
         var gustLimit = automatic ? limits!.MaxGustMetersPerSecond : (decimal?)null;
         if (automatic && forecast.Waypoints.Any(w => w.WindGustMetersPerSecond == null))
             findings.Add("Thiếu dự báo gió giật tại một số điểm để đối chiếu giới hạn bay tự động.");
