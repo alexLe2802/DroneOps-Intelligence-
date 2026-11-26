@@ -7,7 +7,7 @@ import { AlertCircle, AlertTriangle, CalendarClock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
-import type { AssignedUav, Geofence, MissionSuggestion, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
+import type { AssignedUav, Geofence, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 
@@ -22,7 +22,7 @@ import FlightModeFields, { type FlightMode } from "../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
 import MissionFenceFields, { useFenceDrawing } from "../mission-fence-fields";
 import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
-import MissionSuggestionPanel from "./mission-suggestion-panel";
+import DraftAnalysisPanel from "./draft-analysis-panel";
 
 const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
 
@@ -105,6 +105,7 @@ export default function MissionForm() {
   const [averageSpeed, setAverageSpeed] = useState("");
   const [maxSpeed, setMaxSpeed] = useState("");
   const [automaticFlightLimits, setAutomaticFlightLimits] = useState(defaultAutomaticLimits);
+  const [payloadKg, setPayloadKg] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [missionFences, setMissionFences] = useState<MissionFence[]>([]);
@@ -171,27 +172,6 @@ export default function MissionForm() {
       return normalizeWaypointActions(next);
     });
   }
-  function applySuggestion(suggestion: MissionSuggestion) {
-    const hasDraft = Boolean(flightMode || name || description || averageSpeed || maxSpeed || altitudeReference || waypoints.length);
-    if (hasDraft && !window.confirm("Replace the current mission details with this suggestion? Your UAV, schedule and waypoints will be kept.")) return;
-
-    if (suggestion.missionName.trim()) setName(suggestion.missionName.trim());
-    if (suggestion.missionPurpose.trim()) setDescription(suggestion.missionPurpose.trim());
-    if (suggestion.automaticFlightRequested != null) setFlightMode(suggestion.automaticFlightRequested ? "automatic" : "manual");
-    if (["AGL", "MSL", "Relative"].includes(suggestion.altitudeReference)) {
-      setAltitudeReference(suggestion.altitudeReference as "AGL" | "MSL" | "Relative");
-    } else if (suggestion.automaticFlightRequested) {
-      setAltitudeReference("Relative");
-    }
-    if (Number.isFinite(suggestion.averageSpeedMetersPerSecond) && Number(suggestion.averageSpeedMetersPerSecond) > 0) {
-      setAverageSpeed(String(suggestion.averageSpeedMetersPerSecond));
-    }
-    if (Number.isFinite(suggestion.maxSpeedMetersPerSecond) && Number(suggestion.maxSpeedMetersPerSecond) > 0) {
-      setMaxSpeed(String(suggestion.maxSpeedMetersPerSecond));
-    }
-    setError("");
-    window.setTimeout(() => document.getElementById("mission-information")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-  }
   async function submit(event: FormEvent) {
     event.preventDefault(); setError("");
     if (pending.current) return;
@@ -229,9 +209,24 @@ export default function MissionForm() {
   const activeAircraft = aircraft.filter(item => item.status.toLowerCase() === "active");
   const earliestStart = localDateTimeMinimum();
   const earliestEnd = startTime || earliestStart;
+  const start = startTime ? Date.parse(`${startTime}+07:00`) : NaN;
+  const end = endTime ? Date.parse(`${endTime}+07:00`) : NaN;
+  const missing = [
+    !activeAircraft.some(item => item.id === uavId) && "Select an active assigned UAV.",
+    name.trim().length < 2 && "Enter a mission name of at least two characters.",
+    !(start >= Date.parse(`${earliestStart}+07:00`)) && "Choose a future start date and time.",
+    endTime && !(end > start) && "Choose an end time after the start or leave it blank for an estimate.",
+    payloadKg && Number(payloadKg) < 0 && "Enter a non-negative payload or leave it blank.",
+    routeError(waypoints),
+  ].filter((message): message is string => Boolean(message));
+  const analysisDraft = missing.length ? null : {
+    uavId, name: name.trim(), startTime: vietnamInputToUtcIso(startTime), endTime: endTime ? vietnamInputToUtcIso(endTime) : null,
+    waypoints, automatic: flightMode === null ? null : automaticFlightRequested, limits: automaticFlightRequested ? automaticFlightLimits : null,
+    altitudeReference: altitudeReference || null, cruise: averageSpeed ? Number(averageSpeed) : null,
+    ceiling: maxSpeed ? Number(maxSpeed) : null, payloadKg: payloadKg ? Number(payloadKg) : null,
+  };
   return <>
     <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
-    <MissionSuggestionPanel disabled={saving} onApply={applySuggestion} />
     <form ref={formRef} className="mission-builder mission-create-builder" onSubmit={submit} onBlurCapture={event => syncFieldAriaInvalid(event.target)} onChangeCapture={event => { syncFieldAriaInvalid(event.target); if (error) setError(""); }} onInputCapture={event => { syncFieldAriaInvalid(event.target); if (error) setError(""); }} onInvalidCapture={event => {
       const field = event.target;
       if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;
@@ -242,24 +237,24 @@ export default function MissionForm() {
     }}>
       {error && <div ref={errorRef} className="mission-error-summary" role="alert" tabIndex={-1}><AlertCircle size={22} aria-hidden="true" /><div className="mission-error-copy"><strong>Mission could not be saved</strong><p>{error}</p></div><button type="button" className="mission-error-dismiss" aria-label="Dismiss error message" onClick={() => setError("")}>×</button></div>}
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "contents" }}><legend className="sr-only">Mission and flight route</legend>
-      <FlightModeFields value={flightMode} onChange={mode => {
-        setFlightMode(mode);
-        setError("");
-        if (mode === "automatic") { setAverageSpeed("11.2"); setMaxSpeed("15"); setAltitudeReference("Relative"); }
-      }} />
-      <section className="mission-fields" id="mission-information">
-        <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
-        <div className="mission-field-grid">
-          <label htmlFor="mission-uav"><span className="field-heading">ASSIGNED UAV <em>Required</em></span><select id="mission-uav" name="uavId" data-field-label="Assigned UAV" value={uavId} onChange={event => { setUavId(event.target.value); setError(""); }} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
-          <label htmlFor="mission-name"><span className="field-heading">MISSION NAME <em>Required</em></span><input id="mission-name" name="name" data-field-label="Mission name" value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
-          <label htmlFor="mission-description" className="full-field"><span className="field-heading">DESCRIPTION <em className="optional">Optional</em></span><textarea id="mission-description" name="description" data-field-label="Description" value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
-          <label htmlFor="mission-average-speed"><span className="field-heading">CRUISE SPEED (M/S) <em className={automaticFlightRequested ? "optional" : undefined}>{automaticFlightRequested ? "Optional override" : "Required"}</em></span><input id="mission-average-speed" name="averageSpeed" data-field-label="Cruise speed (m/s)" type="number" min={automaticFlightRequested ? "0.5" : "0.1"} max={automaticFlightRequested ? 15 : undefined} step="0.01" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — flight default 11.2" : "10.0"} required={!automaticFlightRequested} />{averageSpeed && Number.isFinite(Number(averageSpeed)) ? <small>{(Number(averageSpeed) * 3.6).toFixed(2)} km/h</small> : <small>Target horizontal flight speed</small>}</label>
-          <label htmlFor="mission-max-speed"><span className="field-heading">SPEED CEILING (M/S) <em className={automaticFlightRequested ? "optional" : undefined}>{automaticFlightRequested ? "Optional override" : "Required"}</em></span><input id="mission-max-speed" name="maxSpeed" data-field-label="Speed ceiling (m/s)" type="number" min="0.1" max={automaticFlightRequested ? 15 : undefined} step="0.01" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — speed ceiling 15" : "15.0"} required={!automaticFlightRequested} />{maxSpeed && Number.isFinite(Number(maxSpeed)) ? <small>{(Number(maxSpeed) * 3.6).toFixed(2)} km/h</small> : <small>Must be greater than or equal to cruise speed</small>}</label>
-          <div className="schedule-field"><label htmlFor="mission-start-time"><span className="field-heading">START DATE &amp; TIME <em>Required</em></span></label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" name="startTime" data-field-label="Start date & time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setStartTime(event.target.value); setError(""); }} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">Vietnam GMT+7 · Start must be in the future</small></div>
-          <div className="schedule-field"><label htmlFor="mission-end-time"><span className="field-heading">PLANNED END DATE &amp; TIME <em>Required</em></span></label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" name="endTime" data-field-label="Planned end date & time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setEndTime(event.target.value); setError(""); }} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">Vietnam GMT+7 · Booking limit; actual end is recorded after landing and disarm</small></div>
-        </div>
-        {activeAircraft.length === 0 && <p className="form-warning" role="status"><AlertTriangle size={17} aria-hidden="true" /><span>No active UAV is assigned to your pilot profile yet. Register and activate an aircraft before saving a mission.</span></p>}
-      </section>
+        <FlightModeFields value={flightMode} onChange={mode => {
+          setFlightMode(mode);
+          setError("");
+          if (mode === "automatic") { setAverageSpeed("11.2"); setMaxSpeed("15"); setAltitudeReference("Relative"); }
+        }} />
+        <section className="mission-fields" id="mission-information">
+          <div className="builder-section-title"><span>01</span><div><h2>Mission information</h2><p>Define the aircraft and operating window.</p></div></div>
+          <div className="mission-field-grid">
+            <label htmlFor="mission-uav"><span className="field-heading">ASSIGNED UAV <em>Required</em></span><select id="mission-uav" name="uavId" data-field-label="Assigned UAV" value={uavId} onChange={event => { setUavId(event.target.value); setError(""); }} required><option value="">Select an active UAV</option>{activeAircraft.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+            <label htmlFor="mission-name"><span className="field-heading">MISSION NAME <em>Required</em></span><input id="mission-name" name="name" data-field-label="Mission name" value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={200} required placeholder="Transmission Line Audit" /></label>
+            <label htmlFor="mission-description" className="full-field"><span className="field-heading">DESCRIPTION <em className="optional">Optional</em></span><textarea id="mission-description" name="description" data-field-label="Description" value={description} onChange={event => setDescription(event.target.value)} maxLength={2000} placeholder="Describe the objective and operating notes…" /></label>
+            <label htmlFor="mission-average-speed"><span className="field-heading">CRUISE SPEED (M/S) <em className={automaticFlightRequested ? "optional" : undefined}>{automaticFlightRequested ? "Optional override" : "Required"}</em></span><input id="mission-average-speed" name="averageSpeed" data-field-label="Cruise speed (m/s)" type="number" min={automaticFlightRequested ? "0.5" : "0.1"} max={automaticFlightRequested ? 15 : undefined} step="0.01" value={averageSpeed} onChange={event => setAverageSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — flight default 11.2" : "10.0"} required={!automaticFlightRequested} />{averageSpeed && Number.isFinite(Number(averageSpeed)) ? <small>{(Number(averageSpeed) * 3.6).toFixed(2)} km/h</small> : <small>Target horizontal flight speed</small>}</label>
+            <label htmlFor="mission-max-speed"><span className="field-heading">SPEED CEILING (M/S) <em className={automaticFlightRequested ? "optional" : undefined}>{automaticFlightRequested ? "Optional override" : "Required"}</em></span><input id="mission-max-speed" name="maxSpeed" data-field-label="Speed ceiling (m/s)" type="number" min="0.1" max={automaticFlightRequested ? 15 : undefined} step="0.01" value={maxSpeed} onChange={event => setMaxSpeed(event.target.value)} placeholder={automaticFlightRequested ? "Optional — speed ceiling 15" : "15.0"} required={!automaticFlightRequested} />{maxSpeed && Number.isFinite(Number(maxSpeed)) ? <small>{(Number(maxSpeed) * 3.6).toFixed(2)} km/h</small> : <small>Must be greater than or equal to cruise speed</small>}</label>
+            <div className="schedule-field"><label htmlFor="mission-start-time"><span className="field-heading">START DATE &amp; TIME <em>Required</em></span></label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" name="startTime" data-field-label="Start date & time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setStartTime(event.target.value); setError(""); }} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">Vietnam GMT+7 · Start must be in the future</small></div>
+            <div className="schedule-field"><label htmlFor="mission-end-time"><span className="field-heading">PLANNED END DATE &amp; TIME <em>Required</em></span></label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" name="endTime" data-field-label="Planned end date & time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setEndTime(event.target.value); setError(""); }} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">Vietnam GMT+7 · Booking limit; actual end is recorded after landing and disarm</small></div>
+          </div>
+          {activeAircraft.length === 0 && <p className="form-warning" role="status"><AlertTriangle size={17} aria-hidden="true" /><span>No active UAV is assigned to your pilot profile yet. Register and activate an aircraft before saving a mission.</span></p>}
+        </section>
       {automaticFlightRequested && <button type="button" className="module-secondary mission-speed-preset" onClick={() => { setAverageSpeed("11.2"); setMaxSpeed("15"); setAutomaticFlightLimits(defaultAutomaticLimits()); }}>USE V2 DEFAULT SPEEDS (11.2 M/S)</button>}
       {automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === uavId)?.firmwareNavigationDefaults} />}
       {automaticFlightRequested && <AutomaticFlightFields value={automaticFlightLimits} onChange={setAutomaticFlightLimits} />}
@@ -284,9 +279,18 @@ export default function MissionForm() {
         </div>
         <select id="mission-altitude-reference" name="altitudeReference" data-field-label="Altitude reference" value={altitudeReference} onChange={event => setAltitudeReference(event.target.value as typeof altitudeReference)}><option value="">Not specified</option><option disabled={automaticFlightRequested} value="AGL">AGL — above ground</option><option disabled={automaticFlightRequested} value="MSL">MSL — mean sea level</option><option value="Relative">Relative — takeoff reference</option></select>
       </div>
-      </fieldset>
-      {error && <div className="mission-footer-error"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span><button type="button" onClick={() => { errorRef.current?.focus({ preventScroll: true }); errorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }}>TOP ↑</button></div>}
-      <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS{missionFences.length ? <> · <b>{missionFences.length}</b> FENCES</> : null} · Save a Draft, then submit it from Mission Details for validation and review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button type="submit" className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "SAVING…" : "SAVE DRAFT MISSION"}</button></div></footer>
-    </form>
+      <div className="mission-altitude-card">
+        <div>
+          <label htmlFor="draft-payload">Payload for this analysis (kg, optional)</label>
+          <p>Optional payload mass used to check takeoff weight and payload limits during AI draft analysis.</p>
+        </div>
+        <input id="draft-payload" name="payloadKg" type="number" min="0" step="0.01" placeholder="0.0 kg" value={payloadKg} onChange={event => setPayloadKg(event.target.value)} style={{ width: "220px", maxWidth: "100%", minHeight: "42px", padding: "8px 12px", border: "1px solid var(--control-border, #8596ab)", borderRadius: "6px", background: "var(--surface-low, #f8fafc)", color: "var(--color-ink, #0d1c2e)", fontSize: "14.5px" }} />
+      </div>
+      <DraftAnalysisPanel key={JSON.stringify(analysisDraft)} draft={analysisDraft} missing={missing} disabled={saving}
+        applyCruise={setAverageSpeed} applyCeiling={setMaxSpeed} applyEnd={setEndTime} />
+    </fieldset>
+    {error && <div className="mission-footer-error"><AlertCircle size={17} aria-hidden="true" /><span>{error}</span><button type="button" onClick={() => { errorRef.current?.focus({ preventScroll: true }); errorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }}>TOP ↑</button></div>}
+    <footer className="builder-footer"><p><b>{waypoints.length}</b> WAYPOINTS{missionFences.length ? <> · <b>{missionFences.length}</b> FENCES</> : null} · Save a Draft, then submit it from Mission Details for validation and review.</p><div><Link className="module-secondary module-link" href="/portal/missions">CANCEL</Link><button type="submit" className="module-primary" disabled={saving || activeAircraft.length === 0}>{saving ? "SAVING…" : "SAVE DRAFT MISSION"}</button></div></footer>
+  </form >
   </>;
 }

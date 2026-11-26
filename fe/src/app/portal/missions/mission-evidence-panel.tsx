@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getMissionHistory, getMissionWeather } from "@/lib/portal/client";
 import type { MissionUpdateSummary, MissionWeather } from "@/lib/portal/types";
 
+import { useWeatherRefreshWait } from "../use-weather-refresh";
 import { formatWeatherTime, groupWeatherWaypoints, weatherPointLabel } from "@/lib/portal/weather-display";
 import { reviewHistory } from "@/lib/portal/mission-review";
 import MissionValidationEvidence from "./mission-validation-evidence";
@@ -14,6 +15,8 @@ export default function MissionEvidencePanel({ id, requestId }: { id: string; re
   const [inspecting, setInspecting] = useState<string | null>(null);
   const [history, setHistory] = useState<MissionUpdateSummary[]>([]);
   const [weather, setWeather] = useState<MissionWeather | null>(null);
+  const [retryAt, setRetryAt] = useState(0);
+  const wait = useWeatherRefreshWait(weather?.nextRefreshAt ? Date.parse(weather.nextRefreshAt) : retryAt);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(true);
   const [context, setContext] = useState(requestId ?? "");
@@ -24,11 +27,11 @@ export default function MissionEvidencePanel({ id, requestId }: { id: string; re
     if (sequence !== requests.current) return;
     if (events.status === "fulfilled") setHistory(reviewHistory(events.value));
     if (forecast.status === "fulfilled") setWeather(forecast.value);
-    else { setWeather(null); setError(forecast.reason instanceof Error ? forecast.reason.message : "Forecast unavailable."); }
+    else { setWeather(null); setRetryAt(Date.now() + 60000); setError(forecast.reason instanceof Error ? forecast.reason.message : "Forecast unavailable."); }
     if (events.status === "rejected") { setHistory([]); setError(events.reason instanceof Error ? events.reason.message : "History unavailable."); }
     setBusy(false);
   }, [id, context]);
-  useEffect(() => { const sequence = ++requests.current; let active = true; void Promise.allSettled([getMissionHistory(id), getMissionWeather(id, context || undefined)]).then(([events, forecast]) => { if (!active || sequence !== requests.current) return; setBusy(false); if (events.status === "fulfilled") setHistory(reviewHistory(events.value)); else { setHistory([]); setError("History unavailable. Retry to load history."); } if (forecast.status === "fulfilled") setWeather(forecast.value); else { setWeather(null); setError("Forecast unavailable. You may still review the mission manually."); } }); return () => { active = false; }; }, [id, context]);
+  useEffect(() => { const sequence = ++requests.current; let active = true; void Promise.allSettled([getMissionHistory(id), getMissionWeather(id, context || undefined)]).then(([events, forecast]) => { if (!active || sequence !== requests.current) return; setBusy(false); if (events.status === "fulfilled") setHistory(reviewHistory(events.value)); else { setHistory([]); setError("History unavailable. Retry to load history."); } if (forecast.status === "fulfilled") setWeather(forecast.value); else { setWeather(null); setRetryAt(Date.now() + 60000); setError("Forecast unavailable. You may still review the mission manually."); } }); return () => { active = false; }; }, [id, context]);
   const weatherGroups = weather ? groupWeatherWaypoints(weather.waypoints.map(point => ({
     ...point,
     arrivalTimeReason: point.estimatedArrivalTime
@@ -36,8 +39,8 @@ export default function MissionEvidencePanel({ id, requestId }: { id: string; re
       : "Forecast based on the scheduled mission flight window.",
   }))) : [];
   return <section className={styles.panel} aria-busy={busy}>
-    <header className={styles.heading}><div><span className={styles.kicker}>SUPPORTING EVIDENCE</span><h2>Weather &amp; review history</h2><p>Check forecast conditions and previous review decisions.</p></div><button type="button" disabled={busy} onClick={() => void load(true)}>{busy ? "Refreshing…" : "Refresh forecast and history"}</button></header><div className={styles.body}>
-    <label className={styles.context}><span>FORECAST FOR</span><select value={context} onChange={event => { setContext(event.target.value); setWeather(null); setError(""); setBusy(true); }}><option value="">Current mission</option>{requestId && !history.some(request => request.id === requestId) && <option value={requestId}>Selected proposal</option>}{history.map(request => <option key={request.id} value={request.id}>{request.status} request · {formatWeatherTime(request.createdAt)}</option>)}</select></label>
+    <header className={styles.heading}><div><span className={styles.kicker}>SUPPORTING EVIDENCE</span><h2>Weather &amp; review history</h2><p>Check forecast conditions and previous review decisions.</p></div><button type="button" disabled={busy || wait > 0} onClick={() => void load(true)}>{busy ? "Refreshing…" : wait ? `Refresh in ${wait}s` : "Refresh forecast and history"}</button></header><div className={styles.body}>
+    <label className={styles.context}><span>FORECAST FOR</span><select value={context} onChange={event => { setContext(event.target.value); setRetryAt(0); setWeather(null); setError(""); setBusy(true); }}><option value="">Current mission</option>{requestId && !history.some(request => request.id === requestId) && <option value={requestId}>Selected proposal</option>}{history.map(request => <option key={request.id} value={request.id}>{request.status} request · {formatWeatherTime(request.createdAt)}</option>)}</select></label>
     {busy && <p role="status">Loading forecast and review records…</p>}
     {error && <div className={styles.notice} role="alert"><strong>Some evidence could not be loaded</strong><p>{error}</p><span>Use Refresh to try again.</span></div>}
     <p className={styles.advisory}>Forecasts are provider estimates. High Risk weather or battery findings require explicit pilot confirmation before approval. <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p>

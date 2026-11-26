@@ -71,34 +71,13 @@ public static class MissionBatteryRiskCalculator
         result.RouteDistanceMeters =
             CalculateRouteDistanceMeters(orderedWaypoints);
 
-        var estimatedFlightSeconds =
-            (decimal)result.RouteDistanceMeters /
-            mission.AverageSpeedMetersPerSecond.Value;
-        if (mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } limits
-            && limits.TakeoffSpeedMetersPerSecond > 0 && limits.ClimbSpeedMetersPerSecond > 0
-            && limits.DescentSpeedMetersPerSecond > 0 && limits.LandingSpeedMetersPerSecond > 0)
+        result.EstimatedFlightMinutes = EstimateMinutes(mission, orderedWaypoints, result.RouteDistanceMeters,
+            mission.AverageSpeedMetersPerSecond.Value);
+        if (UsesAutomaticTiming(mission))
         {
-            estimatedFlightSeconds = 0;
-            for (var index = 1; index < orderedWaypoints.Count; index++)
-            {
-                var previous = orderedWaypoints[index - 1]; var current = orderedWaypoints[index];
-                var speed = current.Navigation?.SpeedMetersPerSecond ?? mission.AverageSpeedMetersPerSecond.Value;
-                if (speed > 0) estimatedFlightSeconds += (decimal)HaversineDistanceMeters(previous.Latitude, previous.Longitude, current.Latitude, current.Longitude) / speed;
-                var delta = (current.Altitude ?? 0) - (previous.Altitude ?? 0);
-                estimatedFlightSeconds += delta >= 0 ? delta / limits.ClimbSpeedMetersPerSecond : -delta / Math.Min(limits.DescentSpeedMetersPerSecond, limits.LandingSpeedMetersPerSecond);
-            }
-            estimatedFlightSeconds += Math.Max(0, orderedWaypoints[0].Altitude ?? 0) / limits.TakeoffSpeedMetersPerSecond;
-            var landingGround = orderedWaypoints[^1].Navigation?.LandingGroundAltitudeMeters ?? 0;
-            estimatedFlightSeconds += Math.Max(0, (orderedWaypoints[^1].Altitude ?? 0) - landingGround) / limits.LandingSpeedMetersPerSecond;
-            estimatedFlightSeconds += orderedWaypoints.Sum(w => Math.Max(0, w.Navigation?.HoldTimeSeconds ?? 0));
             result.Reasons.Add("Automatic estimate conservatively adds horizontal travel, vertical travel, takeoff, landing and entered holds. Unknown landing ground uses Home level for estimation only, not landing clearance.");
             result.Warnings.Add("This remains an uncalibrated endurance estimate; it does not verify emergency-return energy, aircraft power or landing safety.");
         }
-
-        result.EstimatedFlightMinutes = decimal.Round(
-            estimatedFlightSeconds / 60m,
-            2,
-            MidpointRounding.AwayFromZero);
 
         result.UavMaxFlightTimeMinutes =
             uav.MaxFlightTimeMinutes.Value;
@@ -285,6 +264,46 @@ public static class MissionBatteryRiskCalculator
         return decimal.Round(
             multiplier,
             4,
+            MidpointRounding.AwayFromZero);
+    }
+
+    public static decimal EstimateMinutes(Mission mission, decimal cruise)
+    {
+        var points = DroneOps.Application.Services.Missions.MissionRouteGeometry.PlanningWaypoints(mission);
+        return EstimateMinutes(mission, points, CalculateRouteDistanceMeters(points), cruise);
+    }
+
+    private static bool UsesAutomaticTiming(Mission mission) =>
+        mission.AutomaticFlightRequested && mission.AutomaticFlightLimits is { } limits
+            && limits.TakeoffSpeedMetersPerSecond > 0 && limits.ClimbSpeedMetersPerSecond > 0
+            && limits.DescentSpeedMetersPerSecond > 0 && limits.LandingSpeedMetersPerSecond > 0;
+
+    private static decimal EstimateMinutes(Mission mission, IReadOnlyList<Waypoint> orderedWaypoints, double routeDistanceMeters, decimal cruise)
+    {
+        var estimatedFlightSeconds =
+            (decimal)routeDistanceMeters /
+            cruise;
+        if (UsesAutomaticTiming(mission) && mission.AutomaticFlightLimits is { } limits)
+        {
+            estimatedFlightSeconds = 0;
+            for (var index = 1; index < orderedWaypoints.Count; index++)
+            {
+                var previous = orderedWaypoints[index - 1]; var current = orderedWaypoints[index];
+                var speed = current.Navigation?.SpeedMetersPerSecond ?? cruise;
+                if (speed > 0) estimatedFlightSeconds += (decimal)HaversineDistanceMeters(previous.Latitude, previous.Longitude, current.Latitude, current.Longitude) / speed;
+                var delta = (current.Altitude ?? 0) - (previous.Altitude ?? 0);
+                estimatedFlightSeconds += delta >= 0 ? delta / limits.ClimbSpeedMetersPerSecond : -delta / Math.Min(limits.DescentSpeedMetersPerSecond, limits.LandingSpeedMetersPerSecond);
+            }
+            estimatedFlightSeconds += Math.Max(0, orderedWaypoints[0].Altitude ?? 0) / limits.TakeoffSpeedMetersPerSecond;
+            var landingGround = orderedWaypoints[^1].Navigation?.LandingGroundAltitudeMeters ?? 0;
+            estimatedFlightSeconds += Math.Max(0, (orderedWaypoints[^1].Altitude ?? 0) - landingGround) / limits.LandingSpeedMetersPerSecond;
+            estimatedFlightSeconds += orderedWaypoints.Sum(w => Math.Max(0, w.Navigation?.HoldTimeSeconds ?? 0));
+
+        }
+
+        return decimal.Round(
+            estimatedFlightSeconds / 60m,
+            2,
             MidpointRounding.AwayFromZero);
     }
 

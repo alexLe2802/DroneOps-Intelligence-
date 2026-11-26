@@ -76,6 +76,7 @@ public static class DependencyInjection
         services.AddScoped<IUavService, UavService>();
         services.AddScoped<IGeofenceService, GeofenceService>();
         services.AddScoped<IMissionService, MissionService>();
+        services.AddScoped<DraftAnalysisService>();
         services.AddScoped<IMissionSuggestionService,MissionSuggestionService>();
         services.AddScoped<IPostFlightService, PostFlightService>();
         services.AddScoped<ITelemetryIngestionService, TelemetryIngestionService>();

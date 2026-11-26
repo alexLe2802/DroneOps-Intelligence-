@@ -21,6 +21,18 @@ public sealed class MissionSuggestionsController
         _service = service;
     }
 
+    [HttpPost("analyze")]
+    public async Task<IActionResult> AnalyzeDraft(
+        DraftAnalysisRequest request,
+        [FromServices] DroneOps.Application.Services.Missions.DraftAnalysisService analysis,
+        CancellationToken ct)
+    {
+        if (!TryGetCurrentUserId(out var actor)) return Unauthorized();
+        try { return Ok(await analysis.AnalyzeAsync(request, actor, ct)); }
+        catch (ArgumentException error) { return BadRequest(new { message = error.Message }); }
+        catch (KeyNotFoundException error) { return NotFound(new { message = error.Message }); }
+    }
+
     [HttpPost]
     public async Task<ActionResult<MissionSuggestionResponse>>
         GenerateAsync(

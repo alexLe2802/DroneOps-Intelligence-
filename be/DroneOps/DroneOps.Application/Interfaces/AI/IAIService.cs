@@ -4,6 +4,8 @@ namespace DroneOps.Application.Interfaces.AI;
 
 public interface IAIService
 {
+    Task<string> ExplainDraftAsync(string evidence, CancellationToken ct);
+
     Task<MissionSuggestionData> GenerateMissionSuggestionAsync(
         string prompt,
         CancellationToken cancellationToken = default);

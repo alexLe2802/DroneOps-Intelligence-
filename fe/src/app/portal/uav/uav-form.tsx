@@ -90,7 +90,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       maxFlightTimeMinutes: optionalNumber(form.maxFlightTimeMinutes),
       maxRangeKm: optionalNumber(form.maxRangeKm),
       maxSpeedKmh: optionalNumber(form.maxSpeedKmh),
-      maxWindSpeedMps: optionalNumber(form.maxWindSpeedMps),
+      maxWindSpeedMps: optionalNumber(form.maxWindSpeedMps) ?? 8.5,
       maxOperatingAltitudeMeters: optionalNumber(form.maxOperatingAltitudeMeters),
       purchaseDate: aircraft?.purchaseDate ?? null,
     };
@@ -229,10 +229,11 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
         </section>
 
         <section className="uav-form-section">
-          <header><span>04</span><div><h2>Endurance information</h2><p>Optional manufacturer-rated endurance. Automatic speed, altitude and wind limits are set in the mission.</p></div></header>
+          <header><span>04</span><div><h2>Endurance &amp; wind limit</h2><p>Manufacturer-rated endurance and wind resistance. If wind resistance is left blank, a default of 8.5 m/s is applied.</p></div></header>
           <div className="uav-form-grid uav-form-grid-three">
             <label>MAX FLIGHT TIME (MIN)<input type="number" value={form.maxFlightTimeMinutes} onChange={event => set("maxFlightTimeMinutes", event.target.value)} placeholder="45" min="1" step="1" /></label>
             <label>MAX RANGE (KM)<input type="number" value={form.maxRangeKm} onChange={event => set("maxRangeKm", event.target.value)} placeholder="15" min="0.01" step="0.01" /></label>
+            <label>MAX WIND RESISTANCE (M/S)<input type="number" value={form.maxWindSpeedMps} onChange={event => set("maxWindSpeedMps", event.target.value)} placeholder="8.5 (default)" min="0.1" step="0.1" /><small>Defaults to 8.5 m/s if left blank.</small></label>
           </div>
         </section>
 

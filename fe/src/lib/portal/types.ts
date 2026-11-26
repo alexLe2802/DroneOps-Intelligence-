@@ -108,7 +108,22 @@ export type MissionBatteryRisk = {
   warnings: string[];
 };
 
+export type DraftAnalysisRequest = {
+  uavId: string; name: string; startTime: string; endTime: string | null; waypoints: MissionWaypoint[];
+  automatic: boolean | null; limits: AutomaticFlightLimits | null; altitudeReference: string | null;
+  cruise: number | null; ceiling: number | null; payloadKg: number | null;
+};
+export type DraftAnalysis = {
+  cruiseBasis: string | null; cruise: number | null; ceiling: number | null; estimatedEnd: string | null;
+  findings: string[]; weatherStatus: string; provider: string; fetchedAt: string; explanation: string | null;
+  windLimit: number | null; gustLimit: number | null;
+  windAlerts: { sequenceOrder: number; segmentFrom: number | null; segmentTo: number | null;
+    estimatedArrivalTime: string | null; forecastTime: string | null;
+    windSpeedMetersPerSecond: number | null; windGustMetersPerSecond: number | null; riskLevel: string }[];
+};
+
 export type MissionWeather = {
+  nextRefreshAt?: string | null;
   missionId?: string; updateRequestId?: string | null; status: "Available" | "Partial" | "Unavailable" | "Stale"; provider: string; available: boolean; fetchedAt: string; generatedAt: string; expiresAt: string; flightStartTime?: string | null; flightEndTime?: string | null; overallRisk: string; warnings: string[];
   maxWindMetersPerSecond: number | null; maxGustMetersPerSecond: number | null; maxRainMillimetersPerHour: number | null; thunderstormForecast: boolean;
   waypoints: { isRouteSample?: boolean; sampleOrder?: number; segmentFrom?: number | null; segmentTo?: number | null; sequenceOrder: number; latitude: number; longitude: number; altitudeMeters: number | null; estimatedArrivalTime: string | null; arrivalTimeReason: string | null; forecastTime: string | null; sourceFetchedAt: string | null; temperatureCelsius: number | null; relativeHumidityPercent: number | null; windSpeedMetersPerSecond: number | null; windDirectionDegrees: number | null; windGustMetersPerSecond: number | null; windReferenceHeightMeters: number; precipitationProbabilityPercent: number | null; precipitationMillimeters: number | null; visibilityMeters: number | null; cloudCoverPercent: number | null; weatherCode: number | null; status: string; riskLevel: string; warnings: string[] }[];
@@ -235,6 +250,49 @@ export type NotificationFeed = {
   items: PortalNotification[];
 };
 
+export type PilotCompletedMissionSummary = {
+  missionId: string;
+  missionName: string;
+  uavCode: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  incidentCount: number;
+};
+
+export type PilotApprovalTrackRecord = {
+  completedMissionsCount: number;
+  totalIncidentsCount: number;
+  openIncidentsCount: number;
+  recentCompletedMissions: PilotCompletedMissionSummary[];
+};
+
+export type ApprovalUavSummary = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  hasPendingProposal: boolean;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  emptyWeightKg: number | null;
+  maxTakeoffWeightKg: number | null;
+  maxPayloadKg: number | null;
+  batteryType: string | null;
+  batteryCapacityMah: number | null;
+  batteryVoltage: number | null;
+  batteryCellCount: number | null;
+  maxFlightTimeMinutes: number | null;
+  maxRangeKm: number | null;
+  maxSpeedKmh: number | null;
+  maxWindSpeedMps: number | null;
+  maxOperatingAltitudeMeters: number | null;
+  lastMaintenanceAt: string | null;
+  nextMaintenanceAt: string | null;
+  totalFlightHours: number;
+  totalFlights: number;
+};
+
 export type PendingMissionApproval = {
   requiresPilotConfirmation?: boolean;
   proposalAuthorId?: string;
@@ -258,6 +316,8 @@ export type PendingMissionApproval = {
   waypointCount: number;
   validationStatus: string;
   validation?: MissionValidationResult | null;
+  pilotRecord?: PilotApprovalTrackRecord | null;
+  assignedUav?: ApprovalUavSummary | null;
   validationIssues?: string[];
 };
 

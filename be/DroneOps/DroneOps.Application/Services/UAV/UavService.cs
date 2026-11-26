@@ -93,7 +93,7 @@ public sealed class UavService : IUavService
             MaxFlightTimeMinutes = request.MaxFlightTimeMinutes,
             MaxRangeKm = request.MaxRangeKm,
             MaxSpeedKmh = request.MaxSpeedKmh,
-            MaxWindSpeedMps = request.MaxWindSpeedMps,
+            MaxWindSpeedMps = request.MaxWindSpeedMps ?? 8.5m,
             MaxOperatingAltitudeMeters = request.MaxOperatingAltitudeMeters,
 
             PurchaseDate = request.PurchaseDate,

@@ -37,6 +37,8 @@ public sealed class WeatherAdvisory
     public DateTimeOffset GeneratedAt { get; set; } =
         DateTimeOffset.UtcNow;
 
+    public DateTimeOffset? NextRefreshAt { get; set; }
+
     public DateTimeOffset ExpiresAt { get; set; } =
         DateTimeOffset.UtcNow.AddMinutes(10);
 

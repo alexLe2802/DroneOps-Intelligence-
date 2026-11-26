@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authorization;
 if (args.Length == 1 && args[0] == "--gemini-fallback")
 {
     await GeminiFallbackChecks.RunAsync();
+    await DraftAnalysisChecks.RunAsync();
     return;
 }
 
@@ -44,6 +45,7 @@ if (args.Length == 1 && args[0] == "--mission-fences")
 if (args.Length == 1 && args[0] == "--mission-history")
 {
     await MissionHistoryChecks.RunAsync();
+    await WeatherRefreshChecks.RunAsync();
     return;
 }
 

@@ -12,6 +12,7 @@ import { ModuleEmpty, ModuleError, ModuleLoading } from "../module-state";
 
 import MissionPlanComparison from "../missions/mission-plan-comparison";
 import MissionEvidencePanel from "../missions/mission-evidence-panel";
+import ApprovalContextPanel from "./approval-context-panel";
 
 type Decision = "approve" | "reject";
 
@@ -191,13 +192,15 @@ export default function MissionApprovalsClient({ account }: { account: Account }
 
       <section className="approval-clearance-grid" aria-label="Mission clearance summary">
         <article className="clearance-airspace"><header><span>AIRSPACE VALIDATION</span><i>AS</i></header><strong>{validationState(selected.validation)}</strong><p>Backend validation summary</p><div><i /></div></article>
+        <article><header><span>PILOT TRACK RECORD</span><i>PT</i></header><strong>{selected.pilotRecord ? `${selected.pilotRecord.completedMissionsCount} completed` : "Unavailable"}</strong><p>{selected.pilotRecord ? `${selected.pilotRecord.totalIncidentsCount} incident${selected.pilotRecord.totalIncidentsCount === 1 ? "" : "s"}${selected.pilotRecord.openIncidentsCount > 0 ? ` · ${selected.pilotRecord.openIncidentsCount} open` : ""}` : "Pilot history unavailable"}</p><div><i /></div></article>
         <article><header><span>ASSIGNED AIRFRAME</span><i>UA</i></header><strong>{selected.uavCode || "UNASSIGNED"}</strong><p>{selected.uavName || "No aircraft record"}</p><div><i /></div></article>
         <article><header><span>WEATHER ADVISORY</span><i>WX</i></header><strong>{selected.validation?.weather?.available ? "Forecast loaded" : "Incomplete"}</strong><p>Advisory only; does not block approval. <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p><div><i /></div></article>
       </section>
 
       <div className="approval-review-layout">
         <div className="approval-spatial-column">
-          <div className="approval-request-context"><span>SELECTED REVIEW</span><strong>{selected.updateRequestId ? `Request ${selected.updateRequestId.slice(0, 8).toUpperCase()}` : "Review details unavailable"}</strong><p>{selected.updateRequestId ? "Review the proposal and its evidence before recording your decision." : "Refresh to retrieve the review details. Decisions remain disabled until the plans are available."}</p></div>
+          <div className="approval-request-context"><span>SELECTED REVIEW</span><strong>{selected.updateRequestId ? `Request ${selected.updateRequestId.slice(0, 8).toUpperCase()}` : "Review details unavailable"}</strong><p>{selected.updateRequestId ? "Review the pilot's track record, aircraft specifications, proposed route, and validation evidence before recording your decision." : "Refresh to retrieve the review details. Decisions remain disabled until the plans are available."}</p></div>
+          <ApprovalContextPanel key={`context-${selected.missionId}-${selected.updateRequestId}`} selected={selected} />
           <MissionPlanComparison key={selected.updateRequestId} missionId={selected.missionId} isInitial={selected.isInitial} current={selected.currentPlan} proposed={selected.proposedPlan} validation={selected.validation} />
           <MissionEvidencePanel key={`evidence-${selected.updateRequestId}`} id={selected.missionId} requestId={selected.updateRequestId} />
         </div>

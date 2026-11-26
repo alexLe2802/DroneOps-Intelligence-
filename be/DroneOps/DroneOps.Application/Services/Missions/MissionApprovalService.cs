@@ -101,7 +101,79 @@ public sealed class MissionApprovalService(
         var items =
             new List<PendingApprovalItemResponse>();
 
-        var currentRestrictionHash = MissionValidationService.RestrictionHash(await db.Geofences.AsNoTracking().ToListAsync(ct));
+        var pilotIds = missionsById.Values
+            .Select(m => m.CreatedBy)
+            .Distinct()
+            .ToArray();
+
+        // Batch pilot completed missions (latest 10 per pilot) and distinct incident counts
+        var completedMissionsRaw = pilotIds.Length == 0
+            ? []
+            : await db.Missions.AsNoTracking()
+                .Include(m => m.UAV)
+                .Where(m => pilotIds.Contains(m.CreatedBy) && m.Status == "Completed")
+                .OrderByDescending(m => m.EndTime ?? m.StartTime ?? m.CreatedAt)
+                .Select(m => new
+                {
+                    m.Id,
+                    m.CreatedBy,
+                    m.Name,
+                    UavCode = m.UAV != null ? m.UAV.Code : null,
+                    m.StartTime,
+                    m.EndTime
+                })
+                .ToListAsync(ct);
+
+        var pilotIncidentsRaw = pilotIds.Length == 0
+            ? []
+            : await db.Incidents.AsNoTracking()
+                .Where(i => pilotIds.Contains(i.Mission.CreatedBy))
+                .Select(i => new
+                {
+                    i.Id,
+                    i.MissionId,
+                    PilotId = i.Mission.CreatedBy,
+                    i.Status
+                })
+                .ToListAsync(ct);
+
+        var incidentsByMissionId = pilotIncidentsRaw
+            .GroupBy(i => i.MissionId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).Distinct().Count());
+
+        var pilotRecordsById = pilotIds.ToDictionary(
+            pid => pid,
+            pid =>
+            {
+                var pilotCompleted = completedMissionsRaw.Where(m => m.CreatedBy == pid).ToList();
+                var pilotIncidents = pilotIncidentsRaw.Where(i => i.PilotId == pid)
+                    .DistinctBy(i => i.Id)
+                    .ToList();
+
+                return new PilotApprovalTrackRecord
+                {
+                    CompletedMissionsCount = pilotCompleted.Count,
+                    TotalIncidentsCount = pilotIncidents.Count,
+                    OpenIncidentsCount = pilotIncidents.Count(i =>
+                        !string.Equals(i.Status, "Resolved", StringComparison.OrdinalIgnoreCase)),
+                    RecentCompletedMissions = pilotCompleted
+                        .Take(10)
+                        .Select(m => new PilotCompletedMissionSummary
+                        {
+                            MissionId = m.Id,
+                            MissionName = m.Name,
+                            UavCode = m.UavCode,
+                            StartTime = m.StartTime,
+                            EndTime = m.EndTime,
+                            IncidentCount = incidentsByMissionId.TryGetValue(m.Id, out var cnt) ? cnt : 0
+                        })
+                        .ToList()
+                };
+            });
+
+        // Pre-parse proposed plans so we can batch-load all referenced UAVs (including updated UAV assignments)
+        var parsedRows = new List<(MissionUpdateRequest Request, Mission Mission, Mission Proposed)>();
+        var uavIds = new HashSet<Guid>();
         foreach (var row in rows)
         {
             if (!missionsById.TryGetValue(row.Mission.Id, out var mission))
@@ -133,10 +205,24 @@ public sealed class MissionApprovalService(
                 proposedDto = MissionPlans.Dto(mission);
             }
             var proposed = MissionPlans.Propose(mission, proposedDto);
+            if (proposed.UAVId.HasValue) uavIds.Add(proposed.UAVId.Value);
+            if (mission.UAVId.HasValue) uavIds.Add(mission.UAVId.Value);
+            parsedRows.Add((row.Request, mission, proposed));
+        }
+
+        var uavsById = uavIds.Count == 0
+            ? new Dictionary<Guid, UAV>()
+            : await db.UAVs.AsNoTracking()
+                .Where(u => uavIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, ct);
+
+        var currentRestrictionHash = MissionValidationService.RestrictionHash(await db.Geofences.AsNoTracking().ToListAsync(ct));
+        foreach (var (request, mission, proposed) in parsedRows)
+        {
             MissionValidationRun? validationRun = null;
-            if (row.Request.ValidationRunId.HasValue)
+            if (request.ValidationRunId.HasValue)
             {
-                runsById.TryGetValue(row.Request.ValidationRunId.Value, out validationRun);
+                runsById.TryGetValue(request.ValidationRunId.Value, out validationRun);
             }
             else
             {
@@ -148,23 +234,33 @@ public sealed class MissionApprovalService(
             if (evidence is not null && validationRun is not null)
                 evidence.Stale = validationRun.PlanHash != MissionValidationService.Hash(proposed) ||
                     evidence.RestrictionRevision != currentRestrictionHash;
-            if (evidence is not null && MissionReviewPolicy.NeedsConfirmation(row.Request, evidence))
+            if (evidence is not null && MissionReviewPolicy.NeedsConfirmation(request, evidence))
                 evidence.Warnings.Add("Pilot High Risk confirmation is required for this review request.");
+
+            var effectiveUavId = proposed.UAVId ?? mission.UAVId;
+            UAV? effectiveUav = null;
+            if (effectiveUavId.HasValue)
+            {
+                uavsById.TryGetValue(effectiveUavId.Value, out effectiveUav);
+            }
+            effectiveUav ??= mission.UAV;
+
+            pilotRecordsById.TryGetValue(mission.CreatedBy, out var pilotRecord);
 
             items.Add(
                 new PendingApprovalItemResponse
                 {
-                    RequiresPilotConfirmation = MissionReviewPolicy.NeedsConfirmation(row.Request, evidence),
-                    ProposalAuthorId = row.Request.ActorId,
-                    IsInitial = row.Request.IsInitial,
-                    UpdateRequestId = row.Request.Id,
+                    RequiresPilotConfirmation = MissionReviewPolicy.NeedsConfirmation(request, evidence),
+                    ProposalAuthorId = request.ActorId,
+                    IsInitial = request.IsInitial,
+                    UpdateRequestId = request.Id,
                     CurrentPlan = MissionPlans.Dto(mission),
                     ProposedPlan = MissionPlans.Dto(proposed),
                     MissionId = mission.Id,
                     MissionName = proposed.Name,
                     Description = proposed.Description,
                     Status = mission.Status,
-                    CreatedAt = row.Request.CreatedAt.UtcDateTime,
+                    CreatedAt = request.CreatedAt.UtcDateTime,
                     StartTime = proposed.StartTime,
                     EndTime = proposed.EndTime,
 
@@ -175,8 +271,8 @@ public sealed class MissionApprovalService(
                         mission.Creator?.Email,
 
                     UavId = proposed.UAVId,
-                    UavCode = mission.UAV?.Code,
-                    UavName = mission.UAV?.Name,
+                    UavCode = effectiveUav?.Code,
+                    UavName = effectiveUav?.Name,
 
                     WaypointCount =
                         proposed.Waypoints.Count,
@@ -189,7 +285,38 @@ public sealed class MissionApprovalService(
 
                     ValidationIssues =
                         evidence?.Issues
-                        ?? ["Revalidate this mission."]
+                        ?? ["Revalidate this mission."],
+
+                    PilotRecord = pilotRecord,
+                    AssignedUav = effectiveUav is null
+                        ? null
+                        : new ApprovalUavSummary
+                        {
+                            Id = effectiveUav.Id,
+                            Code = effectiveUav.Code,
+                            Name = effectiveUav.Name,
+                            Status = effectiveUav.Status,
+                            HasPendingProposal = effectiveUav.HasPendingProposal,
+                            Manufacturer = effectiveUav.Manufacturer,
+                            Model = effectiveUav.Model,
+                            SerialNumber = effectiveUav.SerialNumber,
+                            EmptyWeightKg = effectiveUav.EmptyWeightKg,
+                            MaxTakeoffWeightKg = effectiveUav.MaxTakeoffWeightKg,
+                            MaxPayloadKg = effectiveUav.MaxPayloadKg,
+                            BatteryType = effectiveUav.BatteryType,
+                            BatteryCapacityMah = effectiveUav.BatteryCapacityMah,
+                            BatteryVoltage = effectiveUav.BatteryVoltage,
+                            BatteryCellCount = effectiveUav.BatteryCellCount,
+                            MaxFlightTimeMinutes = effectiveUav.MaxFlightTimeMinutes,
+                            MaxRangeKm = effectiveUav.MaxRangeKm,
+                            MaxSpeedKmh = effectiveUav.MaxSpeedKmh,
+                            MaxWindSpeedMps = effectiveUav.MaxWindSpeedMps,
+                            MaxOperatingAltitudeMeters = effectiveUav.MaxOperatingAltitudeMeters,
+                            LastMaintenanceAt = effectiveUav.LastMaintenanceAt,
+                            NextMaintenanceAt = effectiveUav.NextMaintenanceAt,
+                            TotalFlightHours = effectiveUav.TotalFlightHours,
+                            TotalFlights = effectiveUav.TotalFlights
+                        }
                 });
         }
 

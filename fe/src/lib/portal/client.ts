@@ -1,6 +1,6 @@
 import { api, ApiError } from "@/lib/auth/client";
 import type { AccountRole } from "@/lib/auth/types";
-import type { AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionSuggestion, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
+import type { DraftAnalysis, DraftAnalysisRequest, AiAssessment, AiAssessmentRequest, AssignedUav, CreateMissionRequest, CreateUavRequest, FlightHistoryItem, FlightTelemetryPoint, Geofence, GeofenceRequest, IncidentDetail, LiveMission, ManagerMission, MissionDecision, MissionDetail, MissionSuggestion, MissionTelemetry, MissionValidationResult, NotificationFeed, OperationalAnalytics, PagedIncidents, PagedPendingMissionApprovals, PagedResponse, PilotProfile, PortalNotification, PostFlightIncident, PostFlightReport, UpdateProfileRequest, UpdateUavRequest, UserProfile } from "./types";
 
 type MissionApiRecord = Omit<MissionDetail, "uavCode" | "detailAvailable"> & { uavCode?: string | null };
 
@@ -449,6 +449,10 @@ export function createAiAssessment(request: AiAssessmentRequest): Promise<AiAsse
 
 export function getAiAssessments(missionRef: string): Promise<AiAssessment[]> {
   return api<AiAssessment[]>(`/ai/assessments/mission/${encodeURIComponent(missionRef)}`);
+}
+
+export function analyzeMissionDraft(draft: DraftAnalysisRequest) {
+  return api<DraftAnalysis>("/mission-suggestions/analyze", { method: "POST", body: JSON.stringify(draft) });
 }
 
 export function generateMissionSuggestion(prompt: string): Promise<MissionSuggestion> {

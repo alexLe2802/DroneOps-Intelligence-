@@ -1,3 +1,4 @@
+using DroneOps.Domain.Entities;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -55,6 +56,14 @@ public sealed class MissionWeatherQueryService(
             mission = MissionPlans.Propose(mission, dto);
         }
 
+        return await ReadCachedAsync(mission, refresh, updateRequestId, ct);
+    }
+
+    public Task<WeatherAdvisory> ReadDraftAsync(Mission draft, CancellationToken ct) =>
+        ReadCachedAsync(draft, false, null, ct);
+
+    private async Task<WeatherAdvisory> ReadCachedAsync(Mission mission, bool refresh, Guid? updateRequestId, CancellationToken ct)
+    {
         // =========================
         // CACHE KEY
         // =========================
@@ -75,123 +84,63 @@ public sealed class MissionWeatherQueryService(
                     Encoding.UTF8.GetBytes(
                         keySource)));
 
-        // =========================
-        // READ CACHE
-        // =========================
+        var cached = await repository.GetCacheAsync(key, ct);
+        if (Reusable(cached) is { } current)
+            return current;
 
-        var cached =
-            await repository.GetCacheAsync(
-                key,
-                ct);
-
-        if (!refresh &&
-            cached is not null &&
-            cached.ExpiresAt >= DateTimeOffset.UtcNow)
+        WeatherAdvisory? fetched = null;
+        return await repository.WithRefreshLockAsync(key, async () =>
         {
-            var result =
-                JsonSerializer.Deserialize<WeatherAdvisory>(
-                    cached.ForecastJson,
-                    MissionValidationService.JsonOptions)
-                ?? throw new InvalidOperationException(
-                    "Cached weather forecast is invalid.");
+            // Another request may have populated the cache while this one waited.
+            cached = await repository.GetCacheAsync(key, ct);
+            if (Reusable(cached) is { } updated)
+                return updated;
 
-            if (result.Status != "Unavailable")
+            // Finish the bounded provider fetch and persist its cooldown even if the browser disconnects.
+            fetched ??= weather is MissionWeatherService provider
+                ? await provider.FetchAsync(mission, refresh, CancellationToken.None)
+                : await weather.GetAsync(mission, CancellationToken.None);
+            var value = fetched;
+            value.MissionId = mission.Id == Guid.Empty ? null : mission.Id;
+            value.UpdateRequestId = updateRequestId;
+            value.PlanHash = planHash;
+            value.FlightStartTime = mission.StartTime;
+            value.FlightEndTime = mission.EndTime;
+
+            var retryAt = DateTimeOffset.UtcNow.AddSeconds(60);
+            if (value.Status == "Unavailable")
             {
-                return result;
+                value.ExpiresAt = retryAt;
+                if (cached is not null && Decode(cached) is { Status: not "Unavailable" } previous)
+                {
+                    const string warning = "Provider refresh failed; previous forecast is shown as stale.";
+                    previous.Status = "Stale";
+                    previous.Available = false;
+                    if (!previous.Warnings.Contains(warning))
+                        previous.Warnings.Add(warning);
+                    value = previous;
+                }
             }
-        }
 
-        // =========================
-        // FETCH WEATHER
-        // =========================
+            var nextRefresh = value.Status is "Unavailable" or "Stale" || value.ExpiresAt < retryAt
+                ? retryAt : value.ExpiresAt;
+            value.NextRefreshAt = nextRefresh;
+            await repository.UpsertCacheAsync(key,
+                JsonSerializer.Serialize(value, MissionValidationService.JsonOptions),
+                value.FetchedAt, nextRefresh, CancellationToken.None);
+            return value;
+        }, ct);
+    }
 
-        WeatherAdvisory value;
-
-        if (weather is MissionWeatherService provider)
-        {
-            value = await provider.FetchAsync(
-                mission,
-                refresh,
-                ct);
-        }
-        else
-        {
-            value = await weather.GetAsync(
-                mission,
-                ct);
-        }
-
-        // =========================
-        // ATTACH MISSION INFORMATION
-        // =========================
-
-        value.MissionId = id;
-        value.UpdateRequestId = updateRequestId;
-        value.PlanHash = planHash;
-        value.FlightStartTime =
-            mission.StartTime;
-        value.FlightEndTime =
-            mission.EndTime;
-
-        // =========================
-        // PROVIDER FAILED
-        // =========================
-
-        if (value.Status == "Unavailable" &&
-            cached is not null)
-        {
-            var old =
-                JsonSerializer.Deserialize<WeatherAdvisory>(
-                    cached.ForecastJson,
-                    MissionValidationService.JsonOptions)
-                ?? throw new InvalidOperationException(
-                    "Cached weather forecast is invalid.");
-
-            if (old.Status != "Unavailable")
-            {
-                old.Status = "Stale";
-                old.Available = false;
-
-                old.Warnings.Add(
-                    "Provider refresh failed; previous forecast is shown as stale.");
-
-                return old;
-            }
-        }
-
-        // =========================
-        // CACHE EXPIRATION
-        // =========================
-
-        if (value.Status == "Unavailable")
-        {
-            value.ExpiresAt =
-                DateTimeOffset.UtcNow
-                    .AddMinutes(1);
-        }
-
-        var json =
-            JsonSerializer.Serialize(
-                value,
-                MissionValidationService.JsonOptions);
-
-        var expiresAt =
-            value.Status == "Unavailable"
-                ? DateTimeOffset.UtcNow
-                    .AddMinutes(1)
-                : value.ExpiresAt;
-
-        // =========================
-        // SAVE CACHE
-        // =========================
-
-        await repository.UpsertCacheAsync(
-            key,
-            json,
-            value.FetchedAt,
-            expiresAt,
-            ct);
-
+    private static WeatherAdvisory? Reusable(MissionWeatherCache? cached)
+    {
+        if (cached is null || cached.ExpiresAt <= DateTimeOffset.UtcNow) return null;
+        var value = Decode(cached);
+        value.NextRefreshAt = cached.ExpiresAt;
         return value;
     }
+
+    private static WeatherAdvisory Decode(MissionWeatherCache cached) =>
+        JsonSerializer.Deserialize<WeatherAdvisory>(cached.ForecastJson, MissionValidationService.JsonOptions)
+        ?? throw new InvalidOperationException("Cached weather forecast is invalid.");
 }

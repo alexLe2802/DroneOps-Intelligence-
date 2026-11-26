@@ -12,11 +12,12 @@ const maximumPromptLength = 3000;
 
 type MissionSuggestionPanelProps = {
   disabled?: boolean;
+  initialPrompt?: string;
   onApply: (suggestion: MissionSuggestion) => void;
 };
 
-export default function MissionSuggestionPanel({ disabled = false, onApply }: MissionSuggestionPanelProps) {
-  const [prompt, setPrompt] = useState("");
+export default function MissionSuggestionPanel({ disabled = false, initialPrompt = "", onApply }: MissionSuggestionPanelProps) {
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [promptTouched, setPromptTouched] = useState(false);
   const [items, setItems] = useState<MissionSuggestion[] | null>(null);
   const [selectedId, setSelectedId] = useState("");
