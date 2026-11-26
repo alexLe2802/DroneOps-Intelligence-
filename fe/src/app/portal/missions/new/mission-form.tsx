@@ -3,11 +3,11 @@
 import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
-import { AlertCircle, AlertTriangle, CalendarClock } from "lucide-react";
+import { AlertCircle, AlertTriangle, CalendarClock, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
-import type { AssignedUav, Geofence, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
+import type { AssignedUav, Geofence, MissionSuggestion, MissionWaypoint, MissionFence, WaypointAction } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 
@@ -22,6 +22,7 @@ import FlightModeFields, { type FlightMode } from "../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
 import MissionFenceFields, { useFenceDrawing } from "../mission-fence-fields";
 import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
+import MissionSuggestionPanel from "./mission-suggestion-panel";
 import DraftAnalysisPanel from "./draft-analysis-panel";
 
 const intermediateActions: WaypointAction[] = ["FlyThrough", "Hover"];
@@ -113,6 +114,7 @@ export default function MissionForm() {
   const [waypoints, setWaypoints] = useState<MissionWaypoint[]>([]);
   const pending = useRef(false);
   const [saved, setSaved] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLDivElement>(null);
@@ -204,6 +206,21 @@ export default function MissionForm() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to create the mission."); }
     finally { pending.current = false; setSaving(false); }
   }
+  function applySuggestion(suggestion: MissionSuggestion) {
+    if (suggestion.missionName.trim()) setName(suggestion.missionName.trim());
+    if (suggestion.missionPurpose.trim()) setDescription(suggestion.missionPurpose.trim());
+    if (suggestion.automaticFlightRequested != null) {
+      setFlightMode(suggestion.automaticFlightRequested ? "automatic" : "manual");
+    }
+    const reference = suggestion.altitudeReference;
+    if (reference === "AGL" || reference === "MSL" || reference === "Relative") setAltitudeReference(reference);
+    else if (suggestion.automaticFlightRequested) setAltitudeReference("Relative");
+    if (Number.isFinite(suggestion.averageSpeedMetersPerSecond) && Number(suggestion.averageSpeedMetersPerSecond) > 0) setAverageSpeed(String(suggestion.averageSpeedMetersPerSecond));
+    if (Number.isFinite(suggestion.maxSpeedMetersPerSecond) && Number(suggestion.maxSpeedMetersPerSecond) > 0) setMaxSpeed(String(suggestion.maxSpeedMetersPerSecond));
+    setError("");
+    document.getElementById("mission-information")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   if (loadError) return <ModuleError error={loadError} retry={load} />;
   if (!aircraft) return <ModuleLoading label="Loading mission resources" />;
   const activeAircraft = aircraft.filter(item => item.status.toLowerCase() === "active");
@@ -226,7 +243,8 @@ export default function MissionForm() {
     ceiling: maxSpeed ? Number(maxSpeed) : null, payloadKg: payloadKg ? Number(payloadKg) : null,
   };
   return <>
-    <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
+    <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><div className="module-actions"><button type="button" className="module-secondary" aria-expanded={aiOpen} aria-controls="new-mission-ai" disabled={saving} onClick={() => setAiOpen(open => !open)}><Sparkles size={15} aria-hidden="true" /> {aiOpen ? "HIDE AI ASSISTANT" : "AI ASSIST"}</button><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></div></header>
+    <div id="new-mission-ai" hidden={!aiOpen}>{aiOpen && <MissionSuggestionPanel disabled={saving} onApply={applySuggestion} />}</div>
     <form ref={formRef} className="mission-builder mission-create-builder" onSubmit={submit} onBlurCapture={event => syncFieldAriaInvalid(event.target)} onChangeCapture={event => { syncFieldAriaInvalid(event.target); if (error) setError(""); }} onInputCapture={event => { syncFieldAriaInvalid(event.target); if (error) setError(""); }} onInvalidCapture={event => {
       const field = event.target;
       if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;
