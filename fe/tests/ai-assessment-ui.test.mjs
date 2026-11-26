@@ -32,17 +32,17 @@ test("provider retry preserves already loaded assessment history", () => {
   assert.match(source, /Previously loaded evidence remains available below/);
 });
 
-test("assessment request is blocked for incomplete plans and pending proposals are not silently assessed", () => {
+test("assessment request is blocked for incomplete plans and pending proposals require an explicit selection", () => {
   assert.match(source, /assessmentReadiness/);
   assert.match(source, /!readiness\.ready/);
   assert.match(source, /Pending proposal/);
-  assert.match(source, /will not silently send it as the current mission/);
-  assert.match(source, /updateRequestId/);
+  assert.match(source, /proposalSelection === pending.id/);
+  assert.match(source, /updateRequestId: proposal\?\.id/);
 });
 
-test("feature provenance states the current API limitation without inventing used inputs", () => {
+test("feature provenance renders captured features and handles older reports", () => {
   assert.match(source, /usedFeatures/);
   assert.match(source, /missingFeatures/);
-  assert.match(source, /per-match used features are not reported/);
-  assert.match(source, /does not infer which available values affected the score/);
+  assert.match(source, /flight.usedFeatures/);
+  assert.match(source, /No scoring features were reported/);
 });

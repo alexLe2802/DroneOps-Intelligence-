@@ -323,6 +323,13 @@ Check(similarityRank.Count == 2 && similarityRank[0].Flight.MissionId == closest
 Check(HistoricalSimilarity.Rank(similarityTarget, [], 5).Count == 0,
     "historical similarity returns explicit empty evidence without synthetic matches");
 var assessmentService = new AiAssessmentService(db);
+var assessmentMission = (await db.Missions.FindAsync(missionId))!;
+assessmentMission.AverageSpeedMetersPerSecond = 5;
+assessmentMission.MaxSpeedMetersPerSecond = 10;
+db.Waypoints.AddRange(
+    new Waypoint { Id = Guid.NewGuid(), MissionId = missionId, SequenceOrder = 1, Latitude = 10, Longitude = 106, Altitude = 30 },
+    new() { Id = Guid.NewGuid(), MissionId = missionId, SequenceOrder = 2, Latitude = 10.001m, Longitude = 106, Altitude = 30 });
+await db.SaveChangesAsync();
 var assessment = await assessmentService.CreateAsync(new CreateAiAssessmentRequest
 {
     MissionRef = missionId.ToString(), MissionVersion = 1
@@ -346,9 +353,9 @@ await ExpectThrowsAsync<KeyNotFoundException>(
 
 var planned = Mission(Guid.NewGuid(), "Battery planning fixture", "Approved");
 planned.StartTime = DateTime.UtcNow.AddMinutes(5); planned.EndTime = DateTime.UtcNow.AddMinutes(30);
-planned.AverageSpeedMetersPerSecond = 5;
-planned.Waypoints = [new Waypoint { Id = Guid.NewGuid(), MissionId = planned.Id, SequenceOrder = 1, Latitude = 10, Longitude = 106 },
-    new Waypoint { Id = Guid.NewGuid(), MissionId = planned.Id, SequenceOrder = 2, Latitude = 10.001m, Longitude = 106 }];
+planned.AverageSpeedMetersPerSecond = 5; planned.MaxSpeedMetersPerSecond = 10;
+planned.Waypoints = [new Waypoint { Id = Guid.NewGuid(), MissionId = planned.Id, SequenceOrder = 1, Latitude = 10, Longitude = 106, Altitude = 30 },
+    new Waypoint { Id = Guid.NewGuid(), MissionId = planned.Id, SequenceOrder = 2, Latitude = 10.001m, Longitude = 106, Altitude = 30 }];
 var configuredUav = await db.UAVs.SingleAsync(u => u.Id == uavId);
 configuredUav.BatteryCapacityMah = 5200; configuredUav.MaxFlightTimeMinutes = 30;
 db.Missions.Add(planned);
