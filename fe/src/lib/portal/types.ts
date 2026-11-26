@@ -474,7 +474,7 @@ export type UserProfile = {
 // Matches DroneOps.Application.DTOs.Users.UpdateProfileRequest.
 export type UpdateProfileRequest = { fullName: string; expectedVersion: number };
 
-export type AiAssessmentRequest = { missionRef: string; missionVersion: number };
+export type AiAssessmentRequest = { missionRef: string; missionVersion: number; updateRequestId?: string };
 export type MissionSuggestion = {
   id: string;
   pilotId: string;
@@ -512,7 +512,7 @@ export type AiAssessment = {
   contextHash: string; isOutdated: boolean; outdatedReason: string | null;
   result: { automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
     retrieval?: { method: string; featureSchema: string; maximumResults: number; usedFeatures?: string[]; missingFeatures?: string[]; targetFeatures?: Record<string, number | null> };
-    historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; incidentIds: string[] }> } | null;
+    historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; usedFeatures?: string[]; incidentIds: string[] }> } | null;
   errorCode: string | null; createdAt: string; completedAt: string | null;
 };
 

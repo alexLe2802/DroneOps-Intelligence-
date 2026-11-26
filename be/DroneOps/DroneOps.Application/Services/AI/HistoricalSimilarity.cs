@@ -1,13 +1,13 @@
 namespace DroneOps.Application.Services.AI;
 
 public sealed record FlightFeature(Guid MissionId, string MissionName, double? Latitude, double? Longitude,
-    double? DurationMinutes, double? AltitudeMeters, Guid? UavId, int IncidentCount, IReadOnlyList<Guid> IncidentIds);
+    double? DurationMinutes, double? AltitudeMeters, Guid? UavId, int? IncidentCount, IReadOnlyList<Guid> IncidentIds);
 
 public static class HistoricalSimilarity
 {
     public static IReadOnlyList<(FlightFeature Flight, double Score)> Rank(FlightFeature target, IEnumerable<FlightFeature> candidates, int maximum = 5)
     {
-        var eligible = candidates.Where(x => x.MissionId != target.MissionId).ToList();
+        var eligible = candidates.Where(x => x.MissionId != target.MissionId && HasMinimumEvidence(target) && HasMinimumEvidence(x)).ToList();
         var population = eligible.Append(target).ToList();
         var ranges = new[]
         {
@@ -27,10 +27,17 @@ public static class HistoricalSimilarity
             var usable = pairs.Where(x => x.Item1.HasValue && x.Item2.HasValue).ToList();
             var squared = usable.Sum(x => Math.Pow((x.Item1!.Value - x.Item2!.Value) / x.Item3, 2));
             var routeScore = usable.Count == 0 ? 0d : 1d / (1d + Math.Sqrt(squared / usable.Count));
-            var uavScore = target.UavId.HasValue && candidate.UavId == target.UavId ? 1d : 0d;
-            return (Flight: candidate, Score: Math.Round(routeScore * 0.9d + uavScore * 0.1d, 6));
+            var score = target.UavId.HasValue && candidate.UavId.HasValue
+                ? routeScore * 0.9d + (candidate.UavId == target.UavId ? 0.1d : 0d)
+                : routeScore;
+            return (Flight: candidate, Score: Math.Round(score, 6));
         }).OrderByDescending(x => x.Score).ThenBy(x => x.Flight.MissionId).Take(maximum).ToList();
     }
+
+    // All three operational dimensions must be shared before incident count or UAV can influence ranking.
+    private static bool HasMinimumEvidence(FlightFeature flight) =>
+        flight.Latitude is >= -90 and <= 90 && flight.Longitude is >= -180 and <= 180
+        && flight.DurationMinutes is > 0 && flight.AltitudeMeters.HasValue;
 
     private static double Range(IEnumerable<double?> values)
     {

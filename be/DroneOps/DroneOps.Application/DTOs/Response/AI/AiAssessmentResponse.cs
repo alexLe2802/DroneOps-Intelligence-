@@ -4,6 +4,8 @@ public sealed class AiAssessmentResponse
 {
     public Guid Id { get; set; }
     public string MissionRef { get; set; } = string.Empty;
+    public string ContextType { get; set; } = "CurrentMission";
+    public Guid? UpdateRequestId { get; set; }
     public int MissionVersion { get; set; }
     public string Provider { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
@@ -47,6 +49,9 @@ public sealed class SimilarityMethodResponse
 {
     public string Method { get; set; } = "normalized-euclidean";
     public string FeatureSchema { get; set; } = "route-centroid-duration-altitude-uav-incident-v1";
+    public List<string> UsedFeatures { get; set; } = [];
+    public List<string> MissingFeatures { get; set; } = [];
+    public Dictionary<string, double?> TargetFeatures { get; set; } = [];
     public int MaximumResults { get; set; } = 5;
 }
 
@@ -56,5 +61,6 @@ public sealed class SimilarFlightResponse
     public string MissionName { get; set; } = string.Empty;
     public double SimilarityScore { get; set; }
     public Dictionary<string, double?> Features { get; set; } = [];
+    public List<string> UsedFeatures { get; set; } = [];
     public List<Guid> IncidentIds { get; set; } = [];
 }
