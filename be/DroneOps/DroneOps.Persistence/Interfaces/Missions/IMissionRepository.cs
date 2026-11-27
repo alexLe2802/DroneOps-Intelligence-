@@ -45,4 +45,8 @@ public interface IMissionRepository
     Guid uavId,
     Guid userId,
     CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+    Mission mission,
+    CancellationToken cancellationToken = default);
 }

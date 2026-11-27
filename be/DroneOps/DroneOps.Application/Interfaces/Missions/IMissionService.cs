@@ -1,4 +1,4 @@
-﻿using DroneOps.Application.DTOs.Request.Missions;
+using DroneOps.Application.DTOs.Request.Missions;
 using DroneOps.Application.DTOs.Response.Common;
 using DroneOps.Application.DTOs.Response.Missions;
 
@@ -30,5 +30,8 @@ public interface IMissionService
     Guid userId,
     CreateMissionRequest request,
     CancellationToken cancellationToken = default, bool manager = false);
-
+    Task DeleteMissionAsync(
+     Guid missionId,
+     Guid userId,
+     CancellationToken cancellationToken = default);
 }

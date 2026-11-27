@@ -289,4 +289,28 @@ public sealed class MissionService : IMissionService
             _logger.LogWarning(ex, "Could not publish pending-mission notification for {MissionId}.", mission.Id);
         }
     }
+    public async Task DeleteMissionAsync(
+     Guid missionId,
+     Guid userId,
+     CancellationToken cancellationToken = default)
+    {
+        var mission = await _missionRepository.GetByIdAsync(
+            missionId,
+            cancellationToken);
+
+        if (mission == null)
+        {
+            throw new KeyNotFoundException("Mission not found.");
+        }
+
+        if (mission.CreatedBy != userId)
+        {
+            throw new UnauthorizedAccessException(
+                "You are not allowed to delete this mission.");
+        }
+
+        await _missionRepository.DeleteAsync(
+            mission,
+            cancellationToken);
+    }
 }
