@@ -102,6 +102,10 @@ export function startMission(id: string): Promise<MissionValidationResult> {
   return api<MissionValidationResult>(`/missions/${encodeURIComponent(id)}/start`, { method: "POST" });
 }
 
+export function deleteMission(id: string): Promise<{ message: string }> {
+  return api(`/missions/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 export function cancelMission(id: string, reason: string): Promise<{ message: string }> {
   return api<{ message: string }>(`/missions/${encodeURIComponent(id)}/cancel`, {
     method: "PUT",

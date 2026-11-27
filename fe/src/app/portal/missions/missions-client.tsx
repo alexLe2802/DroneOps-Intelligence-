@@ -4,7 +4,8 @@ import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getPilotMissions } from "@/lib/portal/client";
+import { Trash2 } from "lucide-react";
+import { deleteMission, getPilotMissions } from "@/lib/portal/client";
 import type { PilotMission } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../module-state";
 
@@ -36,7 +37,7 @@ const missionBucket = (status: string): Exclude<MissionBucket, "all"> => {
 };
 const formatStatus = (value: string) => value.replace(/([A-Z])/g, " $1").trim();
 const formatDate = (value: string | null) => value ? formatVietnamDateTime(value) : "Not scheduled";
-const statusClass = (value: string) => value.toLowerCase().replaceAll(" ", "");
+const canDelete = (status: string) => ["rejected", "cancelled", "canceled"].includes(normalizedStatus(status));
 
 export default function MissionsClient() {
   const [missions, setMissions] = useState<PilotMission[] | null>(null);
@@ -47,6 +48,25 @@ export default function MissionsClient() {
   const [dateTo, setDateTo] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [page, setPage] = useState(1);
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteFeedback, setDeleteFeedback] = useState<{ failed: boolean; message: string } | null>(null);
+
+  async function removeMission(mission: PilotMission) {
+    if (deletingId || !canDelete(mission.status)) return;
+    if (!window.confirm(`Permanently delete “${mission.name}”? This cannot be undone.`)) return;
+    setDeletingId(mission.id);
+    setDeleteFeedback(null);
+    try {
+      await deleteMission(mission.id);
+      setMissions(current => current?.filter(item => item.id !== mission.id) ?? null);
+      setDeleteFeedback({ failed: false, message: `Deleted “${mission.name}”.` });
+    } catch (reason) {
+      setDeleteFeedback({ failed: true, message: reason instanceof Error ? reason.message : "Unable to delete mission." });
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const load = useCallback(() => {
     setMissions(null);
@@ -123,6 +143,7 @@ export default function MissionsClient() {
 
     <section className="pilot-mission-manifest">
       <header><div><b>MISSION REGISTRY</b><span>OWNED SCOPE</span></div><div><strong>{filtered.length}</strong> MATCHING / {missions.length} TOTAL</div></header>
+      {deleteFeedback && <p className="mission-delete-feedback" role={deleteFeedback.failed ? "alert" : "status"}>{deleteFeedback.message}</p>}
       <div className="pilot-mission-table-wrap">
         <table>
           <thead><tr><th>MISSION PLAN</th><th>ASSIGNED UAV</th><th>SCHEDULE</th><th>STATUS</th><th>REVIEW STATE</th><th>ACTIONS</th></tr></thead>
@@ -133,9 +154,11 @@ export default function MissionsClient() {
               <td><strong>{mission.name}</strong><small>{mission.description || "No mission description"}</small><code>#{mission.id.slice(0, 8).toUpperCase()}</code></td>
               <td><b>{mission.uavCode ?? "UNASSIGNED"}</b><small>{mission.uavId ? mission.uavId.slice(0, 8).toUpperCase() : "NO AIRCRAFT ID"}</small></td>
               <td><b>{formatDate(mission.startTime)}</b><small>{mission.endTime ? `Ends ${formatDate(mission.endTime)}` : "No end time"}</small></td>
-              <td><span className={`status status-${statusClass(mission.status)}`}>{formatStatus(mission.status)}</span><small>{missionState === "draft" ? "Validation required" : missionState === "pending" ? "Manager review" : missionState === "active" ? "Flight active" : missionState === "rejected" ? "Revision required" : "Lifecycle recorded"}</small></td>
-              <td><b>Current plan</b><small>{mission.status}</small></td>
-              <td><div className="pilot-mission-actions"><Link href={`/portal/missions/${mission.id}`}>OPEN</Link>{editable && <Link className="edit" href={`/portal/missions/${mission.id}/edit`}>EDIT</Link>}</div></td>
+              <td><span className={`status status-${missionState}`}>{formatStatus(mission.status)}</span><small>{missionState === "draft" ? "Validation required" : missionState === "pending" ? "Manager review" : missionState === "active" ? "Flight active" : missionState === "rejected" ? "Revision required" : "Lifecycle recorded"}</small></td>
+              <td><b>Current plan</b><small>{normalizedStatus(mission.status) === "pendingreview" ? "Pending" : mission.status}</small></td>
+              <td><div className="pilot-mission-actions"><Link href={`/portal/missions/${mission.id}`}>OPEN</Link>{editable && <Link className="edit" href={`/portal/missions/${mission.id}/edit`}>EDIT</Link>}
+                {canDelete(mission.status) && <button type="button" className="mission-delete-button" aria-label={`Delete ${mission.name}`} title="Delete mission" disabled={deletingId !== null} onClick={() => void removeMission(mission)}><Trash2 size={17} aria-hidden="true" /></button>}
+              </div></td>
             </tr>;
           }) : <tr><td className="pilot-mission-empty" colSpan={6}><strong>{missions.length ? "No missions match these filters" : "No missions in your registry"}</strong><span>{missions.length ? "Adjust the current status, date or search filters." : "Create a draft mission to begin planning a flight route."}</span>{hasFilters && <button type="button" onClick={clearFilters}>CLEAR FILTERS</button>}</td></tr>}</tbody>
         </table>
