@@ -3732,7 +3732,9 @@
 }
 
 .pilot-mission-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 4.25rem 3.75rem 2.5rem;
+  align-items: center;
   gap: 8px;
 }
 
@@ -5611,3 +5613,41 @@
   margin: 0;
   white-space: nowrap;
 }
+
+.pilot-mission-manifest td > .status {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.pilot-mission-manifest td > .status {
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #e9eef4;
+  color: #334155;
+  font: 700 13px/1.4 var(--font-body);
+}
+
+.pilot-mission-manifest td > .status-pending { background: #fff0cb; color: #754600; }
+.pilot-mission-manifest td > .status-approved,
+.pilot-mission-manifest td > .status-completed { background: #d9f5e5; color: #145632; }
+.pilot-mission-manifest td > .status-active { background: #daecff; color: #124b83; }
+.pilot-mission-manifest td > .status-rejected { background: #ffe2df; color: #922b21; }
+.pilot-mission-manifest td > .status-draft { background: #eee8ff; color: #523780; }
+
+.pilot-mission-actions .mission-delete-button {
+  grid-column: 3;
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid #dca7a3;
+  border-radius: 6px;
+  background: #fff5f4;
+  color: #922b21;
+  cursor: pointer;
+}
+
+.mission-delete-button:disabled { opacity: .55; cursor: wait; }
+.mission-delete-feedback { margin: 12px 16px; }
+.mission-delete-feedback[role="alert"] { color: #922b21; }

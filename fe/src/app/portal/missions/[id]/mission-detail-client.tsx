@@ -154,14 +154,28 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
 
   async function decideRisk(confirm: boolean) {
     const request = mission?.pendingUpdate;
-    if (!request?.validation?.id || actionPending.current) return;
-    actionPending.current = true; setRiskBusy(confirm ? "confirm" : "cancel"); setActionError("");
+    if (actionPending.current) return;
+    setActionError("");
+    setNotice("");
+    setRiskOpen(false);
+    if (!request?.id || (confirm && !request.validation?.id)) {
+      setActionError("Missing review information. Reload the mission and check its latest validation.");
+      return;
+    }
+    actionPending.current = true;
+    setRiskBusy(confirm ? "confirm" : "cancel");
     try {
-      if (confirm) await confirmHighRiskMission(id, request.id, request.validation.id);
+      if (confirm) await confirmHighRiskMission(id, request.id, request.validation!.id!);
       else await cancelHighRiskMission(id, request.id);
-      setMission(await getMission(id)); setRiskOpen(false);
-      setNotice(confirm ? "Risk confirmation saved for this proposal and validation run." : "Proposal withdrawn. Mission and history retained; revise the plan before submitting again.");
-    } catch (reason) { setActionError(reason instanceof Error ? reason.message : "Unable to save the pilot decision."); }
+      setNotice(confirm ? "High risk confirmed successfully." : "Proposal withdrawn successfully.");
+      try {
+        setMission(await getMission(id));
+      } catch {
+        setActionError("Decision saved. Reload to see the latest mission status.");
+      }
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Unable to save the pilot decision.");
+    }
     finally { actionPending.current = false; setRiskBusy(null); }
   }
 
@@ -226,7 +240,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       </div>
       <div className="mission-command-actions">
         {actions?.submit && <button type="button" className="mission-submit-button" disabled={busy !== null} onClick={() => void submitDraft()}>{busy === "submit" ? "SUBMITTING..." : "SUBMIT DRAFT FOR REVIEW"}</button>}
-        {role === "uav_operator" && mission.createdBy === actorId && mission.pendingUpdate?.requiresPilotConfirmation && <button type="button" className="mission-submit-button" disabled={busy !== null} onClick={() => setRiskOpen(true)}>REVIEW HIGH RISK</button>}
+        {role === "uav_operator" && mission.createdBy === actorId && mission.pendingUpdate?.requiresPilotConfirmation && <button type="button" className="mission-submit-button" disabled={busy !== null || riskBusy !== null} onClick={() => setRiskOpen(true)}>{riskBusy ? "SAVING DECISION..." : "REVIEW HIGH RISK"}</button>}
         <button type="button" className="mission-validate-button" disabled={!canValidate || busy !== null} onClick={() => void runValidation()}>{busy === "validate" ? "VALIDATING..." : "RUN VALIDATION"}</button>
         {canCancel && <button type="button" className="mission-cancel-button" disabled={busy !== null} onClick={() => setDialog("cancel")}>CANCEL MISSION</button>}
       </div>
@@ -276,7 +290,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       <article><span className={`review-state ${currentStatus === "approved" ? "passed" : currentStatus === "rejected" || currentStatus === "cancelled" ? "failed" : awaitingApproval ? "running" : ""}`}>{currentStatus === "approved" ? "OK" : currentStatus === "rejected" || currentStatus === "cancelled" ? "!" : awaitingApproval ? "..." : "--"}</span><div><p className="module-kicker">MANAGER APPROVAL</p><h2>{approvalTitle}</h2><p>{approvalCopy}</p></div></article>
     </section>
 
-    {riskOpen && mission.pendingUpdate && <HighRiskConfirmation mission={{ ...mission, ...mission.pendingUpdate.proposedPlan, validation: mission.pendingUpdate.validation }} busy={riskBusy} error={actionError} onConfirm={() => void decideRisk(true)} onCancel={() => void decideRisk(false)} />}
+    {riskOpen && mission.pendingUpdate && <HighRiskConfirmation mission={{ ...mission, ...mission.pendingUpdate.proposedPlan, validation: mission.pendingUpdate.validation }} busy={riskBusy} onClose={() => setRiskOpen(false)} onConfirm={() => void decideRisk(true)} onCancel={() => void decideRisk(false)} />}
     {dialog && <div className="mission-dialog-backdrop" role="presentation">
       <section className="mission-dialog" role="dialog" aria-modal="true" aria-labelledby="mission-dialog-title">
         <header>
