@@ -11,7 +11,7 @@ export type RecoveryEnergyProfile = {
   usableCapacityWh: number; cruisePowerWatts: number; climbPowerWatts: number; descentPowerWatts: number;
   landingPowerWatts: number; hoverPowerWatts: number; minimumGroundSpeedMetersPerSecond: number;
   returnAltitudeMeters: number; landingDurationSeconds: number; holdDurationSeconds: number; energyMarginFactor: number;
-  remainingEnergyCurve: {batteryPercent: number; lowerBoundWh: number}[];
+  remainingEnergyCurve: { batteryPercent: number; lowerBoundWh: number }[];
 };
 export type LandingSiteSurvey = { surveyedAtUtc: string; validUntilUtc: string; groundClear: boolean; approachClear: boolean; evidenceReference: string };
 import type { AccountRole } from "@/lib/auth/types";
@@ -116,10 +116,12 @@ export type DraftAnalysisRequest = {
 export type DraftAnalysis = {
   cruiseBasis: string | null; cruise: number | null; ceiling: number | null; estimatedEnd: string | null;
   findings: string[]; weatherStatus: string; provider: string; fetchedAt: string; explanation: string | null;
-  windLimit: number | null; gustLimit: number | null;
-  windAlerts: { sequenceOrder: number; segmentFrom: number | null; segmentTo: number | null;
+  windLimit: number | null; gustLimit: number | null; recommendedLimits?: AutomaticFlightLimits | null;
+  windAlerts: {
+    sequenceOrder: number; segmentFrom: number | null; segmentTo: number | null;
     estimatedArrivalTime: string | null; forecastTime: string | null;
-    windSpeedMetersPerSecond: number | null; windGustMetersPerSecond: number | null; riskLevel: string }[];
+    windSpeedMetersPerSecond: number | null; windGustMetersPerSecond: number | null; riskLevel: string
+  }[];
 };
 
 export type MissionWeather = {
@@ -454,10 +456,12 @@ export type PostFlightIncident = {
 };
 export type GeofenceCoordinate = { latitude: number; longitude: number };
 export type GeofenceRequest = {
-  restrictionType?: "OperationalBoundary" | "Restricted" | "NoFly"; altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[] };
+  restrictionType?: "OperationalBoundary" | "Restricted" | "NoFly"; altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[]
+};
 export type Geofence = {
   restrictionType?: "OperationalBoundary" | "Restricted" | "NoFly"; verticalRule?: "Unspecified" | "AllAltitudes" | "Band";
-  altitudeReference?: string | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; revision?: number; id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string };
+  altitudeReference?: string | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; revision?: number; id: string; name: string; description: string | null; coordinates: GeofenceCoordinate[]; createdAt: string
+};
 export type SaveGeofenceRequest = { restrictionType?: "OperationalBoundary" | "Restricted" | "NoFly"; verticalRule?: "Unspecified" | "AllAltitudes" | "Band"; altitudeReference?: "AGL" | "MSL" | "Relative" | null; minAltitudeMeters?: number | null; maxAltitudeMeters?: number | null; name: string; description: string | null; coordinates: GeofenceCoordinate[] };
 
 // Matches DroneOps.Application.DTOs.Users.UserProfileResponse.
@@ -510,9 +514,11 @@ export type AiAssessment = {
   updateRequestId?: string | null;
   status: "Pending" | "Available" | "Outdated" | "Failed" | "ProviderUnavailable";
   contextHash: string; isOutdated: boolean; outdatedReason: string | null;
-  result: { automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
+  result: {
+    automaticFlightLimits?: AutomaticFlightLimits | null; cruiseSpeedMetersPerSecond?: number | null; maxSpeedMetersPerSecond?: number | null; battery?: BatteryAssessment | null; summary: string; risks: AiRisk[]; precautions: string[]; missingData: string[]; disclaimer: string;
     retrieval?: { method: string; featureSchema: string; maximumResults: number; usedFeatures?: string[]; missingFeatures?: string[]; targetFeatures?: Record<string, number | null> };
-    historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; usedFeatures?: string[]; incidentIds: string[] }> } | null;
+    historicalFlights?: Array<{ missionId: string; missionName: string; similarityScore: number; features: Record<string, number | null>; usedFeatures?: string[]; incidentIds: string[] }>;
+  } | null;
   errorCode: string | null; createdAt: string; completedAt: string | null;
 };
 

@@ -39,6 +39,23 @@ internal static class DraftAnalysisChecks
         var missing = JsonSerializer.SerializeToElement(await service.AnalyzeAsync(r with { Cruise = null, PayloadKg = null }, actor, default));
         if (missing.GetProperty("estimatedEnd").ValueKind != JsonValueKind.Null ||
             missing.GetProperty("cruise").ValueKind != JsonValueKind.Null) throw new Exception("Invented missing estimate");
+        if (result.GetProperty("recommendedLimits").ValueKind != JsonValueKind.Null) throw new Exception("Manual draft returned automatic limits");
+        var autoDraft = r with { Automatic = true, AltitudeReference = "Relative", Cruise = null, PayloadKg = 0.8m,
+            Limits = AutomaticFlightPolicy.DefaultLimits() };
+        var auto = JsonSerializer.SerializeToElement(await service.AnalyzeAsync(autoDraft, actor, default));
+        var recommended = auto.GetProperty("recommendedLimits");
+        if (recommended.ValueKind != JsonValueKind.Object) throw new Exception("Automatic draft missing recommended limits");
+        var recLimits = JsonSerializer.Deserialize<AutomaticFlightLimits>(recommended.GetRawText(),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? throw new Exception("Unreadable recommended limits");
+        foreach (var name in new[] { "TakeoffSpeedMetersPerSecond", "ClimbSpeedMetersPerSecond", "DescentSpeedMetersPerSecond",
+            "LandingSpeedMetersPerSecond", "MaxAltitudeMeters", "MaxWindMetersPerSecond", "MaxGustMetersPerSecond" })
+            if (!recommended.EnumerateObject().Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
+                throw new Exception($"Recommended limit {name} missing");
+        var autoPolicyErrors = AutomaticFlightPolicy.Errors(true, "Relative", 1m, 5m, recLimits,
+            [(20m, "TakeOff"), (20m, "Land")]);
+        if (autoPolicyErrors.Count != 0 || recLimits.ClimbSpeedMetersPerSecond != 4.9m || recLimits.MaxWindMetersPerSecond != 3m ||
+            recLimits.PolicyVersion != "multicopter-envelope-v2")
+            throw new Exception("Recommended limits violate automatic policy: " + string.Join("; ", autoPolicyErrors));
         Console.WriteLine("PASS: gated draft analysis, ownership, speed ceiling, route timing, payload, wind and missing inputs");
     }
 
