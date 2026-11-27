@@ -80,6 +80,7 @@ public sealed class MissionsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [RequestSizeLimit(3 * 1024 * 1024)]
     public async Task<ActionResult<MissionResponse>> CreateAsync(
         [FromBody] CreateMissionRequest request,
         CancellationToken cancellationToken)

@@ -32,3 +32,4 @@
 20261117000100_restore_direct_uav_images.sql
 20261119000100_pilot_license_lifecycle.sql
 20261126000100_optional_connection_mission.sql
+20261128000100_registry_documents.sql

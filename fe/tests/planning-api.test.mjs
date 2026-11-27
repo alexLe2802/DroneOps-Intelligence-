@@ -141,7 +141,7 @@ test("review and evidence contracts preserve request identity without mission ve
   });
   try {
     await client.validateMission({ id: "mission" }, "request");
-    await client.approveMission("mission", "Reviewed", "run", "request");
+    await client.approveMission("mission", "Reviewed", "Valid", "permit", "run", "request");
     await client.rejectMission("mission", "Findings", "request");
     await client.getMissionHistory("mission");
     await client.getMissionValidation("mission", "request");
@@ -149,7 +149,7 @@ test("review and evidence contracts preserve request identity without mission ve
     await client.getMissionWeather("mission", "request", true);
     assert.deepEqual(calls, [
       ["/api/missions/validate", "POST", { missionId: "mission", updateRequestId: "request" }],
-      ["/api/missions/mission/approve", "POST", { comment: "Reviewed", updateRequestId: "request", validationRunId: "run" }],
+      ["/api/missions/mission/approve", "POST", { permitDecision: "Valid", permitDocumentId: "permit", comment: "Reviewed", updateRequestId: "request", validationRunId: "run" }],
       ["/api/missions/mission/reject", "POST", { reason: "Findings", updateRequestId: "request" }],
       ["/api/missions/mission/history", "GET", null],
       ["/api/missions/mission/validation?updateRequestId=request", "GET", null],

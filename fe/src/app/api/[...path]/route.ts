@@ -8,13 +8,16 @@ const allowed = /^(drone-connections(?:\/aircraft|\/[0-9a-f-]{36})?|users\/[0-9a
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
+  const documentPath = /^(?:documents\/[0-9a-f-]{36}|missions\/[0-9a-f-]{36}\/permits(?:\/review)?)$/.test(path);
+  const aircraftUpdate = request.method === "PUT" && /^uavs\/[0-9a-f-]{36}$/.test(path);
+  const registryUpload = aircraftUpdate || request.method === "POST" && (path === "missions" || path === "uavs" || /^missions\/[0-9a-f-]{36}\/permits$/.test(path));
   const uavReviewPath = request.method === "GET" && /^uavs\/[0-9a-f-]{36}\/reviews$/.test(path);
   const uavImageReviewPath = request.method === "POST" && /^admin\/uavs\/[0-9a-f-]{36}\/image\/reject$/.test(path);
   const validationRunPath = /^missions\/[0-9a-f-]{36}\/validation\/runs\/[0-9a-f-]{36}$/;
   const automationPath = /^missions\/[0-9a-f-]{36}\/automation(?:\/(?:presence|confirm|cancel|plan|execution|arm|disarm))?$/.test(path);
   const gatewayForgetPath = /^drone-connections\/aircraft\/[0-9a-f-]{36}\/gateway$/.test(path);
   const automationDuePath = path === "missions/automation/due";
-  if (!allowed.test(path) && !uavReviewPath && !uavImageReviewPath && !validationRunPath.test(path) && !automationPath && !gatewayForgetPath && !automationDuePath) return NextResponse.json({ message: "Not found." }, { status: 404 });
+  if (!allowed.test(path) && !documentPath && !uavReviewPath && !uavImageReviewPath && !validationRunPath.test(path) && !automationPath && !gatewayForgetPath && !automationDuePath) return NextResponse.json({ message: "Not found." }, { status: 404 });
   const token = request.cookies.get(accessCookie)?.value;
   if (!["GET", "HEAD"].includes(request.method)) {
     // Next.js may construct nextUrl with localhost while the browser uses
@@ -65,7 +68,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > (mediaUpload ? (path === "users/avatar" || uavImageUpload ? 6 : 106) * 1024 * 1024 : 16384)) { await reader.cancel(); return NextResponse.json({ message: "Request is too large." }, { status: 413 }); }
+        if (size > (mediaUpload ? (path === "users/avatar" || uavImageUpload ? 6 : 106) * 1024 * 1024 : registryUpload ? 3 * 1024 * 1024 : 16384)) { await reader.cancel(); return NextResponse.json({ message: "Request is too large." }, { status: 413 }); }
         chunks.push(value);
       }
     }
@@ -122,6 +125,8 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       return response;
     }
     if (upstream.headers.has("content-type")) responseHeaders.set("Content-Type", upstream.headers.get("content-type")!);
+    if (documentPath && upstream.headers.has("content-disposition"))
+      responseHeaders.set("Content-Disposition", upstream.headers.get("content-disposition")!);
     if (liveStream) responseHeaders.set("X-Accel-Buffering", "no");
     const cookies = upstream.headers.getSetCookie();
     if (cookies.length > 0) {

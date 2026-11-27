@@ -16,7 +16,7 @@ export type RecoveryEnergyProfile = {
 export type LandingSiteSurvey = { surveyedAtUtc: string; validUntilUtc: string; groundClear: boolean; approachClear: boolean; evidenceReference: string };
 import type { AccountRole } from "@/lib/auth/types";
 
-export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Pending Confirm" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
+export type MissionStatus = "Draft" | "Submitted" | "Pending" | "PendingApproval" | "Pending Review" | "Pending Confirm" | "Awaiting Permit" | "Permit Review" | "Approved" | "InProgress" | "Completed" | "Rejected" | "Cancelled";
 
 export type PilotMission = {
   automaticFlightRequested?: boolean;
@@ -58,6 +58,7 @@ export type MissionWaypoint = {
   actionType: WaypointAction;
 };
 export type CreateMissionRequest = {
+  flightPermit?: import("./registry-file").RegistryFile;
   automaticFlightRequested?: boolean;
   automaticFlightLimits?: AutomaticFlightLimits | null;
   operationId?: string;
@@ -296,6 +297,7 @@ export type ApprovalUavSummary = {
 };
 
 export type PendingMissionApproval = {
+  permitDocumentId?: string | null;
   requiresPilotConfirmation?: boolean;
   proposalAuthorId?: string;
   isInitial: boolean;
@@ -383,6 +385,8 @@ export type AssignedUav = {
 };
 
 export type CreateUavRequest = {
+  manufacturerDocumentId?: string | null;
+  manufacturerDocument?: import("./registry-file").RegistryFile;
   code: string;
   name: string;
   manufacturer: string | null;

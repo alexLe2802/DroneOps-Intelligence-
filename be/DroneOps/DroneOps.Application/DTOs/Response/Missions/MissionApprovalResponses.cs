@@ -8,6 +8,7 @@ namespace DroneOps.Application.DTOs.Response.Missions;
 
 public class PendingApprovalItemResponse
 {
+    public Guid? PermitDocumentId { get; set; }
     public bool RequiresPilotConfirmation { get; set; }
     public Guid ProposalAuthorId { get; set; }
     public bool IsInitial { get; set; }

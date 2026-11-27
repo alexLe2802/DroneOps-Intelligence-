@@ -202,10 +202,10 @@ export function getPendingMissionApprovals(params: { pageNumber?: number; pageSi
   return api<PagedPendingMissionApprovals>(`/missions/pending-approvals?${query}`);
 }
 
-export function approveMission(missionId: string, comment: string, validationRunId?: string, updateRequestId?: string): Promise<MissionDecision> {
+export function approveMission(missionId: string, comment: string, permitDecision: string, permitDocumentId?: string | null, validationRunId?: string, updateRequestId?: string): Promise<MissionDecision> {
   return api<MissionDecision>(`/missions/${encodeURIComponent(missionId)}/approve`, {
     method: "POST",
-    body: JSON.stringify({ comment: comment.trim() || null, updateRequestId: updateRequestId ?? null, validationRunId: validationRunId ?? null }),
+    body: JSON.stringify({ permitDecision, permitDocumentId, comment: comment.trim() || null, updateRequestId: updateRequestId ?? null, validationRunId: validationRunId ?? null }),
   });
 }
 

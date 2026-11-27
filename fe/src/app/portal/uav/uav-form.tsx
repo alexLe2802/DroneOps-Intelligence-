@@ -4,6 +4,7 @@ import RegistrationTemplatePicker from "@/app/registration-template-picker";
 
 import { ApiError } from "@/lib/auth/client";
 import Link from "next/link";
+import { readRegistryFile } from "@/lib/portal/registry-file";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -12,7 +13,7 @@ import type { AssignedUav, CreateUavRequest } from "@/lib/portal/types";
 import { optionalNumber, uavSpecificationError } from "@/lib/uav-specification";
 import { uavImageFileError } from "@/lib/uav-image-file";
 
-type UavFormValue = Record<Exclude<keyof CreateUavRequest, "purchaseDate">, string>;
+type UavFormValue = Record<Exclude<keyof CreateUavRequest, "purchaseDate" | "manufacturerDocument" | "manufacturerDocumentId">, string>;
 
 function initialValue(aircraft?: AssignedUav): UavFormValue {
   const value = (item: string | number | null | undefined) => item == null ? "" : String(item);
@@ -40,6 +41,7 @@ function initialValue(aircraft?: AssignedUav): UavFormValue {
 
 export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
   const pending = useRef(false);
+  const [manufacturerFile, setManufacturerFile] = useState<File | null>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [form, setForm] = useState(() => initialValue(aircraft));
@@ -121,6 +123,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
     try {
       let id: string;
       let submitted: "create" | "update" | null;
+      if (manufacturerFile) request.manufacturerDocument = await readRegistryFile(manufacturerFile);
       if (aircraft) {
         id = aircraft.id;
         const approvedRequest: CreateUavRequest = {
@@ -152,6 +155,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
           submitted = null;
         }
       } else {
+        if (!manufacturerFile) throw new Error("Attach the manufacturer documentation for this aircraft.");
         const result = await createUav(request);
         id = result.id;
         submitted = "create";
@@ -202,6 +206,9 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
 
         <section className="uav-form-section">
           <header><span>01</span><div><h2>Aircraft identity</h2><p>Registration and manufacturer information.</p></div></header>
+          <label>{aircraft ? "Replace manufacturer documentation" : "Manufacturer documentation"} · Scan all pages into one PDF, up to 2 MB.
+            <input type="file" required={!aircraft} accept=".pdf,application/pdf" onChange={e => setManufacturerFile(e.target.files?.[0] ?? null)} />
+          </label>
           <div className="uav-form-grid">
             <label>UAV CODE<input name="code" value={form.code} onChange={event => set("code", event.target.value)} placeholder="UAV-08" minLength={2} maxLength={50} required /></label>
             <label>UAV NAME<input name="name" value={form.name} onChange={event => set("name", event.target.value)} placeholder="South Survey Two" minLength={2} maxLength={100} required /></label>

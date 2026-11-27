@@ -30,7 +30,7 @@ public static class FlightEligibility
             pilot.LicenseIssuedDate > DateOnly.FromDateTime(mission.StartTime.Value) ||
             pilot.LicenseExpiredDate < DateOnly.FromDateTime(mission.EndTime.Value))
             return "Approved flight credentials must cover the full planned mission window.";
-        var conflicts = new[] { "Approved", "InProgress", "In Progress", "Active", "Flying", "Executing" };
+        var conflicts = new[] { "Awaiting Permit", "Permit Review", "Approved", "InProgress", "In Progress", "Active", "Flying", "Executing" };
         if (await db.Missions.AsNoTracking().AnyAsync(x => x.Id != mission.Id && conflicts.Contains(x.Status) &&
             (x.UAVId == mission.UAVId || x.CreatedBy == mission.CreatedBy) &&
             x.StartTime < mission.EndTime && x.EndTime > mission.StartTime, ct))

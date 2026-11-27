@@ -1,3 +1,7 @@
+using DroneOps.API.Controllers.Missions;
+using DroneOps.Persistence.Repositories.Notifications;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using System.Text.Json;
 using DroneOps.API.Controllers;
 using DroneOps.Application.DTOs.Request.Missions;
@@ -89,7 +93,29 @@ internal static class MissionWorkflowIntegrityChecks
         var initial = await Pending(draft.Id);
         var evidence = await validator.ReadRunAsync(draft.Id, initial.ValidationRunId!.Value, owner, false);
         Check(evidence!.IsValid, "initial fixture passes mandatory validation: " + evidence.Message);
-        await approval.ApproveMissionAsync(draft.Id, new() { UpdateRequestId = initial.Id, ValidationRunId = initial.ValidationRunId }, manager);
+        await approval.ApproveMissionAsync(draft.Id, new() { UpdateRequestId = initial.Id, ValidationRunId = initial.ValidationRunId,
+            PermitDecision = "Supplement", Comment = "Attach the permit for this site." }, manager);
+        Check((await Read(draft.Id)).Status == "Awaiting Permit" && await db.Notifications.AnyAsync(n => n.RecipientUserId == owner && n.ReferenceId == draft.Id),
+            "plan approval without a permit requests a supplement from its pilot");
+        RegistryDocumentsController Documents(Guid actor, string role) => new(db, new MissionWorkflowRepository(db), new NotificationRepository(db))
+        {
+            ControllerContext = new() { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, actor.ToString()), new Claim(ClaimTypes.Role, role)], "fixture")) } }
+        };
+        var pilotDocuments = Documents(owner, "uav_operator");
+        var managerDocuments = Documents(manager, "operation_manager");
+        var pdf = new DroneOps.Application.DTOs.Request.RegistryFile("permit.pdf", Convert.ToBase64String("%PDF-fixture"u8.ToArray()));
+        Check(await Documents(Guid.NewGuid(), "uav_operator").Supplement(draft.Id, pdf, default) is NotFoundResult, "another pilot cannot supplement a mission");
+        await pilotDocuments.Supplement(draft.Id, pdf, default);
+        var firstPermit = await db.RegistryDocuments.SingleAsync(x => x.MissionId == draft.Id);
+        Check(await Documents(Guid.NewGuid(), "uav_operator").Download(firstPermit.Id, default) is NotFoundResult, "another pilot cannot download a private permit");
+        await managerDocuments.Review(draft.Id, new(firstPermit.Id, false, "Wrong area"), default);
+        Check((await Read(draft.Id)).Status == "Awaiting Permit", "rejecting only the permit reopens supplementation");
+        await pilotDocuments.Supplement(draft.Id, pdf, default);
+        var permitId = await db.RegistryDocuments.Where(x => x.MissionId == draft.Id && x.Decision == null).Select(x => x.Id).SingleAsync();
+        Check(await managerDocuments.Review(draft.Id, new(firstPermit.Id, true, null), default) is ConflictObjectResult, "stale review cannot accept the replaced file");
+        await managerDocuments.Review(draft.Id, new(permitId, true, null), default);
+        Check((await Read(draft.Id)).Status == "Approved" && await db.MissionApprovals.CountAsync() == 1, "permit acceptance advances the existing approved plan");
         var original = await Read(draft.Id); var originalHash = MissionValidationService.Hash(original);
         var edit = MissionPlans.Dto(original); edit.Name = "Changed"; edit.OperationId = Guid.NewGuid();
         edit.ExpectedPlanHash = originalHash;
@@ -114,7 +140,7 @@ internal static class MissionWorkflowIntegrityChecks
         var newRun = await validator.RevalidateAsync(draft.Id, owner, false, "Manager", default, pending.Id);
         Check(newRun.UpdateRequestId == pending.Id && newRun.IsValid, "manual revalidation targets the saved proposal");
         await Conflict(() => approval.ApproveMissionAsync(draft.Id, new() { UpdateRequestId = pending.Id, ValidationRunId = pending.ValidationRunId }, manager), "approval rejects a replaced validation identity");
-        await approval.ApproveMissionAsync(draft.Id, new() { UpdateRequestId = pending.Id, ValidationRunId = newRun.Id }, manager);
+        await approval.ApproveMissionAsync(draft.Id, new() { PermitDecision = "Valid", PermitDocumentId = permitId, UpdateRequestId = pending.Id, ValidationRunId = newRun.Id }, manager);
         Check((await Read(draft.Id)).Name == "Replacement", "approve applies the proposed plan to the same mission");
         var current = await Read(draft.Id);
         var managerEdit = MissionPlans.Dto(current); managerEdit.Name = "Manager proposal"; managerEdit.OperationId = Guid.NewGuid();
@@ -133,7 +159,7 @@ internal static class MissionWorkflowIntegrityChecks
         Check((await validator.HistoryAsync(draft.Id, owner, false)).First(x => x.Id == pending.Id).RequiresPilotConfirmation, "revalidation invalidates old risk consent");
         await Conflict(() => workflow.ConfirmHighRiskAsync(draft.Id, owner, default, pending.Id, pending.ValidationRunId), "stale risk dialog cannot confirm replaced evidence");
         await workflow.ConfirmHighRiskAsync(draft.Id, owner, default, pending.Id, riskRun.Id);
-        await approval.ApproveMissionAsync(draft.Id, new() { UpdateRequestId = pending.Id, ValidationRunId = riskRun.Id }, manager);
+        await approval.ApproveMissionAsync(draft.Id, new() { PermitDecision = "Valid", PermitDocumentId = permitId, UpdateRequestId = pending.Id, ValidationRunId = riskRun.Id }, manager);
         Check((await Read(draft.Id)).Name == "Risk proposal", "confirmed unchanged High Risk evidence can be approved");
         risk.OperationId = Guid.NewGuid(); risk.Name = "Declined risk";
         await workflow.SavePlanAsync(owner, risk, draft.Id);
@@ -152,6 +178,28 @@ internal static class MissionWorkflowIntegrityChecks
         await Conflict(() => approval.ApproveMissionAsync(draft.Id, new() { UpdateRequestId = pending.Id, ValidationRunId = pending.ValidationRunId }, manager), "cancelled mission cannot receive a later approval");
         await Conflict(() => workflow.StartAsync(draft.Id, owner, false), "browser cannot fabricate an InProgress flight");
         Check(!(new MissionValidationResult { Error = true }).IsValid, "Error evidence can never report IsValid");
+        (await db.UAVs.SingleAsync(x => x.Id == uav)).Status = "Active";
+        await db.SaveChangesAsync();
+        foreach (var outcome in new[] { "Valid", "Exempt" })
+        {
+            var directPlan = Plan($"Direct approval: {outcome}");
+            directPlan.FlightPermit = outcome == "Valid" ? pdf : null;
+            var directDraft = await workflow.SavePlanAsync(owner, directPlan, null);
+            var attachment = await db.RegistryDocuments.AsNoTracking().SingleOrDefaultAsync(x => x.MissionId == directDraft.Id);
+            Check(outcome == "Exempt" ? attachment == null : attachment?.Name == pdf.Name,
+                $"draft persists the expected attachment for {outcome}");
+            await workflow.SubmitAsync(directDraft.Id, owner, Guid.NewGuid());
+            var request = await Pending(directDraft.Id);
+            var result = await approval.ApproveMissionAsync(directDraft.Id, new()
+            {
+                UpdateRequestId = request.Id, ValidationRunId = request.ValidationRunId,
+                PermitDocumentId = attachment?.Id, PermitDecision = outcome, Comment = "Reviewed fixture basis"
+            }, manager);
+            Check(result.NewStatus == "Approved" && await db.MissionApprovals.AnyAsync(x =>
+                x.MissionId == directDraft.Id && x.PermitDecision == outcome && x.PermitDocumentId == (attachment == null ? null : attachment.Id)),
+                $"{outcome} permit decision advances the plan directly with an audit record");
+            await workflow.CancelAsync(directDraft.Id, owner, false, "Release fixture allocation");
+        }
         if (postgres)
         {
             using var migrationStream = typeof(AppDbContext).Assembly.GetManifestResourceStream("DroneOps.Persistence.MissionReviewIntegrity.sql")!;
@@ -172,7 +220,7 @@ internal static class MissionWorkflowIntegrityChecks
                 using var localCache = new MemoryCache(new MemoryCacheOptions());
                 var localValidation = new MissionValidationService(new MissionValidationRepository(context, localCache), weather);
                 return await new MissionApprovalService(new MissionApprovalRepository(context), localValidation, context)
-                    .ApproveMissionAsync(concurrentDraft.Id, new() { UpdateRequestId = concurrentRequest.Id, ValidationRunId = concurrentRequest.ValidationRunId }, manager);
+                    .ApproveMissionAsync(concurrentDraft.Id, new() { PermitDecision = "Exempt", Comment = "Fixture exemption basis", UpdateRequestId = concurrentRequest.Id, ValidationRunId = concurrentRequest.ValidationRunId }, manager);
             }
             var decisions = await Task.WhenAll(DecideInSeparateConnection(), DecideInSeparateConnection());
             Check(decisions.Count(x => x.IdempotentReplay) == 1 && await db.MissionApprovals.CountAsync(x => x.UpdateRequestId == concurrentRequest.Id) == 1,

@@ -26,7 +26,7 @@ export function approvalBlockReason(result: MissionValidationResult | null | und
 export function missionActions(mission: MissionDetail, role: AccountRole, actorId?: string) {
   const status = mission.status.toLowerCase().replaceAll(" ", "");
   const authorized = role === "operation_manager" || (!!actorId && mission.createdBy === actorId);
-  const preflight = ["draft", "rejected", "pending", "pendingreview", "submitted", "approved", "pendingconfirm"].includes(status);
+  const preflight = ["awaitingpermit", "permitreview", "draft", "rejected", "pending", "pendingreview", "submitted", "approved", "pendingconfirm"].includes(status);
   return {
     edit: authorized && preflight,
     submit: authorized && role === "uav_operator" && ["draft", "rejected"].includes(status) && !mission.pendingUpdate,

@@ -17,6 +17,8 @@ public class MissionApproval
 
     public string Status { get; set; } = "Pending";
 
+    public string? PermitDecision { get; set; }
+    public Guid? PermitDocumentId { get; set; }
     public string? Comment { get; set; }
 
     public DateTimeOffset? ApprovedAt { get; set; }

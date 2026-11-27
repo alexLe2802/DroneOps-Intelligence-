@@ -19,6 +19,7 @@ public sealed class MissionWorkflowService(
     public async Task<Mission> SavePlanAsync(Guid actor, CreateMissionRequest request, Guid? id,
         CancellationToken cancellationToken = default, bool manager = false)
     {
+        if (id.HasValue && request.FlightPermit != null) throw new ArgumentException("Use the flight permit submission workflow.");
         var operationId = request.OperationId ?? Guid.NewGuid();
         if (operationId == Guid.Empty) throw new ArgumentException("Operation identity is required.");
         var structural = await new CreateMissionRequestValidator().ValidateAsync(request, cancellationToken);
@@ -35,6 +36,11 @@ public sealed class MissionWorkflowService(
                     if (existing.CreatedBy != actor) throw new UnauthorizedAccessException("Mission is outside your scope.");
                     if (MissionValidationService.Hash(existing) != MissionValidationService.Hash(MissionPlans.Propose(existing, request)))
                         throw new InvalidOperationException("Operation identity was already used with another plan.");
+                    var original = await db.RegistryDocuments.AsNoTracking().Where(x => x.MissionId == existing.Id && x.Id == operationId)
+                        .Select(x => new { x.Name, x.Content }).SingleOrDefaultAsync(ct);
+                    var supplied = request.FlightPermit?.ToDocument(actor);
+                    if (original?.Name != supplied?.Name || (original != null && !original.Content.SequenceEqual(supplied!.Content)))
+                        throw new InvalidOperationException("Operation identity was already used with another attachment.");
                     return existing;
                 }
                 var draft = MissionPlans.Propose(new Mission
@@ -49,6 +55,12 @@ public sealed class MissionWorkflowService(
                     pilot.LicenseIssuedDate > DateOnly.FromDateTime(request.StartTime) ||
                     pilot.LicenseExpiredDate < DateOnly.FromDateTime(request.EndTime))
                     throw new ArgumentException("Draft creation requires an active assigned UAV and a pilot eligible throughout the scheduled flight.");
+                if (request.FlightPermit is { } permit)
+                {
+                    var attachment = permit.ToDocument(actor);
+                    attachment.Id = operationId;
+                    draft.Documents.Add(attachment);
+                }
                 await missionRepository.AddAsync(draft, ct);
                 return draft;
             }

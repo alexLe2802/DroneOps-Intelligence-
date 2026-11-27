@@ -23,6 +23,7 @@
 		<EmbeddedResource Include="../../../database/migrations/20261110000100_realtime_episodes.sql" LogicalName="DroneOps.Persistence.Migrations.20261110000100_realtime_episodes.sql" />
 		<EmbeddedResource Include="../../../database/migrations/010_battery_telemetry.sql" LogicalName="DroneOps.Persistence.Migrations.010_battery_telemetry.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261021115253_drone_hardware_identity.sql" LogicalName="DroneOps.Persistence.DroneHardware.sql" />
+		<EmbeddedResource Include="../../../database/migrations/20261128000100_registry_documents.sql" LogicalName="DroneOps.Persistence.RegistryDocuments.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261126000100_optional_connection_mission.sql" LogicalName="DroneOps.Persistence.OptionalConnectionMission.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261021112520_drone_gateway_sessions.sql" LogicalName="DroneOps.Persistence.DroneConnections.sql" />
 		<EmbeddedResource Include="../../../database/migrations/20261020170309_mission_validation.sql" LogicalName="DroneOps.Persistence.MissionWorkflow.sql" />
