@@ -1,5 +1,7 @@
 "use client";
 
+import RegistrationTemplatePicker from "@/app/registration-template-picker";
+
 import { isLicenseDocument } from "@/lib/license-document";
 
 import Image from "next/image";
@@ -209,6 +211,7 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
     {registerOpen && <div className="pilot-register-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) { setRegisterOpen(false); setError(""); } }}>
       <form className="pilot-register-modal" aria-label="Pilot registration request" onSubmit={submitRegistration}>
         <header><div><span className="auth-kicker">PILOT ACCESS REQUEST</span><h3>Request Pilot Registration</h3><p>Your request will be reviewed by an Operations Manager.</p></div><button type="button" aria-label="Close registration form" onClick={() => { setRegisterOpen(false); setError(""); }}>×</button></header>
+        <RegistrationTemplatePicker kind="pilot" disabled={busy !== null} />
         <div className="pilot-register-grid">
           <label>Full name<input required name="fullName" maxLength={120} placeholder="Nguyen Long" /></label>
           <label>Email<input required name="email" type="email" maxLength={254} placeholder="pilot@example.com" /></label>
