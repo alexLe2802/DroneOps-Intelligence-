@@ -44,12 +44,14 @@ component = component.replace('from "@/lib/portal/automatic-flight-limits"', `fr
 let js = ts.transpileModule(component, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 js = js.replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href));
 const { default: Comparison } = await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
-test('initial submission shows one submitted plan without Current or saved route toggle', () => {
+test('initial submission shows only Current column without Proposed or saved route toggle', () => {
   const html=renderToStaticMarkup(React.createElement(Comparison, {isInitial:true,proposed:plan}));
   assert.match(html,/>Submitted plan</);
+  assert.match(html,/>Current</);
+  assert.match(html,/>Current coordinates \/ altitude \/ action</);
   assert.match(html,/View submitted plan waypoints/);
   assert.doesNotMatch(html,/Nhiệm vụ mới|chưa có kế hoạch trước đó/);
-  assert.doesNotMatch(html,/>Current<|>Proposed<|>Saved plan<|Plans are not available/);
+  assert.doesNotMatch(html,/>Proposed<|>Proposed coordinates \/ altitude \/ action<|>Saved plan<|Plans are not available/);
 });
 test('update shows both columns and marks changed fields and waypoints', () => {
   const html=renderToStaticMarkup(React.createElement(Comparison, {current:plan,proposed:{...plan,name:'New',waypoints:[point(1,{altitude:50})]}}));

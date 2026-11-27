@@ -101,7 +101,14 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
       if (typeof result.accessToken !== "string") return NextResponse.json({ message: "Backend returned no access token." }, { status: 502 });
       const session = await sessionFromToken(result.accessToken);
       if (!session) return NextResponse.json({ message: "The account cannot access DroneOps." }, { status: 403 });
-      if (path === "auth/google-login" && session.account.role !== "uav_operator") return NextResponse.json({ message: "Google sign-in is available only for registered pilot accounts." }, { status: 403 });
+      if (path === "auth/google-login") {
+        const mode = request.headers.get("X-Login-Mode") ?? "pilot";
+        if (mode !== "pilot" && mode !== "manager") return NextResponse.json({ message: "Invalid login mode." }, { status: 400 });
+        const expectedRole = mode === "manager" ? "operation_manager" : "uav_operator";
+        if (session.account.role !== expectedRole) {
+          return NextResponse.json({ message: `This account cannot sign in through the ${mode} panel. Select the panel for your account.` }, { status: 403 });
+        }
+      }
       clearActivation(request.cookies.get(activationCookie)?.value);
       const response = NextResponse.json(session);
       response.cookies.set(activationCookie, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 0 });

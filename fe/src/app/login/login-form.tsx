@@ -81,7 +81,7 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
   }
 
   async function loginWithGoogle() {
-    if (inProgress.current || mode !== "pilot") return;
+    if (inProgress.current) return;
     inProgress.current = true;
     setBusy("google"); setError(""); setNotice("");
     let firebaseAuth: Auth | null = null;
@@ -96,11 +96,12 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
 
       const session = await api<AuthSession>("/auth/google-login", {
         method: "POST",
+        headers: { "X-Login-Mode": mode },
         body: JSON.stringify({ idToken: credential.idToken }),
       });
-      if (!session.account || session.account.role !== "uav_operator") {
+      if (!session.account || session.account.role !== roleByMode[mode]) {
         await api("/auth/logout", { method: "POST" });
-        throw new Error("Google sign-in is available only for registered pilot accounts.");
+        throw new Error(roleMismatch[mode]);
       }
       completed = true;
     } catch (value) {
@@ -178,14 +179,14 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
       <button type="submit" className="button primary email-login-submit" disabled={busy !== null}>{busy === "password" ? "Authenticating..." : "Authenticate & Enter Portal"}<span aria-hidden="true">→</span></button>
     </form>
 
-    {mode === "pilot" && <div className="google-login-section">
+    <div className="google-login-section">
       <div className="login-divider"><span>OR USE YOUR REGISTERED GMAIL</span></div>
       <button type="button" className="google-login" aria-label="Sign in with Google" disabled={busy !== null} onClick={() => void loginWithGoogle()}>
         {busy === "google"
           ? <span className="google-login-busy">Connecting to Google...</span>
           : <><span className="google-login-mark" aria-hidden="true"><Image src="/google-signin.png" alt="" width={720} height={160} priority /></span><span>Sign in with Google</span></>}
       </button>
-    </div>}
+    </div>
 
     {mode === "pilot" && <button type="button" className="pilot-register-link" disabled={busy !== null} onClick={() => { setRegisterOpen(true); setNotice(""); setError(""); }}>Request Pilot Registration</button>}
 
