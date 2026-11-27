@@ -3,7 +3,7 @@
 import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
-import { AlertCircle, AlertTriangle, CalendarClock } from "lucide-react";
+import { AlertCircle, AlertTriangle, CalendarClock, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
@@ -114,6 +114,7 @@ export default function MissionForm() {
   const [waypoints, setWaypoints] = useState<MissionWaypoint[]>([]);
   const pending = useRef(false);
   const [saved, setSaved] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLDivElement>(null);
@@ -253,8 +254,8 @@ export default function MissionForm() {
     altitudeReference: altitudeReference || null, payloadKg: payloadKg ? Number(payloadKg) : null,
   });
   return <>
-    <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></header>
-    <MissionSuggestionPanel disabled={saving} onApply={applySuggestion} />
+    <header className="module-heading"><div><p className="module-kicker">PILOT / FLIGHT PLANNING</p><h1>Add Flight Route</h1><p>Select an aircraft, define the mission and place waypoints on the live map.</p></div><div className="heading-actions mission-create-actions"><button type="button" className="module-secondary" aria-expanded={aiOpen} aria-controls="new-mission-ai" disabled={saving} onClick={() => setAiOpen(open => !open)}><Sparkles size={15} aria-hidden="true" /> {aiOpen ? "HIDE AI ASSISTANT" : "AI ASSIST"}</button><Link className="module-secondary module-link" href="/portal/missions">← MY MISSIONS</Link></div></header>
+    <div id="new-mission-ai" hidden={!aiOpen}>{aiOpen && <MissionSuggestionPanel disabled={saving} onApply={applySuggestion} />}</div>
     <form ref={formRef} className="mission-builder mission-create-builder" onSubmit={submit} onBlurCapture={event => syncFieldAriaInvalid(event.target)} onChangeCapture={event => { syncFieldAriaInvalid(event.target); if (error) setError(""); }} onInputCapture={event => { syncFieldAriaInvalid(event.target); if (error) setError(""); }} onInvalidCapture={event => {
       const field = event.target;
       if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;

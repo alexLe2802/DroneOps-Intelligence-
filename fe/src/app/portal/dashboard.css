@@ -15726,3 +15726,15 @@
   pointer-events: auto;
   cursor: pointer;
 }
+
+.module-heading .mission-create-actions {
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.mission-create-actions > .module-secondary {
+  box-sizing: border-box;
+  height: 44px;
+  margin: 0;
+  white-space: nowrap;
+}

@@ -1,18 +1,18 @@
-import { AlertTriangle, BatteryCharging, CloudRain, Clock3, Wind } from "lucide-react";
+import { AlertTriangle, BatteryCharging, CloudRain, Clock3, Wind, X } from "lucide-react";
 import type { MissionDetail } from "@/lib/portal/types";
 import styles from "./high-risk-confirmation.module.css";
 
 type Props = {
   mission: MissionDetail;
   busy: "confirm" | "cancel" | null;
-  error: string;
+  onClose: () => void;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
 const metric = (value: number | null | undefined, unit: string) => value == null ? "N/A" : `${value} ${unit}`;
 
-export default function HighRiskConfirmation({ mission, busy, error, onConfirm, onCancel }: Props) {
+export default function HighRiskConfirmation({ mission, busy, onClose, onConfirm, onCancel }: Props) {
   const validation = mission.validation ?? mission.latestValidation ?? mission.preflightValidation ?? null;
   const weather = validation?.weather ?? null;
   const battery = validation?.battery ?? null;
@@ -32,10 +32,11 @@ export default function HighRiskConfirmation({ mission, busy, error, onConfirm, 
   const batteryFindings = [...(battery?.reasons ?? []), ...(battery?.warnings ?? [])];
 
   return <div className={styles.backdrop} role="presentation">
-    <section className={styles.dialog} role="alertdialog" aria-modal="true" aria-labelledby="high-risk-title" aria-describedby="high-risk-description">
+    <section className={styles.dialog} onKeyDown={event => { if (event.key === "Escape") onClose(); }} role="alertdialog" aria-modal="true" aria-labelledby="high-risk-title" aria-describedby="high-risk-description">
       <header>
         <span><AlertTriangle size={20} aria-hidden="true" /></span>
         <div><p>VALIDATION RESULT · PILOT DECISION REQUIRED</p><h2 id="high-risk-title">{title}</h2></div>
+        <button autoFocus type="button" className={styles.close} aria-label="Close high-risk review" onClick={onClose}><X size={20} aria-hidden="true" /></button>
       </header>
       <div className={styles.body}>
         <p id="high-risk-description">{description}</p>
@@ -51,7 +52,7 @@ export default function HighRiskConfirmation({ mission, busy, error, onConfirm, 
         {battery && <div className={styles.battery}><span>BATTERY ASSESSMENT</span><strong>{battery.message}</strong><small>Calculated use: {battery.requiredBatteryPercent.toFixed(2)}% · Safety reserve: {battery.safetyReservePercent}% · Weather adjustment: +{battery.weatherAdjustmentPercent}%</small></div>}
         {weatherWarnings.length > 0 && <div className={styles.warnings}><span>WEATHER FINDINGS</span><ul>{weatherWarnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}</ul></div>}
         {batteryFindings.length > 0 && <div className={styles.warnings}><span>BATTERY FINDINGS</span><ul>{batteryFindings.map((finding, index) => <li key={`${finding}-${index}`}>{finding}</li>)}</ul></div>}
-        {error && <p className={styles.error} role="alert">{error}</p>}
+
       </div>
       <footer>
         <button type="button" className={styles.cancel} disabled={busy !== null} onClick={onCancel}>{busy === "cancel" ? "CANCELLING..." : "WITHDRAW PROPOSAL"}</button>
