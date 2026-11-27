@@ -188,3 +188,16 @@
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dialog footer { flex-direction: column-reverse; }
 }
+
+.close {
+  display: grid;
+  flex: 0 0 40px;
+  height: 40px;
+  margin-inline-start: auto;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  color: var(--color-ink, #0d1c2e);
+  background: white;
+  cursor: pointer;
+}
