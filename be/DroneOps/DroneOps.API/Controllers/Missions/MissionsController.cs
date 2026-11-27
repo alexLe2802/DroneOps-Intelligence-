@@ -309,6 +309,50 @@ public sealed class MissionsController : ControllerBase
                 "The risk proposal was withdrawn. Mission data and decision history were retained."
         });
     }
+
+    [Authorize(Roles = "uav_operator")]
+    [HttpDelete("{missionId:guid}")]
+    public async Task<IActionResult> DeleteMission(
+    Guid missionId,
+    CancellationToken cancellationToken)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid user identity."
+            });
+        }
+
+        try
+        {
+            await _missionService.DeleteMissionAsync(
+                missionId,
+                userId,
+                cancellationToken);
+
+            return Ok(new
+            {
+                message = "Mission deleted successfully."
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new
+            {
+                message = ex.Message
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = ex.Message
+            });
+        }
+    }
     private bool TryGetUserId(out Guid userId)
     {
         userId = Guid.Empty;

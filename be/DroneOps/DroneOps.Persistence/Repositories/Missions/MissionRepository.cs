@@ -158,4 +158,12 @@ public sealed class MissionRepository : IMissionRepository
     {
         await _context.SaveChangesAsync(cancellationToken);
     }
+    public async Task DeleteAsync(
+     Mission mission,
+     CancellationToken cancellationToken = default)
+    {
+        _context.Missions.Remove(mission);
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }
