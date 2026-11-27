@@ -3,7 +3,7 @@
 import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
-import { AlertCircle, AlertTriangle, CalendarClock } from "lucide-react";
+import { AlertCircle, AlertTriangle, CalendarClock, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createMission, getAssignedUavs, getGeofences } from "@/lib/portal/client";
@@ -114,6 +114,7 @@ export default function MissionForm() {
   const [waypoints, setWaypoints] = useState<MissionWaypoint[]>([]);
   const pending = useRef(false);
   const [saved, setSaved] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLDivElement>(null);
