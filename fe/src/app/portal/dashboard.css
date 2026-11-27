@@ -209,6 +209,11 @@
   padding: 24px 28px 56px;
 }
 
+.ops-content:has(.approval-workspace) {
+  max-width: none;
+  padding-inline: 24px;
+}
+
 .module-content {
   padding: 28px 32px 64px;
 }
@@ -4104,8 +4109,14 @@
 .approval-workspace {
   display: grid;
   gap: 16px;
-  max-width: 1440px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
+}
+
+.approval-workspace .mission-waypoint-table {
+  min-width: 0;
+  width: 100%;
 }
 
 .approval-queue-bar {
@@ -4291,7 +4302,7 @@
 
 .approval-clearance-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -4370,15 +4381,22 @@
 
 .approval-review-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
 
-.approval-spatial-column,
-.approval-decision-column {
+.approval-spatial-column {
   display: grid;
   gap: 16px;
+  min-width: 0;
+}
+
+.approval-decision-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
   min-width: 0;
 }
 
@@ -5105,6 +5123,10 @@
     grid-template-columns: 1fr;
   }
 
+  .approval-clearance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .approval-queue-bar {
     grid-template-columns: auto 1fr 1.2fr auto;
   }
@@ -5154,7 +5176,8 @@
   .geofence-management-layout,
   .geofence-editor-grid,
   .mission-registry-insights,
-  .approval-clearance-grid {
+  .approval-clearance-grid,
+  .approval-decision-column {
     grid-template-columns: 1fr;
   }
 
