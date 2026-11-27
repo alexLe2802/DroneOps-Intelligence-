@@ -97,10 +97,11 @@ public sealed class DraftAnalysisService(AppDbContext db, IMissionWeatherQuerySe
             .Select(w => new { w.SequenceOrder, w.SegmentFrom, w.SegmentTo, w.EstimatedArrivalTime,
                 w.ForecastTime, w.WindSpeedMetersPerSecond, w.WindGustMetersPerSecond, w.RiskLevel }).ToList();
         if (windAlerts.Count > 0) findings.Add("Khuyến cáo hoãn chuyến và kiểm tra lại các điểm có cảnh báo thời tiết.");
+        var recommendedLimits = automatic ? RecommendLimits(limits!, uav, r, forecast.MaxWindMetersPerSecond, forecast.MaxGustMetersPerSecond) : null;
         var cruiseBasis = r.Cruise.HasValue ? "Pilot input, limited by the known ceiling" :
             cruise.HasValue ? "Automatic flight policy default, limited by the known ceiling" : null;
         var evidence = new { r.Name, r.StartTime, r.EndTime, waypointCount = r.Waypoints.Count, cruiseBasis, uav.Model, uav.EmptyWeightKg, uav.MaxTakeoffWeightKg, uav.MaxPayloadKg, r.PayloadKg,
-            r.Automatic, cruise, ceiling, estimatedEnd, windLimit, gustLimit, forecast.Status, forecast.Provider,
+            r.Automatic, cruise, ceiling, estimatedEnd, windLimit, gustLimit, recommendedLimits, forecast.Status, forecast.Provider,
             forecast.FetchedAt, forecast.MaxWindMetersPerSecond, forecast.MaxGustMetersPerSecond, windAlerts, findings };
         string? explanation;
         using var explanationBudget = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -108,7 +109,42 @@ public sealed class DraftAnalysisService(AppDbContext db, IMissionWeatherQuerySe
         try { explanation = await ai.ExplainDraftAsync(JsonSerializer.Serialize(evidence), explanationBudget.Token); }
         catch (Exception e) when (!ct.IsCancellationRequested && e is InvalidOperationException or HttpRequestException or JsonException or OperationCanceledException)
         { explanation = null; }
-        return new { cruise, cruiseBasis, ceiling, estimatedEnd, findings, windAlerts, windLimit, gustLimit,
+        return new { cruise, cruiseBasis, ceiling, estimatedEnd, findings, windAlerts, windLimit, gustLimit, recommendedLimits,
             weatherStatus = forecast.Status, forecast.Provider, forecast.FetchedAt, explanation };
+    }
+
+    // Deterministic advisory values; the pilot chooses what to apply and mission validation still runs separately.
+    private static AutomaticFlightLimits RecommendLimits(AutomaticFlightLimits limits, UAV uav, DraftAnalysisRequest r,
+        decimal? forecastWind, decimal? forecastGust)
+    {
+        var v2 = limits.PolicyVersion == "multicopter-envelope-v2";
+        var climbCap = v2 ? 8m : 1.5m;
+        var descentCap = v2 ? 6m : 1m;
+        var landingCap = v2 ? 1.5m : 0.7m;
+        var baseTakeoff = v2 ? 6.5m : 1m;
+        var baseClimb = v2 ? 6.5m : 1m;
+        var baseDescent = v2 ? 5.8m : 0.7m;
+        var baseLanding = v2 ? 1m : 0.7m;
+        var scale = 1m;
+        if (r.PayloadKg is > 0 && uav.MaxPayloadKg is > 0)
+        {
+            var ratio = Math.Min(1m, r.PayloadKg.Value / uav.MaxPayloadKg.Value);
+            if (ratio >= 0.75m) scale = Math.Min(scale, 0.75m);
+            else if (ratio >= 0.5m) scale = Math.Min(scale, 0.85m);
+        }
+        if (forecastWind >= 2.5m || forecastGust >= 4m) scale = Math.Min(scale, 0.85m);
+        static decimal Round(decimal value) => Math.Round(value, 1, MidpointRounding.AwayFromZero);
+        var climb = Math.Clamp(Round(baseClimb * scale), 1m, climbCap);
+        var takeoff = Math.Clamp(Round(baseTakeoff * scale), 1m, climb);
+        var descent = Math.Clamp(Round(baseDescent * scale), 0.6m, descentCap);
+        var landing = Math.Clamp(Round(baseLanding * (scale < 1m ? 0.9m : 1m)), 0.6m, Math.Min(landingCap, descent));
+        var altitudeCap = uav.MaxOperatingAltitudeMeters is > 10.1m
+            ? Math.Min(AutomaticFlightPolicy.MaximumAltitude, uav.MaxOperatingAltitudeMeters.Value)
+            : AutomaticFlightPolicy.MaximumAltitude;
+        var highest = r.Waypoints.Max(w => w.Altitude ?? 0m);
+        var altitude = Math.Clamp(Round(Math.Clamp(Math.Ceiling(highest + 5m), 10.1m, altitudeCap)), 10.1m, altitudeCap);
+        var wind = Math.Clamp(Round(Math.Min(3m, uav.MaxWindSpeedMps is > 0 ? uav.MaxWindSpeedMps.Value : 3m)), 0.1m, 3m);
+        var gust = uav.MaxWindSpeedMps is > 0 and < 3m ? Math.Clamp(Round(wind * 1.5m), wind, 5m) : 5m;
+        return new AutomaticFlightLimits(takeoff, climb, descent, landing, altitude, wind, gust, limits.PolicyVersion);
     }
 }
