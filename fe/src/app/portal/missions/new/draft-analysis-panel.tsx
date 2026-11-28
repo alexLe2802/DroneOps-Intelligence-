@@ -65,7 +65,9 @@ export default function DraftAnalysisPanel({ draft, missing, disabled, applyCrui
         {result.findings.length > 0 && <ul className={styles.findings}>{result.findings.map(item => <li key={item}>{item}</li>)}</ul>}
         {result.windAlerts.length > 0 && <div className={styles.windAlerts}>
           {result.windAlerts.map((item, i) => <p className={styles.windAlert} key={i}>
-            {item.segmentFrom != null ? `WP${item.segmentFrom}–WP${item.segmentTo}` : `WP${item.sequenceOrder}`} · {item.estimatedArrivalTime ? formatVietnamDateTime(item.estimatedArrivalTime) : "Arrival unknown"} · Wind {item.windSpeedMetersPerSecond ?? "—"} / limit {result.windLimit ?? "—"} m/s · Gust {item.windGustMetersPerSecond ?? "—"} / limit {result.gustLimit ?? "—"} m/s · {item.riskLevel}
+            {item.isReturnLeg
+              ? item.segmentFrom != null ? `Return WP${item.segmentFrom}–WP${item.segmentTo ?? 1}` : `Return to WP${item.segmentTo ?? 1} (RTL)`
+              : item.segmentFrom != null ? `WP${item.segmentFrom}–WP${item.segmentTo}` : `WP${item.sequenceOrder}`} · {item.estimatedArrivalTime ? formatVietnamDateTime(item.estimatedArrivalTime) : "Arrival unknown"} · Wind {item.windSpeedMetersPerSecond ?? "—"} / limit {result.windLimit ?? "—"} m/s · Gust {item.windGustMetersPerSecond ?? "—"} / limit {result.gustLimit ?? "—"} m/s · {item.riskLevel}
           </p>)}
         </div>}
       </div>

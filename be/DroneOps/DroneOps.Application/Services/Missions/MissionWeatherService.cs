@@ -45,7 +45,8 @@ public sealed class MissionWeatherService(
         decimal Longitude,
         decimal? Altitude,
         decimal? BearingDegrees,
-        double DistanceFromStartMeters);
+        double DistanceFromStartMeters,
+        bool IsReturnLeg = false);
 
     private static readonly string[] Variables =
     [
@@ -95,11 +96,13 @@ public sealed class MissionWeatherService(
                 Math.Max(5, policy.RequestBudgetSeconds)));
 
         var orderedWaypoints = MissionRouteGeometry.PlanningWaypoints(mission);
+        var hasReturnProjection = orderedWaypoints.Count > mission.Waypoints.Count;
 
         var routePoints =
             BuildRoutePoints(
                 orderedWaypoints,
-                policy);
+                policy,
+                hasReturnProjection);
 
         var totalDistance =
             routePoints.Count == 0
@@ -142,6 +145,9 @@ public sealed class MissionWeatherService(
 
                 IsRouteSample =
                     routePoint.IsRouteSample,
+
+                IsReturnLeg =
+                    routePoint.IsReturnLeg,
 
                 SampleOrder =
                     routePoint.SampleOrder,
@@ -287,7 +293,8 @@ public sealed class MissionWeatherService(
 
     private static List<RoutePoint> BuildRoutePoints(
         List<Waypoint> waypoints,
-        MissionWeatherOptions policy)
+        MissionWeatherOptions policy,
+        bool hasReturnProjection = false)
     {
         var result = new List<RoutePoint>();
 
@@ -374,15 +381,26 @@ public sealed class MissionWeatherService(
         var cumulativeDistance = 0d;
         var sampleOrder = 1;
 
-        foreach (var segment in segments)
+        for (var segmentIndex = 0;
+             segmentIndex < segments.Count;
+             segmentIndex++)
         {
+            var segment = segments[segmentIndex];
+            var isReturnSegment =
+                hasReturnProjection &&
+                segmentIndex == segments.Count - 1;
+            var segmentToOrder =
+                isReturnSegment
+                    ? waypoints[0].SequenceOrder
+                    : segment.To.SequenceOrder;
+
             result.Add(
                 new RoutePoint(
                     segment.From.SequenceOrder,
                     false,
                     0,
                     segment.From.SequenceOrder,
-                    segment.To.SequenceOrder,
+                    segmentToOrder,
                     segment.From.Latitude,
                     segment.From.Longitude,
                     segment.From.Altitude,
@@ -441,13 +459,14 @@ public sealed class MissionWeatherService(
                         true,
                         sampleOrder++,
                         segment.From.SequenceOrder,
-                        segment.To.SequenceOrder,
+                        segmentToOrder,
                         latitude,
                         longitude,
                         altitude,
                         segment.Bearing,
                         cumulativeDistance +
-                        distanceOnSegment));
+                        distanceOnSegment,
+                        isReturnSegment));
             }
 
             cumulativeDistance +=
@@ -456,6 +475,10 @@ public sealed class MissionWeatherService(
 
         var lastSegment = segments[^1];
         var lastWaypoint = waypoints[^1];
+        var lastSegmentToOrder =
+            hasReturnProjection
+                ? waypoints[0].SequenceOrder
+                : lastSegment.To.SequenceOrder;
 
         result.Add(
             new RoutePoint(
@@ -463,12 +486,13 @@ public sealed class MissionWeatherService(
                 false,
                 0,
                 lastSegment.From.SequenceOrder,
-                lastSegment.To.SequenceOrder,
+                lastSegmentToOrder,
                 lastWaypoint.Latitude,
                 lastWaypoint.Longitude,
                 lastWaypoint.Altitude,
                 lastSegment.Bearing,
-                cumulativeDistance));
+                cumulativeDistance,
+                hasReturnProjection));
 
         return result
             .OrderBy(x =>
@@ -1615,6 +1639,18 @@ public sealed class MissionWeatherService(
     private static string PointLabel(
         WaypointWeather point)
     {
+        if (point.IsReturnLeg)
+        {
+            if (point.IsRouteSample)
+            {
+                return
+                    $"Route sample {point.SampleOrder} " +
+                    $"on return leg WP{point.SegmentFrom}-WP{point.SegmentTo ?? 1}";
+            }
+
+            return $"Return to WP{point.SegmentTo ?? 1}";
+        }
+
         if (point.IsRouteSample)
         {
             return

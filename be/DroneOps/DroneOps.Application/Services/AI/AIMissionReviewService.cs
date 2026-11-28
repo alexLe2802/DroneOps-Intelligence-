@@ -176,6 +176,7 @@ public class AIMissionReviewService : IAIMissionReviewService
                 {
                     x.SequenceOrder,
                     x.IsRouteSample,
+                    x.IsReturnLeg,
                     x.SampleOrder,
                     x.SegmentFrom,
                     x.SegmentTo,

@@ -1,9 +1,12 @@
+using System.Net;
 using DroneOps.Application.DTOs.Options;
 using DroneOps.Application.DTOs.Response.Missions;
 using DroneOps.Application.Interfaces.Missions;
 using DroneOps.Application.Services.Missions;
 using DroneOps.Domain.Entities;
 using DroneOps.Persistence.Interfaces;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 internal static class WeatherRefreshChecks
@@ -32,6 +35,52 @@ internal static class WeatherRefreshChecks
         Check(provider.Calls == 3 && repeated.Status == "Stale" && !repeated.Available &&
             stale.FetchedAt == available.FetchedAt && stale.ExpiresAt == available.ExpiresAt &&
             repeated.NextRefreshAt == stale.NextRefreshAt, "stale evidence preserves its timestamps during cooldown");
+
+        await CheckReturnLegWeatherLabelingAsync();
+    }
+
+    private static async Task CheckReturnLegWeatherLabelingAsync()
+    {
+        using var http = new HttpClient(new UnavailableHandler());
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var weather = new MissionWeatherService(
+            http,
+            Options.Create(new MissionWeatherOptions { RouteSampleDistanceMeters = 1000 }),
+            cache,
+            NullLogger<MissionWeatherService>.Instance);
+
+        var start = DateTime.UtcNow.AddHours(2);
+        var mission = new Mission
+        {
+            Id = Guid.NewGuid(),
+            StartTime = start,
+            EndTime = start.AddMinutes(30),
+            Waypoints =
+            [
+                new Waypoint { SequenceOrder = 1, Latitude = 10.80m, Longitude = 106.60m, Altitude = 30m, ActionType = "TakeOff" },
+                new Waypoint { SequenceOrder = 2, Latitude = 10.81m, Longitude = 106.60m, Altitude = 30m, ActionType = "Waypoint" },
+                new Waypoint { SequenceOrder = 3, Latitude = 10.82m, Longitude = 106.60m, Altitude = 30m, ActionType = "Return" },
+            ]
+        };
+
+        var advisory = await weather.GetAsync(mission);
+        var returnEndpoint = advisory.Waypoints.Last();
+        var returnSamples = advisory.Waypoints.Where(w => w.IsReturnLeg && w.IsRouteSample).ToList();
+
+        Check(returnEndpoint.IsReturnLeg && !returnEndpoint.IsRouteSample && returnEndpoint.SegmentFrom == 3 && returnEndpoint.SegmentTo == 1,
+            "RTL projected endpoint is flagged as IsReturnLeg targeting WP1 instead of an extra waypoint");
+        Check(returnSamples.Count > 0 && returnSamples.All(w => w.SegmentFrom == 3 && w.SegmentTo == 1),
+            "route samples on the RTL return leg are flagged as IsReturnLeg from WP3 to WP1");
+        Check(advisory.Warnings.Any(w => w.Contains("Return to WP1", StringComparison.Ordinal))
+            && advisory.Warnings.Any(w => w.Contains("return leg WP3-WP1", StringComparison.Ordinal))
+            && advisory.Warnings.All(w => !w.Contains("WP4", StringComparison.Ordinal)),
+            "weather warnings label the RTL return leg clearly without inventing WP4");
+    }
+
+    private sealed class UnavailableHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
     }
 
     private static void Check(bool ok, string message)
