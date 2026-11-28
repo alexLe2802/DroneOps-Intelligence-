@@ -3,6 +3,7 @@
 import { formatVietnamDateTime } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatAutomaticLimits } from "@/lib/portal/automatic-flight-limits";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AccountRole } from "@/lib/auth/types";
@@ -26,6 +27,7 @@ type MissionDialog = "cancel" | null;
 type BusyAction = "validate" | "start" | "cancel" | "submit" | null;
 
 export default function MissionDetailClient({ id, role, actorId }: { id: string; role: AccountRole; actorId: string }) {
+  const router = useRouter();
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [error, setError] = useState<unknown>(null);
@@ -42,7 +44,20 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
   const [riskBusy, setRiskBusy] = useState<"confirm" | "cancel" | null>(null);
   const [planHistory, setPlanHistory] = useState<MissionUpdateSummary[]>([]);
   const [waypointVersion, setWaypointVersion] = useState("");
+  const [evidenceVersion, setEvidenceVersion] = useState(0);
   const actions = mission ? missionActions(mission, role, actorId) : null;
+
+  const refreshDetail = useCallback(async () => {
+    const [missionResult, historyResult] = await Promise.allSettled([getMission(id), getMissionHistory(id)]);
+    if (missionResult.status === "rejected") throw missionResult.reason;
+    const latest = missionResult.value;
+    setMission(latest);
+    setValidation(latest.validation?.updateRequestId ? null : latest.validation ?? null);
+    setValidatedAt(!latest.validation?.updateRequestId && latest.validation?.checkedAt ? new Date(latest.validation.checkedAt) : null);
+    if (historyResult.status === "fulfilled") setPlanHistory(reviewHistory(historyResult.value));
+    setEvidenceVersion(version => version + 1);
+    router.refresh();
+  }, [id, router]);
 
   const load = useCallback(() => {
     setMission(null);
@@ -104,7 +119,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     setNotice("");
     try {
       const result = await validateMission(mission, mission.pendingUpdate?.id);
-      setMission(await getMission(id));
+      await refreshDetail();
       setValidation(result);
       setValidatedAt(result.checkedAt ? new Date(result.checkedAt) : new Date());
     } catch (reason) {
@@ -125,10 +140,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     setNotice("");
     try {
       await cancelMission(mission.id, cancelReason);
-      const refreshed = await getMission(mission.id);
-      setMission(refreshed);
-      setValidation(null);
-      setValidatedAt(null);
+      await refreshDetail();
       setCancelReason("");
       setDialog(null);
       setNotice("Mission cancelled. The displayed status was refreshed from the backend.");
@@ -148,8 +160,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       submitOperation.current ??= crypto.randomUUID();
       await submitMission(mission.id, submitOperation.current);
       submitOperation.current = null;
-      const refreshed = await getMission(mission.id);
-      setMission(refreshed); setValidation(refreshed.validation?.updateRequestId ? null : refreshed.validation ?? null);
+      await refreshDetail();
       setNotice("Draft validated and sent for review. Review the submission status below.");
     } catch (reason) {
       setActionError(reason instanceof Error ? reason.message : "Unable to submit the draft.");
@@ -173,7 +184,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       else await cancelHighRiskMission(id, request.id);
       setNotice(confirm ? "High risk confirmed successfully." : "Proposal withdrawn successfully.");
       try {
-        setMission(await getMission(id));
+        await refreshDetail();
       } catch {
         setActionError("Decision saved. Reload to see the latest mission status.");
       }
@@ -261,8 +272,8 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     </>}
     <MissionValidationEvidence missionId={id} validation={readinessValidation} />
     {["inprogress"].includes(currentStatus) && mission.validation?.stale && <p role="alert">Configured restrictions changed after this flight was approved. The flight retains its original execution snapshot; review the updated restriction evidence.</p>}
-    <MissionPermits key={id + mission.status} path={`/missions/${id}/permits`} status={mission.status} manager={role === "operation_manager"} pendingPlan={!!mission.pendingUpdate} refresh={load} />
-    <MissionEvidencePanel key={`${id}-${mission.status}-${mission.pendingUpdate?.id ?? "current"}`} id={id} />
+    <MissionPermits key={id + mission.status} path={`/missions/${id}/permits`} status={mission.status} manager={role === "operation_manager"} pendingPlan={!!mission.pendingUpdate} refresh={() => void refreshDetail().catch(load)} />
+    <MissionEvidencePanel key={`${id}-${mission.status}-${mission.pendingUpdate?.id ?? "current"}-${evidenceVersion}`} id={id} />
     <section className="mission-command-panel" aria-label="Mission lifecycle actions">
       <div className="mission-command-state">
         <span>PRE-FLIGHT CONTROL</span>

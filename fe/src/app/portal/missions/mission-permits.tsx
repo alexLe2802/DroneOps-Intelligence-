@@ -47,6 +47,9 @@ export default function MissionPermits({ path, status, manager, pendingPlan, ref
       } else if (accept !== undefined && documents?.[0]) {
         await api(path + "/review", { method: "POST", body: JSON.stringify({ documentId: documents[0].id, accept, reason }) });
       } else return;
+      setFile(null);
+      setReason("");
+      setRevision(value => value + 1);
       refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to update the permit."); }
     finally { setBusy(false); }
