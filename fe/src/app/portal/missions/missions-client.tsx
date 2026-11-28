@@ -37,7 +37,10 @@ const missionBucket = (status: string): Exclude<MissionBucket, "all"> => {
 };
 const formatStatus = (value: string) => value.replace(/([A-Z])/g, " $1").trim();
 const formatDate = (value: string | null) => value ? formatVietnamDateTime(value) : "Not scheduled";
-const canDelete = (status: string) => ["rejected", "cancelled", "canceled"].includes(normalizedStatus(status));
+const canDelete = (status: string) => {
+  const bucket = missionBucket(status);
+  return bucket !== "active" && bucket !== "completed";
+};
 
 export default function MissionsClient() {
   const [missions, setMissions] = useState<PilotMission[] | null>(null);
