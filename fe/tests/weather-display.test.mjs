@@ -50,3 +50,16 @@ test('route samples do not overwrite real waypoint warning representatives', () 
   const waypoints = [point(1), point(3), point(3, {isRouteSample:true, sampleOrder:1, segmentFrom:3, segmentTo:4})];
   assert.deepEqual(weatherWarnings({waypoints,warnings:['WP1: rain warning','WP3: rain warning','Route sample 1 on segment 3-4: rain warning']}), ['WP1: rain warning','Route sample 1 on segment 3-4: rain warning']);
 });
+test('return leg points label as Return/RTL instead of an extra waypoint number and stay distinct from WP1', async () => {
+  const { weatherPointLabel } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+  const waypoints = [
+    point(1),
+    point(3, {latitude:10.82}),
+    point(3, {isRouteSample:true, isReturnLeg:true, sampleOrder:4, segmentFrom:3, segmentTo:1, latitude:10.81}),
+    point(4, {isReturnLeg:true, segmentFrom:3, segmentTo:1, latitude:10.8}),
+  ];
+  const groups = groupWeatherWaypoints(waypoints);
+  assert.equal(groups.length, 4);
+  assert.equal(weatherPointLabel(waypoints[2]), 'Route sample 4 · Return WP3–WP1');
+  assert.equal(weatherPointLabel(waypoints[3]), 'Return to WP1 (RTL)');
+});

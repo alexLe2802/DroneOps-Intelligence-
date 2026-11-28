@@ -94,7 +94,7 @@ public sealed class DraftAnalysisService(AppDbContext db, IMissionWeatherQuerySe
             findings.Add("Thiếu dự báo gió giật tại một số điểm để đối chiếu giới hạn bay tự động.");
         var windAlerts = forecast.Waypoints.Where(w => forecast.Status != "Stale" && (w.Status is "Available" or "Partial") &&
             (w.WindSpeedMetersPerSecond > windLimit || w.WindGustMetersPerSecond > gustLimit || w.RiskLevel == "High"))
-            .Select(w => new { w.SequenceOrder, w.SegmentFrom, w.SegmentTo, w.EstimatedArrivalTime,
+            .Select(w => new { w.SequenceOrder, w.IsReturnLeg, w.SegmentFrom, w.SegmentTo, w.EstimatedArrivalTime,
                 w.ForecastTime, w.WindSpeedMetersPerSecond, w.WindGustMetersPerSecond, w.RiskLevel }).ToList();
         if (windAlerts.Count > 0) findings.Add("Khuyến cáo hoãn chuyến và kiểm tra lại các điểm có cảnh báo thời tiết.");
         var recommendedLimits = automatic ? RecommendLimits(limits!, uav, r, forecast.MaxWindMetersPerSecond, forecast.MaxGustMetersPerSecond) : null;

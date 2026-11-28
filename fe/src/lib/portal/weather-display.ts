@@ -10,12 +10,19 @@ const signature = (p: Point) => JSON.stringify([
   p.cloudCoverPercent, p.weatherCode, p.status, p.riskLevel,
   p.warnings.map(warningText).sort(),
 ]);
-const sampleIdentity = (p: Point) => JSON.stringify([Boolean(p.isRouteSample),
-  p.isRouteSample ? p.sampleOrder : null, p.isRouteSample ? p.segmentFrom : null,
-  p.isRouteSample ? p.segmentTo : null]);
-export const weatherPointLabel = (p: Point) => p.isRouteSample
-  ? `Route sample ${p.sampleOrder ?? "—"} · WP${p.segmentFrom ?? "—"}–WP${p.segmentTo ?? "—"}`
-  : `WP${p.sequenceOrder}`;
+const sampleIdentity = (p: Point) => JSON.stringify([Boolean(p.isRouteSample), Boolean(p.isReturnLeg),
+  p.isRouteSample ? p.sampleOrder : null, p.isRouteSample || p.isReturnLeg ? p.segmentFrom : null,
+  p.isRouteSample || p.isReturnLeg ? p.segmentTo : null]);
+export const weatherPointLabel = (p: Point) => {
+  if (p.isReturnLeg) {
+    return p.isRouteSample
+      ? `Route sample ${p.sampleOrder ?? "—"} · Return WP${p.segmentFrom ?? "—"}–WP${p.segmentTo ?? 1}`
+      : `Return to WP${p.segmentTo ?? 1} (RTL)`;
+  }
+  return p.isRouteSample
+    ? `Route sample ${p.sampleOrder ?? "—"} · WP${p.segmentFrom ?? "—"}–WP${p.segmentTo ?? "—"}`
+    : `WP${p.sequenceOrder}`;
+};
 function distanceMeters(a: Point, b: Point) {
   if (![a.latitude, a.longitude, b.latitude, b.longitude].every(Number.isFinite)) return Infinity;
   const rad = (n: number) => n * Math.PI / 180;
@@ -38,7 +45,7 @@ export function groupWeatherWaypoints(points: Point[]) {
 export function weatherWarnings(weather: MissionWeather) {
   const representatives = new Map<number, number>();
   for (const group of groupWeatherWaypoints(weather.waypoints)) {
-    if (group.point.isRouteSample) continue;
+    if (group.point.isRouteSample || group.point.isReturnLeg) continue;
     for (const sequence of group.sequences) representatives.set(sequence, group.point.sequenceOrder);
   }
   return [...new Set(weather.warnings.map(text => text.replace(/^WP(\d+):/, (prefix, sequence) => {

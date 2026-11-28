@@ -115,6 +115,11 @@ public sealed class WaypointWeather
      */
     public bool IsRouteSample { get; set; }
 
+    /*
+     * true: điểm thuộc chặng bay quay về điểm cất cánh (Return / RTL)
+     */
+    public bool IsReturnLeg { get; set; }
+
     public int SampleOrder { get; set; }
 
     public int? SegmentFrom { get; set; }
