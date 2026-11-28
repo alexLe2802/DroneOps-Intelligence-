@@ -6,9 +6,9 @@ import Link from "next/link";
 import { formatAutomaticLimits } from "@/lib/portal/automatic-flight-limits";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AccountRole } from "@/lib/auth/types";
-import { cancelMission, getGeofences, getMission, submitMission, confirmHighRiskMission, cancelHighRiskMission, validateMission } from "@/lib/portal/client";
-import { missionActions, validationState } from "@/lib/portal/mission-review";
-import type { Geofence, MissionDetail, MissionValidationResult } from "@/lib/portal/types";
+import { cancelMission, getGeofences, getMission, getMissionHistory, submitMission, confirmHighRiskMission, cancelHighRiskMission, validateMission } from "@/lib/portal/client";
+import { missionActions, reviewHistory, validationState } from "@/lib/portal/mission-review";
+import type { Geofence, MissionDetail, MissionUpdateSummary, MissionValidationResult } from "@/lib/portal/types";
 import { ModuleError, ModuleLoading } from "../../module-state";
 import MissionMap from "../mission-map";
 import dialogStyles from "./mission-dialog.module.css";
@@ -40,6 +40,8 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
   const submitOperation = useRef<string | null>(null);
   const [riskOpen, setRiskOpen] = useState(false);
   const [riskBusy, setRiskBusy] = useState<"confirm" | "cancel" | null>(null);
+  const [planHistory, setPlanHistory] = useState<MissionUpdateSummary[]>([]);
+  const [waypointVersion, setWaypointVersion] = useState("");
   const actions = mission ? missionActions(mission, role, actorId) : null;
 
   const load = useCallback(() => {
@@ -49,7 +51,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     setNotice("");
     setValidation(null);
     setValidatedAt(null);
-    void Promise.allSettled([getMission(id), getGeofences()]).then(([missionResult, geofenceResult]) => {
+    void Promise.allSettled([getMission(id), getGeofences(), getMissionHistory(id)]).then(([missionResult, geofenceResult, historyResult]) => {
       if (missionResult.status === "rejected") {
         setError(missionResult.reason);
         return;
@@ -58,12 +60,13 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       setValidation(missionResult.value.validation?.updateRequestId ? null : missionResult.value.validation ?? null);
       setValidatedAt(!missionResult.value.validation?.updateRequestId && missionResult.value.validation?.checkedAt ? new Date(missionResult.value.validation.checkedAt) : null);
       setGeofences(geofenceResult.status === "fulfilled" ? geofenceResult.value : []);
+      setPlanHistory(historyResult.status === "fulfilled" ? reviewHistory(historyResult.value) : []);
     });
   }, [id]);
 
   useEffect(() => {
     let active = true;
-    void Promise.allSettled([getMission(id), getGeofences()]).then(([missionResult, geofenceResult]) => {
+    void Promise.allSettled([getMission(id), getGeofences(), getMissionHistory(id)]).then(([missionResult, geofenceResult, historyResult]) => {
       if (!active) return;
       if (missionResult.status === "rejected") {
         setError(missionResult.reason);
@@ -73,6 +76,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
       setValidation(missionResult.value.validation?.updateRequestId ? null : missionResult.value.validation ?? null);
       setValidatedAt(!missionResult.value.validation?.updateRequestId && missionResult.value.validation?.checkedAt ? new Date(missionResult.value.validation.checkedAt) : null);
       setGeofences(geofenceResult.status === "fulfilled" ? geofenceResult.value : []);
+      setPlanHistory(historyResult.status === "fulfilled" ? reviewHistory(historyResult.value) : []);
     });
     return () => { active = false; };
   }, [id]);
@@ -192,6 +196,30 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
   const readinessHref = readinessValidation?.id
     ? `/portal/validation-results?missionId=${encodeURIComponent(id)}&runId=${encodeURIComponent(readinessValidation.id)}`
     : `/portal/validation-results?missionId=${encodeURIComponent(id)}`;
+  const versionHistory = (() => {
+    const merged = [...planHistory];
+    if (mission.pendingUpdate && !merged.some(item => item.id === mission.pendingUpdate?.id)) {
+      merged.unshift(mission.pendingUpdate);
+    }
+    return reviewHistory(merged);
+  })();
+  const waypointVersionOptions = [
+    { id: "", label: `Current mission (${mission.waypoints.length} WP)`, shortLabel: "Current", request: null as MissionUpdateSummary | null },
+    ...versionHistory.map((request, index) => {
+      const version = versionHistory.length - index;
+      const kind = request.isInitial ? "Initial" : "Update";
+      const count = request.proposedPlan?.waypoints?.length ?? 0;
+      return {
+        id: request.id,
+        label: `v${version} · ${kind} (${request.status}) · ${formatDate(request.createdAt)} · ${count} WP`,
+        shortLabel: `v${version} · ${request.status}`,
+        request,
+      };
+    }),
+  ];
+  const selectedVersionOption = waypointVersionOptions.find(option => option.id === waypointVersion) ?? waypointVersionOptions[0];
+  const displayedWaypoints = selectedVersionOption.request?.proposedPlan?.waypoints ?? mission.waypoints;
+  const displayedFindings = selectedVersionOption.request ? selectedVersionOption.request.validation?.findings : readinessValidation?.findings;
   const canEdit = actions?.edit;
   const canValidate = actions?.validate;
   const canCancel = actions?.cancel;
@@ -225,7 +253,10 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     </section>}
 
     {mission.pendingUpdate && <>
-      <p role="status">A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains {mission.status}.</p>
+      <div className="mission-pending-banner" role="status">
+        <span className="mission-pending-badge">{mission.pendingUpdate.isInitial ? "PENDING REVIEW" : "PENDING UPDATE"}</span>
+        <p>A {mission.pendingUpdate.isInitial ? "submission" : "proposed update"} is pending review. Current mission status remains <strong>{formatStatus(mission.status)}</strong>.</p>
+      </div>
       <MissionPlanComparison key={mission.pendingUpdate.id} missionId={mission.id} isInitial={mission.pendingUpdate.isInitial} current={{ automaticFlightLimits: mission.automaticFlightLimits, automaticFlightRequested: mission.automaticFlightRequested ?? false, uavId: mission.uavId ?? "", name: mission.name, description: mission.description, averageSpeedMetersPerSecond: mission.averageSpeedMetersPerSecond ?? 0, maxSpeedMetersPerSecond: mission.maxSpeedMetersPerSecond ?? 0, startTime: mission.startTime ?? "", endTime: mission.endTime ?? "", altitudeReference: mission.altitudeReference as "AGL" | "MSL" | "Relative" | null, waypoints: mission.waypoints }} proposed={mission.pendingUpdate.proposedPlan} validation={mission.pendingUpdate.validation} />
     </>}
     <MissionValidationEvidence missionId={id} validation={readinessValidation} />
@@ -257,8 +288,16 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
 
     <section className="mission-detail-layout">
       <div className="mission-route-panel">
-        <header><div><p className="module-kicker">ROUTE PLAN</p><h2>Current Mission Flight Path</h2></div></header>
-        {mission.waypoints.length > 0 ? <MissionMap waypoints={mission.waypoints} geofences={geofences} readOnly findings={readinessValidation?.findings} /> : <div className="mission-route-empty"><span>⌁</span><h3>Route data unavailable</h3><p>No waypoint data was returned for this mission.</p></div>}
+        <header>
+          <div><p className="module-kicker">ROUTE PLAN</p><h2>{selectedVersionOption.request ? `Flight Path · ${selectedVersionOption.shortLabel}` : "Current Mission Flight Path"}</h2></div>
+          {waypointVersionOptions.length > 1 && <label className="mission-waypoint-version">
+            <span>VERSION</span>
+            <select value={selectedVersionOption.id} onChange={event => setWaypointVersion(event.target.value)}>
+              {waypointVersionOptions.map(option => <option key={option.id || "current"} value={option.id}>{option.label}</option>)}
+            </select>
+          </label>}
+        </header>
+        {displayedWaypoints.length > 0 ? <MissionMap waypoints={displayedWaypoints} geofences={geofences} readOnly findings={displayedFindings} /> : <div className="mission-route-empty"><span>⌁</span><h3>Route data unavailable</h3><p>No waypoint data was returned for this version.</p></div>}
       </div>
       <aside className="mission-overview-panel">
         <header><p className="module-kicker">MISSION RECORD</p><h2>Plan Overview</h2></header>
@@ -276,11 +315,22 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     </section>
 
     <section className="mission-waypoint-panel">
-      <header><div><p className="module-kicker">ROUTE MANIFEST</p><h2>Waypoint Sequence</h2></div><span>{mission.waypoints.length} TOTAL</span></header>
+      <header>
+        <div><p className="module-kicker">ROUTE MANIFEST</p><h2>{selectedVersionOption.request ? `Waypoint Sequence · ${selectedVersionOption.shortLabel}` : "Waypoint Sequence"}</h2></div>
+        <div className="mission-waypoint-header-actions">
+          {waypointVersionOptions.length > 1 && <label className="mission-waypoint-version">
+            <span>VERSION</span>
+            <select value={selectedVersionOption.id} onChange={event => setWaypointVersion(event.target.value)}>
+              {waypointVersionOptions.map(option => <option key={option.id || "current"} value={option.id}>{option.label}</option>)}
+            </select>
+          </label>}
+          <span className="mission-waypoint-count">{displayedWaypoints.length} TOTAL</span>
+        </div>
+      </header>
       <div className="mission-waypoint-table-wrap">
         <table className="mission-waypoint-table">
           <thead><tr><th>SEQ</th><th>LATITUDE</th><th>LONGITUDE</th><th>ALTITUDE</th><th>ACTION</th></tr></thead>
-          <tbody>{mission.waypoints.length > 0 ? mission.waypoints.map((point, index) => <tr key={`${point.sequenceOrder}-${index}`}><td><b>{String(point.sequenceOrder).padStart(2, "0")}</b></td><td>{point.latitude.toFixed(6)}</td><td>{point.longitude.toFixed(6)}</td><td>{point.altitude} m</td><td><span>{formatStatus(point.actionType)}</span></td></tr>) : <tr><td className="mission-waypoint-empty" colSpan={5}>Waypoint data is waiting for the mission detail API.</td></tr>}</tbody>
+          <tbody>{displayedWaypoints.length > 0 ? displayedWaypoints.map((point, index) => <tr key={`${selectedVersionOption.id || "current"}-${point.sequenceOrder}-${index}`}><td><b>{String(point.sequenceOrder).padStart(2, "0")}</b></td><td>{point.latitude.toFixed(6)}</td><td>{point.longitude.toFixed(6)}</td><td>{point.altitude} m</td><td><span>{formatStatus(point.actionType)}</span></td></tr>) : <tr><td className="mission-waypoint-empty" colSpan={5}>Waypoint data is waiting for the mission detail API.</td></tr>}</tbody>
         </table>
       </div>
     </section>

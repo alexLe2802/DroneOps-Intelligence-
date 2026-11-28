@@ -3985,11 +3985,44 @@
 .mission-route-panel>header,
 .mission-waypoint-panel>header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px 16px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--line);
+}
+
+.mission-waypoint-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+.mission-waypoint-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.mission-waypoint-version > span {
+  color: var(--sub);
+  font: 700 11px var(--font-mono);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.mission-waypoint-version select {
+  min-height: 36px;
+  max-width: min(360px, 100%);
+  padding: 6px 10px;
+  border: 1px solid var(--control-border, #8596ab);
+  border-radius: 6px;
+  background: var(--surface-low, #f8fafc);
+  color: var(--ink, #0d1c2e);
+  font: 500 13px/1.4 var(--font-body);
 }
 
 .mission-route-panel h2,
@@ -4001,12 +4034,14 @@
 }
 
 .mission-route-panel>header>span,
-.mission-waypoint-panel>header>span {
+.mission-waypoint-panel>header>span,
+.mission-waypoint-count {
   padding: 4px 10px;
   border-radius: 999px;
   background: var(--primary-container);
   color: var(--primary);
   font: 700 11px var(--font-mono);
+  white-space: nowrap;
 }
 
 .mission-route-panel .mission-map {
@@ -4119,6 +4154,40 @@
   border-color: var(--error-border);
   background: var(--error-bg);
   color: var(--color-error);
+}
+
+.mission-pending-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--warning-border, #e5be6b);
+  border-left: 4px solid var(--color-warning, #744600);
+  border-radius: 8px;
+  background: var(--warning-bg, #fff5d9);
+  color: var(--color-warning, #744600);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mission-pending-banner p {
+  margin: 0;
+  color: inherit;
+}
+
+.mission-pending-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--warning-border, #e5be6b);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--color-warning, #744600);
+  font: 700 11px/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
 }
 
 .mission-command-panel {
