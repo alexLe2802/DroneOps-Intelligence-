@@ -3,6 +3,7 @@
 import { toVietnamDateTimeInput, vietnamInputToUtcIso } from "@/lib/portal/vietnam-time";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertCircle, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { describeInvalidMissionField, syncFieldAriaInvalid } from "../../new/mission-form";
@@ -67,6 +68,7 @@ const editorValue = (saved: MissionDetail): EditorValue => {
 };
 
 export default function MissionEditClient({ id, actorId, role }: { id: string; actorId: string; role: AccountRole }) {
+  const router = useRouter();
   const [mission, setMission] = useState<MissionDetail | null>(null);
   const [aircraft, setAircraft] = useState<AssignedUav[]>([]);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
@@ -242,7 +244,7 @@ export default function MissionEditClient({ id, actorId, role }: { id: string; a
       setMission(saved);
       setValue(next);
       setInitialValue(JSON.stringify(next));
-      setNotice("Proposed changes sent for manager review. The current mission has not changed.");
+      router.push(`/portal/missions/${encodeURIComponent(id)}`);
     } catch (reason) {
       setFormError(reason instanceof Error ? reason.message : "Unable to validate and save this mission.");
     } finally {
