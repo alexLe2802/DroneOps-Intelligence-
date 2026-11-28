@@ -219,7 +219,19 @@
 .validationEvidence .batteryMetrics div { padding: 10px 12px; border: 1px solid var(--outline-variant, #e2e8f0); border-radius: 6px; background: #ffffff; }
 .validationEvidence .batteryMetrics dt { font: 700 11px var(--font-mono); text-transform: uppercase; color: var(--color-muted, #475569); }
 .validationEvidence .batteryMetrics dd { color: var(--primary, #003d7e); font: 700 14px var(--font-mono); }
-.validationEvidence .batteryWarnings { color: var(--color-error, #922b21); font-weight: 600; }
+.validationEvidence .batteryWarnings {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--error-border, #f5c2c7);
+  border-left: 3px solid var(--color-error, #922b21);
+  border-radius: 6px;
+  background: var(--error-bg, #fef2f2);
+  color: var(--color-error, #922b21);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
 
 .recoveryMeasurements { margin: 16px; border: 1px solid var(--outline-variant, #e2e8f0); border-radius: 8px; padding: 14px; background: #ffffff; }
 .recoveryMeasurements summary { cursor: pointer; color: var(--primary-action, #1754a1); font-size: 13.5px; font-weight: 600; }

@@ -3932,6 +3932,70 @@
   flex-wrap: wrap;
 }
 
+.mission-title-line > .status {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #eef2f6;
+  color: #334155;
+  font: 700 12.5px/1.3 var(--font-body);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.mission-title-line > .status-approved,
+.mission-title-line > .status-completed {
+  border-color: #9ad7b7;
+  background: #d9f5e5;
+  color: #145632;
+}
+
+.mission-title-line > .status-pending,
+.mission-title-line > .status-pendingreview,
+.mission-title-line > .status-pendingapproval,
+.mission-title-line > .status-pendingconfirm,
+.mission-title-line > .status-permitreview,
+.mission-title-line > .status-submitted {
+  border-color: #e5be6b;
+  background: #fff0cb;
+  color: #754600;
+}
+
+.mission-title-line > .status-awaitingpermit {
+  border-color: #f4b17a;
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.mission-title-line > .status-active,
+.mission-title-line > .status-inprogress {
+  border-color: #9bc5f2;
+  background: #daecff;
+  color: #124b83;
+}
+
+.mission-title-line > .status-draft {
+  border-color: #cbb8f5;
+  background: #eee8ff;
+  color: #523780;
+}
+
+.mission-title-line > .status-rejected,
+.mission-title-line > .status-failed,
+.mission-title-line > .status-aborted {
+  border-color: #e8a8a1;
+  background: #ffe2df;
+  color: #922b21;
+}
+
+.mission-title-line > .status-cancelled {
+  border-color: #cbd5e1;
+  background: #eef2f6;
+  color: #475569;
+}
+
 .mission-detail-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5697,12 +5761,22 @@
   font: 700 13px/1.4 var(--font-body);
 }
 
-.pilot-mission-manifest td > .status-pending { background: #fff0cb; color: #754600; }
+.pilot-mission-manifest td > .status-pending,
+.pilot-mission-manifest td > .status-pendingreview,
+.pilot-mission-manifest td > .status-pendingapproval,
+.pilot-mission-manifest td > .status-pendingconfirm,
+.pilot-mission-manifest td > .status-permitreview,
+.pilot-mission-manifest td > .status-submitted { background: #fff0cb; color: #754600; }
+.pilot-mission-manifest td > .status-awaitingpermit { background: #ffedd5; color: #9a3412; }
 .pilot-mission-manifest td > .status-approved,
 .pilot-mission-manifest td > .status-completed { background: #d9f5e5; color: #145632; }
-.pilot-mission-manifest td > .status-active { background: #daecff; color: #124b83; }
-.pilot-mission-manifest td > .status-rejected { background: #ffe2df; color: #922b21; }
+.pilot-mission-manifest td > .status-active,
+.pilot-mission-manifest td > .status-inprogress { background: #daecff; color: #124b83; }
+.pilot-mission-manifest td > .status-rejected,
+.pilot-mission-manifest td > .status-failed,
+.pilot-mission-manifest td > .status-aborted { background: #ffe2df; color: #922b21; }
 .pilot-mission-manifest td > .status-draft { background: #eee8ff; color: #523780; }
+.pilot-mission-manifest td > .status-cancelled { background: #eef2f6; color: #475569; }
 
 .pilot-mission-actions .mission-delete-button {
   grid-column: 3;
