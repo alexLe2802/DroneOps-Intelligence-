@@ -34,6 +34,7 @@ internal static class UavReviewChecks
         await db.SaveChangesAsync();
         var workflow = new UavReviewWorkflow(db);
         var proposed = UavReviewWorkflow.Snapshot(await db.UAVs.AsNoTracking().SingleAsync());
+        proposed.ManufacturerDocument = new("manufacturer.pdf", Convert.ToBase64String("%PDF-fixture"u8.ToArray()));
         proposed.ExpectedVersion = 0; proposed.Name = "Proposed name"; proposed.BatteryCapacityMah = 7000;
         try { await workflow.ReadAsync(id, Guid.NewGuid(), false, default); throw new Exception("Missing scope guard"); } catch (UnauthorizedAccessException) { Check(true, "another Operator cannot read UAV proposals or history"); }
         try { await workflow.StageAsync(id, Guid.NewGuid(), proposed, default); throw new Exception("Missing ownership guard"); } catch (UnauthorizedAccessException) { Check(true, "another Operator cannot submit UAV changes"); }
@@ -48,6 +49,7 @@ internal static class UavReviewChecks
         await workflow.DecideAsync(id, manager, "reject", new() { ExpectedVersion = 1, RequestId = pending.Id, Reason = "Incorrect battery specification" }, default);
         current = await db.UAVs.AsNoTracking().SingleAsync();
         Check(current.Name == "Approved name" && current.BatteryCapacityMah == 5000 && current.Status == "Active" && !current.HasPendingProposal, "rejecting update retains approved information and Active status");
+        Check(current.ManufacturerDocumentId == null && await db.RegistryDocuments.CountAsync() == 1, "rejected manufacturer evidence is retained separately from the approved UAV");
         var decision = await db.UavReviewRequests.AsNoTracking().SingleAsync();
         Check(decision.ReviewedBy == manager && decision.ReviewedAt != null && decision.Reason == "Incorrect battery specification", "decision persists reviewer/time/reason");
         proposed.ExpectedVersion = current.RegistryVersion;
@@ -56,6 +58,7 @@ internal static class UavReviewChecks
         await workflow.DecideAsync(id, manager, "approve", new() { ExpectedVersion = current.RegistryVersion, RequestId = pending.Id, Reason = "Verified specifications" }, default);
         current = await db.UAVs.AsNoTracking().SingleAsync();
         Check(current.Name == "Proposed name" && current.BatteryCapacityMah == 7000 && current.HasApprovedInformation && current.Status == "Active", "approval applies only the selected proposal and retains ownership");
+        Check(current.ManufacturerDocumentId == proposed.ManufacturerDocumentId && current.ManufacturerDocumentId.HasValue && await db.RegistryDocuments.CountAsync() == 2, "approval selects the replacement manufacturer document and preserves both submissions");
         Check(current.PilotId == pilotId && await db.UavReviewRequests.CountAsync() == 2, "resubmission preserves earlier rejected audit and UAV owner");
         var revision = current.RegistryVersion;
         await workflow.DecideAsync(id, manager, "deactivate", new() { ExpectedVersion = revision, Reason = "Maintenance" }, default);

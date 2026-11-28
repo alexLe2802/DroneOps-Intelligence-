@@ -45,7 +45,7 @@ public sealed class MissionApprovalService(
             from request in db.MissionUpdateRequests.AsNoTracking()
             join mission in db.Missions.AsNoTracking() on request.MissionId equals mission.Id
             where request.Status == "Pending" &&
-                  (mission.Status == "Draft" || mission.Status == "Rejected" || mission.Status == "Approved" ||
+                  (mission.Status == "Awaiting Permit" || mission.Status == "Permit Review" || mission.Status == "Draft" || mission.Status == "Rejected" || mission.Status == "Approved" ||
                    mission.Status == "Pending Confirm" || mission.Status == "Pending Review" || mission.Status == "Pending" ||
                    mission.Status == "PendingApproval" || mission.Status == "Submitted")
             select new { Request = request, Mission = mission };
@@ -71,6 +71,12 @@ public sealed class MissionApprovalService(
             .Include(x => x.UAV)
             .Where(x => missionIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
+
+        var permitIds = await db.RegistryDocuments.AsNoTracking()
+            .Where(x => x.MissionId.HasValue && missionIds.Contains(x.MissionId.Value))
+            .GroupBy(x => x.MissionId!.Value)
+            .Select(g => new { MissionId = g.Key, Id = g.OrderByDescending(x => x.UploadedAt).ThenByDescending(x => x.Id).First().Id })
+            .ToDictionaryAsync(x => x.MissionId, x => (Guid?)x.Id, ct);
 
         var requestedRunIds = rows
             .Where(x => x.Request.ValidationRunId.HasValue)
@@ -250,6 +256,7 @@ public sealed class MissionApprovalService(
             items.Add(
                 new PendingApprovalItemResponse
                 {
+                    PermitDocumentId = permitIds.GetValueOrDefault(mission.Id),
                     RequiresPilotConfirmation = MissionReviewPolicy.NeedsConfirmation(request, evidence),
                     ProposalAuthorId = request.ActorId,
                     IsInitial = request.IsInitial,
@@ -402,7 +409,7 @@ public sealed class MissionApprovalService(
      request.Comment,
      request.UpdateRequestId,
      request.ValidationRunId,
-     ct);
+     ct, request);
 
         await TryPublishDecisionNotificationAsync(
             response,
@@ -463,7 +470,7 @@ string decision,
 string? comment,
 Guid? updateRequestId,
 Guid? reviewedValidationRunId,
-CancellationToken ct)
+CancellationToken ct, ApproveMissionRequest? permitReview = null)
     {
         var outcome =
             await approvalRepository.ExecuteSerializableAsync(
@@ -626,7 +633,20 @@ CancellationToken ct)
                         mission.Waypoints = proposedMission.Waypoints;
                         db.Waypoints.AddRange(proposedMission.Waypoints);
 
-                        mission.Status = "Approved";
+                        var permitId = await db.RegistryDocuments.Where(x => x.MissionId == missionId)
+                            .OrderByDescending(x => x.UploadedAt).ThenByDescending(x => x.Id)
+                            .Select(x => (Guid?)x.Id).FirstOrDefaultAsync(transactionCt);
+                        if (permitReview?.PermitDocumentId != permitId)
+                            throw new InvalidOperationException("The permit changed. Reload the review.");
+                        if (permitReview?.PermitDecision is not ("Valid" or "Supplement" or "Exempt") ||
+                            (permitReview.PermitDecision == "Valid" && permitId is null))
+                            throw new ArgumentException("Confirm the permit outcome before approving the plan.");
+                        if (permitReview.PermitDecision != "Valid" && string.IsNullOrWhiteSpace(comment))
+                            throw new ArgumentException("Record the exemption basis or the required correction.");
+                        mission.Status = permitReview.PermitDecision == "Supplement" ? "Awaiting Permit" : "Approved";
+                        if (mission.Status == "Awaiting Permit")
+                            db.Notifications.Add(PermitNotifications.For(mission, mission.CreatedBy, managerId,
+                                "Flight permit required", comment!));
                     }
                     else if (updateRequest.IsInitial)
                     {
@@ -649,6 +669,8 @@ CancellationToken ct)
 
                         UserId = managerId,
                         Status = decision,
+                        PermitDecision = permitReview?.PermitDecision,
+                        PermitDocumentId = permitReview?.PermitDocumentId,
                         Comment = comment,
                         ApprovedAt = decidedAt,
 
@@ -730,7 +752,7 @@ CancellationToken ct)
         string? reason,
         CancellationToken ct)
     {
-        if (response.IdempotentReplay ||
+        if (response.NewStatus == "Awaiting Permit" || response.IdempotentReplay ||
             notificationService is null)
         {
             return;

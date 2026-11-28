@@ -5,6 +5,10 @@ namespace DroneOps.Domain.Entities;
 [Table("Mission")]
 public sealed class Mission
 {
+    [ForeignKey(nameof(RegistryDocument.MissionId))]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<RegistryDocument> Documents { get; set; } = [];
+
     public Guid Id { get; set; }
 
     public Guid CreatedBy { get; set; }

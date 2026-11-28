@@ -2,6 +2,8 @@ namespace DroneOps.Application.DTOs.Request.Missions;
 
 public sealed class CreateMissionRequest
 {
+    public DroneOps.Application.DTOs.Request.RegistryFile? FlightPermit { get; set; }
+
     public Guid? OperationId { get; set; }
     public string? ExpectedPlanHash { get; set; }
     public Guid? ExpectedPendingRequestId { get; set; }

@@ -18,6 +18,8 @@ public class GetPendingApprovalsRequest
 
 public class ApproveMissionRequest
 {
+    public string? PermitDecision { get; set; }
+    public Guid? PermitDocumentId { get; set; }
     public string? Comment { get; set; }
 
     /// <summary>

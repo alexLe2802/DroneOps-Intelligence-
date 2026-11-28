@@ -1,7 +1,10 @@
 "use client";
 
+import RegistrationTemplatePicker from "@/app/registration-template-picker";
+
 import { ApiError } from "@/lib/auth/client";
 import Link from "next/link";
+import { readRegistryFile } from "@/lib/portal/registry-file";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -10,7 +13,7 @@ import type { AssignedUav, CreateUavRequest } from "@/lib/portal/types";
 import { optionalNumber, uavSpecificationError } from "@/lib/uav-specification";
 import { uavImageFileError } from "@/lib/uav-image-file";
 
-type UavFormValue = Record<Exclude<keyof CreateUavRequest, "purchaseDate">, string>;
+type UavFormValue = Record<Exclude<keyof CreateUavRequest, "purchaseDate" | "manufacturerDocument" | "manufacturerDocumentId">, string>;
 
 function initialValue(aircraft?: AssignedUav): UavFormValue {
   const value = (item: string | number | null | undefined) => item == null ? "" : String(item);
@@ -38,6 +41,7 @@ function initialValue(aircraft?: AssignedUav): UavFormValue {
 
 export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
   const pending = useRef(false);
+  const [manufacturerFile, setManufacturerFile] = useState<File | null>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [form, setForm] = useState(() => initialValue(aircraft));
@@ -119,6 +123,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
     try {
       let id: string;
       let submitted: "create" | "update" | null;
+      if (manufacturerFile) request.manufacturerDocument = await readRegistryFile(manufacturerFile);
       if (aircraft) {
         id = aircraft.id;
         const approvedRequest: CreateUavRequest = {
@@ -150,6 +155,7 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
           submitted = null;
         }
       } else {
+        if (!manufacturerFile) throw new Error("Attach the manufacturer documentation for this aircraft.");
         const result = await createUav(request);
         id = result.id;
         submitted = "create";
@@ -196,24 +202,28 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
       {aircraft?.hasPendingProposal && <p role="status">A proposal is awaiting review. Wait for the Manager decision before submitting another change.</p>}
       <fieldset className="uav-form-fields" disabled={saving || stale || aircraft?.hasPendingProposal}>
         <legend className="sr-only">Aircraft details</legend>
+        {!aircraft && <RegistrationTemplatePicker kind="uav" onApply={values => setForm(current => ({ ...current, ...values }))} />}
 
         <section className="uav-form-section">
           <header><span>01</span><div><h2>Aircraft identity</h2><p>Registration and manufacturer information.</p></div></header>
+          <label>{aircraft ? "Replace manufacturer documentation" : "Manufacturer documentation"} · Scan all pages into one PDF, up to 2 MB.
+            <input type="file" required={!aircraft} accept=".pdf,application/pdf" onChange={e => setManufacturerFile(e.target.files?.[0] ?? null)} />
+          </label>
           <div className="uav-form-grid">
-            <label>UAV CODE<input value={form.code} onChange={event => set("code", event.target.value)} placeholder="UAV-08" minLength={2} maxLength={50} required /></label>
-            <label>UAV NAME<input value={form.name} onChange={event => set("name", event.target.value)} placeholder="South Survey Two" minLength={2} maxLength={100} required /></label>
-            <label>MANUFACTURER<input value={form.manufacturer} onChange={event => set("manufacturer", event.target.value)} placeholder="DJI" maxLength={100} /></label>
-            <label>MODEL<input value={form.model} onChange={event => set("model", event.target.value)} placeholder="Matrice 350 RTK" maxLength={100} /></label>
-            <label className="uav-form-wide">SERIAL NUMBER<input value={form.serialNumber} onChange={event => set("serialNumber", event.target.value)} placeholder="SN-2026-0001" maxLength={100} /></label>
+            <label>UAV CODE<input name="code" value={form.code} onChange={event => set("code", event.target.value)} placeholder="UAV-08" minLength={2} maxLength={50} required /></label>
+            <label>UAV NAME<input name="name" value={form.name} onChange={event => set("name", event.target.value)} placeholder="South Survey Two" minLength={2} maxLength={100} required /></label>
+            <label>MANUFACTURER<input name="manufacturer" value={form.manufacturer} onChange={event => set("manufacturer", event.target.value)} placeholder="DJI" maxLength={100} /></label>
+            <label>MODEL<input name="model" value={form.model} onChange={event => set("model", event.target.value)} placeholder="Matrice 350 RTK" maxLength={100} /></label>
+            <label className="uav-form-wide">SERIAL NUMBER<input name="serialNumber" value={form.serialNumber} onChange={event => set("serialNumber", event.target.value)} placeholder="SN-2026-0001" maxLength={100} /></label>
           </div>
         </section>
 
         <section className="uav-form-section">
           <header><span>02</span><div><h2>Physical specifications</h2><p>Weight values are measured in kilograms.</p></div></header>
           <div className="uav-form-grid uav-form-grid-three">
-            <label>EMPTY WEIGHT (KG)<input type="number" value={form.emptyWeightKg} onChange={event => set("emptyWeightKg", event.target.value)} placeholder="6.3" min="0.001" step="0.001" /></label>
-            <label>MAX TAKEOFF WEIGHT (KG)<input type="number" value={form.maxTakeoffWeightKg} onChange={event => set("maxTakeoffWeightKg", event.target.value)} placeholder="9.2" min="0.001" step="0.001" /></label>
-            <label>MAX PAYLOAD (KG)<input type="number" value={form.maxPayloadKg} onChange={event => set("maxPayloadKg", event.target.value)} placeholder="2.7" min="0" step="0.001" /></label>
+            <label>EMPTY WEIGHT (KG)<input type="number" name="emptyWeightKg" value={form.emptyWeightKg} onChange={event => set("emptyWeightKg", event.target.value)} placeholder="6.3" min="0.001" step="0.001" /></label>
+            <label>MAX TAKEOFF WEIGHT (KG)<input type="number" name="maxTakeoffWeightKg" value={form.maxTakeoffWeightKg} onChange={event => set("maxTakeoffWeightKg", event.target.value)} placeholder="9.2" min="0.001" step="0.001" /></label>
+            <label>MAX PAYLOAD (KG)<input type="number" name="maxPayloadKg" value={form.maxPayloadKg} onChange={event => set("maxPayloadKg", event.target.value)} placeholder="2.7" min="0" step="0.001" /></label>
           </div>
           <p className="field-help">Empty weight + maximum payload cannot exceed the maximum takeoff weight.</p>
         </section>
@@ -221,19 +231,19 @@ export default function UavForm({ aircraft }: { aircraft?: AssignedUav }) {
         <section className="uav-form-section">
           <header><span>03</span><div><h2>Battery system</h2><p>Electrical configuration and rated capacity.</p></div></header>
           <div className="uav-form-grid">
-            <label>BATTERY TYPE<input value={form.batteryType} onChange={event => set("batteryType", event.target.value)} placeholder="LiPo 6S" maxLength={50} /></label>
-            <label>PACK CAPACITY (mAh) · OPTIONAL<input type="number" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="Read from FC when connected" min="1" step="1" /><small>Leave blank if unknown. FC capacity is preferred when available; enter a fallback only if you know the installed pack capacity.</small></label>
-            <label>MAX PACK VOLTAGE (V)<input type="number" value={form.batteryMaxVoltage} onChange={event => set("batteryMaxVoltage", event.target.value)} placeholder="25.2 for standard 6S LiPo" min="0.01" step="0.01" /><small>Full-charge voltage for the whole installed pack. Use the battery label; this is different from nominal voltage and live telemetry.</small></label>
-            <label>CELL COUNT<input type="number" value={form.batteryCellCount} onChange={event => set("batteryCellCount", event.target.value)} placeholder="6" min="1" max="100" step="1" /></label>
+            <label>BATTERY TYPE<input name="batteryType" value={form.batteryType} onChange={event => set("batteryType", event.target.value)} placeholder="LiPo 6S" maxLength={50} /></label>
+            <label>PACK CAPACITY (mAh) · OPTIONAL<input type="number" name="batteryCapacityMah" value={form.batteryCapacityMah} onChange={event => set("batteryCapacityMah", event.target.value)} placeholder="Read from FC when connected" min="1" step="1" /><small>Leave blank if unknown. FC capacity is preferred when available; enter a fallback only if you know the installed pack capacity.</small></label>
+            <label>MAX PACK VOLTAGE (V)<input type="number" name="batteryMaxVoltage" value={form.batteryMaxVoltage} onChange={event => set("batteryMaxVoltage", event.target.value)} placeholder="25.2 for standard 6S LiPo" min="0.01" step="0.01" /><small>Full-charge voltage for the whole installed pack. Use the battery label; this is different from nominal voltage and live telemetry.</small></label>
+            <label>CELL COUNT<input type="number" name="batteryCellCount" value={form.batteryCellCount} onChange={event => set("batteryCellCount", event.target.value)} placeholder="6" min="1" max="100" step="1" /></label>
           </div>
         </section>
 
         <section className="uav-form-section">
           <header><span>04</span><div><h2>Endurance &amp; wind limit</h2><p>Manufacturer-rated endurance and wind resistance. If wind resistance is left blank, a default of 8.5 m/s is applied.</p></div></header>
           <div className="uav-form-grid uav-form-grid-three">
-            <label>MAX FLIGHT TIME (MIN)<input type="number" value={form.maxFlightTimeMinutes} onChange={event => set("maxFlightTimeMinutes", event.target.value)} placeholder="45" min="1" step="1" /></label>
-            <label>MAX RANGE (KM)<input type="number" value={form.maxRangeKm} onChange={event => set("maxRangeKm", event.target.value)} placeholder="15" min="0.01" step="0.01" /></label>
-            <label>MAX WIND RESISTANCE (M/S)<input type="number" value={form.maxWindSpeedMps} onChange={event => set("maxWindSpeedMps", event.target.value)} placeholder="8.5 (default)" min="0.1" step="0.1" /><small>Defaults to 8.5 m/s if left blank.</small></label>
+            <label>MAX FLIGHT TIME (MIN)<input type="number" name="maxFlightTimeMinutes" value={form.maxFlightTimeMinutes} onChange={event => set("maxFlightTimeMinutes", event.target.value)} placeholder="45" min="1" step="1" /></label>
+            <label>MAX RANGE (KM)<input type="number" name="maxRangeKm" value={form.maxRangeKm} onChange={event => set("maxRangeKm", event.target.value)} placeholder="15" min="0.01" step="0.01" /></label>
+            <label>MAX WIND RESISTANCE (M/S)<input type="number" name="maxWindSpeedMps" value={form.maxWindSpeedMps} onChange={event => set("maxWindSpeedMps", event.target.value)} placeholder="8.5 (default)" min="0.1" step="0.1" /><small>Defaults to 8.5 m/s if left blank.</small></label>
           </div>
         </section>
 

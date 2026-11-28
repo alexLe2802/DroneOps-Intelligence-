@@ -1,5 +1,7 @@
 "use client";
 
+import RegistrationTemplatePicker from "@/app/registration-template-picker";
+
 import { isLicenseDocument } from "@/lib/license-document";
 
 import Image from "next/image";
@@ -81,7 +83,7 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
   }
 
   async function loginWithGoogle() {
-    if (inProgress.current || mode !== "pilot") return;
+    if (inProgress.current) return;
     inProgress.current = true;
     setBusy("google"); setError(""); setNotice("");
     let firebaseAuth: Auth | null = null;
@@ -96,11 +98,12 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
 
       const session = await api<AuthSession>("/auth/google-login", {
         method: "POST",
+        headers: { "X-Login-Mode": mode },
         body: JSON.stringify({ idToken: credential.idToken }),
       });
-      if (!session.account || session.account.role !== "uav_operator") {
+      if (!session.account || session.account.role !== roleByMode[mode]) {
         await api("/auth/logout", { method: "POST" });
-        throw new Error("Google sign-in is available only for registered pilot accounts.");
+        throw new Error(roleMismatch[mode]);
       }
       completed = true;
     } catch (value) {
@@ -178,14 +181,14 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
       <button type="submit" className="button primary email-login-submit" disabled={busy !== null}>{busy === "password" ? "Authenticating..." : "Authenticate & Enter Portal"}<span aria-hidden="true">→</span></button>
     </form>
 
-    {mode === "pilot" && <div className="google-login-section">
+    <div className="google-login-section">
       <div className="login-divider"><span>OR USE YOUR REGISTERED GMAIL</span></div>
       <button type="button" className="google-login" aria-label="Sign in with Google" disabled={busy !== null} onClick={() => void loginWithGoogle()}>
         {busy === "google"
           ? <span className="google-login-busy">Connecting to Google...</span>
           : <><span className="google-login-mark" aria-hidden="true"><Image src="/google-signin.png" alt="" width={720} height={160} priority /></span><span>Sign in with Google</span></>}
       </button>
-    </div>}
+    </div>
 
     {mode === "pilot" && <button type="button" className="pilot-register-link" disabled={busy !== null} onClick={() => { setRegisterOpen(true); setNotice(""); setError(""); }}>Request Pilot Registration</button>}
 
@@ -208,6 +211,7 @@ export default function LoginForm({ emailChanged = false }: { emailChanged?: boo
     {registerOpen && <div className="pilot-register-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) { setRegisterOpen(false); setError(""); } }}>
       <form className="pilot-register-modal" aria-label="Pilot registration request" onSubmit={submitRegistration}>
         <header><div><span className="auth-kicker">PILOT ACCESS REQUEST</span><h3>Request Pilot Registration</h3><p>Your request will be reviewed by an Operations Manager.</p></div><button type="button" aria-label="Close registration form" onClick={() => { setRegisterOpen(false); setError(""); }}>×</button></header>
+        <RegistrationTemplatePicker kind="pilot" disabled={busy !== null} />
         <div className="pilot-register-grid">
           <label>Full name<input required name="fullName" maxLength={120} placeholder="Nguyen Long" /></label>
           <label>Email<input required name="email" type="email" maxLength={254} placeholder="pilot@example.com" /></label>

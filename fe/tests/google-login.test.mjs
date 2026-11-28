@@ -15,39 +15,41 @@ async function loadProxy(role = "uav_operator") {
   return import(compile(source));
 }
 
-async function googleRequest() {
+async function googleRequest(mode) {
   const { NextRequest } = await import(server);
   return new NextRequest("http://localhost:3000/api/auth/google-login", {
     method: "POST",
-    headers: { host: "localhost:3000", origin: "http://localhost:3000", "content-type": "application/json" },
+    headers: { ...(mode ? { "X-Login-Mode": mode } : {}), host: "localhost:3000", origin: "http://localhost:3000", "content-type": "application/json" },
     body: JSON.stringify({ idToken: "google-id-token" }),
   });
 }
 
-test("Google login proxy accepts the route and stores only a validated pilot session", async () => {
-  const { POST } = await loadProxy();
+for (const [mode, role] of [[undefined, "uav_operator"], ["pilot", "uav_operator"], ["manager", "operation_manager"]]) test(`Google login stores a validated ${role} session for ${mode ?? "legacy"} requests`, async () => {
+  const { POST } = await loadProxy(role);
   const mock = test.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, "http://backend.test/api/auth/google-login");
     assert.deepEqual(JSON.parse(options.body.toString()), { idToken: "google-id-token" });
     return Response.json({ accessToken: "backend-jwt" });
   });
   try {
-    const response = await POST(await googleRequest(), { params: Promise.resolve({ path: ["auth", "google-login"] }) });
+    const response = await POST(await googleRequest(mode), { params: Promise.resolve({ path: ["auth", "google-login"] }) });
     assert.equal(response.status, 200);
     assert.match(response.headers.get("set-cookie") ?? "", /droneops_access=backend-jwt/);
-    assert.equal((await response.json()).account.role, "uav_operator");
+    assert.equal((await response.json()).account.role, role);
   } finally { mock.mock.restore(); }
 });
 
-test("Google login proxy rejects manager and incomplete activation without setting a session", async () => {
+test("Google login proxy rejects mismatched panels and incomplete activation without setting a session", async () => {
   for (const fixture of [
-    { role: "operation_manager", body: { accessToken: "manager-jwt" }, status: 403, message: /only for registered pilot/i },
+    { role: "operation_manager", body: { accessToken: "manager-jwt" }, status: 403, message: /pilot panel/i },
+    { role: "uav_operator", mode: "manager", body: { accessToken: "pilot-jwt" }, status: 403, message: /manager panel/i },
+    { role: "operation_manager", mode: "manager", body: { code: "first_login_required", requiresFirstLogin: true }, status: 409, message: /first sign-in/i },
     { role: "uav_operator", body: { code: "first_login_required", requiresFirstLogin: true }, status: 409, message: /first sign-in/i },
   ]) {
     const { POST } = await loadProxy(fixture.role);
     const mock = test.mock.method(globalThis, "fetch", async () => Response.json(fixture.body));
     try {
-      const response = await POST(await googleRequest(), { params: Promise.resolve({ path: ["auth", "google-login"] }) });
+      const response = await POST(await googleRequest(fixture.mode), { params: Promise.resolve({ path: ["auth", "google-login"] }) });
       assert.equal(response.status, fixture.status);
       assert.doesNotMatch(response.headers.get("set-cookie") ?? "", /droneops_access=/);
       assert.match((await response.json()).message, fixture.message);
@@ -55,12 +57,13 @@ test("Google login proxy rejects manager and incomplete activation without setti
   }
 });
 
-test("pilot login UI sends the Google OAuth credential and never creates an account", async () => {
+test("shared login UI sends the Google OAuth credential and never creates an account", async () => {
   const source = await readFile(new URL("../src/app/login/login-form.tsx", import.meta.url), "utf8");
   assert.match(source, /GoogleAuthProvider\.credentialFromResult\(result\)/);
   assert.match(source, /JSON\.stringify\(\{ idToken: credential\.idToken \}\)/);
   assert.doesNotMatch(source, /result\.user\.getIdToken/);
-  assert.match(source, /mode === "pilot" && <div className="google-login-section">/);
+  assert.match(source, /"X-Login-Mode": mode/);
+  assert.doesNotMatch(source, /mode === "pilot" && <div className="google-login-section">/);
   assert.doesNotMatch(source, /api<AuthSession>\("\/auth\/register"/);
 });
 

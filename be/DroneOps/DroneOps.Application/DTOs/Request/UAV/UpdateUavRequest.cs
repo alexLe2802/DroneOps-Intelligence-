@@ -4,6 +4,8 @@ namespace DroneOps.Application.DTOs.Request.UAVs;
 
 public sealed class UpdateUavRequest
 {
+    public DroneOps.Application.DTOs.Request.RegistryFile? ManufacturerDocument { get; set; }
+    public Guid? ManufacturerDocumentId { get; set; }
     public long? ExpectedVersion { get; set; }
 
     [Required]

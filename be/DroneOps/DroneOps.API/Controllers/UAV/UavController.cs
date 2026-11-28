@@ -28,6 +28,7 @@ public class UavController : ControllerBase
     /// Đăng ký / Tạo mới UAV (Trạng thái mặc định: Pending)
     /// </summary>
     [HttpPost]
+    [RequestSizeLimit(3 * 1024 * 1024)]
     public async Task<IActionResult> Create(
      [FromBody] CreateUavRequest request,
      CancellationToken cancellationToken)
@@ -212,6 +213,7 @@ public class UavController : ControllerBase
     /// Cập nhật thông tin UAV
     /// </summary>
     [HttpPut("{id:guid}")]
+    [RequestSizeLimit(3 * 1024 * 1024)]
     public async Task<IActionResult> Update(
      Guid id,
      [FromBody] UpdateUavRequest request,

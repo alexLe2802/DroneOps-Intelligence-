@@ -13,6 +13,7 @@ const fields: [keyof CreateUavRequest, string][] = [
   ["maxFlightTimeMinutes", "Endurance (min)"], ["maxRangeKm", "Range (km)"], ["maxSpeedKmh", "Speed (km/h)"], ["maxWindSpeedMps", "Wind limit (m/s)"], ["maxOperatingAltitudeMeters", "Altitude limit (m)"], ["purchaseDate", "Purchase date"]
 ];
 const display = (value: unknown) => value == null || value === "" ? "Not provided" : String(value);
+const documentLink = (id?: string | null) => id ? <a href={`/api/documents/${id}`} download>Download PDF</a> : "No document recorded";
 const date = (value: string | null) => value ? formatVietnamDate(value) : "Not recorded";
 type Action = "approve" | "reject" | "activate" | "deactivate";
 
@@ -50,6 +51,9 @@ export default function UavReviewPanel({ uavId, manager = false, onDecision }: {
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert">{error} Reload before trying another decision.</p>}
     {!state ? <p>Review evidence {error ? "unavailable" : "loading…"}</p> : <>
+      <h3>Manufacturer documentation</h3>
+      <p>{state.hasApprovedInformation ? "Approved document" : "Registration document"} · {documentLink(state.current.manufacturerDocumentId)}</p>
+      {state.pending && <p>Proposed document · {documentLink(state.pending.proposed.manufacturerDocumentId)}</p>}
       <p className={styles.status}>Operational status: <strong>{state.status}</strong></p>
       <p>{state.hasApprovedInformation ? "Approved information stays in use until a new proposal is approved." : "This registration has not yet been approved. Current information is submitted evidence."}</p>
       {state.pending ? <>
@@ -79,7 +83,7 @@ export default function UavReviewPanel({ uavId, manager = false, onDecision }: {
       {state.history.length ? <ol>{state.history.map(row => <li key={row.id}>
         <strong>{row.kind} · {row.status}</strong><p>Submitted: {display(row.submittedBy)} · {date(row.submittedAt)}</p>
         <p>Reviewed: {display(row.reviewedBy)} · {date(row.reviewedAt)} · Reason: {display(row.reason)}</p>
-        <details><summary>Information captured in this request</summary><dl>{fields.filter(([key]) => row.currentAtSubmission[key] !== row.proposed[key]).map(([key,label]) => <div key={key}><dt>{label}</dt><dd>{display(row.currentAtSubmission[key])} → {display(row.proposed[key])}</dd></div>)}</dl></details>
+        <details><summary>Information captured in this request</summary><p>Submitted manufacturer document · {documentLink(row.proposed.manufacturerDocumentId)}</p><dl>{fields.filter(([key]) => row.currentAtSubmission[key] !== row.proposed[key]).map(([key,label]) => <div key={key}><dt>{label}</dt><dd>{display(row.currentAtSubmission[key])} → {display(row.proposed[key])}</dd></div>)}</dl></details>
       </li>)}</ol> : <p>No recorded decisions.</p>}
       </details>
     </>}

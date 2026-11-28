@@ -209,11 +209,42 @@ export default function OperationalDashboard({ account }: { account: Account }) 
     </div>
 
     <section className="missions-panel">
-      <header><div><span className="dash-icon">⌁</span><h2>Active Airborne Missions<span>Live missions and their latest telemetry connectivity</span></h2></div><label>⌕ <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter active missions" /></label></header>
-      <div className="table-wrap"><table><thead><tr><th>MISSION ID</th><th>UAV ASSET</th><th>ASSIGNED PILOT</th><th>FLIGHT PHASE</th><th>START</th><th>TELEMETRY</th><th>BATTERY</th><th>ACTION</th></tr></thead><tbody>
-        {filteredLive.map(item => <tr key={item.missionId} className={item.connectivityStatus === "Online" ? "" : "danger-row"}><td><b className="blue">{item.missionName}</b><span>{item.missionId.slice(0, 8).toUpperCase()}</span></td><td><b>{item.uavCode || "—"}</b><span>{item.uavName || "Unassigned"}</span></td><td>{item.pilotName || "—"}</td><td><span className="phase">{item.missionStatus}</span><span>{item.connectivityStatus}</span></td><td>{formatDate(item.startTime)}</td><td>{formatTelemetryAge(item.dataAgeSeconds)}</td><td><b className={item.batteryPercent != null && item.batteryPercent <= 20 ? "warn" : "ok"}>{item.batteryPercent == null ? "—" : `${item.batteryPercent.toFixed(0)}%`}</b></td><td><Link href={`/portal/live-monitoring?missionId=${encodeURIComponent(item.missionId)}`}>MONITOR →</Link></td></tr>)}
-        {filteredLive.length === 0 && <tr><td className="dashboard-table-empty" colSpan={8}>{liveMissions === null ? "Live mission data is currently unavailable." : query.trim() ? "No active mission matches this filter." : "No mission is currently airborne."}</td></tr>}
-      </tbody></table></div>
+      <header>
+        <div>
+          <span className="dash-icon" aria-hidden="true">⌁</span>
+          <h2 id="active-missions-heading">Active Airborne Missions<span>Live missions and their latest telemetry connectivity</span></h2>
+        </div>
+        <label className="missions-search"><span className="missions-search-icon" aria-hidden="true">⌕</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter active missions" aria-label="Filter active missions" /></label>
+      </header>
+      <div className="table-wrap" tabIndex={0} role="region" aria-labelledby="active-missions-heading">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">MISSION ID</th>
+              <th scope="col">UAV ASSET</th>
+              <th scope="col">ASSIGNED PILOT</th>
+              <th scope="col">FLIGHT PHASE</th>
+              <th scope="col">START</th>
+              <th scope="col">TELEMETRY</th>
+              <th scope="col">BATTERY</th>
+              <th scope="col">ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredLive.map(item => <tr key={item.missionId} className={item.connectivityStatus === "Online" ? "" : "danger-row"}>
+              <th scope="row"><b className="blue">{item.missionName}</b><span className="mission-id-code">{item.missionId.slice(0, 8).toUpperCase()}</span></th>
+              <td><b>{item.uavCode || "—"}</b><span>{item.uavName || "Unassigned"}</span></td>
+              <td>{item.pilotName || "—"}</td>
+              <td><span className="phase">{item.missionStatus}</span><span className="connectivity-status" data-connectivity={statusKey(item.connectivityStatus)}>{item.connectivityStatus}</span></td>
+              <td className="mission-start-cell">{formatDate(item.startTime)}</td>
+              <td className="mission-telemetry-cell">{formatTelemetryAge(item.dataAgeSeconds)}</td>
+              <td className="mission-battery-cell"><b className={item.batteryPercent == null ? "muted" : item.batteryPercent <= 20 ? "warn" : "ok"}>{item.batteryPercent == null ? "—" : `${item.batteryPercent.toFixed(0)}%`}</b></td>
+              <td className="mission-action-cell"><Link className="mission-monitor-link" href={`/portal/live-monitoring?missionId=${encodeURIComponent(item.missionId)}`}>MONITOR →</Link></td>
+            </tr>)}
+            {filteredLive.length === 0 && <tr className="dashboard-table-empty-row"><td className="dashboard-table-empty" colSpan={8}>{liveMissions === null ? "Live mission data is currently unavailable." : query.trim() ? "No active mission matches this filter." : "No mission is currently airborne."}</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section className="bottom-grid">

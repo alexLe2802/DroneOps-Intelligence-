@@ -104,6 +104,11 @@ public sealed class UavService : IUavService
             CreatedAt = DateTimeOffset.UtcNow
         };
 
+        var document = request.ManufacturerDocument ?? throw new ArgumentException("Manufacturer documentation is required for new aircraft.");
+        var attachment = document.ToDocument(userId);
+        uav.Documents.Add(attachment);
+        uav.ManufacturerDocumentId = attachment.Id;
+
         await _uavRepository.AddAsync(uav, cancellationToken);
 
         if (_reviews is not null)
@@ -203,7 +208,7 @@ public sealed class UavService : IUavService
         var normalizedSerialNumber = UavMapper.Normalize(request.SerialNumber);
         var normalizedBatteryType = UavMapper.Normalize(request.BatteryType);
 
-        var requiresReapproval =
+        var requiresReapproval = request.ManufacturerDocument != null ||
             !string.Equals(uav.Code, newCode, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(uav.Name, normalizedName, StringComparison.Ordinal) ||
             !string.Equals(uav.Manufacturer, normalizedManufacturer, StringComparison.Ordinal) ||

@@ -4,6 +4,8 @@ namespace DroneOps.Application.DTOs.Request.UAVs;
 
 public sealed class CreateUavRequest
 {
+    public DroneOps.Application.DTOs.Request.RegistryFile? ManufacturerDocument { get; set; }
+
     // Basic information
     [Required]
     [MaxLength(50)]

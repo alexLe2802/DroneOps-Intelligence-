@@ -14,6 +14,7 @@ import MissionMap from "../mission-map";
 import dialogStyles from "./mission-dialog.module.css";
 
 import MissionPlanComparison from "../mission-plan-comparison";
+import MissionPermits from "../mission-permits";
 import MissionEvidencePanel from "../mission-evidence-panel";
 import MissionValidationEvidence from "../mission-validation-evidence";
 import HighRiskConfirmation from "../new/high-risk-confirmation";
@@ -229,6 +230,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     </>}
     <MissionValidationEvidence missionId={id} validation={readinessValidation} />
     {["inprogress"].includes(currentStatus) && mission.validation?.stale && <p role="alert">Configured restrictions changed after this flight was approved. The flight retains its original execution snapshot; review the updated restriction evidence.</p>}
+    <MissionPermits key={id + mission.status} path={`/missions/${id}/permits`} status={mission.status} manager={role === "operation_manager"} pendingPlan={!!mission.pendingUpdate} refresh={load} />
     <MissionEvidencePanel key={`${id}-${mission.status}-${mission.pendingUpdate?.id ?? "current"}`} id={id} />
     <section className="mission-command-panel" aria-label="Mission lifecycle actions">
       <div className="mission-command-state">

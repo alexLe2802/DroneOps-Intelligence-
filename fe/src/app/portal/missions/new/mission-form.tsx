@@ -22,6 +22,7 @@ import FlightModeFields, { type FlightMode } from "../flight-mode-fields";
 import { automaticFlightError } from "@/lib/portal/automatic-flight-limits";
 import MissionFenceFields, { useFenceDrawing } from "../mission-fence-fields";
 import { missionFencesError, withMissionFences } from "@/lib/maps/mission-fences";
+import { readRegistryFile } from "@/lib/portal/registry-file";
 import DraftAnalysisPanel from "./draft-analysis-panel";
 import MissionSuggestionPanel from "./mission-suggestion-panel";
 
@@ -106,6 +107,7 @@ export default function MissionForm() {
   const [averageSpeed, setAverageSpeed] = useState("");
   const [maxSpeed, setMaxSpeed] = useState("");
   const [automaticFlightLimits, setAutomaticFlightLimits] = useState(defaultAutomaticLimits);
+  const [permit, setPermit] = useState<File | null>(null);
   const [payloadKg, setPayloadKg] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -218,7 +220,7 @@ export default function MissionForm() {
     pending.current = true;
     setSaving(true);
     try {
-      const payload = { automaticFlightRequested, automaticFlightLimits: automaticFlightRequested ? automaticFlightLimits : null, altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: vietnamInputToUtcIso(startTime), endTime: vietnamInputToUtcIso(endTime), waypoints: normalizedWaypoints };
+      const payload = { flightPermit: permit ? await readRegistryFile(permit) : undefined, automaticFlightRequested, automaticFlightLimits: automaticFlightRequested ? automaticFlightLimits : null, altitudeReference: altitudeReference || null, uavId, name: name.trim(), description: description.trim() || null, averageSpeedMetersPerSecond, maxSpeedMetersPerSecond, startTime: vietnamInputToUtcIso(startTime), endTime: vietnamInputToUtcIso(endTime), waypoints: normalizedWaypoints };
       const signature = JSON.stringify(payload);
       if (operation.current?.signature !== signature) operation.current = { signature, id: crypto.randomUUID() };
       const created = await createMission({ ...payload, operationId: operation.current.id });
@@ -282,6 +284,9 @@ export default function MissionForm() {
             <div className="schedule-field"><label htmlFor="mission-start-time"><span className="field-heading">START DATE &amp; TIME <em>Required</em></span></label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-start-time" name="startTime" data-field-label="Start date & time" type="datetime-local" value={startTime} min={earliestStart} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setStartTime(event.target.value); setError(""); }} aria-describedby="mission-start-hint" required /></div><small id="mission-start-hint">Vietnam GMT+7 · Start must be in the future</small></div>
             <div className="schedule-field"><label htmlFor="mission-end-time"><span className="field-heading">PLANNED END DATE &amp; TIME <em>Required</em></span></label><div className="schedule-control"><CalendarClock size={17} aria-hidden="true" /><input id="mission-end-time" name="endTime" data-field-label="Planned end date & time" type="datetime-local" value={endTime} min={earliestEnd} step={60} onClick={event => openDateTimePicker(event.currentTarget)} onChange={event => { setEndTime(event.target.value); setError(""); }} aria-describedby="mission-end-hint" required /></div><small id="mission-end-hint">Vietnam GMT+7 · Booking limit; actual end is recorded after landing and disarm</small></div>
           </div>
+          <label>Flight permit (optional) · Scan all pages into one PDF, up to 2 MB.
+            <input type="file" accept=".pdf,application/pdf" onChange={e => setPermit(e.target.files?.[0] ?? null)} />
+          </label>
           {activeAircraft.length === 0 && <p className="form-warning" role="status"><AlertTriangle size={17} aria-hidden="true" /><span>No active UAV is assigned to your pilot profile yet. Register and activate an aircraft before saving a mission.</span></p>}
         </section>
         {automaticFlightRequested && <FirmwareDefaultsNotice snapshot={aircraft.find(uav => uav.id === uavId)?.firmwareNavigationDefaults} />}

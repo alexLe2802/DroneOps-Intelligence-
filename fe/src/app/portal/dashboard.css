@@ -582,9 +582,11 @@
 .missions-panel>header {
   padding: 16px 20px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
+  background: var(--surface-low);
   border-bottom: 1px solid var(--line);
 }
 
@@ -592,9 +594,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .missions-panel>header .dash-icon {
+  flex: 0 0 38px;
   width: 38px;
   height: 38px;
   background: var(--primary-container);
@@ -620,11 +624,26 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
-  background: var(--surface-low);
+  flex: 0 1 280px;
+  min-width: 210px;
+  min-height: 40px;
+  background: var(--panel);
   border: 1px solid var(--control-border);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 0 12px;
+  color: var(--sub);
+  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+
+.missions-panel>header>label:focus-within {
+  border-color: var(--primary-action);
+  box-shadow: 0 0 0 3px rgba(23, 84, 161, 0.14);
+}
+
+.missions-panel .missions-search-icon {
+  flex: 0 0 auto;
+  font-size: 16px;
+  line-height: 1;
   color: var(--sub);
 }
 
@@ -633,60 +652,236 @@
   background: transparent;
   color: var(--ink);
   outline: 0;
-  width: 220px;
+  width: 100%;
+  min-width: 0;
   font-size: 14px;
 }
 
+.missions-panel>header>label input:focus-visible {
+  outline: 0;
+}
+
 .table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  max-inline-size: 100%;
+  max-block-size: min(520px, 70vh);
+  container-type: inline-size;
 }
 
 .missions-panel table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
-  min-width: 860px;
+  min-width: 880px;
   font: 400 14px/1.45 var(--font-body);
+  --label-2: "UAV Asset";
+  --label-3: "Assigned Pilot";
+  --label-4: "Flight Phase";
+  --label-5: "Start";
+  --label-6: "Telemetry";
+  --label-7: "Battery";
+  --label-8: "Action";
 }
 
-.missions-panel th {
+.missions-panel thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
   background: var(--surface-container);
   color: var(--sub);
   text-align: left;
-  padding: 12px 16px;
-  font: 700 12px/1.3 var(--font-mono);
-  letter-spacing: 0.05em;
+  padding: 11px 16px;
+  font: 700 11px/1.3 var(--font-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
   border-bottom: 1px solid var(--line);
 }
 
-.missions-panel td {
+.missions-panel thead th:first-child,
+.missions-panel tbody th {
+  padding-inline-start: 20px;
+}
+
+.missions-panel thead th:last-child,
+.missions-panel tbody td:last-child {
+  padding-inline-end: 20px;
+}
+
+.missions-panel thead th:nth-child(7),
+.missions-panel thead th:nth-child(8) {
+  text-align: right;
+}
+
+.missions-panel tbody th,
+.missions-panel tbody td {
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
   color: var(--ink);
+  background: var(--panel);
+  vertical-align: middle;
+  transition: background-color 140ms var(--ease-out);
 }
 
-.missions-panel td span {
+.missions-panel tbody th {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  text-align: left;
+  font-weight: 600;
+}
+
+.missions-panel tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.missions-panel tbody tr:not(.dashboard-table-empty-row):hover :is(th, td) {
+  background: var(--surface-low);
+}
+
+.missions-panel tbody :is(th, td) b {
+  font-weight: 650;
+}
+
+.missions-panel tbody :is(th, td) span {
   display: block;
   margin-top: 3px;
   color: var(--sub);
   font-size: 13px;
+  font-weight: 400;
 }
 
-.missions-panel .phase {
-  display: inline-block;
+.missions-panel .mission-id-code {
+  font: 500 12px/1.35 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+.missions-panel tbody td span.phase {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0;
   background: var(--primary-container);
   color: var(--primary);
+  border: 1px solid #bfd7f5;
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 3px 10px;
+  font: 700 11px/1.3 var(--font-mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.missions-panel tbody td span.connectivity-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sub);
+}
+
+.missions-panel .connectivity-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--sub);
+  flex: 0 0 auto;
+}
+
+.missions-panel .connectivity-status[data-connectivity="online"] {
+  color: var(--color-success);
+}
+
+.missions-panel .connectivity-status[data-connectivity="online"]::before {
+  background: var(--color-success);
+}
+
+.missions-panel .connectivity-status[data-connectivity="stale"] {
+  color: var(--color-warning);
+}
+
+.missions-panel .connectivity-status[data-connectivity="stale"]::before {
+  background: var(--color-warning);
+}
+
+.missions-panel .connectivity-status[data-connectivity="offline"] {
+  color: var(--color-error);
+}
+
+.missions-panel .connectivity-status[data-connectivity="offline"]::before {
+  background: var(--color-error);
+}
+
+.missions-panel .mission-start-cell {
+  font: 500 13px/1.4 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-2);
+  white-space: nowrap;
+}
+
+.missions-panel .mission-telemetry-cell {
+  font-size: 13px;
+  color: var(--sub);
+  white-space: nowrap;
+}
+
+.missions-panel .mission-battery-cell {
+  text-align: right;
+  font: 700 13px/1.3 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.missions-panel .mission-battery-cell .muted {
+  color: var(--sub);
+  font-weight: 500;
+}
+
+.missions-panel .mission-action-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.missions-panel a.mission-monitor-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid #bfd7f5;
+  border-radius: 6px;
+  background: var(--primary-container);
+  color: var(--primary);
   font: 700 12px/1.2 var(--font-mono);
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
-.danger-row {
-  background: #fff8f7;
+.missions-panel a.mission-monitor-link:hover {
+  background: var(--primary-action);
+  border-color: var(--primary-action);
+  color: #ffffff;
+  text-decoration: none;
 }
 
-.danger-row .phase {
+.missions-panel .danger-row :is(th, td) {
+  background: #fff9f8;
+}
+
+.missions-panel .danger-row:hover :is(th, td) {
+  background: #fff2f0;
+}
+
+.missions-panel .danger-row th {
+  box-shadow: inset 3px 0 0 var(--color-error);
+}
+
+.missions-panel .danger-row td span.phase {
   background: var(--error-bg);
   color: var(--color-error);
+  border-color: var(--error-border);
 }
 
 .dashboard-table-empty {
@@ -694,6 +889,98 @@
   text-align: center;
   color: var(--sub) !important;
   font-size: 14px;
+}
+
+@container (width < 760px) {
+  .missions-panel table {
+    min-width: 0;
+  }
+
+  .missions-panel table,
+  .missions-panel thead,
+  .missions-panel tbody,
+  .missions-panel tr,
+  .missions-panel tbody th,
+  .missions-panel tbody td {
+    display: block;
+  }
+
+  .missions-panel thead {
+    display: none;
+  }
+
+  .missions-panel tbody {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    background: var(--surface-low);
+  }
+
+  .missions-panel tbody tr {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--panel);
+  }
+
+  .missions-panel tbody tr.danger-row {
+    border-color: var(--error-border);
+  }
+
+  .missions-panel tbody th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 2;
+    padding: 12px 14px;
+    background: var(--surface-container);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .missions-panel tbody tr.danger-row th {
+    background: var(--error-bg);
+  }
+
+  .missions-panel tbody td {
+    display: grid;
+    grid-template-columns: minmax(110px, auto) minmax(0, 1fr);
+    align-items: center;
+    gap: 2px 12px;
+    padding: 10px 14px;
+    text-align: right;
+  }
+
+  .missions-panel tbody td:last-child {
+    padding-inline-end: 14px;
+    border-bottom: 0;
+  }
+
+  .missions-panel tbody td:not(.dashboard-table-empty)::before {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    font: 700 11px/1.3 var(--font-mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sub);
+    text-align: left;
+  }
+
+  .missions-panel tbody td > * {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .missions-panel tbody td:nth-child(2)::before { content: var(--label-2); }
+  .missions-panel tbody td:nth-child(3)::before { content: var(--label-3); }
+  .missions-panel tbody td:nth-child(4)::before { content: var(--label-4); }
+  .missions-panel tbody td:nth-child(5)::before { content: var(--label-5); }
+  .missions-panel tbody td:nth-child(6)::before { content: var(--label-6); }
+  .missions-panel tbody td:nth-child(7)::before { content: var(--label-7); }
+  .missions-panel tbody td:nth-child(8)::before { content: var(--label-8); }
+
+  .missions-panel tbody td.dashboard-table-empty {
+    display: block;
+    text-align: center;
+  }
 }
 
 /* Dashboard Bottom Grid */

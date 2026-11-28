@@ -6,7 +6,7 @@ namespace DroneOps.Application.Services.Missions;
 public static class MissionReviewPolicy
 {
     public static bool CanEdit(string status) => status is
-        "Draft" or "Rejected" or "Pending" or "Pending Review" or "Submitted" or "Approved" or "Pending Confirm";
+        "Awaiting Permit" or "Permit Review" or "Draft" or "Rejected" or "Pending" or "Pending Review" or "Submitted" or "Approved" or "Pending Confirm";
 
     public static bool IsHighRisk(MissionValidationResult? result) =>
         string.Equals(result?.Weather?.OverallRisk, "High", StringComparison.OrdinalIgnoreCase) ||

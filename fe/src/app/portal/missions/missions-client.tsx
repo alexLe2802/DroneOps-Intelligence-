@@ -27,7 +27,7 @@ const statusTabs: Array<{ bucket: MissionBucket; label: string; caption: string 
 const normalizedStatus = (value: string) => value.toLowerCase().replaceAll(" ", "");
 const missionBucket = (status: string): Exclude<MissionBucket, "all"> => {
   const value = normalizedStatus(status);
-  if (["submitted", "pending", "pendingapproval", "pendingreview"].includes(value)) return "pending";
+  if (["awaitingpermit", "permitreview", "submitted", "pending", "pendingapproval", "pendingreview"].includes(value)) return "pending";
   if (["approved", "ready"].includes(value)) return "approved";
   if (["inprogress", "inflight", "active"].includes(value)) return "active";
   if (value === "rejected") return "rejected";
@@ -154,7 +154,7 @@ export default function MissionsClient() {
               <td><strong>{mission.name}</strong><small>{mission.description || "No mission description"}</small><code>#{mission.id.slice(0, 8).toUpperCase()}</code></td>
               <td><b>{mission.uavCode ?? "UNASSIGNED"}</b><small>{mission.uavId ? mission.uavId.slice(0, 8).toUpperCase() : "NO AIRCRAFT ID"}</small></td>
               <td><b>{formatDate(mission.startTime)}</b><small>{mission.endTime ? `Ends ${formatDate(mission.endTime)}` : "No end time"}</small></td>
-              <td><span className={`status status-${missionState}`}>{formatStatus(mission.status)}</span><small>{missionState === "draft" ? "Validation required" : missionState === "pending" ? "Manager review" : missionState === "active" ? "Flight active" : missionState === "rejected" ? "Revision required" : "Lifecycle recorded"}</small></td>
+              <td><span className={`status status-${missionState}`}>{formatStatus(mission.status)}</span><small>{mission.status === "Awaiting Permit" ? "Permit correction required" : mission.status === "Permit Review" ? "Permit submitted" : missionState === "draft" ? "Validation required" : missionState === "pending" ? "Manager review" : missionState === "active" ? "Flight active" : missionState === "rejected" ? "Revision required" : "Lifecycle recorded"}</small></td>
               <td><b>Current plan</b><small>{normalizedStatus(mission.status) === "pendingreview" ? "Pending" : mission.status}</small></td>
               <td><div className="pilot-mission-actions"><Link href={`/portal/missions/${mission.id}`}>OPEN</Link>{editable && <Link className="edit" href={`/portal/missions/${mission.id}/edit`}>EDIT</Link>}
                 {canDelete(mission.status) && <button type="button" className="mission-delete-button" aria-label={`Delete ${mission.name}`} title="Delete mission" disabled={deletingId !== null} onClick={() => void removeMission(mission)}><Trash2 size={17} aria-hidden="true" /></button>}

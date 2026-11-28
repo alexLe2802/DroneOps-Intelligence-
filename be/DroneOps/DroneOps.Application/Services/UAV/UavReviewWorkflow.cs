@@ -20,7 +20,7 @@ public sealed class UavReviewWorkflow(AppDbContext db, INotificationService? not
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     // Only Operator-editable registry fields; never copy ownership, status, FC binding or media.
     private static readonly System.Reflection.PropertyInfo[] Fields = typeof(UpdateUavRequest).GetProperties()
-        .Where(p => p.Name != nameof(UpdateUavRequest.ExpectedVersion)).ToArray();
+        .Where(p => p.Name is not (nameof(UpdateUavRequest.ExpectedVersion) or nameof(UpdateUavRequest.ManufacturerDocument))).ToArray();
     public static UpdateUavRequest Snapshot(UAV uav)
     {
         var value = new UpdateUavRequest();
@@ -61,6 +61,8 @@ public sealed class UavReviewWorkflow(AppDbContext db, INotificationService? not
             var owner = await db.Pilots.SingleAsync(x => x.Id == uav.PilotId, ct);
             if (owner.UserId != actor) throw new UnauthorizedAccessException("UAV is outside your scope.");
             if (proposed.ExpectedVersion != uav.RegistryVersion) throw new InvalidOperationException("UAV changed. Reload before submitting.");
+            var attachment = proposed.ManufacturerDocument?.ToDocument(actor);
+            proposed.ManufacturerDocumentId = attachment?.Id ?? uav.ManufacturerDocumentId;
             var before = Encode(Snapshot(uav));
             var after = Encode(proposed);
             if (before == after && uav.Status != "Rejected") return;
@@ -72,6 +74,11 @@ public sealed class UavReviewWorkflow(AppDbContext db, INotificationService? not
                 throw new InvalidOperationException("UAV code already exists.");
             var pending = await db.UavReviewRequests.SingleOrDefaultAsync(x => x.UavId == id && x.Status == "Pending", ct);
             if (pending is not null) throw new InvalidOperationException("A proposal is awaiting review. Wait for its decision before resubmitting.");
+            if (attachment != null)
+            {
+                attachment.UavId = id;
+                db.RegistryDocuments.Add(attachment);
+            }
             db.UavReviewRequests.Add(new UavReviewRequest
             {
                 Id = Guid.NewGuid(), UavId = id, SubmittedBy = actor, SubmittedAt = DateTimeOffset.UtcNow,

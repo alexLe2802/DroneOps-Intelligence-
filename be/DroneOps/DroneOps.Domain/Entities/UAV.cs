@@ -5,9 +5,14 @@ namespace DroneOps.Domain.Entities;
 [Table("UAV")]
 public class UAV
 {
+    public Guid? ManufacturerDocumentId { get; set; }
     public bool HasPendingProposal { get; set; }
     public long RegistryVersion { get; set; }
     public bool HasApprovedInformation { get; set; }
+
+    [ForeignKey(nameof(RegistryDocument.UavId))]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<RegistryDocument> Documents { get; set; } = [];
 
     public Guid Id { get; set; }
 

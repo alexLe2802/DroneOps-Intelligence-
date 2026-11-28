@@ -5,7 +5,7 @@ public static class MissionWorkflowSchema
 {
     public static async Task ApplyAsync(NpgsqlDataSource source)
     {
-        foreach (var resource in new[] {"DroneOps.Persistence.MissionWorkflow.sql","DroneOps.Persistence.MissionRequests.sql","DroneOps.Persistence.MissionRestrictions.sql","DroneOps.Persistence.MissionReviewIntegrity.sql"})
+        foreach (var resource in new[] {"DroneOps.Persistence.MissionWorkflow.sql","DroneOps.Persistence.MissionRequests.sql","DroneOps.Persistence.MissionRestrictions.sql","DroneOps.Persistence.MissionReviewIntegrity.sql","DroneOps.Persistence.RegistryDocuments.sql"})
         {
             using var stream=typeof(MissionWorkflowSchema).Assembly.GetManifestResourceStream(resource)??throw new InvalidOperationException("Workflow migration resource missing.");
             using var reader=new StreamReader(stream);
@@ -23,7 +23,8 @@ public static class MissionWorkflowSchema
                 SELECT "Id", "ResultJson", "Stage", "UpdateRequestId", "ResultStatus",
                        "RestrictionRevision", "EvidenceJson"
                 FROM public."MissionValidationRun" LIMIT 0;
-                SELECT "ValidationRunId", "UpdateRequestId"
+                SELECT "Id", "MissionId", "UavId", "UploadedBy", "UploadedAt", "Name", "Content", "Decision", "ReviewedBy", "ReviewedAt", "Reason" FROM public."RegistryDocument" LIMIT 0;
+                SELECT "ValidationRunId", "UpdateRequestId", "PermitDecision", "PermitDocumentId"
                 FROM public."MissionApproval" LIMIT 0;
                 SELECT "Id", "ProposedPlanJson", "PilotConfirmedBy", "PilotConfirmedAt",
                        "PilotConfirmedValidationRunId", "BasePlanJson", "ValidationRunId"
@@ -42,7 +43,7 @@ public static class MissionWorkflowSchema
                 SELECT "Id", "MissionId", "SequenceOrder", "Latitude", "Longitude",
                        "Altitude", "NavigationJson", "ActionType", "CreatedAt"
                 FROM public."Waypoint" LIMIT 0;
-                SELECT "Id", "PilotId", "Status" FROM public."UAV" LIMIT 0;
+                SELECT "Id", "PilotId", "Status", "ManufacturerDocumentId" FROM public."UAV" LIMIT 0;
                 SELECT "Id", "UserId", "PilotLicenseNo", "LicenseIssuedDate",
                        "LicenseExpiredDate"
                 FROM public."Pilot" LIMIT 0;

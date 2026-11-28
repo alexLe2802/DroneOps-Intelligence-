@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<Role> Roles { get; set; }
     public DbSet<UavReviewRequest> UavReviewRequests { get; set; }
     public DbSet<UAV> UAVs { get; set; }
+    public DbSet<RegistryDocument> RegistryDocuments => Set<RegistryDocument>();
     public DbSet<Mission> Missions { get; set; }
     public DbSet<Waypoint> Waypoints { get; set; }
     public DbSet<Geofence> Geofences { get; set; }
