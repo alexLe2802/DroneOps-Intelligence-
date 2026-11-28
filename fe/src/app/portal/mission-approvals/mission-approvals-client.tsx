@@ -191,7 +191,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
     {error !== null && <div className="approval-error" role="alert"><span>{error instanceof Error ? error.message : "The approval request could not be completed."}</span><button type="button" onClick={() => setError(null)}>x</button></div>}
     {!selected ? <ModuleEmpty title="No pending mission" message={items.length ? "No mission matches the current search." : "There are no mission plans waiting for manager approval."} /> : <>
       <header className="approval-heading">
-        <div><p>MISSION REVIEW</p><div><h1>Mission Review: <span>{missionCode(selected.missionId)}</span></h1><b>{selected.status}</b></div><small>{selected.missionName}</small></div>
+        <div><p>MISSION REVIEW</p><div><h1>Mission Review: <span>{missionCode(selected.missionId)}</span></h1><b>{selected.isInitial ? "Pending Review" : "Pending Update"}</b></div><small>{selected.missionName}{!selected.isInitial ? ` · Current status: ${selected.status}` : ""}</small></div>
         <dl><div><dt>SUBMITTED BY</dt><dd>{selected.pilotName || "Unknown Pilot"}<small>{selected.pilotEmail || "Email unavailable"}</small></dd></div><div><dt>SUBMITTED AT</dt><dd>{formatDate(selected.createdAt)}</dd></div></dl>
       </header>
 
@@ -204,7 +204,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
 
       <div className="approval-review-layout">
         <div className="approval-spatial-column">
-          <div className="approval-request-context"><span>SELECTED REVIEW</span><strong>{selected.updateRequestId ? `Request ${selected.updateRequestId.slice(0, 8).toUpperCase()}` : "Review details unavailable"}</strong><p>{selected.updateRequestId ? "Review the pilot's track record, aircraft specifications, proposed route, and validation evidence before recording your decision." : "Refresh to retrieve the review details. Decisions remain disabled until the plans are available."}</p></div>
+          <div className="approval-request-context"><span>SELECTED REVIEW</span><strong>{selected.updateRequestId ? `${selected.isInitial ? "Initial submission" : "Proposed update"} · Request ${selected.updateRequestId.slice(0, 8).toUpperCase()}` : "Review details unavailable"}</strong><p>{selected.updateRequestId ? "Review the pilot's track record, aircraft specifications, proposed route, and validation evidence before recording your decision." : "Refresh to retrieve the review details. Decisions remain disabled until the plans are available."}</p></div>
           <MissionReviewAdvice key={reviewIdentity} missionId={selected.missionId} />
           <ApprovalContextPanel key={`context-${selected.missionId}-${selected.updateRequestId}`} selected={selected} />
           <MissionPlanComparison key={selected.updateRequestId} missionId={selected.missionId} isInitial={selected.isInitial} current={selected.currentPlan} proposed={selected.proposedPlan} validation={selected.validation} />
@@ -214,7 +214,7 @@ export default function MissionApprovalsClient({ account }: { account: Account }
         <aside className="approval-decision-column">
           <section className="approval-summary-panel">
             <header><div><span className="approval-panel-code">VS</span><h2>Validation Summary</h2></div><b>BACKEND</b></header>
-            <dl><div><dt>PLAN STATUS</dt><dd>{selected.status}</dd></div><div><dt>VALIDATION</dt><dd className={validationPassed ? "validation-passed" : "validation-attention"}>{validationState(selected.validation)}</dd></div><div><dt>FLIGHT WINDOW</dt><dd>{formatDate(selected.startTime)}<small>to {formatDate(selected.endTime)}</small></dd></div><div><dt>WAYPOINTS</dt><dd>{selected.waypointCount}</dd></div></dl>
+            <dl><div><dt>CURRENT MISSION STATUS</dt><dd>{selected.status}</dd></div><div><dt>VALIDATION</dt><dd className={validationPassed ? "validation-passed" : "validation-attention"}>{validationState(selected.validation)}</dd></div><div><dt>FLIGHT WINDOW</dt><dd>{formatDate(selected.startTime)}<small>to {formatDate(selected.endTime)}</small></dd></div><div><dt>WAYPOINTS</dt><dd>{selected.waypointCount}</dd></div></dl>
             <button type="button" className="module-secondary" disabled={busy || refreshing || !selected.updateRequestId || missingPlans} onClick={() => void revalidate()}>{busy ? "CHECKING..." : "REVALIDATE CURRENT CONDITIONS"}</button>
             {selected.validation?.checkedAt && <p>Checked {formatDate(selected.validation.checkedAt)}</p>}
             {!!selected.validation?.issues?.length && <div className="approval-findings blocking"><h3>Blocking findings · {selected.validation.issues.length}</h3><ul>{selected.validation.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul><p>Resolve these findings and revalidate before approving.</p></div>}

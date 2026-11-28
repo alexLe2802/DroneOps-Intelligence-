@@ -146,8 +146,11 @@ internal static class MissionWorkflowIntegrityChecks
         Check((await Read(draft.Id)).Status == "Approved" && MissionValidationService.Hash(await Read(draft.Id)) == originalHash, "saving an update preserves Approved content and status");
         var pending = await Pending(draft.Id);
         Check((await approval.GetPendingApprovalsAsync(new(), manager)).Items.Any(x => x.UpdateRequestId == pending.Id && x.Status == "Approved"), "queue includes proposals for Approved missions");
+        var updateAiReview = await ai.ReviewMissionAsync(draft.Id, manager);
+        Check(updateAiReview.MissionId == draft.Id && provider.Calls == 2, "AI review supports pending update requests on Approved missions");
         await approval.RejectMissionAsync(draft.Id, new() { UpdateRequestId = pending.Id, Reason = "Keep original" }, manager);
         Check((await Read(draft.Id)).Status == "Approved" && MissionValidationService.Hash(await Read(draft.Id)) == originalHash, "reject update preserves current Approved plan");
+        await Conflict(() => ai.ReviewMissionAsync(draft.Id, manager), "AI review rejects Approved missions once no pending update remains");
         Check((await approval.RejectMissionAsync(draft.Id, new() { UpdateRequestId = pending.Id, Reason = "Keep original" }, manager)).IdempotentReplay, "decision retry is bound to the exact request");
         edit.OperationId = Guid.NewGuid();
         await workflow.SavePlanAsync(owner, edit, draft.Id);

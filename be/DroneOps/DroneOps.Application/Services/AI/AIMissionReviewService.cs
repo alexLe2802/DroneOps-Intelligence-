@@ -5,6 +5,7 @@ using System.Text.Json;
 using DroneOps.Application.DTOs.Response;
 using DroneOps.Application.Interfaces;
 using DroneOps.Application.Interfaces.Validators;
+using DroneOps.Application.Services.Missions;
 using DroneOps.Domain.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
@@ -82,15 +83,16 @@ public class AIMissionReviewService : IAIMissionReviewService
                 $"Mission with ID '{missionId}' was not found.");
         }
 
-        // 2. Only Pending Review missions can use AI review
-        if (!string.Equals(
+        // 2. Only pre-flight missions with a pending review request can use AI review
+        if (!MissionReviewPolicy.CanEdit(mission.Status) &&
+            !string.Equals(
                 mission.Status,
-                "Pending Review",
+                "PendingApproval",
                 StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                "AI review is only available for missions " +
-                "with Pending Review status.");
+                "AI review is only available for pre-flight missions " +
+                "with a pending review request.");
         }
 
         // 3. Get the pending proposal for this mission
