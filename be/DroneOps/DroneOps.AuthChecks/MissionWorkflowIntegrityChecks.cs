@@ -18,6 +18,19 @@ using Microsoft.Extensions.Caching.Memory;
 
 internal static class MissionWorkflowIntegrityChecks
 {
+    private sealed class ReviewProvider : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Calls++;
+            var review = """{"riskLevel":"MEDIUM","advice":"Check evidence","recommendation":"Review weather","risks":[]}""";
+            var body = new { candidates = new[] { new { content = new { parts = new[] { new { text = review } } } } } };
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = JsonContent.Create(body) });
+        }
+    }
+
     private sealed class Weather : IMissionWeatherService
     {
         public bool High;
@@ -93,10 +106,20 @@ internal static class MissionWorkflowIntegrityChecks
         var initial = await Pending(draft.Id);
         var evidence = await validator.ReadRunAsync(draft.Id, initial.ValidationRunId!.Value, owner, false);
         Check(evidence!.IsValid, "initial fixture passes mandatory validation: " + evidence.Message);
+        var provider = new ReviewProvider();
+        using var http = new HttpClient(provider) { BaseAddress = new Uri("https://example.invalid/") };
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            { ["Ai:ApiKey"] = "fixture", ["Ai:Model"] = "fixture" }).Build();
+        var ai = new DroneOps.Application.Services.AIMissionReviewService(new GenericRepository<Mission>(db),
+            new GenericRepository<MissionUpdateRequest>(db), validator, http, config, cache);
+        await ai.ReviewMissionAsync(draft.Id, manager);
+        var repeatedReview = await ai.ReviewMissionAsync(draft.Id, manager);
+        Check(repeatedReview.MissionId == draft.Id && provider.Calls == 1, "reopening unchanged evidence reuses the AI review");
         await approval.ApproveMissionAsync(draft.Id, new() { UpdateRequestId = initial.Id, ValidationRunId = initial.ValidationRunId,
             PermitDecision = "Supplement", Comment = "Attach the permit for this site." }, manager);
         Check((await Read(draft.Id)).Status == "Awaiting Permit" && await db.Notifications.AnyAsync(n => n.RecipientUserId == owner && n.ReferenceId == draft.Id),
             "plan approval without a permit requests a supplement from its pilot");
+        await Conflict(() => ai.ReviewMissionAsync(draft.Id, manager), "cached AI review still requires a pending mission");
         RegistryDocumentsController Documents(Guid actor, string role) => new(db, new MissionWorkflowRepository(db), new NotificationRepository(db))
         {
             ControllerContext = new() { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(
@@ -123,8 +146,11 @@ internal static class MissionWorkflowIntegrityChecks
         Check((await Read(draft.Id)).Status == "Approved" && MissionValidationService.Hash(await Read(draft.Id)) == originalHash, "saving an update preserves Approved content and status");
         var pending = await Pending(draft.Id);
         Check((await approval.GetPendingApprovalsAsync(new(), manager)).Items.Any(x => x.UpdateRequestId == pending.Id && x.Status == "Approved"), "queue includes proposals for Approved missions");
+        var updateAiReview = await ai.ReviewMissionAsync(draft.Id, manager);
+        Check(updateAiReview.MissionId == draft.Id && provider.Calls == 2, "AI review supports pending update requests on Approved missions");
         await approval.RejectMissionAsync(draft.Id, new() { UpdateRequestId = pending.Id, Reason = "Keep original" }, manager);
         Check((await Read(draft.Id)).Status == "Approved" && MissionValidationService.Hash(await Read(draft.Id)) == originalHash, "reject update preserves current Approved plan");
+        await Conflict(() => ai.ReviewMissionAsync(draft.Id, manager), "AI review rejects Approved missions once no pending update remains");
         Check((await approval.RejectMissionAsync(draft.Id, new() { UpdateRequestId = pending.Id, Reason = "Keep original" }, manager)).IdempotentReplay, "decision retry is bound to the exact request");
         edit.OperationId = Guid.NewGuid();
         await workflow.SavePlanAsync(owner, edit, draft.Id);

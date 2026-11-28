@@ -43,6 +43,13 @@ public sealed class AIMissionReviewController : ControllerBase
 
             return Ok(result);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return StatusCode(StatusCodes.Status504GatewayTimeout, new
+            {
+                message = "AI review timed out. You can retry or continue reviewing manually."
+            });
+        }
         catch (KeyNotFoundException exception)
         {
             return NotFound(new

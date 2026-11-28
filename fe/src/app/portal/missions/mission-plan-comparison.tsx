@@ -14,7 +14,7 @@ export default function MissionPlanComparison({ current, proposed, validation, i
   const [routeView, setRouteView] = useState<"current" | "proposed">("proposed");
   const [showMap, setShowMap] = useState(false);
   const [zones, setZones] = useState<Geofence[]>([]);
-  useEffect(() => { let active = true; void getGeofences().then(value => { if (active) setZones(value); }).catch(() => {}); return () => { active = false; }; }, []);
+  useEffect(() => { let active = true; void getGeofences().then(value => { if (active) setZones(value); }).catch(() => { }); return () => { active = false; }; }, []);
   if (!proposed || !Array.isArray(proposed.waypoints) || (!isInitial && (!current || !Array.isArray(current.waypoints)))) {
     return <section className={`${styles.panel} ${styles.empty}`} role="status"><span className={styles.kicker}>PLAN COMPARISON</span><div className={styles.emptyIcon} aria-hidden="true">⇄</div><h2>Plans are not available yet</h2><p>We need both the saved plan and the submitted proposal to show the changes.</p><small>Refresh the review queue to try again. Approval remains disabled until the review details are available.</small></section>;
   }
@@ -31,8 +31,8 @@ export default function MissionPlanComparison({ current, proposed, validation, i
   const fieldValue = (plan: CreateMissionRequest, key: typeof fields[number][1]) =>
     key === "automaticFlightLimits" ? formatAutomaticLimits(plan[key]) : key === "automaticFlightRequested" ? plan[key] ? "Requested · confirmation required" : "Manual"
       : key === "startTime" || key === "endTime" ? formatWeatherTime(plan[key])
-      : key === "averageSpeedMetersPerSecond" || key === "maxSpeedMetersPerSecond" ? `${plan[key]} m/s`
-        : plan[key] || "Not specified";
+        : key === "averageSpeedMetersPerSecond" || key === "maxSpeedMetersPerSecond" ? `${plan[key]} m/s`
+          : plan[key] || "Not specified";
   const waypointValue = (point: typeof proposed.waypoints[number] | undefined) => point
     ? `${point.latitude}, ${point.longitude} / ${point.altitude ?? "unknown"} m · ${point.actionType}${point.navigation ? ` · Speed ${point.navigation.speedMetersPerSecond ?? "FC default"} m/s · Hold ${point.navigation.holdTimeSeconds ?? 0}s · Radius ${point.navigation.acceptanceRadiusMeters ?? "FC default"} m · Yaw ${point.navigation.yawDegrees ?? "FC behavior"} · Landing candidate ${point.navigation.emergencyLandingCandidate ? "requested — verify clearance" : "no"} · Ground ${point.navigation.landingGroundAltitudeMeters ?? "unknown"} m · ${point.navigation.landingSiteNotes ?? ""}${point.navigation.missionFences?.length ? ` · Permitted fences: ${point.navigation.missionFences.map(f => f.shape === "Circle" ? `Circle ${f.radiusMeters} m` : `Polygon ${f.vertices?.length ?? 0} vertices`).join(", ")}` : ""}${point.navigation.plannedHome ? ` · Planned Home ${point.navigation.plannedHome.latitude}, ${point.navigation.plannedHome.longitude}; elevation ${point.navigation.plannedHome.altitudeMslMeters ?? "FC Home"} m MSL` : ""}${point.navigation.landingSiteSurvey ? ` · Pilot survey ${point.navigation.landingSiteSurvey.surveyedAtUtc}–${point.navigation.landingSiteSurvey.validUntilUtc}; ground ${point.navigation.landingSiteSurvey.groundClear ? "declared clear" : "not clear"}; approach ${point.navigation.landingSiteSurvey.approachClear ? "declared clear" : "not clear"}; evidence: ${point.navigation.landingSiteSurvey.evidenceReference}` : ""}` : ""}` : "—";
   const passed = validationState(validation) === "Pass";

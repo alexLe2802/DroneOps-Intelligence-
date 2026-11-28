@@ -1,10 +1,14 @@
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using DroneOps.Application.DTOs.Response;
 using DroneOps.Application.Interfaces;
 using DroneOps.Application.Interfaces.Validators;
+using DroneOps.Application.Services.Missions;
 using DroneOps.Domain.Entities;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace DroneOps.Application.Services;
 
@@ -18,6 +22,7 @@ public class AIMissionReviewService : IAIMissionReviewService
     private readonly IMissionValidationService _validationService;
 
     private readonly HttpClient _httpClient;
+    private readonly IMemoryCache _cache;
 
     private readonly string _apiKey;
     private readonly string _model;
@@ -41,7 +46,8 @@ public class AIMissionReviewService : IAIMissionReviewService
         missionUpdateRequestRepository,
     IMissionValidationService validationService,
     HttpClient httpClient,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    IMemoryCache cache)
     {
         _missionRepository = missionRepository;
 
@@ -51,6 +57,7 @@ public class AIMissionReviewService : IAIMissionReviewService
         _validationService = validationService;
 
         _httpClient = httpClient;
+        _cache = cache;
 
         _apiKey = configuration["Ai:ApiKey"]
             ?? throw new InvalidOperationException(
@@ -76,15 +83,16 @@ public class AIMissionReviewService : IAIMissionReviewService
                 $"Mission with ID '{missionId}' was not found.");
         }
 
-        // 2. Only Pending Review missions can use AI review
-        if (!string.Equals(
+        // 2. Only pre-flight missions with a pending review request can use AI review
+        if (!MissionReviewPolicy.CanEdit(mission.Status) &&
+            !string.Equals(
                 mission.Status,
-                "Pending Review",
+                "PendingApproval",
                 StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                "AI review is only available for missions " +
-                "with Pending Review status.");
+                "AI review is only available for pre-flight missions " +
+                "with a pending review request.");
         }
 
         // 3. Get the pending proposal for this mission
@@ -244,12 +252,13 @@ public class AIMissionReviewService : IAIMissionReviewService
             }
         };
 
-        var reviewJson = JsonSerializer.Serialize(
-            reviewData,
-            new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+        var reviewJson = JsonSerializer.Serialize(reviewData);
+        var evidenceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(reviewJson)));
+        var cacheKey = (nameof(AIMissionReviewService), _model, evidenceHash);
+        if (_cache.TryGetValue(cacheKey, out AIMissionReviewResponse? cached) && cached is not null)
+        {
+            return cached;
+        }
 
         // 7. AI instructions
         var systemPrompt = """
@@ -438,6 +447,7 @@ public class AIMissionReviewService : IAIMissionReviewService
         result.MissionId = mission.Id;
         result.MissionName = mission.Name;
 
+        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
         return result;
     }
 
