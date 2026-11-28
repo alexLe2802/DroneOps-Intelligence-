@@ -270,7 +270,10 @@ export default function MissionEditClient({ id, actorId, role }: { id: string; a
         <Link className="module-secondary module-link" href={`/portal/missions/${id}`} onClick={leave}>BACK TO MISSION</Link>
       </div>
     </header>
-    {mission.pendingUpdate && <p role="status">Editing the pending proposal. The current mission remains unchanged until approval.</p>}
+    {mission.pendingUpdate && <div className="mission-pending-banner" role="status">
+      <span className="mission-pending-badge">PENDING PROPOSAL</span>
+      <p>Editing the pending proposal. The current mission remains unchanged until approval.</p>
+    </div>}
     {canUseAi && aiOpen && <div id="mission-edit-ai-panel"><MissionSuggestionPanel disabled={saving} initialPrompt={initialAiPrompt} onApply={applySuggestion} /></div>}
     <form className="mission-builder mission-edit-form" onSubmit={submit} onBlurCapture={event => syncFieldAriaInvalid(event.target)} onChangeCapture={event => { syncFieldAriaInvalid(event.target); if (formError) setFormError(""); }} onInputCapture={event => { syncFieldAriaInvalid(event.target); if (formError) setFormError(""); }} onInvalidCapture={event => {
       const field = event.target;
