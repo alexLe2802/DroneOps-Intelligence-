@@ -231,7 +231,7 @@ export default function MissionDetailClient({ id, role, actorId }: { id: string;
     <header className="module-heading mission-detail-heading">
       <div>
         <p className="module-kicker">{isManager ? "OPERATIONS / MISSION PLANNING / MISSION DETAIL" : "PILOT / MY MISSIONS / MISSION DETAIL"}</p>
-        <div className="mission-title-line"><h1>{mission.name}</h1><span className={`status status-${mission.status.toLowerCase()}`}>{formatStatus(mission.status)}</span></div>
+        <div className="mission-title-line"><h1>{mission.name}</h1><span className={`status status-${currentStatus}`}>{formatStatus(mission.status)}</span></div>
         <p>{mission.description ?? "No mission description has been provided."}</p>
       </div>
       <div className="heading-actions"><Link className="module-secondary module-link" href={isManager ? "/portal/mission-planning" : "/portal/missions"}>&lt; {isManager ? "MISSION PLANNING" : "MY MISSIONS"}</Link>{canEdit && <Link className="module-primary module-link" href={`/portal/missions/${mission.id}/edit`}>EDIT PLAN</Link>}{actions?.review && <Link className="module-primary module-link" href={`/portal/mission-approvals?missionId=${encodeURIComponent(mission.id)}`}>REVIEW REQUEST</Link>}</div>

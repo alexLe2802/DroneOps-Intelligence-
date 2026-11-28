@@ -263,7 +263,7 @@ export default function MissionEditClient({ id, actorId, role }: { id: string; a
 
   return <>
     <header className="module-heading mission-edit-heading">
-      <div><p className="module-kicker">PILOT / MY MISSIONS / EDIT PLAN</p><div className="mission-title-line"><h1>Edit Mission Plan</h1><span className={`status status-${mission.status.toLowerCase()}`}>{mission.status}</span></div><p>Update mission details and refine the planned flight path.</p></div>
+      <div><p className="module-kicker">PILOT / MY MISSIONS / EDIT PLAN</p><div className="mission-title-line"><h1>Edit Mission Plan</h1><span className={`status status-${mission.status.toLowerCase().replaceAll(" ", "")}`}>{mission.status}</span></div><p>Update mission details and refine the planned flight path.</p></div>
       <div className="heading-actions">
         <span className={`edit-dirty-state${dirty ? " changed" : ""}`}>{dirty ? "UNSAVED CHANGES" : "NO CHANGES"}</span>
         {canUseAi && <button type="button" className="module-secondary" aria-expanded={aiOpen} aria-controls="mission-edit-ai-panel" disabled={saving} onClick={() => setAiOpen(open => !open)} style={{ display: "inline-flex", alignItems: "center", gap: 6, width: "auto" }}><Sparkles size={15} aria-hidden="true" />{aiOpen ? "HIDE AI ASSISTANT" : "AI ASSIST"}</button>}
