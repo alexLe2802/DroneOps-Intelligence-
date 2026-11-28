@@ -11,16 +11,16 @@ const compile = source => 'data:text/javascript;base64,' + Buffer.from(ts.transp
 const reviewHelper = compile(await readFile(new URL("../src/lib/portal/mission-review.ts", import.meta.url), "utf8"));
 const helper = compile(await readFile(new URL('../src/lib/portal/plan-review.ts', import.meta.url), 'utf8'));
 const { planFieldChanges, waypointReviewRows } = await import(helper);
-const point = (sequenceOrder, overrides = {}) => ({ sequenceOrder, latitude:10.8, longitude:106.8, altitude:30, actionType:'FlyThrough', ...overrides });
-const plan = { name:'Survey', description:null, uavId:'uav', averageSpeedMetersPerSecond:10, maxSpeedMetersPerSecond:15, startTime:'2026-10-24T01:00:00Z', endTime:'2026-10-24T02:00:00Z', altitudeReference:'Relative', waypoints:[point(1)] };
+const point = (sequenceOrder, overrides = {}) => ({ sequenceOrder, latitude: 10.8, longitude: 106.8, altitude: 30, actionType: 'FlyThrough', ...overrides });
+const plan = { name: 'Survey', description: null, uavId: 'uav', averageSpeedMetersPerSecond: 10, maxSpeedMetersPerSecond: 15, startTime: '2026-10-24T01:00:00Z', endTime: '2026-10-24T02:00:00Z', altitudeReference: 'Relative', waypoints: [point(1)] };
 test('compares timestamps by instant and flags actual field edits', () => {
-  assert.deepEqual(planFieldChanges(plan, {...plan,startTime:'2026-10-24T08:00:00+07:00'}), []);
-  assert.deepEqual(planFieldChanges(plan, {...plan,name:'Changed'}), ['name']);
-  assert.deepEqual(planFieldChanges(plan, {...plan,maxSpeedMetersPerSecond:18}), ['maxSpeedMetersPerSecond']);
+  assert.deepEqual(planFieldChanges(plan, { ...plan, startTime: '2026-10-24T08:00:00+07:00' }), []);
+  assert.deepEqual(planFieldChanges(plan, { ...plan, name: 'Changed' }), ['name']);
+  assert.deepEqual(planFieldChanges(plan, { ...plan, maxSpeedMetersPerSecond: 18 }), ['maxSpeedMetersPerSecond']);
 });
 test('matches waypoint sequence and identifies added, removed and action-only edits', () => {
-  const rows=waypointReviewRows([point(2),point(1),point(4)], [point(1),point(2,{actionType:'Hover'}),point(3)]);
-  assert.deepEqual(rows.map(row => [row.sequence,row.status]), [[1,'Unchanged'],[2,'Changed'],[3,'Added'],[4,'Removed']]);
+  const rows = waypointReviewRows([point(2), point(1), point(4)], [point(1), point(2, { actionType: 'Hover' }), point(3)]);
+  assert.deepEqual(rows.map(row => [row.sequence, row.status]), [[1, 'Unchanged'], [2, 'Changed'], [3, 'Added'], [4, 'Removed']]);
 });
 let evidenceSource = await readFile(new URL('../src/app/portal/missions/mission-validation-evidence.tsx', import.meta.url), 'utf8');
 const vietnamTime = compile(await readFile(new URL('../src/lib/portal/vietnam-time.ts', import.meta.url), 'utf8'));
@@ -43,23 +43,23 @@ component = component.replace('from "@/lib/portal/automatic-flight-limits"', `fr
   .replace('import styles from "./mission-evidence.module.css";', 'const styles = new Proxy({}, {get: (_, key) => key});');
 let js = ts.transpileModule(component, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 js = js.replace('"react/jsx-runtime"', JSON.stringify(pathToFileURL(require.resolve('react/jsx-runtime')).href));
-const { default: Comparison } = await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+const { default: Comparison } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
 test('initial submission shows only Current column without Proposed or saved route toggle', () => {
-  const html=renderToStaticMarkup(React.createElement(Comparison, {isInitial:true,proposed:plan}));
-  assert.match(html,/>Submitted plan</);
-  assert.match(html,/>Current</);
-  assert.match(html,/>Current coordinates \/ altitude \/ action</);
-  assert.match(html,/View submitted plan waypoints/);
-  assert.doesNotMatch(html,/Nhiệm vụ mới|chưa có kế hoạch trước đó/);
-  assert.doesNotMatch(html,/>Proposed<|>Proposed coordinates \/ altitude \/ action<|>Saved plan<|Plans are not available/);
+  const html = renderToStaticMarkup(React.createElement(Comparison, { isInitial: true, proposed: plan }));
+  assert.match(html, />Submitted plan</);
+  assert.match(html, />Current</);
+  assert.match(html, />Current coordinates \/ altitude \/ action</);
+  assert.match(html, /View submitted plan waypoints/);
+  assert.doesNotMatch(html, /Nhiệm vụ mới|chưa có kế hoạch trước đó/);
+  assert.doesNotMatch(html, />Proposed<|>Proposed coordinates \/ altitude \/ action<|>Saved plan<|Plans are not available/);
 });
 test('update shows both columns and marks changed fields and waypoints', () => {
-  const html=renderToStaticMarkup(React.createElement(Comparison, {current:plan,proposed:{...plan,name:'New',waypoints:[point(1,{altitude:50})]}}));
-  assert.match(html,/>Current</); assert.match(html,/>Proposed</); assert.match(html,/changedRow/); assert.match(html,/Changed/);
+  const html = renderToStaticMarkup(React.createElement(Comparison, { current: plan, proposed: { ...plan, name: 'New', waypoints: [point(1, { altitude: 50 })] } }));
+  assert.match(html, />Current</); assert.match(html, />Proposed</); assert.match(html, /changedRow/); assert.match(html, /Changed/);
 });
 test('unchanged update remains a comparison and explains no changes', () => {
-  const html=renderToStaticMarkup(React.createElement(Comparison, {current:plan,proposed:plan}));
-  assert.match(html,/>Current</); assert.match(html,/No changes from the saved plan\./);
+  const html = renderToStaticMarkup(React.createElement(Comparison, { current: plan, proposed: plan }));
+  assert.match(html, />Current</); assert.match(html, /No changes from the saved plan\./);
 });
 
 test('validation evidence renders textual waypoint/segment locations, exact identities and outdated state', () => {
@@ -87,19 +87,19 @@ test('Error evidence cannot render a passed route with a contradictory isValid f
 });
 
 test('operational envelope changes are highlighted; JSON key order is irrelevant', () => {
- const a = {takeoffSpeedMetersPerSecond:1,maxAltitudeMeters:30};
- assert.deepEqual(planFieldChanges({...plan,automaticFlightLimits:a},{...plan,automaticFlightLimits:{maxAltitudeMeters:30,takeoffSpeedMetersPerSecond:1}}),[]);
- assert.deepEqual(planFieldChanges({...plan,automaticFlightLimits:a},{...plan,automaticFlightLimits:{...a,maxAltitudeMeters:20}}),['automaticFlightLimits']);
- const html=renderToStaticMarkup(React.createElement(Comparison,{isInitial:true,proposed:{...plan,automaticFlightLimits:{...a,climbSpeedMetersPerSecond:1,descentSpeedMetersPerSecond:0.7,landingSpeedMetersPerSecond:0.7,maxWindMetersPerSecond:3,maxGustMetersPerSecond:5,policyVersion:'multicopter-envelope-v1'}}}));
- assert.match(html,/Automatic operating limits/); assert.match(html,/Takeoff 1 m\/s/); assert.match(html,/Ceiling 30 m/);
+  const a = { takeoffSpeedMetersPerSecond: 1, maxAltitudeMeters: 30 };
+  assert.deepEqual(planFieldChanges({ ...plan, automaticFlightLimits: a }, { ...plan, automaticFlightLimits: { maxAltitudeMeters: 30, takeoffSpeedMetersPerSecond: 1 } }), []);
+  assert.deepEqual(planFieldChanges({ ...plan, automaticFlightLimits: a }, { ...plan, automaticFlightLimits: { ...a, maxAltitudeMeters: 20 } }), ['automaticFlightLimits']);
+  const html = renderToStaticMarkup(React.createElement(Comparison, { isInitial: true, proposed: { ...plan, automaticFlightLimits: { ...a, climbSpeedMetersPerSecond: 1, descentSpeedMetersPerSecond: 0.7, landingSpeedMetersPerSecond: 0.7, maxWindMetersPerSecond: 3, maxGustMetersPerSecond: 5, policyVersion: 'multicopter-envelope-v1' } } }));
+  assert.match(html, /Automatic operating limits/); assert.match(html, /Takeoff 1 m\/s/); assert.match(html, /Ceiling 30 m/);
 });
 
-test('nested measurement/survey key order does not fabricate a plan change',()=>{
- const one={...plan,automaticFlightLimits:{recoveryEnergyProfile:{measurementReference:'report',remainingEnergyCurve:[{batteryPercent:0,lowerBoundWh:0},{batteryPercent:100,lowerBoundWh:80}]}}};
- const two={...plan,automaticFlightLimits:{recoveryEnergyProfile:{remainingEnergyCurve:[{lowerBoundWh:0,batteryPercent:0},{lowerBoundWh:80,batteryPercent:100}],measurementReference:'report'}}};
- assert.deepEqual(planFieldChanges(one,two),[]);
- const p=point(1,{navigation:{landingSiteSurvey:{groundClear:true,evidenceReference:'survey'}}});
- const q=point(1,{navigation:{landingSiteSurvey:{evidenceReference:'survey',groundClear:true}}});
- assert.equal(waypointReviewRows([p],[q])[0].changed,false);
- assert.equal(waypointReviewRows([p],[{...q,navigation:{landingSiteSurvey:{evidenceReference:'different survey',groundClear:true}}}])[0].changed,true);
+test('nested measurement/survey key order does not fabricate a plan change', () => {
+  const one = { ...plan, automaticFlightLimits: { recoveryEnergyProfile: { measurementReference: 'report', remainingEnergyCurve: [{ batteryPercent: 0, lowerBoundWh: 0 }, { batteryPercent: 100, lowerBoundWh: 80 }] } } };
+  const two = { ...plan, automaticFlightLimits: { recoveryEnergyProfile: { remainingEnergyCurve: [{ lowerBoundWh: 0, batteryPercent: 0 }, { lowerBoundWh: 80, batteryPercent: 100 }], measurementReference: 'report' } } };
+  assert.deepEqual(planFieldChanges(one, two), []);
+  const p = point(1, { navigation: { landingSiteSurvey: { groundClear: true, evidenceReference: 'survey' } } });
+  const q = point(1, { navigation: { landingSiteSurvey: { evidenceReference: 'survey', groundClear: true } } });
+  assert.equal(waypointReviewRows([p], [q])[0].changed, false);
+  assert.equal(waypointReviewRows([p], [{ ...q, navigation: { landingSiteSurvey: { evidenceReference: 'different survey', groundClear: true } } }])[0].changed, true);
 });
